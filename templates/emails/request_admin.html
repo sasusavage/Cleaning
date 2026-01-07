@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>New Request Notification</title>
+</head>
+<body style="font-family: Arial, sans-serif; color: #111; background-color: #f7f9fc; padding: 24px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #e5e9f2;">
+        <tr style="background: #1f3c88; color: #ffffff;">
+            <td style="padding: 20px 24px;">
+                <h1 style="margin: 0; font-size: 20px;">New {{ request.request_type|capitalize }} Request</h1>
+                <p style="margin: 4px 0 0; font-size: 14px; opacity: 0.85;">Submitted {{ request.created_at }}</p>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 24px;">
+                <p style="margin-top: 0; font-size: 15px;">Hi team,</p>
+                <p style="font-size: 15px;">A new {{ request.request_type }} request has been submitted via the website. Key details are below:</p>
+
+                <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 14px; margin: 16px 0; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 6px 0; color: #6a7180; width: 160px;">Reference</td>
+                        <td style="padding: 6px 0; color: #111;">{{ request.ref_id or 'Pending assignment' }}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 0; color: #6a7180; width: 160px;">Name</td>
+                        <td style="padding: 6px 0; color: #111;">{{ request.name }}</td>
+                    </tr>
+                    {% if request.email %}
+                    <tr>
+                        <td style="padding: 6px 0; color: #6a7180;">Email</td>
+                        <td style="padding: 6px 0; color: #111;"><a href="mailto:{{ request.email }}" style="color: #1f3c88;">{{ request.email }}</a></td>
+                    </tr>
+                    {% endif %}
+                    {% if request.phone %}
+                    <tr>
+                        <td style="padding: 6px 0; color: #6a7180;">Phone</td>
+                        <td style="padding: 6px 0; color: #111;"><a href="tel:{{ request.phone|replace(' ', '') }}" style="color: #1f3c88;">{{ request.phone }}</a></td>
+                    </tr>
+                    {% endif %}
+                    {% if request.service_name %}
+                    <tr>
+                        <td style="padding: 6px 0; color: #6a7180;">Service</td>
+                        <td style="padding: 6px 0; color: #111;">{{ request.service_name }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if request.job_position %}
+                    <tr>
+                        <td style="padding: 6px 0; color: #6a7180;">Position</td>
+                        <td style="padding: 6px 0; color: #111;">{{ request.job_position }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if request.context_page %}
+                    <tr>
+                        <td style="padding: 6px 0; color: #6a7180;">Page</td>
+                        <td style="padding: 6px 0; color: #111;">{{ request.context_page }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if request.source %}
+                    <tr>
+                        <td style="padding: 6px 0; color: #6a7180;">Source</td>
+                        <td style="padding: 6px 0; color: #111;">{{ request.source }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td style="padding: 6px 0; color: #6a7180;">Status</td>
+                        <td style="padding: 6px 0; color: #111;">{{ request.status|replace('_', ' ')|title }}</td>
+                    </tr>
+                </table>
+
+                {% if order_items %}
+                <h2 style="font-size: 16px; margin: 24px 0 12px; color: #1f3c88;">📋 Order Summary</h2>
+                <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 14px; margin: 0 0 16px; border-collapse: collapse; border: 1px solid #e5e9f2; border-radius: 6px; overflow: hidden;">
+                    <thead>
+                        <tr style="background: #1f3c88; color: #ffffff;">
+                            <th style="padding: 10px 12px; text-align: left;">Service</th>
+                            <th style="padding: 10px 12px; text-align: left;">Details</th>
+                            <th style="padding: 10px 12px; text-align: right; width: 100px;">Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in order_items %}
+                        <tr style="background: {{ '#ffffff' if loop.index0 % 2 == 0 else '#f7f9fc' }};">
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #e5e9f2; font-weight: 600; color: #1f3c88;">
+                                {{ item.service_name }}
+                            </td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #e5e9f2; color: #4b5563; white-space: pre-wrap; max-width: 300px;">
+                                {{ item.detail or '—' }}
+                            </td>
+                            <td style="padding: 8px 12px; text-align: right; border-bottom: 1px solid #e5e9f2;">
+                                {% if item.is_survey %}
+                                <em style="color: #92400e;">Quote TBD</em>
+                                {% elif item.price is not none %}
+                                £{{ '%.2f'|format(item.price) }}
+                                {% else %}—{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if order_totals %}
+                    <tfoot style="background: #f1f5f9; font-weight: 600;">
+                        {% if order_totals.discount_applied %}
+                        <tr>
+                            <td colspan="2" style="padding: 8px 12px; text-align: right; color: #059669;">Bulk Discount ({{ order_totals.discount_percent }}%)</td>
+                            <td style="padding: 8px 12px; text-align: right; color: #059669;">-£{{ '%.2f'|format(order_totals.discount_amount) }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if order_totals.travel_fee and order_totals.travel_fee > 0 %}
+                        <tr>
+                            <td colspan="2" style="padding: 8px 12px; text-align: right; color: #6b7280;">Travel Fee</td>
+                            <td style="padding: 8px 12px; text-align: right;">£{{ '%.2f'|format(order_totals.travel_fee) }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if order_totals.final_total is not none and not order_totals.is_survey_request %}
+                        <tr>
+                            <td colspan="2" style="padding: 10px 12px; text-align: right; border-top: 2px solid #1f3c88; font-size: 15px;">Total</td>
+                            <td style="padding: 10px 12px; text-align: right; border-top: 2px solid #1f3c88; color: #1f3c88; font-size: 15px;">£{{ '%.2f'|format(order_totals.final_total) }}</td>
+                        </tr>
+                        {% elif order_totals.is_survey_request or order_totals.has_custom_pricing %}
+                        <tr>
+                            <td colspan="3" style="padding: 10px 12px; text-align: right; border-top: 2px solid #d97706; color: #92400e;">
+                                ⚠ Survey/Quote Required
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tfoot>
+                    {% endif %}
+                </table>
+                {% if schedule_info %}
+                <div style="padding: 10px 12px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; font-size: 13px; margin-bottom: 16px;">
+                    <strong style="color: #92400e;">📅 Preferred Schedule:</strong> {{ schedule_info }}
+                </div>
+                {% endif %}
+                {% endif %}
+
+                {% if location_info %}
+                <h2 style="font-size: 16px; margin: 24px 0 12px; color: #1f3c88;">📍 Service Location</h2>
+                <div style="padding: 16px; background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%); border: 1px solid #7dd3fc; border-radius: 6px;">
+                    {% if location_info.address %}
+                    <p style="margin: 0 0 8px; font-size: 14px;"><strong>Address:</strong> {{ location_info.address }}</p>
+                    {% endif %}
+                    {% if location_info.postcode %}
+                    <p style="margin: 0 0 8px; font-size: 14px;"><strong>Area/Postcode:</strong> {{ location_info.postcode }}</p>
+                    {% endif %}
+                    {% if location_info.map_url %}
+                    <a href="{{ location_info.map_url }}" target="_blank" rel="noopener" style="display: inline-block; margin-top: 8px; padding: 10px 16px; background: #0284c7; color: #ffffff; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px;">
+                        📍 View on Google Maps
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if assigned_base_info %}
+                <h2 style="font-size: 16px; margin: 24px 0 12px; color: #1f3c88;">🏢 Assigned Base</h2>
+                <div style="padding: 16px; background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%); border: 1px solid #fbbf24; border-radius: 6px;">
+                    {% if assigned_base_info.base_name %}
+                    <p style="margin: 0 0 8px; font-size: 14px;"><strong>Base:</strong> {{ assigned_base_info.base_name }}{% if assigned_base_info.base_postcode %} ({{ assigned_base_info.base_postcode }}){% endif %}</p>
+                    {% endif %}
+                    {% if assigned_base_info.distance_miles %}
+                    <p style="margin: 0 0 8px; font-size: 14px;"><strong>Distance:</strong> {{ '%.1f'|format(assigned_base_info.distance_miles) }} miles</p>
+                    {% endif %}
+                    {% if assigned_base_info.travel_time_minutes %}
+                    <p style="margin: 0 0 8px; font-size: 14px;"><strong>Travel Time:</strong> {{ assigned_base_info.travel_time_minutes|int }} minutes (one-way)</p>
+                    {% endif %}
+                    {% if assigned_base_info.is_extended_coverage %}
+                    <p style="margin: 0; padding: 8px 12px; background: #fef9c3; border-radius: 4px; font-size: 13px; color: #92400e;">
+                        ⚠️ <strong>Extended Coverage:</strong> This location is outside our standard service area. Round-trip travel charges apply.
+                    </p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if customer_notes %}
+                <h2 style="font-size: 16px; margin: 24px 0 12px; color: #1f3c88;">Customer Notes</h2>
+                <p style="margin: 0; padding: 16px; background: #f7f9fc; border-radius: 6px; border: 1px solid #e4e9f2; white-space: pre-wrap;">{{ customer_notes }}</p>
+                {% elif not order_items %}
+                <h2 style="font-size: 16px; margin: 24px 0 12px; color: #1f3c88;">Message</h2>
+                <p style="margin: 0; padding: 16px; background: #f7f9fc; border-radius: 6px; border: 1px solid #e4e9f2; white-space: pre-wrap;">{{ request.message or 'No message provided.' }}</p>
+                {% endif %}
+
+                {% if attachments %}
+                <h2 style="font-size: 16px; margin: 24px 0 12px; color: #1f3c88;">Attachments</h2>
+                <ul style="margin: 0; padding-left: 20px; color: #111;">
+                    {% for file in attachments %}
+                    <li style="padding: 4px 0;">{{ file.filename }}{% if file.file_size_bytes %} ({{ (file.file_size_bytes / 1024)|round(1) }} KB){% endif %}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+
+                <p style="font-size: 14px; margin: 24px 0 0; color: #6a7180;">View and manage this request in the admin dashboard.</p>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 16px 24px; background: #f1f3f9; font-size: 12px; color: #6a7180;">
+                This notification was generated by the Clean Co. website.
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

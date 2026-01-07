@@ -9,8 +9,247 @@ document.addEventListener("DOMContentLoaded", function () {
     var preloader = document.getElementById("preloader");
     var body = document.body;
     var yearSpan = document.getElementById("year");
-    var form = document.getElementById("quote-form");
-    var feedback = document.querySelector(".form-feedback");
+    var serviceGrid = document.querySelector("[data-services-grid]");
+    var serviceDrawerGrid = document.getElementById("services-drawer-grid");
+    var servicesDrawer = document.getElementById("services-drawer");
+    var serviceDrawerToggle = document.querySelector('[data-drawer-toggle="services-drawer"]');
+    var servicesEmptyState = document.getElementById("services-empty");
+    var rawCatalog = Array.isArray(window.SERVICE_CATALOG) ? window.SERVICE_CATALOG : [];
+    var askForPostcode = Boolean(window.ASK_FOR_POSTCODE);
+    var TRAVEL_QUOTE_KEY = "travel_quote_v1";
+    var TRAVEL_POSTCODE_KEY = "travel_postcode_v1";
+    var currencyFormatter;
+    try {
+        currencyFormatter = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", minimumFractionDigits: 2 });
+    } catch (error) {
+        currencyFormatter = null;
+    }
+
+    var setStoredTravelQuote = function (quote, postcode) {
+        try {
+            if (quote) {
+                sessionStorage.setItem(TRAVEL_QUOTE_KEY, JSON.stringify(quote));
+            } else {
+                sessionStorage.removeItem(TRAVEL_QUOTE_KEY);
+            }
+            if (postcode) {
+                sessionStorage.setItem(TRAVEL_POSTCODE_KEY, postcode);
+            } else if (!quote) {
+                sessionStorage.removeItem(TRAVEL_POSTCODE_KEY);
+            }
+        } catch (error) {
+            console.warn("Unable to persist travel quote", error);
+        }
+    };
+
+    var getStoredTravelQuote = function () {
+        try {
+            var stored = sessionStorage.getItem(TRAVEL_QUOTE_KEY);
+            return stored ? JSON.parse(stored) : null;
+        } catch (error) {
+            console.warn("Unable to read travel quote", error);
+            return null;
+        }
+    };
+
+    var getStoredPostcode = function () {
+        try {
+            return sessionStorage.getItem(TRAVEL_POSTCODE_KEY) || "";
+        } catch (error) {
+            return "";
+        }
+    };
+
+    var normalizePostcodeValue = function (value) {
+        return (value || "").toString().trim().toUpperCase().replace(/\s+/g, "");
+    };
+
+    var normalizePriceValue = function (value) {
+        if (value === null || value === undefined || value === "") {
+            return null;
+        }
+        var numeric = Number(value);
+        return Number.isNaN(numeric) ? null : numeric;
+    };
+
+    var escapeHtml = function (text) {
+        if (!text) return "";
+        var div = document.createElement("div");
+        div.textContent = String(text);
+        return div.innerHTML;
+    };
+
+    var deriveStartingPrice = function (service) {
+        if (!service) return null;
+        var candidates = [];
+        if (Array.isArray(service.pricing) && service.pricing.length) {
+            candidates = candidates.concat(service.pricing.map(function (option) { return normalizePriceValue(option.price); }));
+        }
+        if (Array.isArray(service.pricing_items)) {
+            candidates = candidates.concat(service.pricing_items.map(function (item) { return normalizePriceValue(item.price); }));
+        }
+        if (Array.isArray(service.tenancy_rates)) {
+            service.tenancy_rates.forEach(function (rate) {
+                candidates.push(normalizePriceValue(rate.standard_price));
+                candidates.push(normalizePriceValue(rate.deep_clean_price));
+            });
+        }
+        if (Array.isArray(service.pricing_tiers)) {
+            candidates = candidates.concat(service.pricing_tiers.map(function (tier) { return normalizePriceValue(tier.hourly_rate); }));
+        }
+        candidates = candidates.filter(function (v) { return v !== null; });
+        if (!candidates.length) return null;
+        return Math.min.apply(Math, candidates);
+    };
+
+        var normalizeService = function (service) {
+        if (!service || typeof service !== "object") {
+            return null;
+        }
+        var options = Array.isArray(service.pricing) ? service.pricing : (Array.isArray(service.options) ? service.options : []);
+        var pricing = options.map(function (option) {
+            var priceValue = normalizePriceValue(option && (option.price !== undefined ? option.price : option.option_price));
+            return {
+                id: option && (option.id !== undefined ? option.id : option.option_id),
+                label: option && (option.label || option.option_label || ""),
+                details: option && option.details ? option.details : "",
+                price: priceValue
+            };
+        }).filter(function (option) { return option && option.id !== undefined && option.id !== null; });
+
+        var normalized = {
+            id: service.id,
+            name: service.name || service.title || "",
+            description: service.description || "",
+            short_description: service.short_description || service.description || "",
+            image: service.image || service.image_path || "",
+            pricing: pricing,
+            pricing_items: Array.isArray(service.pricing_items) ? service.pricing_items : [],
+            pricing_tiers: Array.isArray(service.pricing_tiers) ? service.pricing_tiers : [],
+            tenancy_rates: Array.isArray(service.tenancy_rates) ? service.tenancy_rates : [],
+            discount_threshold: normalizePriceValue(service.discount_threshold),
+            discount_percent: normalizePriceValue(service.discount_percent),
+            pricing_type: service.pricing_type || null,
+            table_header_col1: service.table_header_col1 || 'Property Type',
+            table_header_col2: service.table_header_col2 || 'Standard Price',
+            table_header_col3: service.table_header_col3 || 'Upgrade Option',
+            allow_multiselect: service.allow_multiselect || 0
+        };
+
+        normalized.startingPrice = deriveStartingPrice(normalized);
+
+        return normalized;
+    };
+
+    var SERVICE_CATALOG = rawCatalog.map(normalizeService).filter(Boolean);
+
+    var formatPrice = function (value) {
+        if (typeof value !== "number" || Number.isNaN(value)) {
+            return "Custom quote";
+        }
+        return currencyFormatter ? currencyFormatter.format(value) : "£" + value.toFixed(2);
+    };
+
+    var formatDescription = function (text) {
+        if (!text) return "";
+        var safe = String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        return safe.replace(/\n/g, "<br>");
+    };
+
+    var resolveImagePath = function (path) {
+        if (!path) {
+            return "";
+        }
+        if (/^https?:/i.test(path)) {
+            return path;
+        }
+        var normalized = String(path).replace(/^\/+/, "");
+        return "/" + normalized;
+    };
+
+    var getMinimumPrice = function (pricing) {
+        if (!Array.isArray(pricing) || !pricing.length) {
+            return null;
+        }
+        var numericValues = pricing
+            .map(function (option) { return typeof option.price === "number" && !Number.isNaN(option.price) ? option.price : null; })
+            .filter(function (value) { return value !== null; });
+        if (!numericValues.length) {
+            return null;
+        }
+        return Math.min.apply(Math, numericValues);
+    };
+
+    var renderServiceCards = function () {
+        if (!serviceGrid) {
+            return;
+        }
+        if (!SERVICE_CATALOG.length) {
+            serviceGrid.innerHTML = "";
+            if (serviceDrawerGrid) serviceDrawerGrid.innerHTML = "";
+            if (servicesEmptyState) servicesEmptyState.hidden = false;
+            if (servicesDrawer) servicesDrawer.setAttribute("aria-hidden", "true");
+            if (serviceDrawerToggle) serviceDrawerToggle.style.display = "none";
+            return;
+        }
+
+        if (servicesEmptyState) {
+            servicesEmptyState.hidden = true;
+        }
+
+        var primary = SERVICE_CATALOG.slice(0, 3);
+        var extra = SERVICE_CATALOG.slice(3);
+
+        var buildCards = function (list) {
+            return list.map(function (service) {
+                var minPrice = service.startingPrice !== undefined ? service.startingPrice : getMinimumPrice(service.pricing);
+                var priceLabel = typeof minPrice === "number" && !Number.isNaN(minPrice) ? "from " + formatPrice(minPrice) : "Custom pricing";
+                var summary = service.short_description || service.description || "";
+                var imageMarkup = service.image ? (
+                    '<div class="card-image-container"><img src="' + resolveImagePath(service.image) + '" class="card-image" alt="' + (service.name || "Service") + ' image" loading="lazy"></div>'
+                ) : "";
+                return (
+                    '<article class="service-card" data-animate="reveal">' +
+                        imageMarkup +
+                        '<div class="service-card__body">' +
+                            '<h3>' + (service.name || "Service") + '</h3>' +
+                            '<p class="service-card__description">' + summary + '</p>' +
+                            '<button class="link-button service-read-more" type="button" data-service-id="' + service.id + '" data-auto-expand="true" style="justify-content:flex-start; padding:0;">Read More...</button>' +
+                            '<p class="service-card__price">' + priceLabel + '</p>' +
+                            '<button class="button button--ghost service-request-trigger" type="button" data-service-id="' + service.id + '" style="margin-top: 1.25rem; width: 100%; justify-content: center;">Request This Service</button>' +
+                        '</div>' +
+                    '</article>'
+                );
+            }).join("");
+        };
+
+        serviceGrid.innerHTML = buildCards(primary);
+
+        if (serviceDrawerGrid) {
+            serviceDrawerGrid.innerHTML = buildCards(extra);
+        }
+
+        if (serviceDrawerToggle) {
+            if (extra.length) {
+                serviceDrawerToggle.style.display = "inline-flex";
+                var label = "View " + extra.length + " more service" + (extra.length === 1 ? "" : "s");
+                serviceDrawerToggle.textContent = label;
+                serviceDrawerToggle.setAttribute("data-drawer-expand-label", label);
+            } else {
+                serviceDrawerToggle.style.display = "none";
+                if (servicesDrawer) {
+                    servicesDrawer.classList.remove("is-open");
+                    servicesDrawer.setAttribute("aria-hidden", "true");
+                }
+            }
+        }
+    };
+
+    renderServiceCards();
+    animatedElements = document.querySelectorAll("[data-animate]");
 
     if (yearSpan) {
         yearSpan.textContent = new Date().getFullYear();
@@ -184,34 +423,2499 @@ document.addEventListener("DOMContentLoaded", function () {
         body.classList.add("is-loaded");
     }
 
-    if (form && feedback) {
-        form.addEventListener("submit", function (event) {
+    var apiBase = window.location.origin;
+
+    var sendAnalyticsEvent = function (eventType, eventData) {
+        if (!eventType) {
+            return;
+        }
+        try {
+            fetch(apiBase + "/api/analytics/event", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    event_type: eventType,
+                    event_data: eventData || {}
+                })
+            }).catch(function () {
+                /* Best-effort logging */
+            });
+        } catch (error) {
+            /* Ignore analytics failures */
+        }
+    };
+
+    // Testimonial Form
+    var testimonialForm = document.getElementById("testimonial-form");
+    var testimonialFeedback = document.getElementById("testimonial-feedback");
+    var starRating = document.getElementById("star-rating");
+    var ratingInput = document.getElementById("testimonial-rating");
+
+    // Star rating interaction
+    if (starRating && ratingInput) {
+        var starButtons = starRating.querySelectorAll(".star-btn");
+        
+        starButtons.forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var rating = parseInt(btn.getAttribute("data-rating"), 10);
+                ratingInput.value = rating;
+                
+                // Update visual state
+                starButtons.forEach(function (star) {
+                    var starValue = parseInt(star.getAttribute("data-rating"), 10);
+                    if (starValue <= rating) {
+                        star.classList.add("active");
+                    } else {
+                        star.classList.remove("active");
+                    }
+                });
+            });
+            
+            // Hover effect
+            btn.addEventListener("mouseenter", function () {
+                var hoverRating = parseInt(btn.getAttribute("data-rating"), 10);
+                starButtons.forEach(function (star) {
+                    var starValue = parseInt(star.getAttribute("data-rating"), 10);
+                    if (starValue <= hoverRating) {
+                        star.style.color = "#f59e0b";
+                    } else {
+                        star.style.color = "";
+                    }
+                });
+            });
+        });
+        
+        // Reset on mouse leave
+        starRating.addEventListener("mouseleave", function () {
+            var currentRating = parseInt(ratingInput.value, 10);
+            starButtons.forEach(function (star) {
+                star.style.color = "";
+                var starValue = parseInt(star.getAttribute("data-rating"), 10);
+                if (starValue <= currentRating) {
+                    star.classList.add("active");
+                } else {
+                    star.classList.remove("active");
+                }
+            });
+        });
+    }
+
+    // Testimonial form submission
+    if (testimonialForm && testimonialFeedback) {
+        var testimonialSubmitBtn = testimonialForm.querySelector('button[type="submit"]');
+        var testimonialSubmitting = false;
+
+        testimonialForm.addEventListener("submit", async function (event) {
             event.preventDefault();
 
-            var name = form.elements.name.value.trim();
-            var phone = form.elements.phone.value.trim();
-            var service = form.elements.service.value;
-            var errorMessage = "";
+            if (testimonialSubmitting) return;
+            testimonialSubmitting = true;
 
-            if (!name) {
-                errorMessage = "Please enter your full name.";
-            } else if (!phone || phone.replace(/[^0-9]/g, "").length < 6) {
-                errorMessage = "Please provide a valid phone number.";
-            } else if (!service) {
-                errorMessage = "Please choose the service you need.";
+            if (testimonialSubmitBtn) {
+                testimonialSubmitBtn.disabled = true;
+                testimonialSubmitBtn.textContent = "Submitting...";
             }
 
-            feedback.classList.remove("is-error", "is-success");
+            var name = (testimonialForm.elements.name.value || "").trim();
+            var email = (testimonialForm.elements.email.value || "").trim();
+            var rating = parseInt(ratingInput ? ratingInput.value : 5, 10);
+            var message = (testimonialForm.elements.message.value || "").trim();
 
-            if (errorMessage) {
-                feedback.textContent = errorMessage;
-                feedback.classList.add("is-error");
+            testimonialFeedback.classList.remove("is-error", "is-success");
+            testimonialFeedback.textContent = "";
+
+            // Validate
+            if (!name) {
+                testimonialFeedback.textContent = "Please enter your name.";
+                testimonialFeedback.classList.add("is-error");
+                testimonialSubmitting = false;
+                if (testimonialSubmitBtn) {
+                    testimonialSubmitBtn.disabled = false;
+                    testimonialSubmitBtn.textContent = "Submit Review";
+                }
                 return;
             }
 
-            feedback.textContent = "Thank you! We'll call you back within 24 hours.";
-            feedback.classList.add("is-success");
-            form.reset();
+            if (!message || message.length < 10) {
+                testimonialFeedback.textContent = "Please write a review (at least 10 characters).";
+                testimonialFeedback.classList.add("is-error");
+                testimonialSubmitting = false;
+                if (testimonialSubmitBtn) {
+                    testimonialSubmitBtn.disabled = false;
+                    testimonialSubmitBtn.textContent = "Submit Review";
+                }
+                return;
+            }
+
+            try {
+                var response = await fetch(apiBase + "/api/testimonials/submit", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        email: email,
+                        rating: rating,
+                        message: message
+                    })
+                });
+
+                var data = await response.json();
+
+                if (response.ok) {
+                    testimonialFeedback.textContent = data.message || "Thank you for your review!";
+                    testimonialFeedback.classList.add("is-success");
+                    testimonialForm.reset();
+                    // Reset stars to 5
+                    if (ratingInput) ratingInput.value = 5;
+                    if (starRating) {
+                        starRating.querySelectorAll(".star-btn").forEach(function (star) {
+                            star.classList.add("active");
+                        });
+                    }
+                    sendAnalyticsEvent("testimonial_submission", { verified: data.is_verified });
+                } else {
+                    testimonialFeedback.textContent = data.error || "Unable to submit review. Please try again.";
+                    testimonialFeedback.classList.add("is-error");
+                }
+            } catch (error) {
+                testimonialFeedback.textContent = "Unable to submit review. Please try again.";
+                testimonialFeedback.classList.add("is-error");
+                console.error("Testimonial submission failed", error);
+            } finally {
+                testimonialSubmitting = false;
+                if (testimonialSubmitBtn) {
+                    testimonialSubmitBtn.disabled = false;
+                    testimonialSubmitBtn.textContent = "Submit Review";
+                }
+            }
+        });
+    }
+
+    // Multi-step Service Flow
+    var serviceModal = document.getElementById("service-modal");
+    var postcodeModal = document.getElementById("postcode-modal");
+    var coverageModal = document.getElementById("coverage-modal");
+    var extendedCoverageModal = document.getElementById("extended-coverage-modal");
+    var extendedCoverageFee = document.getElementById("extended-coverage-fee");
+    var extendedCoverageMessage = document.getElementById("extended-coverage-message");
+    var extendedCoverageProceed = document.getElementById("extended-coverage-proceed");
+    var extendedCoverageCancel = document.getElementById("extended-coverage-cancel");
+    var extendedCoverageClose = document.getElementById("extended-coverage-close");
+    var pendingExtendedCoverageQuote = null;
+    var postcodeForm = document.getElementById("postcode-form");
+    var postcodeInput = document.getElementById("postcode-entry");
+    var postcodeFeedback = document.getElementById("postcode-feedback");
+    var postcodeSubmitButton = postcodeForm ? postcodeForm.querySelector("[data-postcode-submit]") : null;
+    var editLocationButton = document.getElementById("flow-edit-location");
+    var serviceFlowForm = document.getElementById("service-request-flow");
+    var pendingServiceId = null;
+    var pendingAutoExpand = false;
+    var autoExpandDescription = false;
+
+    if (serviceModal && serviceFlowForm) {
+        var flowSteps = Array.from(serviceModal.querySelectorAll("[data-flow-step]"));
+        var flowIndicators = Array.from(serviceModal.querySelectorAll("[data-flow-step-indicator]"));
+        var flowOptionsContainer = document.getElementById("flow-options");
+        var flowServiceName = document.getElementById("flow-service-name");
+        var flowServiceDescription = document.getElementById("flow-service-description");
+        var flowServiceIndex = document.getElementById("flow-service-index");
+        var flowServiceCount = document.getElementById("flow-service-count");
+        var flowPriceDisplay = document.getElementById("flow-price-display");
+        var flowNextButton = serviceModal.querySelector("[data-flow-next]");
+        var flowSurveyButton = null;
+        var flowPrevButton = serviceModal.querySelector("[data-flow-prev]");
+        var flowSkipButton = serviceModal.querySelector("[data-flow-skip]");
+        var flowSummaryBackButton = serviceModal.querySelector("[data-flow-summary-back]");
+        var flowSummaryNextButton = serviceModal.querySelector("[data-flow-summary-next]");
+        var flowScheduleBackButton = serviceModal.querySelector("[data-flow-schedule-back]");
+        var flowSubmitButton = serviceModal.querySelector("[data-flow-submit]");
+        var flowMiniCartList = document.getElementById("flow-mini-cart");
+        var flowMiniCartTotal = document.getElementById("flow-mini-cart-total");
+        var flowMiniServicesTotal = document.getElementById("flow-mini-services-total");
+        var flowMiniLogisticsRow = document.getElementById("flow-mini-logistics-row");
+        var flowMiniLogisticsFee = document.getElementById("flow-mini-logistics-fee");
+        var flowMiniCount = document.getElementById("flow-mini-count");
+        var flowSummaryList = document.getElementById("flow-summary-services");
+        var flowSummaryServicesTotal = document.getElementById("flow-summary-services-total");
+        var flowSummaryTravelRow = document.getElementById("flow-summary-travel-row");
+        var flowSummaryTravel = document.getElementById("flow-summary-travel");
+        var flowSummaryTravelNote = document.getElementById("flow-summary-travel-note");
+        var flowSummaryTotal = document.getElementById("flow-summary-total");
+        var flowSummaryFeedback = document.getElementById("flow-summary-feedback");
+        var flowSummaryPostcodeInput = document.getElementById("flow-summary-postcode");
+        var flowRefreshTravelButton = document.querySelector("[data-flow-refresh-travel]");
+        var flowFeedback = document.getElementById("flow-feedback");
+        var flowNameInput = document.getElementById("flow-name");
+        var flowEmailInput = document.getElementById("flow-email");
+        var flowPhoneInput = document.getElementById("flow-phone");
+        var flowLocationInput = document.getElementById("flow-location");
+        var flowPostcodeInput = document.getElementById("flow-postcode");
+        var flowDateInput = document.getElementById("flow-date");
+        var flowTimeInput = document.getElementById("flow-time");
+        var flowNotesInput = document.getElementById("flow-notes");
+        var FLOW_STATE_KEY = "serviceFlowWizard";
+        var currentServiceIndex = 0;
+        var activeStep = 1;
+        var serviceQueue = []; // Reordered service IDs for the flow
+        var submissionPending = false; // Lock to prevent duplicate form submissions
+        var defaultSubmitLabel = flowSubmitButton ? flowSubmitButton.textContent : "Submit Request";
+        var surveySubmitLabel = "Submit Enquiry";
+
+        var setSubmitButtonLabel = function (hasSurvey) {
+            if (!flowSubmitButton) {
+                return;
+            }
+            flowSubmitButton.textContent = hasSurvey ? surveySubmitLabel : defaultSubmitLabel;
+        };
+
+        var createDefaultFlowState = function () {
+            return {
+                selections: {},
+                customer: {
+                    name: "",
+                    email: "",
+                    phone: "",
+                    location: "",
+                    postcode: ""
+                },
+                schedule: {
+                    preferred_date: "",
+                    preferred_time: ""
+                },
+                notes: "",
+                travelQuote: null,
+                travelPostcodeSnapshot: "",
+                extendedCoverageAccepted: false
+            };
+        };
+
+        var loadFlowState = function () {
+            try {
+                var stored = sessionStorage.getItem(FLOW_STATE_KEY);
+                if (stored) {
+                    return Object.assign(createDefaultFlowState(), JSON.parse(stored));
+                }
+            } catch (error) {
+                console.warn("Unable to load service flow state", error);
+            }
+            return createDefaultFlowState();
+        };
+
+        var flowState = loadFlowState();
+        if (flowState.travelPostcodeSnapshot === undefined) {
+            flowState.travelPostcodeSnapshot = "";
+        }
+
+        var updateTravelSnapshot = function (value) {
+            flowState.travelPostcodeSnapshot = normalizePostcodeValue(value || "");
+        };
+        var storedPostcode = getStoredPostcode();
+        var storedQuote = getStoredTravelQuote();
+        if (askForPostcode) {
+            if (storedPostcode && !flowState.customer.postcode) {
+                flowState.customer.postcode = storedPostcode;
+            }
+            if (storedQuote && !flowState.travelQuote) {
+                flowState.travelQuote = storedQuote;
+            }
+            if (!flowState.travelPostcodeSnapshot && (flowState.customer.postcode || storedPostcode)) {
+                updateTravelSnapshot(flowState.customer.postcode || storedPostcode);
+            }
+        }
+
+        var persistFlowState = function () {
+            try {
+                sessionStorage.setItem(FLOW_STATE_KEY, JSON.stringify(flowState));
+            } catch (error) {
+                console.warn("Unable to persist service flow state", error);
+            }
+        };
+
+        var shouldRefreshTravelQuote = function (value) {
+            if (!askForPostcode) {
+                return false;
+            }
+            var target = normalizePostcodeValue(value || flowState.customer.postcode || "");
+            var snapshot = normalizePostcodeValue(flowState.travelPostcodeSnapshot || "");
+            if (!target) {
+                return Boolean(snapshot);
+            }
+            if (!flowState.travelQuote) {
+                return true;
+            }
+            return snapshot !== target;
+        };
+
+        var getOrderedSelections = function () {
+            return SERVICE_CATALOG.map(function (service) {
+                var selection = flowState.selections[service.id];
+                if (!selection) {
+                    return null;
+                }
+                var normalizedPrice = normalizePriceValue(selection.price);
+                var optionLabel = selection.optionLabel || selection.label || "Custom package";
+                var optionDetails = selection.optionDetails || selection.details || "";
+                return Object.assign({
+                    serviceId: service.id,
+                    serviceName: service.name,
+                    optionLabel: optionLabel,
+                    optionDetails: optionDetails,
+                    price: normalizedPrice,
+                    priceDisplay: selection.priceDisplay || (normalizedPrice !== null ? formatPrice(normalizedPrice) : "Custom quote"),
+                    modelType: selection.modelType || null,
+                    payload: selection.payload || null
+                }, selection);
+            }).filter(Boolean);
+        };
+
+        var lastSummaryTotals = { serviceTotal: 0, hasCustom: false, hasSurvey: false };
+
+        var updateMiniCartTotals = function (serviceTotal, travelFee, hasCustom, hasSurvey) {
+            if (!flowMiniCartTotal) {
+                return;
+            }
+            var visibleTravel = typeof travelFee === "number" && travelFee > 0 && !hasSurvey;
+            if (flowMiniServicesTotal) {
+                if (hasSurvey) {
+                    flowMiniServicesTotal.textContent = "To be confirmed";
+                } else {
+                    flowMiniServicesTotal.textContent = hasCustom && !serviceTotal ? "Custom quote" : hasCustom ? "from " + formatPrice(serviceTotal || 0) : formatPrice(serviceTotal || 0);
+                }
+            }
+            if (flowMiniLogisticsRow) {
+                flowMiniLogisticsRow.style.display = visibleTravel ? "block" : "none";
+            }
+            if (flowMiniLogisticsFee) {
+                flowMiniLogisticsFee.textContent = visibleTravel ? formatPrice(travelFee) : "—";
+            }
+
+            var grand = null;
+            if (!hasSurvey && typeof serviceTotal === "number" && !Number.isNaN(serviceTotal)) {
+                grand = serviceTotal;
+            }
+            if (visibleTravel) {
+                grand = (grand || 0) + travelFee;
+            }
+
+            if (flowMiniCartTotal) {
+                if (hasSurvey) {
+                    flowMiniCartTotal.textContent = "To be confirmed";
+                } else if (hasCustom && grand === null) {
+                    flowMiniCartTotal.textContent = "Custom quote";
+                } else if (hasCustom && grand !== null) {
+                    flowMiniCartTotal.textContent = "from " + formatPrice(grand);
+                } else {
+                    flowMiniCartTotal.textContent = grand === null ? "—" : formatPrice(grand);
+                }
+            }
+        };
+
+        var updateSummaryTotals = function (serviceTotal, hasCustom, travelMessage, hasSurvey) {
+            lastSummaryTotals = { serviceTotal: serviceTotal, hasCustom: hasCustom, hasSurvey: hasSurvey };
+
+            if (flowSummaryServicesTotal) {
+                if (hasSurvey) {
+                    flowSummaryServicesTotal.textContent = "To be confirmed (survey required)";
+                } else {
+                    flowSummaryServicesTotal.textContent = hasCustom && !serviceTotal ? "Custom quote" : hasCustom ? "from " + formatPrice(serviceTotal) : formatPrice(serviceTotal);
+                }
+            }
+
+            var travelQuote = flowState.travelQuote || getStoredTravelQuote();
+            var travelFee = travelQuote && typeof travelQuote.travel_fee === "number" && !Number.isNaN(travelQuote.travel_fee) ? travelQuote.travel_fee : null;
+            var travelVisible = typeof travelFee === "number" && travelFee > 0;
+            var travelNote = "";
+            var isExtendedCoverage = travelQuote && travelQuote.is_extended_coverage === true;
+
+            if (hasSurvey) {
+                travelVisible = false;
+                travelFee = null;
+            }
+
+            if (travelVisible) {
+                var baseNote = "Includes call-out, equipment transport, and distance coverage.";
+                if (isExtendedCoverage) {
+                    baseNote = "Extended coverage area. " + baseNote;
+                }
+                if (travelMessage) {
+                    travelNote = baseNote + " " + travelMessage;
+                } else if (travelQuote && travelQuote.pricing_method === "tomtom") {
+                    travelNote = baseNote + " Based on live traffic data.";
+                } else {
+                    travelNote = baseNote;
+                }
+            }
+
+            if (flowSummaryTravelRow) {
+                flowSummaryTravelRow.style.display = travelVisible ? "flex" : "none";
+            }
+            if (flowSummaryTravel) {
+                flowSummaryTravel.textContent = travelVisible ? formatPrice(travelFee) : "—";
+            }
+            if (flowSummaryTravelNote) {
+                flowSummaryTravelNote.textContent = travelVisible ? (travelNote || "") : "";
+            }
+
+            var grandTotal = null;
+            if (typeof serviceTotal === "number" && !Number.isNaN(serviceTotal)) {
+                grandTotal = serviceTotal;
+            }
+            if (typeof travelFee === "number" && !Number.isNaN(travelFee)) {
+                grandTotal = (grandTotal || 0) + travelFee;
+            }
+
+            if (flowSummaryTotal) {
+                if (hasSurvey) {
+                    flowSummaryTotal.textContent = "To be confirmed (survey required)";
+                } else if (hasCustom && grandTotal === null) {
+                    flowSummaryTotal.textContent = "Custom quote";
+                } else if (hasCustom && grandTotal !== null) {
+                    flowSummaryTotal.textContent = "from " + formatPrice(grandTotal);
+                } else {
+                    flowSummaryTotal.textContent = grandTotal === null ? "—" : formatPrice(grandTotal);
+                }
+            }
+
+            updateMiniCartTotals(serviceTotal, travelVisible ? travelFee : null, hasCustom, hasSurvey);
+            if (askForPostcode) {
+                updateSummaryNextState();
+            }
+        };
+
+        var fetchTravelQuote = async function (postcodeValue, baseAmount, skipExtendedCheck) {
+            var trimmedPostcode = (postcodeValue || "").trim();
+            var normalizedPostcode = normalizePostcodeValue(trimmedPostcode);
+            if (!normalizedPostcode) {
+                setStoredTravelQuote(null);
+                flowState.travelQuote = null;
+                updateTravelSnapshot("");
+                return null;
+            }
+
+            var response = await fetch(apiBase + "/api/travel-quote", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ postcode: trimmedPostcode, base_amount: baseAmount || 0 })
+            });
+            var data = await response.json().catch(function () { return {}; });
+
+            if (response.ok) {
+                // Check if this is extended coverage and user hasn't accepted it yet
+                if (data.is_extended_coverage && !skipExtendedCheck && !flowState.extendedCoverageAccepted) {
+                    // Store the postcode in the data for later use
+                    data.customer_postcode = trimmedPostcode || normalizedPostcode;
+                    // Return special object to indicate extended coverage needs confirmation
+                    return { requiresExtendedConfirmation: true, quote: data };
+                }
+                
+                flowState.travelQuote = data;
+                flowState.customer.postcode = trimmedPostcode;
+                updateTravelSnapshot(trimmedPostcode);
+                persistFlowState();
+                setStoredTravelQuote(data, trimmedPostcode);
+                return data;
+            }
+
+            setStoredTravelQuote(null);
+            flowState.travelQuote = null;
+            updateTravelSnapshot("");
+            if (data && data.code === "out_of_area") {
+                openCoverageModal();
+            }
+            throw new Error(data.error || "Unable to calculate travel.");
+        };
+
+        // Lock to prevent concurrent travel quote requests
+        var travelQuotePending = false;
+        var lastTravelQuotePostcode = "";
+
+        var summaryTravelNeedsRefresh = false;
+        var summaryBlockMessageOverride = "";
+        var summaryInstructionLocked = false;
+
+        var setSummaryFeedbackMessage = function (text, tone, isInstruction) {
+            if (!flowSummaryFeedback) {
+                summaryInstructionLocked = false;
+                return;
+            }
+            flowSummaryFeedback.textContent = text || "";
+            flowSummaryFeedback.classList.remove("is-error", "is-success");
+            if (tone === "error") {
+                flowSummaryFeedback.classList.add("is-error");
+            } else if (tone === "success") {
+                flowSummaryFeedback.classList.add("is-success");
+            }
+            summaryInstructionLocked = Boolean(isInstruction && text);
+            if (!text) {
+                summaryInstructionLocked = false;
+            }
+        };
+
+        var updateSummaryNextState = function () {
+            if (!flowSummaryNextButton) {
+                return;
+            }
+
+            if (!askForPostcode || lastSummaryTotals.hasSurvey) {
+                flowSummaryNextButton.disabled = false;
+                if (summaryInstructionLocked) {
+                    setSummaryFeedbackMessage("", null, false);
+                }
+                summaryBlockMessageOverride = "";
+                return;
+            }
+
+            var normalizedPostcode = normalizePostcodeValue(flowState.customer.postcode || "");
+            var disable = false;
+            var message = summaryBlockMessageOverride || "";
+
+            if (!normalizedPostcode) {
+                disable = true;
+                if (!message) {
+                    message = "Add your postcode or address to continue.";
+                }
+            } else if (summaryTravelNeedsRefresh) {
+                disable = true;
+                if (!message) {
+                    message = "Click Update travel to refresh pricing.";
+                }
+            } else if (travelQuotePending) {
+                disable = true;
+                if (!message) {
+                    message = "Calculating travel...";
+                }
+            }
+
+            flowSummaryNextButton.disabled = disable;
+
+            if (disable) {
+                setSummaryFeedbackMessage(message, "error", true);
+            } else if (summaryInstructionLocked) {
+                setSummaryFeedbackMessage("", null, false);
+            }
+        };
+
+        var refreshTravelQuote = async function (baseAmount, hasCustom, skipExtendedCheck) {
+            if (!askForPostcode) {
+                return;
+            }
+
+            var postcodeValue = (flowSummaryPostcodeInput && flowSummaryPostcodeInput.value) || (flowPostcodeInput && flowPostcodeInput.value) || flowState.customer.postcode || "";
+            postcodeValue = postcodeValue.trim();
+            var normalizedPostcode = normalizePostcodeValue(postcodeValue);
+
+            // Prevent duplicate concurrent requests for same postcode
+            if (travelQuotePending && normalizedPostcode && normalizedPostcode === lastTravelQuotePostcode) {
+                return;
+            }
+
+            flowState.customer.postcode = postcodeValue;
+            persistFlowState();
+            summaryBlockMessageOverride = "";
+            setSummaryFeedbackMessage("", null, false);
+
+            if (!normalizedPostcode) {
+                flowState.travelQuote = null;
+                flowState.extendedCoverageAccepted = false;
+                setStoredTravelQuote(null);
+                updateTravelSnapshot("");
+                summaryTravelNeedsRefresh = false;
+                lastTravelQuotePostcode = "";
+                updateSummaryNextState();
+                updateSummaryTotals(baseAmount, hasCustom, "", lastSummaryTotals.hasSurvey || false);
+                return;
+            }
+
+            // Set lock
+            travelQuotePending = true;
+            lastTravelQuotePostcode = normalizedPostcode;
+            updateSummaryNextState();
+
+            try {
+                var result = await fetchTravelQuote(postcodeValue, baseAmount || 0, skipExtendedCheck || flowState.extendedCoverageAccepted);
+                
+                // Check if extended coverage confirmation is needed
+                if (result && result.requiresExtendedConfirmation) {
+                    travelQuotePending = false;
+                    summaryTravelNeedsRefresh = true;
+                    summaryBlockMessageOverride = "Confirm extended coverage to continue.";
+                    updateSummaryNextState();
+                    openExtendedCoverageModal(result.quote);
+                    return;
+                }
+
+                var quote = result;
+
+                // Only show "Travel estimate updated" if there's actually a fee > 0
+                summaryTravelNeedsRefresh = false;
+                summaryBlockMessageOverride = "";
+                var hasFee = quote && typeof quote.travel_fee === "number" && quote.travel_fee > 0;
+                var isExtended = quote && quote.is_extended_coverage === true;
+                if (hasFee) {
+                    setSummaryFeedbackMessage(isExtended ? "Extended coverage travel estimate updated." : "Travel estimate updated.", "success", false);
+                } else {
+                    setSummaryFeedbackMessage("", null, false);
+                }
+                updateSummaryTotals(baseAmount, hasCustom, "", lastSummaryTotals.hasSurvey || false);
+            } catch (error) {
+                summaryBlockMessageOverride = error.message || "Unable to calculate travel.";
+                summaryTravelNeedsRefresh = true;
+                updateSummaryTotals(baseAmount, hasCustom, error.message || "Unable to calculate travel.", lastSummaryTotals.hasSurvey || false);
+            } finally {
+                travelQuotePending = false;
+                updateSummaryNextState();
+            }
+        };
+
+        var requestTravelQuoteIfChanged = function (value) {
+            if (!askForPostcode) {
+                return;
+            }
+            var candidate = value !== undefined ? value : (flowState.customer.postcode || "");
+            if (!shouldRefreshTravelQuote(candidate)) {
+                return;
+            }
+            refreshTravelQuote(lastSummaryTotals.serviceTotal, lastSummaryTotals.hasCustom);
+        };
+
+        var updateMiniCart = function () {
+            if (!flowMiniCartList || !flowMiniCartTotal || !flowMiniCount) {
+                return;
+            }
+            var selections = getOrderedSelections();
+            flowMiniCartList.innerHTML = "";
+            if (!selections.length) {
+                var placeholder = document.createElement("li");
+                placeholder.textContent = "No services selected yet.";
+                flowMiniCartList.appendChild(placeholder);
+            } else {
+                selections.forEach(function (selection) {
+                    var item = document.createElement("li");
+                    var detail = selection.optionDetails ? " • " + selection.optionDetails : "";
+                    item.textContent = selection.serviceName + " – " + selection.optionLabel + detail + " (" + (selection.priceDisplay || formatPrice(selection.price)) + ")";
+                    flowMiniCartList.appendChild(item);
+                });
+            }
+            flowMiniCount.textContent = selections.length;
+            var serviceTotal = selections.reduce(function (sum, selection) {
+                if (typeof selection.price === "number" && !Number.isNaN(selection.price)) {
+                    return sum + selection.price;
+                }
+                return sum;
+            }, 0);
+            var hasCustom = selections.some(function (selection) { return typeof selection.price !== "number" || Number.isNaN(selection.price); });
+            var hasSurvey = selections.some(function (selection) { return selection.payload && selection.payload.is_survey_request; });
+
+            var travelQuote = flowState.travelQuote || getStoredTravelQuote();
+            var travelFee = travelQuote && typeof travelQuote.travel_fee === "number" && !Number.isNaN(travelQuote.travel_fee) ? travelQuote.travel_fee : null;
+
+            updateMiniCartTotals(serviceTotal, travelFee, hasCustom, hasSurvey);
+        };
+
+        var renderLegacyOptions = function (service, previousSelection, onChange) {
+            var options = service.pricing || [];
+            if (!options.length) {
+                flowOptionsContainer.innerHTML = "<p>Pricing options are not configured yet.</p>";
+                onChange(null);
+                return;
+            }
+
+            var allowMultiselect = service.allow_multiselect === 1 || service.allow_multiselect === true;
+            var inputType = allowMultiselect ? "checkbox" : "radio";
+            var selectedOptionIds = [];
+
+            // Discount settings
+            var threshold = normalizePriceValue(service.discount_threshold) || 0;
+            var percent = normalizePriceValue(service.discount_percent) || 0;
+
+            // Restore previous multiselect selections if any
+            if (previousSelection && previousSelection.payload && previousSelection.payload.selectedOptions) {
+                selectedOptionIds = previousSelection.payload.selectedOptions.map(function (o) { return o.id; });
+            } else if (previousSelection && previousSelection.optionId) {
+                selectedOptionIds = [previousSelection.optionId];
+            }
+
+            // Create discount badge element for multiselect
+            var discountBadge = null;
+            if (allowMultiselect) {
+                discountBadge = document.createElement("div");
+                discountBadge.className = "bulk-discount-badge";
+                discountBadge.style.cssText = "display:none; margin-top:0.75rem; padding:0.6rem 1rem; background:#ecfdf3; color:#166534; border:1px solid #bbf7d0; border-radius:0.5rem; font-weight:600;";
+            }
+
+            var emitMultiselectChange = function () {
+                var checkedInputs = flowOptionsContainer.querySelectorAll("input[type='checkbox']:checked");
+                var selectedOptions = [];
+                var subtotal = 0;
+                var labels = [];
+                checkedInputs.forEach(function (input) {
+                    var opt = options.find(function (o) { return String(o.id) === String(input.value); });
+                    if (opt) {
+                        selectedOptions.push({ id: opt.id, label: opt.label, price: opt.price });
+                        labels.push(opt.label);
+                        if (typeof opt.price === "number") {
+                            subtotal += opt.price;
+                        }
+                    }
+                });
+
+                if (!selectedOptions.length) {
+                    if (discountBadge) discountBadge.style.display = "none";
+                    onChange(null);
+                    return;
+                }
+
+                // Apply bulk discount if threshold is met
+                var discountAmount = 0;
+                if (threshold > 0 && percent > 0 && subtotal > threshold) {
+                    discountAmount = subtotal * (percent / 100);
+                }
+                var finalPrice = subtotal - discountAmount;
+
+                // Update discount badge
+                if (discountBadge) {
+                    if (discountAmount > 0) {
+                        discountBadge.innerHTML = "✓ Bulk Discount Applied: <span style='text-decoration:line-through; opacity:0.7; margin:0 0.5rem;'>" + formatPrice(subtotal) + "</span> → <strong>" + formatPrice(finalPrice) + "</strong> <span style='color:#15803d;'>(-" + formatPrice(discountAmount) + ")</span>";
+                        discountBadge.style.display = "block";
+                    } else {
+                        discountBadge.style.display = "none";
+                    }
+                }
+
+                var payload = {
+                    optionId: selectedOptions[0].id, // Keep backward compat
+                    optionLabel: labels.join(", "),
+                    optionDetails: selectedOptions.length + " item(s) selected" + (discountAmount > 0 ? " • " + percent + "% off" : ""),
+                    price: finalPrice > 0 ? finalPrice : null,
+                    priceDisplay: finalPrice > 0 ? formatPrice(finalPrice) : "Custom quote",
+                    modelType: "options",
+                    selectedOptions: selectedOptions,
+                    payload: {
+                        type: "multiselect_options",
+                        selectedOptions: selectedOptions,
+                        subtotal: subtotal,
+                        discount_threshold: threshold,
+                        discount_percent: percent,
+                        discount_amount: discountAmount,
+                        total: finalPrice
+                    }
+                };
+                onChange(payload);
+            };
+
+            options.forEach(function (option) {
+                var label = document.createElement("label");
+                label.className = "flow-option";
+                var optionId = service.id + "_" + option.id;
+
+                var input = document.createElement("input");
+                input.type = inputType;
+                input.name = "flow-option";
+                input.value = option.id;
+                input.id = optionId;
+
+                var hasMatch = selectedOptionIds.indexOf(option.id) !== -1;
+                input.checked = Boolean(hasMatch);
+
+                var meta = document.createElement("div");
+                meta.className = "flow-option__meta";
+                var details = document.createElement("div");
+                details.className = "flow-option__details";
+                var strong = document.createElement("strong");
+                strong.textContent = option.label;
+                details.appendChild(strong);
+                if (option.details) {
+                    var detail = document.createElement("span");
+                    detail.textContent = option.details;
+                    details.appendChild(detail);
+                }
+                meta.appendChild(input);
+                meta.appendChild(details);
+
+                var price = document.createElement("div");
+                price.className = "flow-option__price";
+                price.textContent = typeof option.price === "number" ? formatPrice(option.price) : "Custom quote";
+
+                label.appendChild(meta);
+                label.appendChild(price);
+
+                if (allowMultiselect) {
+                    input.addEventListener("change", function () {
+                        // Toggle selected styling
+                        label.classList.toggle("is-selected", input.checked);
+                        emitMultiselectChange();
+                    });
+                } else {
+                    input.addEventListener("change", function () {
+                        var payload = {
+                            optionId: option.id,
+                            optionLabel: option.label,
+                            optionDetails: option.details || "",
+                            price: typeof option.price === "number" ? option.price : null,
+                            priceDisplay: typeof option.price === "number" ? formatPrice(option.price) : "Custom quote",
+                            modelType: "options"
+                        };
+                        onChange(payload);
+                    });
+                }
+
+                if (hasMatch) {
+                    label.classList.add("is-selected");
+                }
+
+                flowOptionsContainer.appendChild(label);
+            });
+
+            // Append discount badge after all options
+            if (discountBadge) {
+                flowOptionsContainer.appendChild(discountBadge);
+            }
+
+            if (allowMultiselect && selectedOptionIds.length) {
+                emitMultiselectChange();
+            } else if (previousSelection) {
+                onChange(previousSelection);
+            }
+        };
+
+        var renderTenancyConfigurator = function (service, previousSelection, onChange) {
+            var rates = Array.isArray(service.tenancy_rates) ? service.tenancy_rates : [];
+            if (!rates.length) {
+                flowOptionsContainer.innerHTML = "<p>No tenancy rates configured.</p>";
+                onChange(null);
+                return;
+            }
+
+            // Use dynamic headers from service config
+            var headerCol1 = service.table_header_col1 || 'Property Type';
+            var headerCol2 = service.table_header_col2 || 'Standard Price';
+            var headerCol3 = service.table_header_col3 || 'Upgrade Option';
+
+            var selectedRateId = (previousSelection && previousSelection.payload && previousSelection.payload.rate_id) || rates[0].id;
+            var deepSelections = {};
+            if (previousSelection && previousSelection.payload && previousSelection.payload.rate_id) {
+                deepSelections[previousSelection.payload.rate_id] = previousSelection.payload.variant === "deep";
+            }
+
+            var rowsMeta = [];
+
+            var table = document.createElement("div");
+            table.className = "tenancy-table-grid";
+
+            var header = document.createElement("div");
+            header.className = "tenancy-row tenancy-row--header";
+            header.innerHTML = '<div class="tenancy-cell">' + escapeHtml(headerCol1) + '</div><div class="tenancy-cell tenancy-cell--center">' + escapeHtml(headerCol2) + '</div><div class="tenancy-cell tenancy-cell--right">' + escapeHtml(headerCol3) + '</div>';
+            table.appendChild(header);
+
+            rates.forEach(function (rate) {
+                var row = document.createElement("div");
+                row.className = "tenancy-row";
+                row.setAttribute("data-rate-id", rate.id);
+
+                var standardPrice = normalizePriceValue(rate.standard_price);
+                var deepPrice = normalizePriceValue(rate.deep_clean_price);
+                var deepChecked = Boolean(deepSelections[rate.id]) && deepPrice !== null;
+
+                var radioId = "tenancy-rate-" + rate.id;
+                var propertyCell = document.createElement("label");
+                propertyCell.className = "tenancy-cell tenancy-cell--property";
+                propertyCell.setAttribute("for", radioId);
+
+                var radio = document.createElement("input");
+                radio.type = "radio";
+                radio.name = "tenancy-rate";
+                radio.id = radioId;
+                radio.value = rate.id;
+                radio.checked = String(selectedRateId) === String(rate.id);
+
+                var propertyLabel = document.createElement("div");
+                propertyLabel.className = "tenancy-property__label";
+                propertyLabel.textContent = rate.label || "Property";
+
+                propertyCell.appendChild(radio);
+                propertyCell.appendChild(propertyLabel);
+
+                var priceCell = document.createElement("div");
+                priceCell.className = "tenancy-cell tenancy-cell--center";
+                var priceWrap = document.createElement("div");
+                priceWrap.className = "tenancy-price";
+                var priceValue = document.createElement("div");
+                priceValue.className = "tenancy-price__value";
+                var priceLabel = document.createElement("div");
+                priceLabel.className = "tenancy-price__label";
+                priceWrap.appendChild(priceValue);
+                priceWrap.appendChild(priceLabel);
+                priceCell.appendChild(priceWrap);
+
+                var upgradeCell = document.createElement("div");
+                upgradeCell.className = "tenancy-cell tenancy-cell--right";
+
+                var upgradeLabel = null;
+                var deepCheck = null;
+                var upgradePrice = null;
+
+                if (!rate.is_blocker) {
+                    upgradeLabel = document.createElement("label");
+                    upgradeLabel.className = "tenancy-upgrade";
+                    deepCheck = document.createElement("input");
+                    deepCheck.type = "checkbox";
+                    deepCheck.disabled = deepPrice === null || deepPrice === undefined;
+                    deepCheck.checked = deepChecked;
+                    var upgradeText = document.createElement("div");
+                    upgradeText.className = "tenancy-upgrade__label";
+                    upgradeText.textContent = deepPrice !== null ? "Add carpet" : "Not available";
+                    upgradePrice = document.createElement("div");
+                    upgradePrice.className = "tenancy-upgrade__price";
+                    upgradeLabel.appendChild(deepCheck);
+                    upgradeLabel.appendChild(upgradeText);
+                    upgradeLabel.appendChild(upgradePrice);
+                    upgradeCell.appendChild(upgradeLabel);
+                }
+
+                row.appendChild(propertyCell);
+                row.appendChild(priceCell);
+                row.appendChild(upgradeCell);
+
+                function selectRate() {
+                    selectedRateId = rate.id;
+                    if (deepSelections[rate.id] === undefined) {
+                        deepSelections[rate.id] = false;
+                    }
+                    radio.checked = true;
+                    updateRowStates();
+                    emit();
+                }
+
+                radio.addEventListener("change", function () {
+                    selectRate();
+                });
+
+                row.addEventListener("click", function (event) {
+                    if (event.target && event.target.tagName === "INPUT" && event.target.type === "checkbox") {
+                        selectRate();
+                        return;
+                    }
+                    if (event.target && event.target.tagName === "INPUT") {
+                        return;
+                    }
+                    selectRate();
+                });
+
+                if (deepCheck) {
+                    deepCheck.addEventListener("change", function () {
+                        deepSelections[rate.id] = deepCheck.checked && !deepCheck.disabled;
+                        if (String(selectedRateId) === String(rate.id)) {
+                            emit();
+                        }
+                        updateRowStates();
+                    });
+                }
+
+                rowsMeta.push({
+                    row: row,
+                    radio: radio,
+                    deepCheck: deepCheck,
+                    upgradeLabel: upgradeLabel,
+                    upgradePrice: upgradePrice,
+                    priceValue: priceValue,
+                    priceLabel: priceLabel,
+                    isBlocker: Boolean(rate.is_blocker),
+                    rateId: rate.id,
+                    standardPrice: standardPrice,
+                    deepPrice: deepPrice,
+                    blockerMsg: rate.blocker_msg || null
+                });
+
+                table.appendChild(row);
+            });
+
+            flowOptionsContainer.appendChild(table);
+
+            function updateRowStates() {
+                rowsMeta.forEach(function (meta) {
+                    var isActive = String(meta.rateId) === String(selectedRateId);
+                    var deepOn = Boolean(deepSelections[meta.rateId]) && meta.deepPrice !== null;
+                    var activePrice = deepOn ? meta.deepPrice : meta.standardPrice;
+                    meta.row.classList.toggle("tenancy-row--active", isActive);
+                    if (meta.upgradeLabel) {
+                        meta.upgradeLabel.classList.toggle("is-active", deepOn);
+                    }
+                    if (meta.upgradePrice) {
+                        meta.upgradePrice.textContent = meta.deepPrice !== null ? "Total " + formatPrice(meta.deepPrice) : "Custom quote";
+                    }
+
+                    if (meta.isBlocker) {
+                        meta.priceValue.textContent = meta.blockerMsg || "Survey Needed";
+                        meta.priceLabel.textContent = "Survey";
+                    } else {
+                        meta.priceValue.textContent = typeof activePrice === "number" ? formatPrice(activePrice) : (meta.blockerMsg || "Custom quote");
+                        meta.priceLabel.textContent = deepOn ? "With carpet" : "Standard clean";
+                    }
+                });
+            }
+
+            function emit() {
+                var chosen = rates.find(function (r) { return String(r.id) === String(selectedRateId); }) || rates[0];
+                if (!chosen) {
+                    onChange(null);
+                    return;
+                }
+                var deepOn = Boolean(deepSelections[chosen.id]) && chosen.deep_clean_price !== null && chosen.deep_clean_price !== undefined;
+                var priceValue = deepOn ? normalizePriceValue(chosen.deep_clean_price) : normalizePriceValue(chosen.standard_price);
+                var isBlocker = Boolean(chosen.is_blocker);
+                var optionDetails = deepOn ? "With carpet (deep)" : "Standard clean";
+                if (chosen.blocker_msg) {
+                    optionDetails += " • " + chosen.blocker_msg;
+                }
+
+                var priceDisplay = typeof priceValue === "number" ? formatPrice(priceValue) : (chosen.blocker_msg || "Custom quote");
+                if (isBlocker) {
+                    priceValue = null;
+                    priceDisplay = chosen.blocker_msg || "Survey Needed";
+                }
+
+                var payload = {
+                    optionId: chosen.id,
+                    optionLabel: chosen.label || "Tenancy",
+                    optionDetails: optionDetails,
+                    price: priceValue,
+                    priceDisplay: priceDisplay,
+                    modelType: "tenancy",
+                    payload: {
+                        type: "tenancy",
+                        rate_id: chosen.id,
+                        variant: deepOn ? "deep" : "standard",
+                        is_blocker: isBlocker,
+                        is_survey_request: false
+                    }
+                };
+                onChange(payload);
+                updateRowStates();
+            }
+
+            updateRowStates();
+            // Only auto-select if there was a previous selection, otherwise let user choose
+            if (previousSelection && previousSelection.payload && previousSelection.payload.rate_id) {
+                emit();
+            }
+        };
+
+        var renderHourlyBlocksConfigurator = function (service, schema, previousSelection, onChange) {
+            var minHours = schema.min_hours || schema.default_hours || 1;
+            var maxHours = schema.max_hours || 12;
+            var defaultHours = previousSelection && previousSelection.payload && previousSelection.payload.hours ? previousSelection.payload.hours : minHours;
+            var rateRow = document.createElement("div");
+            rateRow.style.display = "flex";
+            rateRow.style.justifyContent = "space-between";
+            rateRow.style.alignItems = "center";
+            rateRow.style.marginBottom = "0.5rem";
+            rateRow.innerHTML = '<span style="font-weight:600;">Hours</span>';
+
+            var hoursInput = document.createElement("input");
+            hoursInput.type = "number";
+            hoursInput.min = minHours;
+            hoursInput.max = maxHours;
+            hoursInput.step = 1;
+            hoursInput.value = defaultHours;
+            hoursInput.style.width = "100px";
+            rateRow.appendChild(hoursInput);
+            flowOptionsContainer.appendChild(rateRow);
+
+            var discountList = document.createElement("div");
+            discountList.style.fontSize = "0.9rem";
+            var discountLines = (schema.discounts || []).map(function (rule) {
+                return "Save with " + (rule.min_hours || "") + "+ hrs @ " + formatPrice(rule.hourly_rate || schema.hourly_rate) + "/hr";
+            });
+            if (discountLines.length) {
+                discountList.textContent = discountLines.join(" • ");
+                discountList.style.color = "#6b7280";
+                flowOptionsContainer.appendChild(discountList);
+            }
+
+            var addonContainer = document.createElement("div");
+            var addonState = (previousSelection && previousSelection.payload && previousSelection.payload.addons) || {};
+            if (Array.isArray(schema.addons) && schema.addons.length) {
+                addonContainer.style.marginTop = "0.75rem";
+                addonContainer.innerHTML = '<p style="margin:0 0 0.35rem; font-weight:600;">Extras</p>';
+                schema.addons.forEach(function (addon) {
+                    var row = document.createElement("div");
+                    row.style.display = "flex";
+                    row.style.justifyContent = "space-between";
+                    row.style.alignItems = "center";
+                    row.style.marginBottom = "0.35rem";
+
+                    var label = document.createElement("span");
+                    label.textContent = addon.label + " (" + formatPrice(addon.price || 0) + ")";
+
+                    var input = document.createElement("input");
+                    input.type = "number";
+                    input.min = 0;
+                    input.max = addon.max_qty || 5;
+                    input.step = 1;
+                    input.value = addonState[addon.id] || 0;
+                    input.setAttribute("data-addon-id", addon.id);
+                    input.setAttribute("data-addon-price", addon.price || 0);
+                    input.style.width = "90px";
+
+                    input.addEventListener("input", function () {
+                        if (Number(input.value) < 0) input.value = 0;
+                        recalc();
+                    });
+
+                    row.appendChild(label);
+                    row.appendChild(input);
+                    addonContainer.appendChild(row);
+                });
+                flowOptionsContainer.appendChild(addonContainer);
+            }
+
+            var recalc = function () {
+                var hours = Number(hoursInput.value) || minHours;
+                hours = Math.max(minHours, Math.min(hours, maxHours));
+                hoursInput.value = hours;
+
+                var baseRate = normalizePriceValue(schema.hourly_rate) || 0;
+                var activeRate = baseRate;
+                (schema.discounts || []).forEach(function (rule) {
+                    if (rule.hourly_rate && hours >= rule.min_hours) {
+                        activeRate = Math.min(activeRate, rule.hourly_rate);
+                    }
+                });
+
+                var blockSize = schema.block_size || null;
+                var blockRate = normalizePriceValue(schema.block_rate) || null;
+                var total = 0;
+                if (blockSize && blockRate && hours >= blockSize) {
+                    var blocks = Math.floor(hours / blockSize);
+                    var remainder = hours - (blocks * blockSize);
+                    total += blocks * blockRate;
+                    total += remainder * activeRate;
+                } else {
+                    total = hours * activeRate;
+                }
+
+                var addonLines = [];
+                var addonTotal = 0;
+                flowOptionsContainer.querySelectorAll('input[data-addon-id]').forEach(function (input) {
+                    var qty = Number(input.value) || 0;
+                    var price = Number(input.getAttribute("data-addon-price")) || 0;
+                    var addonId = input.getAttribute("data-addon-id");
+                    if (qty > 0) {
+                        var addonMeta = (schema.addons || []).find(function (a) { return String(a.id) === String(addonId); }) || {};
+                        addonLines.push(qty + " × " + (addonMeta.label || "Addon"));
+                        addonTotal += qty * price;
+                    }
+                    addonState[addonId] = qty;
+                });
+
+                var grand = total + addonTotal;
+                var details = [hours + " hrs @ " + formatPrice(activeRate) + "/hr"];
+                if (addonLines.length) details.push(addonLines.join(", "));
+
+                var payload = {
+                    optionId: null,
+                    optionLabel: "Hourly package",
+                    optionDetails: details.join(" • "),
+                    price: grand,
+                    priceDisplay: grand !== null ? formatPrice(grand) : "Custom quote",
+                    modelType: "hourly_blocks",
+                    payload: { hours: hours, addons: addonState }
+                };
+                onChange(payload);
+            };
+
+            recalc();
+        };
+
+        var renderDeepTierConfigurator = function (service, previousSelection, onChange) {
+            var tiers = Array.isArray(service.pricing_tiers) ? service.pricing_tiers : [];
+            if (!tiers.length) {
+                flowOptionsContainer.innerHTML = "<p>No deep cleaning tiers configured.</p>";
+                onChange(null);
+                return;
+            }
+
+            var selectedId = (previousSelection && previousSelection.payload && previousSelection.payload.tier_id) || tiers[0].id;
+            var previousStaff = previousSelection && previousSelection.payload ? previousSelection.payload.staff : null;
+            var previousHours = previousSelection && previousSelection.payload ? previousSelection.payload.hours : null;
+
+            var form = document.createElement("div");
+            form.className = "deep-tier-form";
+
+            var cardsRow = document.createElement("div");
+            cardsRow.className = "tier-card-grid";
+
+            var staffLabel = document.createElement("label");
+            staffLabel.style.display = "flex";
+            staffLabel.style.flexDirection = "column";
+            staffLabel.style.gap = "0.35rem";
+            staffLabel.textContent = "Number of Staff";
+            var staffInput = document.createElement("input");
+            staffInput.type = "number";
+            staffInput.min = 1;
+            staffInput.step = 1;
+            staffInput.value = previousStaff || "";
+            staffLabel.appendChild(staffInput);
+
+            var hoursLabel = document.createElement("label");
+            hoursLabel.style.display = "flex";
+            hoursLabel.style.flexDirection = "column";
+            hoursLabel.style.gap = "0.35rem";
+            hoursLabel.textContent = "Hours Required";
+            var hoursInput = document.createElement("input");
+            hoursInput.type = "number";
+            hoursInput.min = 1;
+            hoursInput.step = 0.5;
+            hoursInput.value = previousHours || 2;
+            hoursLabel.appendChild(hoursInput);
+
+            var breakdown = document.createElement("div");
+            breakdown.className = "price-summary-box";
+
+            var errorRow = document.createElement("div");
+            errorRow.className = "inline-error";
+
+            form.appendChild(cardsRow);
+            form.appendChild(staffLabel);
+            form.appendChild(hoursLabel);
+            form.appendChild(breakdown);
+            form.appendChild(errorRow);
+
+            flowOptionsContainer.appendChild(form);
+
+            var selectTier = function (tierId) {
+                selectedId = tierId;
+                Array.from(cardsRow.querySelectorAll('.tier-card')).forEach(function (card) {
+                    if (String(card.getAttribute('data-tier-id')) === String(tierId)) {
+                        card.classList.add('is-selected');
+                    } else {
+                        card.classList.remove('is-selected');
+                    }
+                });
+
+                var tier = tiers.find(function (t) { return String(t.id) === String(selectedId); });
+                var minStaff = 1;
+                if (tier) {
+                    var explicit = Number(tier.min_staff);
+                    if (Number.isFinite(explicit) && explicit > 0) {
+                        minStaff = explicit;
+                    }
+                    var name = (tier.tier_name || "").toLowerCase();
+                    if (name.includes('extreme')) {
+                        minStaff = Math.max(minStaff, 3);
+                    } else if (name.includes('standard')) {
+                        minStaff = Math.max(minStaff, 2);
+                    }
+                }
+
+                var currentStaff = Number(staffInput.value);
+                if (!Number.isFinite(currentStaff) || currentStaff < minStaff) {
+                    staffInput.value = minStaff;
+                }
+                emit();
+            };
+
+            tiers.forEach(function (tier) {
+                var card = document.createElement('button');
+                card.type = 'button';
+                card.className = 'tier-card';
+                card.setAttribute('data-tier-id', tier.id);
+
+                var title = document.createElement('div');
+                title.className = 'tier-card__title';
+                title.textContent = tier.tier_name || 'Deep clean';
+
+                var subtitle = document.createElement('div');
+                subtitle.className = 'tier-card__subtitle';
+                subtitle.textContent = (tier.tier_name || '').toLowerCase().includes('extreme')
+                    ? 'Min 3 Staff • From £30/hr'
+                    : 'Min 2 Staff • From £20/hr';
+
+                card.appendChild(title);
+                card.appendChild(subtitle);
+
+                card.addEventListener('click', function () {
+                    selectTier(tier.id);
+                });
+
+                cardsRow.appendChild(card);
+            });
+
+            // Only visually select tier if there was a previous selection
+            if (previousSelection && previousSelection.payload && previousSelection.payload.tier_id) {
+                selectTier(selectedId);
+            } else {
+                // Just update visual state without emitting
+                Array.from(cardsRow.querySelectorAll('.tier-card')).forEach(function (card) {
+                    card.classList.remove('is-selected');
+                });
+            }
+
+            function emit() {
+                var tier = tiers.find(function (t) { return String(t.id) === String(selectedId); }) || tiers[0];
+                var minStaff = 1;
+                if (tier) {
+                    var explicit = Number(tier.min_staff);
+                    if (Number.isFinite(explicit) && explicit > 0) {
+                        minStaff = explicit;
+                    }
+                    var name = (tier.tier_name || "").toLowerCase();
+                    if (name.includes('extreme')) {
+                        minStaff = Math.max(minStaff, 3);
+                    } else if (name.includes('standard')) {
+                        minStaff = Math.max(minStaff, 2);
+                    }
+                }
+                var staff = Number(staffInput.value);
+                if (!Number.isFinite(staff) || staff <= 0) staff = minStaff;
+                var hours = Number(hoursInput.value);
+                if (!Number.isFinite(hours) || hours <= 0) hours = 1;
+
+                var validationError = "";
+                if (staff < minStaff) {
+                    validationError = tier && (tier.tier_name || "").toLowerCase().includes('extreme')
+                        ? "Extreme requires min 3 staff."
+                        : "Minimum staff for this tier is " + minStaff + ".";
+                    staffInput.value = minStaff;
+                    staff = minStaff;
+                }
+
+                var rate = tier ? normalizePriceValue(tier.hourly_rate) : null;
+                var equipment = tier ? normalizePriceValue(tier.equipment_fee) || 0 : 0;
+                var detergent = tier ? normalizePriceValue(tier.detergent_fee) || 0 : 0;
+                var materialsTotal = equipment + detergent;
+                var total = rate !== null ? (rate * staff * hours) + materialsTotal : null;
+
+                breakdown.innerHTML = rate !== null ? [
+                    '<div class="row"><span>Labor Rate:</span><span>' + formatPrice(rate) + ' /hr per person</span></div>',
+                    '<div class="row"><span>Staff Count:</span><span>' + staff + ' Cleaners</span></div>',
+                    '<div class="row"><span>Hours:</span><span>' + hours + ' hrs</span></div>',
+                    '<div class="row"><span>Materials & Equip:</span><span>' + formatPrice(materialsTotal) + ' (Fixed Fee)</span></div>',
+                    '<div class="total-row"><span>ESTIMATED TOTAL:</span><span>' + formatPrice(total) + '</span></div>'
+                ].join('') : "Custom quote";
+                errorRow.textContent = validationError;
+
+                var payload = {
+                    optionId: tier ? tier.id : null,
+                    optionLabel: tier ? (tier.tier_name || "Deep clean") : "Deep clean",
+                    optionDetails: "Tier: " + (tier ? tier.tier_name : "") + " • Staff: " + staff + " • Hours: " + hours,
+                    price: total,
+                    priceDisplay: typeof total === "number" ? formatPrice(total) : "Custom quote",
+                    modelType: "deep",
+                    payload: {
+                        type: "deep",
+                        tier_id: tier ? tier.id : null,
+                        staff: staff,
+                        hours: hours,
+                        equipment_fee: equipment,
+                        detergent_fee: detergent
+                    }
+                };
+                onChange(payload);
+            }
+
+            staffInput.addEventListener("input", emit);
+            hoursInput.addEventListener("input", emit);
+            // Only auto-select if there was a previous selection, otherwise let user choose
+            if (previousSelection && previousSelection.payload && previousSelection.payload.tier_id) {
+                emit();
+            }
+        };
+
+        var renderItemizedConfigurator = function (service, schema, previousSelection, onChange) {
+            var items = Array.isArray(schema.items) ? schema.items : [];
+            if (!items.length) {
+                flowOptionsContainer.innerHTML = "<p>Items are not configured yet.</p>";
+                onChange(null);
+                return;
+            }
+
+            var qtyState = (previousSelection && previousSelection.payload && previousSelection.payload.quantities) || {};
+            var threshold = normalizePriceValue(service.discount_threshold) || 0;
+            var percent = normalizePriceValue(service.discount_percent) || 0;
+
+            items.forEach(function (item) {
+                var row = document.createElement("div");
+                row.style.display = "grid";
+                row.style.gridTemplateColumns = "1fr auto";
+                row.style.alignItems = "center";
+                row.style.gap = "0.75rem";
+                row.style.marginBottom = "0.5rem";
+
+                var label = document.createElement("div");
+                label.innerHTML = "<strong>" + item.item_name + "</strong><span style='color:#6b7280; display:block;'>" + formatPrice(item.price || 0) + "</span>";
+
+                var controls = document.createElement("div");
+                controls.style.display = "inline-flex";
+                controls.style.alignItems = "center";
+                controls.style.gap = "0.5rem";
+
+                var minus = document.createElement("button");
+                minus.type = "button";
+                minus.textContent = "–";
+                minus.className = "btn btn-sm";
+                var qty = document.createElement("input");
+                qty.type = "number";
+                qty.min = 0;
+                qty.step = 1;
+                qty.value = qtyState[item.id] || 0;
+                qty.style.width = "70px";
+                var plus = document.createElement("button");
+                plus.type = "button";
+                plus.textContent = "+";
+                plus.className = "btn btn-sm";
+
+                minus.addEventListener("click", function () {
+                    var next = Math.max(0, Number(qty.value) - 1);
+                    qty.value = next;
+                    recalc();
+                });
+                plus.addEventListener("click", function () {
+                    qty.value = Number(qty.value) + 1;
+                    recalc();
+                });
+                qty.addEventListener("input", function () {
+                    if (Number(qty.value) < 0) qty.value = 0;
+                    recalc();
+                });
+
+                controls.appendChild(minus);
+                controls.appendChild(qty);
+                controls.appendChild(plus);
+
+                row.appendChild(label);
+                row.appendChild(controls);
+                row.querySelectorAll("input,button").forEach(function (el) {
+                    el.setAttribute("data-item-id", item.id);
+                    el.setAttribute("data-item-price", item.price || 0);
+                    el.setAttribute("data-item-name", item.item_name || "Item");
+                });
+                flowOptionsContainer.appendChild(row);
+            });
+
+            var badge = document.createElement("div");
+            badge.style.display = "none";
+            badge.style.marginTop = "0.35rem";
+            badge.style.padding = "0.5rem 0.75rem";
+            badge.style.background = "#ecfdf3";
+            badge.style.color = "#166534";
+            badge.style.border = "1px solid #bbf7d0";
+            badge.style.borderRadius = "0.5rem";
+            flowOptionsContainer.appendChild(badge);
+
+            function recalc() {
+                var subtotal = 0;
+                var detailLines = [];
+                flowOptionsContainer.querySelectorAll('input[data-item-id]').forEach(function (input) {
+                    var qty = Number(input.value) || 0;
+                    var price = Number(input.getAttribute("data-item-price")) || 0;
+                    var itemId = input.getAttribute("data-item-id");
+                    var itemName = input.getAttribute("data-item-name") || "Item";
+                    if (qty > 0) {
+                        detailLines.push(qty + " × " + itemName);
+                        subtotal += qty * price;
+                    }
+                    qtyState[itemId] = qty;
+                });
+
+                if (subtotal <= 0) {
+                    badge.style.display = "none";
+                    onChange(null);
+                    return;
+                }
+
+                var discountAmount = 0;
+                if (threshold > 0 && percent > 0 && subtotal > threshold) {
+                    discountAmount = subtotal * (percent / 100);
+                }
+                var total = subtotal - discountAmount;
+                badge.textContent = discountAmount > 0 ? "Bulk Discount Applied: -" + formatPrice(discountAmount) : "";
+                badge.style.display = discountAmount > 0 ? "block" : "none";
+
+                var payload = {
+                    optionId: null,
+                    optionLabel: "Custom selection",
+                    optionDetails: detailLines.join(", ") + (discountAmount > 0 ? " • " + percent + "% off" : ""),
+                    price: total,
+                    priceDisplay: formatPrice(total),
+                    modelType: "itemized",
+                    payload: {
+                        type: "itemized",
+                        quantities: qtyState,
+                        subtotal: subtotal,
+                        discount_threshold: threshold,
+                        discount_percent: percent,
+                        discount_amount: discountAmount,
+                        total: total
+                    }
+                };
+                onChange(payload);
+            }
+
+            recalc();
+        };
+
+        var setActiveStep = function (stepNumber) {
+            activeStep = stepNumber;
+            flowSteps.forEach(function (section) {
+                var sectionStep = Number(section.getAttribute("data-flow-step"));
+                section.classList.toggle("is-active", sectionStep === stepNumber);
+            });
+            flowIndicators.forEach(function (indicator) {
+                var indicatorStep = Number(indicator.getAttribute("data-flow-step-indicator"));
+                indicator.classList.toggle("is-active", indicatorStep === stepNumber);
+            });
+        };
+
+        var hydrateContactFields = function () {
+            if (flowNameInput) flowNameInput.value = flowState.customer.name || "";
+            if (flowEmailInput) flowEmailInput.value = flowState.customer.email || "";
+            if (flowPhoneInput) flowPhoneInput.value = flowState.customer.phone || "";
+            // Pre-fill location with stored postcode/area if location is empty
+            var locationValue = flowState.customer.location || flowState.customer.postcode || getStoredPostcode() || "";
+            if (!flowState.customer.location && locationValue) {
+                flowState.customer.location = locationValue;
+                persistFlowState();
+            }
+            if (flowLocationInput) flowLocationInput.value = locationValue;
+            var hydratedPostcode = flowState.customer.postcode || getStoredPostcode() || "";
+            if (!flowState.customer.postcode && hydratedPostcode) {
+                flowState.customer.postcode = hydratedPostcode;
+                persistFlowState();
+            }
+            if (flowPostcodeInput) flowPostcodeInput.value = hydratedPostcode;
+            if (flowSummaryPostcodeInput) flowSummaryPostcodeInput.value = hydratedPostcode;
+            if (flowDateInput) flowDateInput.value = flowState.schedule.preferred_date || "";
+            if (flowTimeInput) flowTimeInput.value = flowState.schedule.preferred_time || "";
+            if (flowNotesInput) flowNotesInput.value = flowState.notes || "";
+        };
+
+        var renderServiceStep = function () {
+            var service = getServiceFromQueue(currentServiceIndex);
+            if (!service || !flowOptionsContainer) {
+                return;
+            }
+            flowServiceIndex.textContent = currentServiceIndex + 1;
+            flowServiceCount.textContent = serviceQueue.length;
+            flowServiceName.textContent = service.name;
+            var descriptionHtml = formatDescription(service.description || "");
+            flowServiceDescription.innerHTML = descriptionHtml
+                ? '<details class="flow-description-panel"><summary>ℹ️ See What\'s Included in this Service</summary><div class="flow-description__content">' + descriptionHtml + "</div></details>"
+                : "";
+            if (autoExpandDescription) {
+                var detailsEl = flowServiceDescription.querySelector("details");
+                if (detailsEl) {
+                    detailsEl.setAttribute("open", "true");
+                }
+                autoExpandDescription = false;
+            }
+
+            var previousSelection = flowState.selections[service.id];
+            flowOptionsContainer.innerHTML = "";
+
+            var ensureSurveyButton = function () {
+                if (!flowNextButton) return;
+                if (!flowSurveyButton) {
+                    flowSurveyButton = document.createElement("button");
+                    flowSurveyButton.type = "button";
+                    flowSurveyButton.className = "button button--danger";
+                    flowSurveyButton.textContent = "Request Survey";
+                    flowSurveyButton.style.display = "none";
+                    flowNextButton.parentNode.insertBefore(flowSurveyButton, flowNextButton.nextSibling);
+                }
+            };
+
+            var updateActionButtons = function (selection) {
+                ensureSurveyButton();
+                var isBlocker = selection && selection.payload && selection.payload.is_blocker;
+                var showSurvey = isBlocker === true;
+                if (flowNextButton) {
+                    flowNextButton.style.display = showSurvey ? "none" : "inline-flex";
+                    flowNextButton.disabled = !selection || showSurvey;
+                }
+                if (flowSurveyButton) {
+                    flowSurveyButton.style.display = showSurvey ? "inline-flex" : "none";
+                    flowSurveyButton.disabled = !showSurvey;
+                    flowSurveyButton.setAttribute("data-service-id", service.id);
+                }
+            };
+
+            var setPriceDisplay = function (selection) {
+                if (!flowPriceDisplay) return;
+                if (selection && selection.priceDisplay) {
+                    flowPriceDisplay.textContent = selection.priceDisplay;
+                    return;
+                }
+                if (selection && typeof selection.price === "number") {
+                    flowPriceDisplay.textContent = formatPrice(selection.price);
+                    return;
+                }
+                flowPriceDisplay.textContent = "Select an option to see pricing.";
+            };
+
+            var handleSelectionChange = function (selection) {
+                if (selection) {
+                    flowState.selections[service.id] = Object.assign({}, selection, { serviceId: service.id, serviceName: service.name });
+                } else {
+                    delete flowState.selections[service.id];
+                }
+                persistFlowState();
+                setPriceDisplay(selection);
+                updateActionButtons(selection);
+                updateMiniCart();
+            };
+
+            ensureSurveyButton();
+            if (flowSurveyButton) {
+                flowSurveyButton.onclick = function () {
+                    var current = flowState.selections[service.id];
+                    if (!current || !(current.payload && current.payload.is_blocker)) {
+                        return;
+                    }
+                    current.price = null;
+                    current.priceDisplay = current.priceDisplay || "Survey Needed";
+                    current.payload.is_survey_request = true;
+                    current.optionDetails = current.optionDetails || "Survey required";
+                    flowState.selections[service.id] = current;
+                    persistFlowState();
+                    setPriceDisplay(current);
+                    updateMiniCart();
+                    goToNextService();
+                };
+            }
+
+            var pricingType = service.pricing_type || (service.tenancy_rates && service.tenancy_rates.length ? "tenancy" : service.pricing_tiers && service.pricing_tiers.length ? "deep" : service.pricing_items && service.pricing_items.length ? "itemized" : "options");
+            if (pricingType === "tenancy") {
+                renderTenancyConfigurator(service, previousSelection, handleSelectionChange);
+            } else if (pricingType === "deep") {
+                renderDeepTierConfigurator(service, previousSelection, handleSelectionChange);
+            } else if (pricingType === "itemized") {
+                renderItemizedConfigurator(service, { items: service.pricing_items || [], discounts: [] }, previousSelection, handleSelectionChange);
+            } else {
+                renderLegacyOptions(service, previousSelection, handleSelectionChange);
+            }
+
+            setPriceDisplay(flowState.selections[service.id]);
+
+            if (flowPrevButton) {
+                flowPrevButton.disabled = currentServiceIndex === 0;
+            }
+
+            if (flowNextButton) {
+                var isLast = currentServiceIndex === serviceQueue.length - 1;
+                flowNextButton.textContent = isLast ? "Review Summary" : "Next Service";
+                updateActionButtons(flowState.selections[service.id]);
+            }
+        };
+
+        var goToNextService = function () {
+            if (currentServiceIndex < serviceQueue.length - 1) {
+                currentServiceIndex += 1;
+                renderServiceStep();
+            } else {
+                setActiveStep(2);
+                renderSummary();
+            }
+        };
+
+        var goToPreviousService = function () {
+            if (currentServiceIndex === 0) {
+                return;
+            }
+            currentServiceIndex -= 1;
+            renderServiceStep();
+        };
+
+        var renderSummary = function () {
+            if (!flowSummaryList || !flowSummaryTotal) {
+                return;
+            }
+            var selections = getOrderedSelections();
+            flowSummaryList.innerHTML = "";
+
+            if (!selections.length) {
+                var empty = document.createElement("li");
+                empty.textContent = "No services selected.";
+                flowSummaryList.appendChild(empty);
+            } else {
+                selections.forEach(function (selection) {
+                    var item = document.createElement("li");
+                    var info = document.createElement("div");
+                    var title = document.createElement("strong");
+                    title.textContent = selection.serviceName;
+                    var detail = document.createElement("p");
+                    detail.textContent = selection.optionLabel + (selection.optionDetails ? " • " + selection.optionDetails : "");
+                    detail.style.margin = "0";
+                    detail.style.fontSize = "0.9rem";
+                    info.appendChild(title);
+                    info.appendChild(detail);
+
+                    var price = document.createElement("div");
+                    price.className = "flow-option__price";
+                    price.textContent = selection.priceDisplay || formatPrice(selection.price);
+
+                    var editButton = document.createElement("button");
+                    editButton.type = "button";
+                    editButton.textContent = "Edit";
+                    editButton.setAttribute("data-edit-service", selection.serviceId);
+
+                    item.appendChild(info);
+                    item.appendChild(price);
+                    item.appendChild(editButton);
+                    flowSummaryList.appendChild(item);
+                });
+            }
+
+            var total = selections.reduce(function (sum, selection) {
+                if (typeof selection.price === "number" && !Number.isNaN(selection.price)) {
+                    return sum + selection.price;
+                }
+                return sum;
+            }, 0);
+            var hasCustom = selections.some(function (selection) { return typeof selection.price !== "number" || Number.isNaN(selection.price); });
+            var hasSurvey = selections.some(function (selection) { return selection.payload && selection.payload.is_survey_request; });
+            setSubmitButtonLabel(hasSurvey);
+            updateSummaryTotals(total, hasCustom, "", hasSurvey);
+            if (askForPostcode) {
+                lastSummaryTotals.hasSurvey = hasSurvey;
+                if (!hasSurvey) {
+                    var summaryPostcode = flowState.customer.postcode || (flowSummaryPostcodeInput && flowSummaryPostcodeInput.value) || "";
+                    summaryTravelNeedsRefresh = shouldRefreshTravelQuote(summaryPostcode);
+                    summaryBlockMessageOverride = summaryTravelNeedsRefresh && summaryPostcode ? "Click Update travel to refresh pricing." : "";
+                } else {
+                    setStoredTravelQuote(null);
+                    flowState.travelQuote = null;
+                    updateTravelSnapshot("");
+                    summaryTravelNeedsRefresh = false;
+                    summaryBlockMessageOverride = "";
+                    setSummaryFeedbackMessage("", null, false);
+                }
+                updateSummaryNextState();
+            }
+        };
+
+        var buildServiceQueue = function (startServiceId) {
+            // Build a reordered queue: selected service first, then remaining services
+            var startIndex = SERVICE_CATALOG.findIndex(function (service) { return String(service.id) === String(startServiceId); });
+            if (startIndex < 0) startIndex = 0;
+            
+            var queue = [];
+            // Add the selected service first
+            queue.push(SERVICE_CATALOG[startIndex].id);
+            
+            // Add services that come AFTER the selected one
+            for (var i = startIndex + 1; i < SERVICE_CATALOG.length; i++) {
+                queue.push(SERVICE_CATALOG[i].id);
+            }
+            
+            // Add services that come BEFORE the selected one (so user can add them too)
+            for (var j = 0; j < startIndex; j++) {
+                queue.push(SERVICE_CATALOG[j].id);
+            }
+            
+            return queue;
+        };
+
+        var getServiceFromQueue = function (queueIndex) {
+            if (queueIndex < 0 || queueIndex >= serviceQueue.length) return null;
+            var serviceId = serviceQueue[queueIndex];
+            return SERVICE_CATALOG.find(function (s) { return String(s.id) === String(serviceId); });
+        };
+
+        var openServiceModal = function (serviceId, autoExpandDetails) {
+            // Build reordered queue starting with the selected service
+            serviceQueue = buildServiceQueue(serviceId);
+            currentServiceIndex = 0; // Always start at 0 in the queue
+            autoExpandDescription = Boolean(autoExpandDetails);
+            setActiveStep(1);
+            renderServiceStep();
+            updateMiniCart();
+            hydrateContactFields();
+            serviceModal.classList.add("is-open");
+            serviceModal.setAttribute("aria-hidden", "false");
+            document.body.style.overflow = "hidden";
+            sendAnalyticsEvent("service_view", { context: "modal", service: serviceId });
+        };
+
+        var closeServiceModal = function () {
+            serviceModal.classList.remove("is-open");
+            serviceModal.setAttribute("aria-hidden", "true");
+            document.body.style.overflow = "";
+        };
+
+        var openPostcodeModal = function (serviceId, autoExpandDetails) {
+            if (!askForPostcode) {
+                openServiceModal(serviceId, autoExpandDetails);
+                return;
+            }
+            pendingServiceId = serviceId || null;
+            pendingAutoExpand = Boolean(autoExpandDetails);
+            if (postcodeInput) {
+                postcodeInput.value = (flowState.customer.postcode || getStoredPostcode() || "").trim();
+            }
+            if (postcodeFeedback) {
+                postcodeFeedback.textContent = "";
+                postcodeFeedback.className = "form-feedback";
+            }
+            if (postcodeModal) {
+                postcodeModal.classList.add("is-open");
+                postcodeModal.setAttribute("aria-hidden", "false");
+                document.body.style.overflow = "hidden";
+                if (postcodeInput) {
+                    postcodeInput.focus();
+                }
+            }
+        };
+
+        var closePostcodeModal = function () {
+            if (!postcodeModal) {
+                return;
+            }
+            postcodeModal.classList.remove("is-open");
+            postcodeModal.setAttribute("aria-hidden", "true");
+            document.body.style.overflow = "";
+        };
+
+        var openCoverageModal = function () {
+            if (serviceModal) {
+                serviceModal.classList.remove("is-open");
+                serviceModal.setAttribute("aria-hidden", "true");
+            }
+            closePostcodeModal();
+            if (coverageModal) {
+                coverageModal.classList.add("is-open");
+                coverageModal.setAttribute("aria-hidden", "false");
+                document.body.style.overflow = "hidden";
+            }
+        };
+
+        var closeCoverageModal = function () {
+            if (!coverageModal) {
+                return;
+            }
+            coverageModal.classList.remove("is-open");
+            coverageModal.setAttribute("aria-hidden", "true");
+            document.body.style.overflow = "";
+        };
+
+        var openExtendedCoverageModal = function (quote) {
+            pendingExtendedCoverageQuote = quote;
+            var travelFee = quote && typeof quote.travel_fee === "number" ? quote.travel_fee : 0;
+            var withFeeSection = document.getElementById("extended-coverage-with-fee");
+            var notAvailableSection = document.getElementById("extended-coverage-not-available");
+            var modalTitle = document.getElementById("extended-coverage-modal-title");
+            
+            if (travelFee === 0) {
+                // No fee means we're not servicing this area
+                if (withFeeSection) withFeeSection.style.display = "none";
+                if (notAvailableSection) notAvailableSection.style.display = "block";
+                if (modalTitle) modalTitle.textContent = "Outside Service Area";
+            } else {
+                // Has a fee - show normal extended coverage options
+                if (withFeeSection) withFeeSection.style.display = "block";
+                if (notAvailableSection) notAvailableSection.style.display = "none";
+                if (modalTitle) modalTitle.textContent = "Extended Coverage Area";
+                if (extendedCoverageFee) {
+                    extendedCoverageFee.textContent = formatPrice(travelFee);
+                }
+            }
+            
+            if (extendedCoverageModal) {
+                extendedCoverageModal.classList.add("is-open");
+                extendedCoverageModal.setAttribute("aria-hidden", "false");
+                document.body.style.overflow = "hidden";
+            }
+        };
+
+        var closeExtendedCoverageModal = function (accepted) {
+            if (!extendedCoverageModal) {
+                return;
+            }
+            
+            // Move focus away from modal before hiding to avoid aria-hidden warning
+            if (document.activeElement && extendedCoverageModal.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
+            
+            extendedCoverageModal.classList.remove("is-open");
+            extendedCoverageModal.setAttribute("aria-hidden", "true");
+            document.body.style.overflow = "";
+            
+            if (accepted && pendingExtendedCoverageQuote) {
+                // User accepted extended coverage - proceed with the quote
+                flowState.travelQuote = pendingExtendedCoverageQuote;
+                flowState.customer.postcode = pendingExtendedCoverageQuote.customer_postcode || flowState.customer.postcode;
+                flowState.extendedCoverageAccepted = true;
+                updateTravelSnapshot(flowState.customer.postcode);
+                persistFlowState();
+                setStoredTravelQuote(pendingExtendedCoverageQuote, flowState.customer.postcode);
+                
+                // Update totals with the new quote
+                var selections = getOrderedSelections();
+                var serviceTotal = selections.reduce(function (sum, sel) {
+                    return typeof sel.price === "number" ? sum + sel.price : sum;
+                }, 0);
+                var hasCustom = selections.some(function (sel) { return sel.isCustom; });
+                updateSummaryTotals(serviceTotal, hasCustom, "", lastSummaryTotals.hasSurvey || false);
+                summaryTravelNeedsRefresh = false;
+                summaryBlockMessageOverride = "";
+                setSummaryFeedbackMessage("Extended coverage confirmed.", "success", false);
+                updateSummaryNextState();
+                
+                // Now open the service modal if not already open
+                if (pendingServiceId && !serviceModal.classList.contains("is-open")) {
+                    continueToServiceModal();
+                }
+            } else {
+                // User cancelled - clear the quote
+                pendingExtendedCoverageQuote = null;
+                flowState.travelQuote = null;
+                flowState.extendedCoverageAccepted = false;
+                setStoredTravelQuote(null);
+                updateTravelSnapshot("");
+                persistFlowState();
+                summaryTravelNeedsRefresh = true;
+                summaryBlockMessageOverride = "Confirm extended coverage to continue.";
+                setSummaryFeedbackMessage("", null, false);
+                updateSummaryNextState();
+            }
+            pendingExtendedCoverageQuote = null;
+        };
+
+        // Set up extended coverage modal buttons
+        if (extendedCoverageProceed) {
+            extendedCoverageProceed.addEventListener("click", function () {
+                closeExtendedCoverageModal(true);
+            });
+        }
+        if (extendedCoverageCancel) {
+            extendedCoverageCancel.addEventListener("click", function () {
+                closeExtendedCoverageModal(false);
+            });
+        }
+        if (extendedCoverageClose) {
+            extendedCoverageClose.addEventListener("click", function () {
+                closeExtendedCoverageModal(false);
+            });
+        }
+        
+        // Close button for "not available" section
+        var extendedCoverageCloseBtn = document.getElementById("extended-coverage-close-btn");
+        if (extendedCoverageCloseBtn) {
+            extendedCoverageCloseBtn.addEventListener("click", function () {
+                closeExtendedCoverageModal(false);
+            });
+        }
+        
+        // Contact link - close modal and scroll to contact
+        var extendedCoverageContact = document.getElementById("extended-coverage-contact");
+        if (extendedCoverageContact) {
+            extendedCoverageContact.addEventListener("click", function () {
+                closeExtendedCoverageModal(false);
+            });
+        }
+
+        var resetFlow = function () {
+            flowState = createDefaultFlowState();
+            setStoredTravelQuote(null);
+            updateTravelSnapshot("");
+            travelQuotePending = false;
+            lastTravelQuotePostcode = "";
+            summaryTravelNeedsRefresh = false;
+            summaryBlockMessageOverride = "";
+            summaryInstructionLocked = false;
+            setSummaryFeedbackMessage("", null, false);
+            persistFlowState();
+            // Rebuild queue from original catalog order
+            serviceQueue = SERVICE_CATALOG.map(function (s) { return s.id; });
+            currentServiceIndex = 0;
+            setActiveStep(1);
+            renderServiceStep();
+            updateMiniCart();
+            hydrateContactFields();
+            setSubmitButtonLabel(false);
+            updateSummaryNextState();
+            if (flowFeedback) {
+                flowFeedback.textContent = "";
+                flowFeedback.classList.remove("is-error", "is-success");
+            }
+        };
+
+        if (flowPrevButton) {
+            flowPrevButton.addEventListener("click", function () {
+                goToPreviousService();
+            });
+        }
+
+        if (flowNextButton) {
+            flowNextButton.addEventListener("click", function () {
+                var activeService = getServiceFromQueue(currentServiceIndex);
+                if (!activeService) {
+                    flowPriceDisplay.textContent = "Services will load shortly.";
+                    return;
+                }
+                if (!flowState.selections[activeService.id]) {
+                    flowPriceDisplay.textContent = "Please select an option or skip this service.";
+                    return;
+                }
+                goToNextService();
+            });
+        }
+
+        if (flowSkipButton) {
+            flowSkipButton.addEventListener("click", function () {
+                var activeService = getServiceFromQueue(currentServiceIndex);
+                if (!activeService) {
+                    return;
+                }
+                delete flowState.selections[activeService.id];
+                persistFlowState();
+                renderServiceStep();
+                updateMiniCart();
+                goToNextService();
+            });
+        }
+
+        if (flowSummaryBackButton) {
+            flowSummaryBackButton.addEventListener("click", function () {
+                setActiveStep(1);
+                renderServiceStep();
+            });
+        }
+
+        if (flowSummaryNextButton) {
+            flowSummaryNextButton.addEventListener("click", function () {
+                updateSummaryNextState();
+                if (flowSummaryNextButton.disabled) {
+                    if (flowSummaryPostcodeInput) {
+                        flowSummaryPostcodeInput.focus();
+                    }
+                    return;
+                }
+                setSummaryFeedbackMessage("", null, false);
+                setActiveStep(3);
+                hydrateContactFields();
+            });
+        }
+
+        if (flowScheduleBackButton) {
+            flowScheduleBackButton.addEventListener("click", function () {
+                setActiveStep(2);
+                renderSummary();
+            });
+        }
+
+        if (flowSummaryList) {
+            flowSummaryList.addEventListener("click", function (event) {
+                var target = event.target.closest("[data-edit-service]");
+                if (!target) {
+                    return;
+                }
+                var serviceId = target.getAttribute("data-edit-service");
+                var queueIndex = serviceQueue.findIndex(function (id) { return String(id) === String(serviceId); });
+                if (queueIndex >= 0) {
+                    currentServiceIndex = queueIndex;
+                    setActiveStep(1);
+                    renderServiceStep();
+                }
+            });
+        }
+
+        var handleFieldChange = function (input, updater) {
+            if (!input) {
+                return;
+            }
+            input.addEventListener("input", function () {
+                updater(this.value);
+                persistFlowState();
+            });
+        };
+
+        handleFieldChange(flowNameInput, function (value) { flowState.customer.name = value; });
+        handleFieldChange(flowEmailInput, function (value) { flowState.customer.email = value; });
+        handleFieldChange(flowPhoneInput, function (value) { flowState.customer.phone = value; });
+        handleFieldChange(flowLocationInput, function (value) { flowState.customer.location = value; });
+        handleFieldChange(flowPostcodeInput, function (value) { flowState.customer.postcode = value; });
+        if (flowSummaryPostcodeInput) {
+            flowSummaryPostcodeInput.addEventListener("input", function () {
+                var value = this.value || "";
+                flowState.customer.postcode = value;
+                if (askForPostcode) {
+                    flowState.customer.location = value;
+                }
+
+                var normalized = normalizePostcodeValue(value);
+                var snapshot = normalizePostcodeValue(flowState.travelPostcodeSnapshot || "");
+                var quoteCleared = false;
+                summaryBlockMessageOverride = "";
+                setSummaryFeedbackMessage("", null, false);
+
+                if (!normalized) {
+                    if (flowState.travelQuote) {
+                        flowState.travelQuote = null;
+                        flowState.extendedCoverageAccepted = false;
+                        quoteCleared = true;
+                    }
+                    setStoredTravelQuote(null);
+                    updateTravelSnapshot("");
+                    summaryTravelNeedsRefresh = false;
+                    lastTravelQuotePostcode = "";
+                } else if (normalized !== snapshot) {
+                    flowState.travelQuote = null;
+                    flowState.extendedCoverageAccepted = false;
+                    setStoredTravelQuote(null);
+                    updateTravelSnapshot("");
+                    summaryTravelNeedsRefresh = true;
+                    summaryBlockMessageOverride = "Address changed. Click Update travel to refresh.";
+                    quoteCleared = true;
+                    lastTravelQuotePostcode = "";
+                } else {
+                    summaryTravelNeedsRefresh = false;
+                }
+
+                if (quoteCleared) {
+                    updateSummaryTotals(lastSummaryTotals.serviceTotal, lastSummaryTotals.hasCustom, "", lastSummaryTotals.hasSurvey || false);
+                }
+
+                persistFlowState();
+                updateSummaryNextState();
+            });
+        }
+        handleFieldChange(flowDateInput, function (value) { flowState.schedule.preferred_date = value; });
+        handleFieldChange(flowTimeInput, function (value) { flowState.schedule.preferred_time = value; });
+        handleFieldChange(flowNotesInput, function (value) { flowState.notes = value; });
+
+        if (flowPostcodeInput) {
+            flowPostcodeInput.addEventListener("change", function () {
+                requestTravelQuoteIfChanged(this.value);
+            });
+        }
+        if (flowRefreshTravelButton) {
+            flowRefreshTravelButton.addEventListener("click", function () {
+                refreshTravelQuote(lastSummaryTotals.serviceTotal, lastSummaryTotals.hasCustom);
+            });
+        }
+
+        var continueToServiceModal = function () {
+            closePostcodeModal();
+            var target = pendingServiceId || (SERVICE_CATALOG[0] && SERVICE_CATALOG[0].id) || null;
+            var expand = pendingAutoExpand;
+            pendingServiceId = null;
+            pendingAutoExpand = false;
+            openServiceModal(target, expand);
+        };
+
+        if (postcodeForm && askForPostcode) {
+            postcodeForm.addEventListener("submit", async function (event) {
+                event.preventDefault();
+                var postcodeValue = postcodeInput ? postcodeInput.value.trim() : "";
+
+                if (postcodeFeedback) {
+                    postcodeFeedback.textContent = "";
+                    postcodeFeedback.className = "form-feedback";
+                }
+
+                if (!postcodeValue) {
+                    if (postcodeFeedback) {
+                        postcodeFeedback.textContent = "Please enter your postcode or address.";
+                        postcodeFeedback.classList.add("is-error");
+                    }
+                    if (postcodeInput) {
+                        postcodeInput.focus();
+                    }
+                    return;
+                }
+
+                if (postcodeSubmitButton) {
+                    postcodeSubmitButton.disabled = true;
+                    postcodeSubmitButton.textContent = "Loading...";
+                }
+
+                try {
+                    var result = await fetchTravelQuote(postcodeValue, lastSummaryTotals.serviceTotal);
+                    
+                    // Check if extended coverage confirmation is needed
+                    if (result && result.requiresExtendedConfirmation) {
+                        closePostcodeModal();
+                        openExtendedCoverageModal(result.quote);
+                        return;
+                    }
+                    
+                    hydrateContactFields();
+                    updateSummaryTotals(lastSummaryTotals.serviceTotal, lastSummaryTotals.hasCustom, "", lastSummaryTotals.hasSurvey || false);
+                    continueToServiceModal();
+                } catch (error) {
+                    if (postcodeFeedback) {
+                        postcodeFeedback.textContent = error.message || "Unable to calculate travel.";
+                        postcodeFeedback.classList.add("is-error");
+                    }
+                } finally {
+                    if (postcodeSubmitButton) {
+                        postcodeSubmitButton.disabled = false;
+                        postcodeSubmitButton.textContent = "Continue";
+                    }
+                }
+            });
+        }
+
+        if (postcodeModal) {
+            postcodeModal.querySelectorAll("[data-close-modal]").forEach(function (element) {
+                element.addEventListener("click", function () {
+                    closePostcodeModal();
+                });
+            });
+        }
+
+        if (coverageModal) {
+            coverageModal.querySelectorAll("[data-close-modal]").forEach(function (element) {
+                element.addEventListener("click", function () {
+                    closeCoverageModal();
+                });
+            });
+        }
+
+        if (editLocationButton && askForPostcode) {
+            editLocationButton.addEventListener("click", function () {
+                closeServiceModal();
+                var currentService = getServiceFromQueue(currentServiceIndex);
+                var target = currentService ? currentService.id : null;
+                openPostcodeModal(target);
+            });
+        }
+
+        serviceFlowForm.addEventListener("submit", async function (event) {
+            event.preventDefault();
+            console.log("Form submit handler fired, activeStep:", activeStep, "submissionPending:", submissionPending);
+            
+            // Check submission lock FIRST - prevent ANY duplicate submissions
+            if (submissionPending) {
+                console.log("Submission already in progress, ignoring duplicate");
+                return;
+            }
+            
+            // If not on step 3, exit
+            if (activeStep !== 3) {
+                console.log("Not on step 3, exiting");
+                return;
+            }
+            
+            // Set submission lock and disable button IMMEDIATELY
+            submissionPending = true;
+            var originalLabel = defaultSubmitLabel;
+            if (flowSubmitButton) {
+                flowSubmitButton.disabled = true;
+                flowSubmitButton.textContent = "Submitting...";
+            }
+            console.log("Lock set, button disabled, proceeding with submit");
+
+            try {
+                // Sync latest field values into state before validation
+                if (flowLocationInput) flowState.customer.location = (flowLocationInput.value || "").trim();
+                if (flowPostcodeInput) flowState.customer.postcode = (flowPostcodeInput.value || "").trim();
+                if (flowSummaryPostcodeInput && !flowState.customer.postcode) {
+                    flowState.customer.postcode = (flowSummaryPostcodeInput.value || "").trim();
+                }
+                if (flowNameInput) flowState.customer.name = (flowNameInput.value || "").trim();
+                if (flowEmailInput) flowState.customer.email = (flowEmailInput.value || "").trim();
+                if (flowPhoneInput) flowState.customer.phone = (flowPhoneInput.value || "").trim();
+                if (flowNotesInput) flowState.notes = (flowNotesInput.value || "").trim();
+                persistFlowState();
+
+                // If postcode changed and we haven't already calculated for this postcode, refresh travel pricing
+                // BUT skip if the quote is already calculated for this postcode (use cached result)
+                if (askForPostcode) {
+                    var currentPostcode = normalizePostcodeValue(flowState.customer.postcode || "");
+                    var alreadyCalculated = Boolean(currentPostcode && lastTravelQuotePostcode === currentPostcode && flowState.travelQuote);
+                    
+                    if (currentPostcode && !alreadyCalculated && !travelQuotePending) {
+                        try {
+                            setSummaryFeedbackMessage("Updating travel pricing...", null, false);
+                            await refreshTravelQuote(lastSummaryTotals.serviceTotal, lastSummaryTotals.hasCustom, true);
+                        } catch (err) {
+                            if (flowFeedback) {
+                                flowFeedback.textContent = err.message || "Unable to calculate travel.";
+                                flowFeedback.classList.add("is-error");
+                            }
+                            if (flowSubmitButton) {
+                                flowSubmitButton.disabled = false;
+                                flowSubmitButton.textContent = originalLabel;
+                            }
+                            submissionPending = false;
+                            return;
+                        }
+                    }
+                }
+
+                var errors = [];
+                if (!flowState.customer.name) errors.push("Please enter your full name.");
+                if (!flowState.customer.email || flowState.customer.email.indexOf("@") === -1) errors.push("Enter a valid email address.");
+                if (!flowState.customer.phone || flowState.customer.phone.replace(/[^0-9]/g, "").length < 6) errors.push("Phone number looks incorrect.");
+                if (!flowState.customer.location) errors.push("Add your address or location.");
+                if (askForPostcode && !flowState.customer.postcode) errors.push("Please add your postcode or address.");
+                if (!flowState.schedule.preferred_date) errors.push("Choose a preferred date.");
+                if (!flowState.schedule.preferred_time) errors.push("Choose a preferred time.");
+
+                flowFeedback.classList.remove("is-error", "is-success");
+
+                if (errors.length) {
+                    flowFeedback.textContent = errors[0];
+                    flowFeedback.classList.add("is-error");
+                    if (flowSubmitButton) {
+                        flowSubmitButton.disabled = false;
+                        flowSubmitButton.textContent = originalLabel;
+                    }
+                    submissionPending = false;
+                    return;
+                }
+
+                var selections = getOrderedSelections();
+                if (!selections.length) {
+                    flowFeedback.textContent = "Please select at least one service option.";
+                    flowFeedback.classList.add("is-error");
+                    if (flowSubmitButton) {
+                        flowSubmitButton.disabled = false;
+                        flowSubmitButton.textContent = originalLabel;
+                    }
+                    submissionPending = false;
+                    return;
+                }
+
+                var serviceSummary = selections.map(function (selection) {
+                    return selection.serviceName + " – " + selection.optionLabel;
+                }).join(", ") || "Custom package";
+
+                console.log("Building payload for submission...");
+                var payload = {
+                    source: "service-flow",
+                    context_page: window.location.pathname,
+                    notes: flowState.notes,
+                    customer: {
+                        name: flowState.customer.name,
+                        email: flowState.customer.email,
+                        phone: flowState.customer.phone,
+                        address: flowState.customer.location,
+                        postcode: flowState.customer.postcode
+                    },
+                    schedule: {
+                        preferred_date: flowState.schedule.preferred_date,
+                        preferred_time: flowState.schedule.preferred_time
+                    },
+                    postcode: flowState.customer.postcode,
+                    selections: selections.map(function (selection) {
+                        return {
+                            service_id: selection.serviceId,
+                            service_option_id: selection.optionId,
+                            option_label: selection.optionLabel,
+                            price: selection.price,
+                            option_details: selection.optionDetails || "",
+                            pricing_model: selection.modelType || null,
+                            pricing_payload: selection.payload || null
+                        };
+                    })
+                };
+
+                console.log("Sending request to API...", payload);
+                var response = await fetch(apiBase + "/api/service-requests", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(payload)
+                });
+                var data = await response.json().catch(function () { return {}; });
+
+                if (response.ok) {
+                    flowFeedback.textContent = data.message || "Request received! We will confirm shortly.";
+                    flowFeedback.classList.add("is-success");
+                    sendAnalyticsEvent("request_submission", { form: "service-flow", request_id: data.request_id });
+                    resetFlow();
+                    // Release lock after successful submission (resetFlow will clear state)
+                    submissionPending = false;
+                    window.setTimeout(closeServiceModal, 1500);
+                } else {
+                    flowFeedback.textContent = data.error || "Unable to submit right now. Please retry.";
+                    flowFeedback.classList.add("is-error");
+                    if (flowSubmitButton) {
+                        flowSubmitButton.disabled = false;
+                        flowSubmitButton.textContent = originalLabel;
+                    }
+                    submissionPending = false;
+                }
+            } catch (error) {
+                console.error("Service flow submission failed", error);
+                flowFeedback.textContent = "Unable to submit right now. Please retry.";
+                flowFeedback.classList.add("is-error");
+                if (flowSubmitButton) {
+                    flowSubmitButton.disabled = false;
+                    flowSubmitButton.textContent = originalLabel;
+                }
+                submissionPending = false;
+            }
+        });
+
+        var bindServiceButtons = function () {
+            document.querySelectorAll(".service-request-trigger, .service-read-more").forEach(function (button) {
+                button.addEventListener("click", function (event) {
+                    event.preventDefault();
+                    var targetServiceId = button.getAttribute("data-service-id");
+                    var autoExpand = button.getAttribute("data-auto-expand") === "true";
+                    if (askForPostcode) {
+                        openPostcodeModal(targetServiceId, autoExpand);
+                    } else {
+                        openServiceModal(targetServiceId, autoExpand);
+                    }
+                });
+            });
+        };
+
+        var applyCatalogUpdate = function (catalog) {
+            SERVICE_CATALOG = Array.isArray(catalog) ? catalog : [];
+            renderServiceCards();
+            bindServiceButtons();
+            if (SERVICE_CATALOG.length) {
+                // Initialize queue with default catalog order
+                serviceQueue = SERVICE_CATALOG.map(function (s) { return s.id; });
+                currentServiceIndex = 0;
+                setActiveStep(1);
+                renderServiceStep();
+                updateMiniCart();
+            }
+        };
+
+        var fetchCatalogFromApi = async function () {
+            try {
+                var response = await fetch(apiBase + "/api/services");
+                if (!response.ok) {
+                    return;
+                }
+                var data = await response.json().catch(function () { return []; });
+                var normalized = (Array.isArray(data) ? data : []).map(normalizeService).filter(Boolean);
+                applyCatalogUpdate(normalized);
+            } catch (error) {
+                console.warn("Unable to refresh services catalog", error);
+            }
+        };
+
+        bindServiceButtons();
+        renderServiceStep();
+        updateMiniCart();
+        hydrateContactFields();
+
+        if (!SERVICE_CATALOG.length) {
+            fetchCatalogFromApi();
+        }
+
+        var closeElements = serviceModal.querySelectorAll("[data-close-modal]");
+        closeElements.forEach(function (element) {
+            element.addEventListener("click", function () {
+                closeServiceModal();
+            });
         });
     }
 
@@ -220,16 +2924,18 @@ document.addEventListener("DOMContentLoaded", function () {
     var jobButtons = document.querySelectorAll("[data-job]");
     var jobTitlePlaceholder = document.getElementById("job-title-placeholder");
     var jobPositionInput = document.getElementById("job-position");
-    var closeModalElements = document.querySelectorAll("[data-close-modal]");
     var jobForm = document.getElementById("job-application-form");
+    var jobResumeInput = document.getElementById("applicant-resume");
 
     if (jobModal && jobButtons.length) {
+        var jobCloseElements = jobModal.querySelectorAll("[data-close-modal]");
         var openModal = function (jobTitle) {
             if (jobTitlePlaceholder) jobTitlePlaceholder.textContent = jobTitle;
             if (jobPositionInput) jobPositionInput.value = jobTitle;
             jobModal.classList.add("is-open");
             jobModal.setAttribute("aria-hidden", "false");
             document.body.style.overflow = "hidden"; // Prevent background scrolling
+            sendAnalyticsEvent("job_view", { position: jobTitle });
         };
 
         var closeModal = function () {
@@ -237,12 +2943,68 @@ document.addEventListener("DOMContentLoaded", function () {
             jobModal.setAttribute("aria-hidden", "true");
             document.body.style.overflow = "";
             if (jobForm) jobForm.reset();
+            if (jobResumeInput) jobResumeInput.value = "";
             var feedback = jobForm.querySelector(".form-feedback");
             if (feedback) {
                 feedback.textContent = "";
                 feedback.className = "form-feedback";
             }
         };
+
+        // Handle form submission
+        if (jobForm) {
+            jobForm.addEventListener("submit", async function (e) {
+                e.preventDefault();
+                var feedback = jobForm.querySelector(".form-feedback");
+                if (!feedback) return;
+
+                var btn = jobForm.querySelector("button[type='submit']");
+                var originalText = btn.textContent;
+                btn.textContent = "Sending...";
+                btn.disabled = true;
+
+                try {
+                    var payload = new FormData();
+                    payload.append("request_type", "job");
+                    payload.append("source", "job-modal");
+                    payload.append("context_page", window.location.pathname);
+                    payload.append("name", jobForm.elements.name.value.trim());
+                    payload.append("email", jobForm.elements.email.value.trim());
+                    payload.append("phone", jobForm.elements.phone.value.trim());
+                    payload.append("position", jobForm.elements.position.value.trim());
+                    payload.append("message", jobForm.elements.message.value.trim());
+
+                    if (jobResumeInput && jobResumeInput.files && jobResumeInput.files[0]) {
+                        payload.append("resume", jobResumeInput.files[0]);
+                    }
+
+                    const response = await fetch(apiBase + "/api/requests", {
+                        method: "POST",
+                        body: payload
+                    });
+
+                    const data = await response.json().catch(function () { return {}; });
+
+                    if (response.ok) {
+                        feedback.textContent = data.message || "Application sent successfully! We'll be in touch.";
+                        feedback.classList.add("is-success");
+                        jobForm.reset();
+                        sendAnalyticsEvent("request_submission", { form: "job", request_id: data.request_id });
+                        setTimeout(closeModal, 2000);
+                    } else {
+                        feedback.textContent = data.error || "Submission failed.";
+                        feedback.classList.add("is-error");
+                    }
+                } catch (error) {
+                    feedback.textContent = "Network error. Please try again.";
+                    feedback.classList.add("is-error");
+                    console.error("Job application failed", error);
+                } finally {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }
+            });
+        }
 
         jobButtons.forEach(function (button) {
             button.addEventListener("click", function (e) {
@@ -252,41 +3014,493 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         });
 
-        closeModalElements.forEach(function (el) {
+        jobCloseElements.forEach(function (el) {
             el.addEventListener("click", closeModal);
         });
+    }
 
-        // Close on Escape key
-        document.addEventListener("keydown", function (e) {
-            if (e.key === "Escape" && jobModal.classList.contains("is-open")) {
-                closeModal();
+    var drawerToggles = document.querySelectorAll("[data-drawer-toggle]");
+
+    if (drawerToggles.length) {
+        drawerToggles.forEach(function (button) {
+            var targetId = button.getAttribute("data-drawer-toggle");
+            if (!targetId) {
+                return;
             }
-        });
 
-        // Handle form submission
-        if (jobForm) {
-            jobForm.addEventListener("submit", function (e) {
-                e.preventDefault();
-                var feedback = jobForm.querySelector(".form-feedback");
-                if (!feedback) return;
+            var target = document.getElementById(targetId);
+            if (!target) {
+                return;
+            }
 
-                // Simulate submission
-                var btn = jobForm.querySelector("button[type='submit']");
-                var originalText = btn.textContent;
-                btn.textContent = "Sending...";
-                btn.disabled = true;
+            var expandLabel = button.getAttribute("data-drawer-expand-label") || "View more";
+            var collapseLabel = button.getAttribute("data-drawer-collapse-label") || "Show less";
 
-                setTimeout(function () {
-                    feedback.textContent = "Application sent successfully! We'll be in touch.";
-                    feedback.classList.add("is-success");
-                    btn.textContent = originalText;
-                    btn.disabled = false;
-                    
-                    setTimeout(closeModal, 2000);
-                }, 1500);
+            var setExpandedState = function (isExpanded) {
+                if (isExpanded) {
+                    target.classList.add("is-open");
+                    target.setAttribute("aria-hidden", "false");
+                    button.setAttribute("aria-expanded", "true");
+                    button.textContent = collapseLabel;
+
+                    var targetHeight = target.scrollHeight;
+                    target.style.maxHeight = targetHeight + "px";
+
+                    window.requestAnimationFrame(function () {
+                        // Allow the drawer to expand to accommodate responsive changes
+                        target.style.maxHeight = targetHeight + "px";
+                    });
+
+                    if (!target.dataset.analyticsLogged) {
+                        if (targetId === "services-drawer") {
+                            sendAnalyticsEvent("service_view", { context: "drawer" });
+                        } else if (targetId === "careers-drawer") {
+                            sendAnalyticsEvent("job_view", { context: "drawer" });
+                        }
+                        target.dataset.analyticsLogged = "true";
+                    }
+                } else {
+                    if (target.style.maxHeight === "none") {
+                        target.style.maxHeight = target.scrollHeight + "px";
+                        // Force reflow to ensure transition starts from full height
+                        void target.offsetHeight;
+                    }
+
+                    target.classList.remove("is-open");
+                    target.setAttribute("aria-hidden", "true");
+                    button.setAttribute("aria-expanded", "false");
+                    button.textContent = expandLabel;
+                    target.style.maxHeight = "0px";
+                }
+            };
+
+            setExpandedState(false);
+
+            var toggleDrawer = function () {
+                var currentlyExpanded = target.classList.contains("is-open");
+                setExpandedState(!currentlyExpanded);
+            };
+
+            button.addEventListener("click", function () {
+                toggleDrawer();
             });
+
+            window.addEventListener("resize", function () {
+                if (target.classList.contains("is-open")) {
+                    target.style.maxHeight = target.scrollHeight + "px";
+                }
+            });
+
+            target.addEventListener("transitionend", function (event) {
+                if (event.propertyName === "max-height") {
+                    if (target.classList.contains("is-open")) {
+                        target.style.maxHeight = "none";
+                    }
+                }
+            });
+        });
+    }
+
+    var testimonialSlider = document.getElementById("testimonial-slider");
+
+    if (testimonialSlider) {
+        var sliderCards = Array.from(testimonialSlider.querySelectorAll(".testimonial-card"));
+        var sliderContainer = testimonialSlider.closest(".testimonial-slider-container");
+        var prevBtn = sliderContainer ? sliderContainer.querySelector(".slider-nav--prev") : null;
+        var nextBtn = sliderContainer ? sliderContainer.querySelector(".slider-nav--next") : null;
+        var dotsContainer = sliderContainer ? sliderContainer.querySelector(".slider-dots") : null;
+
+        if (sliderCards.length > 3 && !prefersReducedMotion) {
+            var slideDelay = 4000; // Faster: 4 seconds instead of 6.5
+            var sliderIntervalId = null;
+            var totalSlides = Math.ceil(sliderCards.length / 2);
+            var currentSlide = 0;
+            var track = document.createElement("div");
+            track.className = "testimonial-slider__track";
+            var slides = [];
+
+            for (var index = 0; index < totalSlides; index++) {
+                var startIndex = index * 2;
+                var slideWrapper = document.createElement("div");
+                slideWrapper.className = "testimonial-slide";
+                var pairedCards = sliderCards.slice(startIndex, startIndex + 2);
+
+                var pairWrapper = document.createElement("div");
+                pairWrapper.className = "testimonial-pair";
+
+                pairedCards.forEach(function (card) {
+                    pairWrapper.appendChild(card);
+                    card.setAttribute("role", "group");
+                    card.setAttribute("aria-roledescription", "testimonial");
+                    var cite = card.querySelector("cite");
+                    var label = cite ? cite.textContent.trim() : "Client testimonial";
+                    card.setAttribute("aria-label", label || "Client testimonial");
+                });
+
+                if (pairedCards.length === 1) {
+                    slideWrapper.classList.add("is-single");
+                }
+
+                slideWrapper.appendChild(pairWrapper);
+
+                var firstCardIndex = startIndex + 1;
+                var lastCardIndex = startIndex + pairedCards.length;
+                slideWrapper.setAttribute("role", "group");
+                slideWrapper.setAttribute("aria-roledescription", "slide");
+                slideWrapper.setAttribute(
+                    "aria-label",
+                    pairedCards.length === 2
+                        ? "Testimonials " + firstCardIndex + " and " + lastCardIndex + " of " + sliderCards.length
+                        : "Testimonial " + firstCardIndex + " of " + sliderCards.length
+                );
+
+                track.appendChild(slideWrapper);
+                slides.push({ element: slideWrapper, cards: pairedCards });
+            }
+
+            while (testimonialSlider.firstChild) {
+                testimonialSlider.removeChild(testimonialSlider.firstChild);
+            }
+
+            testimonialSlider.classList.add("is-enhanced");
+            testimonialSlider.setAttribute("tabindex", "0");
+            testimonialSlider.setAttribute("aria-roledescription", "carousel");
+
+            var viewport = document.createElement("div");
+            viewport.className = "testimonial-slider__viewport";
+            viewport.appendChild(track);
+            testimonialSlider.appendChild(viewport);
+            track.style.transform = "translateX(0%)";
+
+            var updateSliderHeight = function () {
+                var activeSlide = slides[currentSlide];
+                if (!activeSlide || !activeSlide.element) {
+                    return;
+                }
+                var computed = window.getComputedStyle(viewport);
+                var paddingTop = parseFloat(computed.paddingTop) || 0;
+                var paddingBottom = parseFloat(computed.paddingBottom) || 0;
+                var targetHeight = activeSlide.element.offsetHeight + paddingTop + paddingBottom;
+                viewport.style.height = targetHeight + "px";
+                testimonialSlider.style.height = targetHeight + "px";
+            };
+
+            var updateAriaStates = function () {
+                slides.forEach(function (slide, slideIndex) {
+                    var isActive = slideIndex === currentSlide;
+                    slide.element.classList.toggle("is-active", isActive);
+                    slide.element.setAttribute("aria-hidden", isActive ? "false" : "true");
+                    slide.cards.forEach(function (card) {
+                        card.setAttribute("aria-hidden", isActive ? "false" : "true");
+                    });
+                });
+            };
+
+            var goToSlide = function (nextIndex) {
+                if (nextIndex === currentSlide || nextIndex < 0 || nextIndex >= slides.length) {
+                    return;
+                }
+
+                currentSlide = nextIndex;
+                track.style.transform = "translateX(-" + nextIndex * 100 + "%)";
+                updateAriaStates();
+                window.requestAnimationFrame(updateSliderHeight);
+            };
+
+            var nextSlide = function () {
+                var nextIndex = (currentSlide + 1) % slides.length;
+                goToSlide(nextIndex);
+            };
+
+            var prevSlide = function () {
+                var prevIndex = (currentSlide - 1 + slides.length) % slides.length;
+                goToSlide(prevIndex);
+            };
+
+            var stopAutoPlay = function () {
+                if (sliderIntervalId) {
+                    window.clearInterval(sliderIntervalId);
+                    sliderIntervalId = null;
+                }
+            };
+
+            var beginAutoPlay = function () {
+                if (slides.length <= 1) {
+                    return;
+                }
+                stopAutoPlay();
+                sliderIntervalId = window.setInterval(nextSlide, slideDelay);
+            };
+
+            // Create navigation dots
+            var updateDots = function () {
+                if (!dotsContainer) return;
+                var dots = dotsContainer.querySelectorAll(".slider-dot");
+                dots.forEach(function (dot, index) {
+                    dot.classList.toggle("is-active", index === currentSlide);
+                    dot.setAttribute("aria-selected", index === currentSlide ? "true" : "false");
+                });
+            };
+
+            if (dotsContainer && slides.length > 1) {
+                slides.forEach(function (slide, index) {
+                    var dot = document.createElement("button");
+                    dot.className = "slider-dot" + (index === 0 ? " is-active" : "");
+                    dot.setAttribute("role", "tab");
+                    dot.setAttribute("aria-label", "Go to slide " + (index + 1));
+                    dot.setAttribute("aria-selected", index === 0 ? "true" : "false");
+                    dot.addEventListener("click", function () {
+                        stopAutoPlay();
+                        goToSlide(index);
+                        updateDots();
+                        beginAutoPlay();
+                    });
+                    dotsContainer.appendChild(dot);
+                });
+            }
+
+            // Override goToSlide to update dots
+            var originalGoToSlide = goToSlide;
+            goToSlide = function (nextIndex) {
+                originalGoToSlide(nextIndex);
+                updateDots();
+            };
+
+            // Connect prev/next buttons
+            if (prevBtn) {
+                prevBtn.addEventListener("click", function () {
+                    stopAutoPlay();
+                    prevSlide();
+                    beginAutoPlay();
+                });
+            }
+
+            if (nextBtn) {
+                nextBtn.addEventListener("click", function () {
+                    stopAutoPlay();
+                    nextSlide();
+                    beginAutoPlay();
+                });
+            }
+
+            // Swipe/touch support
+            var touchStartX = 0;
+            var touchEndX = 0;
+            var minSwipeDistance = 50;
+
+            testimonialSlider.addEventListener("touchstart", function (e) {
+                touchStartX = e.changedTouches[0].screenX;
+            }, { passive: true });
+
+            testimonialSlider.addEventListener("touchend", function (e) {
+                touchEndX = e.changedTouches[0].screenX;
+                var swipeDistance = touchEndX - touchStartX;
+                
+                if (Math.abs(swipeDistance) > minSwipeDistance) {
+                    stopAutoPlay();
+                    if (swipeDistance < 0) {
+                        // Swiped left - go next
+                        nextSlide();
+                    } else {
+                        // Swiped right - go prev
+                        prevSlide();
+                    }
+                    beginAutoPlay();
+                }
+            }, { passive: true });
+
+            updateAriaStates();
+            window.requestAnimationFrame(updateSliderHeight);
+            beginAutoPlay();
+
+            window.addEventListener("resize", updateSliderHeight);
+            window.addEventListener("load", updateSliderHeight, { once: true });
+
+            testimonialSlider.addEventListener("pointerenter", stopAutoPlay);
+            testimonialSlider.addEventListener("pointerleave", beginAutoPlay);
+            testimonialSlider.addEventListener("focusin", stopAutoPlay);
+            testimonialSlider.addEventListener("focusout", function (event) {
+                if (!testimonialSlider.contains(event.relatedTarget)) {
+                    beginAutoPlay();
+                }
+            });
+
+            testimonialSlider.addEventListener("keydown", function (event) {
+                if (event.key === "ArrowLeft") {
+                    event.preventDefault();
+                    stopAutoPlay();
+                    prevSlide();
+                } else if (event.key === "ArrowRight") {
+                    event.preventDefault();
+                    stopAutoPlay();
+                    nextSlide();
+                }
+            });
+
+            document.addEventListener("visibilitychange", function () {
+                if (document.hidden) {
+                    stopAutoPlay();
+                } else {
+                    beginAutoPlay();
+                }
+            });
+            
+            // Initialize read more buttons after slider is set up
+            setTimeout(initTestimonialReadMore, 100);
         }
     }
+
+    // --- TESTIMONIAL READ MORE MODAL ---
+    var testimonialModal = document.getElementById("testimonialModal");
+    var testimonialModalRating = document.getElementById("testimonialModalRating");
+    var testimonialModalMessage = document.getElementById("testimonialModalMessage");
+    var testimonialModalAuthor = document.getElementById("testimonialModalAuthor");
+
+    var openTestimonialModal = function (rating, message, author, isVerified) {
+        if (!testimonialModal) return;
+        
+        // Set content
+        if (testimonialModalRating) {
+            var stars = "";
+            for (var i = 1; i <= 5; i++) {
+                stars += i <= rating ? "★" : "☆";
+            }
+            testimonialModalRating.textContent = stars;
+        }
+        if (testimonialModalMessage) {
+            testimonialModalMessage.textContent = '"' + message + '"';
+            // Reset scroll position
+            testimonialModalMessage.scrollTop = 0;
+        }
+        if (testimonialModalAuthor) {
+            testimonialModalAuthor.innerHTML = '— ' + author + (isVerified ? ' <span class="verified-badge" title="Verified Customer">✓</span>' : '');
+        }
+        
+        // Open modal
+        testimonialModal.classList.add("is-open");
+        testimonialModal.setAttribute("aria-hidden", "false");
+        document.body.style.overflow = "hidden";
+        
+        // Auto-scroll long messages after a short delay
+        setTimeout(function () {
+            if (testimonialModalMessage && testimonialModalMessage.scrollHeight > testimonialModalMessage.clientHeight) {
+                var scrollDistance = testimonialModalMessage.scrollHeight - testimonialModalMessage.clientHeight;
+                var scrollDuration = Math.max(3000, scrollDistance * 20); // ~20ms per pixel, min 3 seconds
+                var startTime = null;
+                
+                var animateScroll = function (currentTime) {
+                    if (!startTime) startTime = currentTime;
+                    var elapsed = currentTime - startTime;
+                    var progress = Math.min(elapsed / scrollDuration, 1);
+                    
+                    // Ease-in-out for smoother scrolling
+                    var easeProgress = progress < 0.5
+                        ? 2 * progress * progress
+                        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                    
+                    testimonialModalMessage.scrollTop = easeProgress * scrollDistance;
+                    
+                    if (progress < 1 && testimonialModal.classList.contains("is-open")) {
+                        requestAnimationFrame(animateScroll);
+                    }
+                };
+                
+                requestAnimationFrame(animateScroll);
+            }
+        }, 800);
+    };
+
+    var closeTestimonialModal = function () {
+        if (!testimonialModal) return;
+        testimonialModal.classList.remove("is-open");
+        testimonialModal.setAttribute("aria-hidden", "true");
+        document.body.style.overflow = "";
+    };
+
+    // Close modal handlers
+    if (testimonialModal) {
+        testimonialModal.querySelectorAll("[data-close-modal]").forEach(function (el) {
+            el.addEventListener("click", closeTestimonialModal);
+        });
+        testimonialModal.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") closeTestimonialModal();
+        });
+    }
+
+    var initTestimonialReadMore = function () {
+        var testimonialCards = document.querySelectorAll(".testimonial-card");
+        
+        testimonialCards.forEach(function (card) {
+            var message = card.querySelector(".testimonial-message");
+            var readMoreBtn = card.querySelector(".testimonial-read-more");
+            
+            if (!message || !readMoreBtn) return;
+            
+            // Skip if already initialized
+            if (readMoreBtn.dataset.initialized) return;
+            readMoreBtn.dataset.initialized = "true";
+            
+            // Check if text is truncated using multiple methods
+            var checkTruncation = function () {
+                // Reset state first
+                message.classList.remove("is-expanded");
+                readMoreBtn.classList.remove("is-expanded");
+                
+                // Method 1: Check text length (show if more than ~150 chars)
+                var textLength = message.textContent.trim().length;
+                var shouldShowByLength = textLength > 150;
+                
+                // Method 2: Check scroll vs client height
+                var scrollHeight = message.scrollHeight;
+                var clientHeight = message.clientHeight;
+                var shouldShowByHeight = scrollHeight > clientHeight + 2;
+                
+                // Show button if either condition is met
+                if (shouldShowByLength || shouldShowByHeight) {
+                    readMoreBtn.style.display = "inline-flex";
+                } else {
+                    readMoreBtn.style.display = "none";
+                }
+            };
+            
+            // Check after delays to ensure CSS is applied
+            setTimeout(checkTruncation, 50);
+            setTimeout(checkTruncation, 300);
+            window.addEventListener("resize", checkTruncation);
+            
+            // Open modal with full testimonial
+            readMoreBtn.addEventListener("click", function (e) {
+                e.stopPropagation();
+                
+                // Get testimonial data from card
+                var ratingEl = card.querySelector(".testimonial-rating");
+                var authorEl = card.querySelector("cite");
+                var verifiedBadge = card.querySelector(".verified-badge");
+                
+                // Count filled stars to get numeric rating
+                var ratingText = ratingEl ? ratingEl.textContent.trim() : "";
+                var numericRating = (ratingText.match(/★/g) || []).length;
+                
+                var fullMessage = message.getAttribute("data-full-text") || message.textContent.trim();
+                // Remove surrounding quotes if present
+                fullMessage = fullMessage.replace(/^[""]|[""]$/g, "").trim();
+                
+                var author = authorEl ? authorEl.textContent.trim() : "";
+                // Remove verified badge symbol from author name if present
+                author = author.replace(/\s*✓\s*$/, "").trim();
+                
+                var isVerified = !!verifiedBadge;
+                
+                openTestimonialModal(numericRating, fullMessage, author, isVerified);
+            });
+        });
+    };
+    
+    // Run on DOMContentLoaded and also after load
+    initTestimonialReadMore();
+    window.addEventListener("load", function () {
+        setTimeout(initTestimonialReadMore, 300);
+    });
 
     // --- BACK TO TOP BUTTON ---
     var backToTopBtn = document.getElementById("backToTop");
@@ -308,4 +3522,96 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         });
     }
+
+    // --- COMPANY PROFILE MODAL ---
+    var companyProfileModal = document.getElementById("companyProfileModal");
+    var companyProfileOpenBtns = document.querySelectorAll("[data-open-company-profile]");
+    var companyProfileCloseBtns = companyProfileModal ? companyProfileModal.querySelectorAll("[data-close-modal]") : [];
+    var profileTabs = companyProfileModal ? companyProfileModal.querySelectorAll(".profile-tab") : [];
+    var profilePanels = companyProfileModal ? companyProfileModal.querySelectorAll(".profile-panel") : [];
+
+    function openCompanyProfileModal(targetTab) {
+        if (!companyProfileModal) return;
+        companyProfileModal.classList.add("is-open");
+        body.style.overflow = "hidden";
+        if (targetTab) {
+            switchProfileTab(targetTab);
+        }
+        var firstCloseBtn = companyProfileModal.querySelector("[data-close-modal]");
+        if (firstCloseBtn) {
+            firstCloseBtn.focus();
+        }
+    }
+
+    function closeCompanyProfileModal() {
+        if (!companyProfileModal) return;
+        companyProfileModal.classList.remove("is-open");
+        body.style.overflow = "";
+    }
+
+    function switchProfileTab(tabId) {
+        profileTabs.forEach(function (tab) {
+            if (tab.getAttribute("data-tab") === tabId) {
+                tab.classList.add("active");
+                tab.setAttribute("aria-selected", "true");
+            } else {
+                tab.classList.remove("active");
+                tab.setAttribute("aria-selected", "false");
+            }
+        });
+        profilePanels.forEach(function (panel) {
+            if (panel.id === tabId) {
+                panel.classList.add("active");
+                panel.removeAttribute("hidden");
+            } else {
+                panel.classList.remove("active");
+                panel.setAttribute("hidden", "");
+            }
+        });
+    }
+
+    companyProfileOpenBtns.forEach(function (btn) {
+        btn.addEventListener("click", function (e) {
+            e.preventDefault();
+            var targetTab = btn.getAttribute("data-open-company-profile") || "profile-story";
+            openCompanyProfileModal(targetTab);
+        });
+    });
+
+    companyProfileCloseBtns.forEach(function (btn) {
+        btn.addEventListener("click", function (e) {
+            e.preventDefault();
+            closeCompanyProfileModal();
+        });
+    });
+
+    if (companyProfileModal) {
+        companyProfileModal.addEventListener("click", function (e) {
+            if (e.target === companyProfileModal) {
+                closeCompanyProfileModal();
+            }
+        });
+
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape" && companyProfileModal.classList.contains("is-open")) {
+                closeCompanyProfileModal();
+            }
+        });
+    }
+
+    profileTabs.forEach(function (tab) {
+        tab.addEventListener("click", function (e) {
+            e.preventDefault();
+            var tabId = tab.getAttribute("data-tab");
+            switchProfileTab(tabId);
+        });
+
+        tab.addEventListener("keydown", function (e) {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                var tabId = tab.getAttribute("data-tab");
+                switchProfileTab(tabId);
+            }
+        });
+    });
 });

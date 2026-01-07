@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Clean Co.' %}
+    <title>Telegram Alerts | {{ company_name }} Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f3f4f6;
+            --surface: #ffffff;
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --border: #e5e7eb;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --success: #047857;
+            --success-bg: rgba(16, 185, 129, 0.15);
+            --error: #991b1b;
+            --error-bg: rgba(239, 68, 68, 0.15);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg);
+            display: flex;
+            min-height: 100vh;
+            color: var(--text);
+        }
+
+        .sidebar {
+            width: 240px;
+            background: #111827;
+            color: #f9fafb;
+            padding: 2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            align-self: flex-start;
+            z-index: 120;
+        }
+
+        .sidebar__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .sidebar__toggle {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0.45rem 0.7rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+            color: #f9fafb;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .sidebar__toggle:hover {
+            background: rgba(255, 255, 255, 0.14);
+        }
+
+        .sidebar__nav {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .sidebar--menu-open .sidebar__nav {
+            display: flex;
+        }
+
+        .sidebar__logout-form {
+            margin-top: 0.75rem;
+        }
+
+        .sidebar__logout-button {
+            width: 100%;
+            display: block;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(248, 113, 113, 0.25);
+            background: rgba(248, 113, 113, 0.12);
+            color: #fca5a5;
+            font-weight: 600;
+            font-size: 0.95rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .sidebar__logout-button:hover,
+        .sidebar__logout-button:focus {
+            background: rgba(248, 113, 113, 0.2);
+            color: #fee2e2;
+            outline: none;
+        }
+
+        .sidebar .logo {
+            font-weight: 600;
+            font-size: 1.25rem;
+        }
+
+        .sidebar .nav-link {
+            color: #d1d5db;
+            text-decoration: none;
+            padding: 0.65rem 0.75rem;
+            border-radius: 0.5rem;
+            transition: background 0.2s ease;
+            display: block;
+        }
+
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            background: rgba(37, 99, 235, 0.2);
+            color: #fff;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 2.5rem 3rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.75rem;
+            min-height: 0;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .page-header h1 {
+            margin: 0;
+            font-size: 1.75rem;
+        }
+
+        .card {
+            background: var(--surface);
+            border-radius: 1rem;
+            border: 1px solid var(--border);
+            padding: 1.75rem;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        .form-grid {
+            display: grid;
+            gap: 1.25rem;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        input[type="text"],
+        textarea {
+            font: inherit;
+            padding: 0.65rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            background: #fff;
+            transition: border-color 0.2s ease;
+        }
+
+        input[type="text"]:focus,
+        textarea:focus {
+            outline: 2px solid rgba(37, 99, 235, 0.2);
+            border-color: var(--primary);
+        }
+
+        .toggle-list {
+            display: grid;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .toggle-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.25rem;
+            padding: 0.85rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            background: #fff;
+        }
+
+        .toggle-item small {
+            display: block;
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+        }
+
+        .checkbox {
+            width: 18px;
+            height: 18px;
+        }
+
+        .help-text {
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .alert {
+            padding: 0.85rem 1rem;
+            border-radius: 0.65rem;
+            font-size: 0.95rem;
+        }
+
+        .alert-success {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+
+        .alert-error {
+            background: var(--error-bg);
+            color: var(--error);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.65rem 1.1rem;
+            font-weight: 600;
+            border-radius: 0.55rem;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .button-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+        }
+
+        @media (max-width: 1024px) {
+            body {
+                flex-direction: column;
+                min-height: 100vh;
+            }
+
+            .sidebar {
+                width: 100%;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.75rem;
+                padding: 1.15rem 1.5rem;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+                height: auto;
+                overflow: visible;
+            }
+
+            .sidebar__header {
+                margin-bottom: 0;
+            }
+
+            .sidebar__toggle {
+                display: inline-flex;
+            }
+
+            .sidebar__nav {
+                display: none;
+                padding-top: 0.75rem;
+                border-top: 1px solid rgba(255, 255, 255, 0.15);
+            }
+
+            .main-content {
+                padding: 1.75rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 1.5rem;
+                min-height: 0;
+            }
+
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.75rem;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .sidebar {
+                padding: 1rem 1.25rem;
+            }
+
+            .main-content {
+                padding: 1.25rem;
+                min-height: 0;
+            }
+
+            .card {
+                padding: 1.5rem;
+            }
+
+            .button-row {
+                justify-content: stretch;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar__header">
+            <div class="logo">{{ company_name }} Admin</div>
+            <button class="sidebar__toggle" type="button" id="sidebarToggle">Menu</button>
+        </div>
+        <nav class="sidebar__nav">
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">Hero Content</a>
+            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
+            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">Quote &amp; Contact</a>
+            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
+        </nav>
+        <form class="sidebar__logout-form" action="{{ url_for('admin_logout') }}" method="post">
+            <button class="sidebar__logout-button" type="submit">Sign Out</button>
+        </form>
+    </aside>
+
+    <main class="main-content">
+        <header class="page-header">
+            <div>
+                <p class="help-text" style="margin: 0 0 0.25rem; color: var(--muted);">Operations Alerts</p>
+                <h1>Telegram Notifications</h1>
+            </div>
+            <p class="help-text" style="max-width: 320px; margin: 0;">
+                This page stays off the main navigation. Bookmark it if you need to revisit the integration.
+            </p>
+        </header>
+
+        {% if error_message %}
+            <div class="alert alert-error">{{ error_message }}</div>
+        {% elif success_message %}
+            <div class="alert alert-success">{{ success_message }}</div>
+        {% endif %}
+
+        <section class="card">
+            <form method="post" novalidate>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="bot_token">Bot Token</label>
+                        <input type="text" name="bot_token" id="bot_token" value="{{ telegram_settings.bot_token }}" autocomplete="off" spellcheck="false">
+                        <p class="help-text">Create a bot with @BotFather and paste the token here. Keep it private.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="chat_id">Chat ID</label>
+                        <input type="text" name="chat_id" id="chat_id" value="{{ telegram_settings.chat_id }}" autocomplete="off" spellcheck="false">
+                        <p class="help-text">Use your bot to obtain the numeric chat ID where alerts should be delivered.</p>
+                    </div>
+                </div>
+
+                <div class="toggle-list">
+                    <label class="toggle-item" for="is_active">
+                        <div>
+                            <strong>Enable Telegram alerts</strong>
+                            <small>When enabled, the system will dispatch notifications to the configured chat.</small>
+                        </div>
+                        <input class="checkbox" type="checkbox" name="is_active" id="is_active" value="1" {% if telegram_settings.is_active %}checked{% endif %}>
+                    </label>
+
+                    <label class="toggle-item" for="notify_email_success">
+                        <div>
+                            <strong>Email delivery success</strong>
+                            <small>Send a Telegram message any time an outgoing email is accepted by the SMTP server.</small>
+                        </div>
+                        <input class="checkbox" type="checkbox" name="notify_email_success" id="notify_email_success" value="1" {% if telegram_settings.notify_email_success %}checked{% endif %}>
+                    </label>
+
+                    <label class="toggle-item" for="notify_email_error">
+                        <div>
+                            <strong>Email delivery failures</strong>
+                            <small>Alert on skipped or failed email attempts so you can investigate immediately.</small>
+                        </div>
+                        <input class="checkbox" type="checkbox" name="notify_email_error" id="notify_email_error" value="1" {% if telegram_settings.notify_email_error %}checked{% endif %}>
+                    </label>
+
+                    <label class="toggle-item" for="notify_admin_login">
+                        <div>
+                            <strong>Successful admin sign-ins</strong>
+                            <small>Receive a ping whenever someone signs in to the admin dashboard.</small>
+                        </div>
+                        <input class="checkbox" type="checkbox" name="notify_admin_login" id="notify_admin_login" value="1" {% if telegram_settings.notify_admin_login %}checked{% endif %}>
+                    </label>
+
+                    <label class="toggle-item" for="notify_login_failure">
+                        <div>
+                            <strong>Failed admin login attempts</strong>
+                            <small>Stay informed about brute-force attempts without exposing anything to the user.</small>
+                        </div>
+                        <input class="checkbox" type="checkbox" name="notify_login_failure" id="notify_login_failure" value="1" {% if telegram_settings.notify_login_failure %}checked{% endif %}>
+                    </label>
+                </div>
+
+                <div class="button-row">
+                    <button class="btn btn-primary" type="submit">Save Telegram Settings</button>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <script>
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebar = document.getElementById('sidebar');
+        sidebarToggle?.addEventListener('click', () => {
+            sidebar.classList.toggle('sidebar--menu-open');
+        });
+
+        const links = document.querySelectorAll('.sidebar__nav .nav-link');
+        links.forEach(link => {
+            if (link.href === window.location.href) {
+                link.classList.add('active');
+            }
+        });
+    </script>
+</body>
+</html>

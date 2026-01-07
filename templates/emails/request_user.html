@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>We Received Your Request</title>
+</head>
+<body style="font-family: Arial, sans-serif; color: #111; background-color: #f6f8fb; padding: 24px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #e5e9f2;">
+        <tr style="background: #2563eb; color: #ffffff;">
+            <td style="padding: 20px 24px;">
+                <h1 style="margin: 0; font-size: 20px;">Thank you, {{ request.name }}!</h1>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 24px; font-size: 15px;">
+                <p style="margin-top: 0;">We have received your {{ request.request_type }} request and a member of our team will reach out shortly.</p>
+
+                <h2 style="font-size: 16px; margin: 24px 0 12px; color: #2563eb;">Summary</h2>
+                <ul style="padding-left: 20px; margin: 0; color: #111;">
+                    {% if request.ref_id %}<li><strong>Reference:</strong> {{ request.ref_id }}</li>{% endif %}
+                    <li><strong>Submitted:</strong> {{ request.created_at }}</li>
+                    {% if request.service_name %}<li><strong>Service:</strong> {{ request.service_name }}</li>{% endif %}
+                    {% if request.job_position %}<li><strong>Position:</strong> {{ request.job_position }}</li>{% endif %}
+                    {% if request.phone %}<li><strong>Phone:</strong> {{ request.phone }}</li>{% endif %}
+                </ul>
+
+                {% if order_items %}
+                <h2 style="font-size: 16px; margin: 24px 0 12px; color: #2563eb;">📋 Your Order</h2>
+                <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 14px; margin: 0 0 16px; border-collapse: collapse; border: 1px solid #e5e9f2; border-radius: 6px; overflow: hidden;">
+                    <thead>
+                        <tr style="background: #2563eb; color: #ffffff;">
+                            <th style="padding: 10px 12px; text-align: left;">Service</th>
+                            <th style="padding: 10px 12px; text-align: left;">Details</th>
+                            <th style="padding: 10px 12px; text-align: right; width: 100px;">Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in order_items %}
+                        <tr style="background: {{ '#ffffff' if loop.index0 % 2 == 0 else '#f7f9fc' }};">
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #e5e9f2; font-weight: 600; color: #2563eb;">
+                                {{ item.service_name }}
+                            </td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #e5e9f2; color: #4b5563; white-space: pre-wrap; max-width: 300px;">
+                                {{ item.detail or '—' }}
+                            </td>
+                            <td style="padding: 8px 12px; text-align: right; border-bottom: 1px solid #e5e9f2;">
+                                {% if item.is_survey %}
+                                <em style="color: #92400e;">Quote TBD</em>
+                                {% elif item.price is not none %}
+                                £{{ '%.2f'|format(item.price) }}
+                                {% else %}—{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if order_totals %}
+                    <tfoot style="background: #f1f5f9; font-weight: 600;">
+                        {% if order_totals.discount_applied %}
+                        <tr>
+                            <td colspan="2" style="padding: 8px 12px; text-align: right; color: #059669;">Bulk Discount ({{ order_totals.discount_percent }}%)</td>
+                            <td style="padding: 8px 12px; text-align: right; color: #059669;">-£{{ '%.2f'|format(order_totals.discount_amount) }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if order_totals.travel_fee and order_totals.travel_fee > 0 %}
+                        <tr>
+                            <td colspan="2" style="padding: 8px 12px; text-align: right; color: #6b7280;">Travel Fee</td>
+                            <td style="padding: 8px 12px; text-align: right;">£{{ '%.2f'|format(order_totals.travel_fee) }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if order_totals.final_total is not none and not order_totals.is_survey_request %}
+                        <tr>
+                            <td colspan="2" style="padding: 10px 12px; text-align: right; border-top: 2px solid #2563eb; font-size: 15px;">Total</td>
+                            <td style="padding: 10px 12px; text-align: right; border-top: 2px solid #2563eb; color: #2563eb; font-size: 15px;">£{{ '%.2f'|format(order_totals.final_total) }}</td>
+                        </tr>
+                        {% elif order_totals.is_survey_request or order_totals.has_custom_pricing %}
+                        <tr>
+                            <td colspan="3" style="padding: 10px 12px; text-align: right; border-top: 2px solid #d97706; color: #92400e;">
+                                ⚠ We'll contact you with a quote
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tfoot>
+                    {% endif %}
+                </table>
+                {% if schedule_info %}
+                <div style="padding: 10px 12px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; font-size: 13px; margin-bottom: 16px;">
+                    <strong style="color: #92400e;">📅 Preferred Schedule:</strong> {{ schedule_info }}
+                </div>
+                {% endif %}
+                {% endif %}
+
+                {% if location_info %}
+                <h2 style="font-size: 16px; margin: 24px 0 12px; color: #2563eb;">📍 Service Location</h2>
+                <div style="padding: 16px; background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%); border: 1px solid #7dd3fc; border-radius: 6px;">
+                    {% if location_info.address %}
+                    <p style="margin: 0 0 8px; font-size: 14px;"><strong>Address:</strong> {{ location_info.address }}</p>
+                    {% endif %}
+                    {% if location_info.postcode %}
+                    <p style="margin: 0; font-size: 14px;"><strong>Area/Postcode:</strong> {{ location_info.postcode }}</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if customer_notes %}
+                <h2 style="font-size: 16px; margin: 24px 0 12px; color: #2563eb;">Your Notes</h2>
+                <p style="margin: 0; padding: 16px; background: #f7f9fc; border-radius: 6px; border: 1px solid #e4e9f2; white-space: pre-wrap;">{{ customer_notes }}</p>
+                {% elif not order_items %}
+                <h2 style="font-size: 16px; margin: 24px 0 12px; color: #2563eb;">Your Message</h2>
+                <p style="margin: 0; padding: 16px; background: #f7f9fc; border-radius: 6px; border: 1px solid #e4e9f2; white-space: pre-wrap;">{{ request.message or 'No message provided.' }}</p>
+                {% endif %}
+
+                <p style="margin: 24px 0 0;">If you need to make changes or provide additional details, simply reply to this email and we will update your request.</p>
+
+                <p style="margin: 24px 0 0;">Warm regards,<br>Clean Co. Team</p>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 16px 24px; background: #f1f3f9; font-size: 12px; color: #6a7180;">
+                This email was sent automatically because you submitted a request on our website.
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

@@ -1,0 +1,7437 @@
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, send_file, session
+import mysql.connector
+import os
+from uuid import uuid4
+from collections import OrderedDict
+from werkzeug.utils import secure_filename, safe_join
+from werkzeug.security import check_password_hash
+from functools import wraps
+from config import Config
+from utils import upload_file_to_cloudinary
+import random
+import json
+import re
+import smtplib
+import base64
+import hashlib
+import traceback
+import math
+import requests
+from requests import RequestException
+import urllib.parse
+from email.message import EmailMessage
+from email.utils import formataddr
+from io import BytesIO
+from datetime import datetime
+import calendar
+
+try:
+    import psycopg2
+    from psycopg2.extras import Json as PGJson, RealDictCursor
+except ImportError:
+    psycopg2 = None
+    PGJson = None
+    RealDictCursor = None
+
+try:
+    from cryptography.fernet import Fernet, InvalidToken
+except ImportError:  # cryptography is optional; fallback handlers will be used
+    Fernet = None
+    InvalidToken = Exception
+
+app = Flask(__name__, static_folder='.', static_url_path='')
+
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(
+        os.path.join(app.root_path, 'favicon'),
+        'favicon.ico',
+        mimetype='image/vnd.microsoft.icon'
+    )
+
+
+@app.route('/favicon/<path:filename>')
+def favicon_asset(filename):
+    return send_from_directory(
+        os.path.join(app.root_path, 'favicon'),
+        filename
+    )
+app.config.from_object(Config)
+
+UPLOAD_ROOT = os.path.join(app.static_folder, 'static', 'uploads')
+SERVICE_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'services')
+JOB_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'jobs')
+HERO_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'hero')
+BADGE_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'badges')
+QUOTE_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'quote')
+REQUEST_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'requests')
+BRAND_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'brand')
+ABOUT_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'about')
+for folder in (
+    UPLOAD_ROOT,
+    SERVICE_UPLOAD_FOLDER,
+    JOB_UPLOAD_FOLDER,
+    HERO_UPLOAD_FOLDER,
+    BADGE_UPLOAD_FOLDER,
+    QUOTE_UPLOAD_FOLDER,
+    REQUEST_UPLOAD_FOLDER,
+    BRAND_UPLOAD_FOLDER,
+    ABOUT_UPLOAD_FOLDER
+):
+    os.makedirs(folder, exist_ok=True)
+
+IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
+ATTACHMENT_EXTENSIONS = IMAGE_EXTENSIONS | {'pdf', 'doc', 'docx'}
+MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024  # 10 MB
+FERNET_PREFIX = 'fernet::'
+BASE64_PREFIX = 'base64::'
+REQUEST_STATUSES = {'pending', 'in_progress', 'completed', 'cancelled', 'survey_needed'}
+REQUEST_STATUS_LABELS = {
+    'pending': 'Pending',
+    'in_progress': 'In Progress',
+    'completed': 'Completed',
+    'cancelled': 'Cancelled',
+    'survey_needed': 'Survey Needed'
+}
+
+def allowed_file(filename, allowed_extensions=None):
+    extensions = allowed_extensions or IMAGE_EXTENSIONS
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in extensions
+    
+def generate_unique_ref_id(cursor, attempts=5):
+    for _ in range(max(1, attempts)):
+        candidate = uuid4().hex[:10].upper()
+        cursor.execute("SELECT id FROM requests WHERE ref_id = %s LIMIT 1", (candidate,))
+        if not cursor.fetchone():
+            return candidate
+    # Fallback to full uuid if short code collides repeatedly
+    return uuid4().hex.upper()
+
+
+def save_file(file, folder, allowed_extensions=None):
+    if not file or not file.filename:
+        return None
+    if not allowed_file(file.filename, allowed_extensions):
+        allowed_display = ', '.join(sorted((allowed_extensions or IMAGE_EXTENSIONS)))
+        raise ValueError(f'Unsupported file type. Allowed types: {allowed_display}.')
+
+    filename = secure_filename(file.filename)
+    unique_name = f"{uuid4().hex}_{filename}"
+    destination = os.path.join(folder, unique_name)
+    file.save(destination)
+    relative_path = os.path.relpath(destination, app.static_folder).replace('\\', '/')
+    return relative_path
+
+def handle_upload(field_name, folder, existing_path=''):
+    """Upload an admin asset to Cloudinary, falling back to local storage if needed."""
+    file = request.files.get(field_name)
+    if file and file.filename:
+        folder_name = os.path.basename(folder.rstrip(os.sep)) or 'misc'
+        cloud_url = upload_file_to_cloudinary(file, folder_name)
+        if cloud_url:
+            return cloud_url
+        saved = save_file(file, folder)
+        return saved or ''
+    return (existing_path or '').strip()
+
+def upload_service_image(existing_path=''):
+    return handle_upload('image', SERVICE_UPLOAD_FOLDER, existing_path)
+
+def upload_job_image(existing_path=''):
+    return handle_upload('image', JOB_UPLOAD_FOLDER, existing_path)
+
+
+def upload_hero_background(existing_path=''):
+    return handle_upload('background_image', HERO_UPLOAD_FOLDER, existing_path)
+
+
+def upload_badge_image():
+    return handle_upload('image', BADGE_UPLOAD_FOLDER)
+
+
+def upload_quote_background(existing_path=''):
+    return handle_upload('quote_background', QUOTE_UPLOAD_FOLDER, existing_path)
+
+
+def upload_brand_logo(existing_path=''):
+    return handle_upload('logo', BRAND_UPLOAD_FOLDER, existing_path)
+
+
+def upload_team_photo(existing_path=''):
+    return handle_upload('team_photo', ABOUT_UPLOAD_FOLDER, existing_path)
+
+
+def delete_uploaded_file(relative_path):
+    if not relative_path:
+        return
+    absolute_path = os.path.join(app.static_folder, relative_path.replace('/', os.sep))
+    if os.path.isfile(absolute_path):
+        try:
+            os.remove(absolute_path)
+        except OSError:
+            app.logger.warning('Failed to delete file at %s', absolute_path)
+
+
+@app.template_filter('media_url')
+def media_url_filter(value):
+    """Convert stored media paths to usable URLs (handles absolute + static paths)."""
+    if not value:
+        return ''
+    value = str(value).strip()
+    if value.startswith(('http://', 'https://')):
+        return value
+    return url_for('static', filename=value.lstrip('/'))
+
+
+def str_to_bool(value):
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def build_active_true_condition(column: str, engine: str):
+    """Return SQL fragment and params to test truthy flag across engines."""
+    normalized = (engine or 'mysql').strip().lower()
+    if normalized == 'postgres':
+        # Works for boolean or smallint/tinyint columns migrated from MySQL
+        return f"COALESCE({column}::text, '0') IN ('1','t','true')", ()
+    return f"{column} = %s", (1,)
+
+
+def sanitize_text(value, max_length=None):
+    if value is None:
+        return ''
+    cleaned = re.sub(r'\s+', ' ', str(value)).strip()
+    cleaned = cleaned.replace('<', '').replace('>', '')
+    if max_length is not None:
+        cleaned = cleaned[:max_length]
+    return cleaned
+
+
+def sanitize_email(value, max_length=150):
+    if not value:
+        return ''
+    email = sanitize_text(value, max_length)
+    if '@' not in email:
+        return ''
+    return email
+
+
+def sanitize_phone(value, max_length=50):
+    if not value:
+        return ''
+    phone = sanitize_text(value, max_length)
+    return phone
+
+
+def admin_login_required(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not session.get('admin_logged_in'):
+            if request.path.startswith('/admin/api/'):
+                return jsonify({'error': 'Authentication required.'}), 401
+            return redirect(url_for('admin_login'))
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+def get_status_label(status_key):
+    if not status_key:
+        return REQUEST_STATUS_LABELS.get('pending')
+    normalized = str(status_key).strip().lower()
+    if normalized in REQUEST_STATUS_LABELS:
+        return REQUEST_STATUS_LABELS[normalized]
+    return sanitize_text(status_key.replace('_', ' ').title(), 64)
+
+
+def derive_fernet_key(secret):
+    if not secret:
+        return None
+    digest = hashlib.sha256(secret.encode('utf-8')).digest()
+    return base64.urlsafe_b64encode(digest)
+
+
+def get_email_cipher():
+    if not Fernet:
+        return None
+    secret = app.config.get('EMAIL_ENCRYPTION_KEY')
+    if not secret:
+        return None
+    try:
+        return Fernet(derive_fernet_key(secret))
+    except Exception:
+        app.logger.warning('Invalid EMAIL_ENCRYPTION_KEY configured; encryption disabled.')
+        return None
+
+
+def encrypt_secret(plaintext):
+    if not plaintext:
+        return None
+    cipher = get_email_cipher()
+    data = plaintext.encode('utf-8')
+    if cipher:
+        token = cipher.encrypt(data).decode('utf-8')
+        return f"{FERNET_PREFIX}{token}"
+    encoded = base64.b64encode(data).decode('utf-8')
+    return f"{BASE64_PREFIX}{encoded}"
+
+
+def decrypt_secret(value):
+    if not value:
+        return ''
+    try:
+        if isinstance(value, bytes):
+            value = value.decode('utf-8')
+        if value.startswith(FERNET_PREFIX):
+            cipher = get_email_cipher()
+            if not cipher:
+                app.logger.warning('Unable to decrypt email secret because encryption key is not available.')
+                return ''
+            token = value[len(FERNET_PREFIX):]
+            decrypted = cipher.decrypt(token.encode('utf-8')).decode('utf-8')
+            return decrypted
+        if value.startswith(BASE64_PREFIX):
+            decoded = base64.b64decode(value[len(BASE64_PREFIX):]).decode('utf-8')
+            return decoded
+        return value
+    except (InvalidToken, ValueError, TypeError) as exc:
+        app.logger.warning('Failed to decrypt secret: %s', exc)
+        return ''
+
+
+def parse_recipient_list(raw_value):
+    if not raw_value:
+        return []
+    parts = [segment.strip() for segment in str(raw_value).split(',')]
+    return [sanitize_email(part) for part in parts if sanitize_email(part)]
+
+
+def fetch_email_settings():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM email_settings WHERE id = 1")
+    row = cursor.fetchone() or {}
+    cursor.close()
+    conn.close()
+
+    smtp_password = decrypt_secret(row.get('smtp_password_encrypted')) if row.get('smtp_password_encrypted') else ''
+    row['smtp_password'] = smtp_password
+    row['admin_recipient_list'] = parse_recipient_list(row.get('admin_recipients'))
+    return row
+
+
+def log_email_error(request_id=None, email_type='notification', subject=None, recipients=None, error_message=None, error_payload=None):
+    recipients_value = ''
+    if recipients:
+        if isinstance(recipients, (list, tuple, set)):
+            recipients_value = ','.join([sanitize_email(addr) for addr in recipients if sanitize_email(addr)])
+        else:
+            recipients_value = sanitize_text(str(recipients), 255)
+
+    payload_json = None
+    if error_payload:
+        try:
+            payload_json = json.dumps(error_payload)
+        except (TypeError, ValueError):
+            payload_json = json.dumps({'detail': str(error_payload)})
+
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO email_errors (request_id, email_type, subject, recipients, error_message, error_payload)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (
+                request_id,
+                sanitize_text(email_type, 64) or 'notification',
+                sanitize_text(subject, 255) if subject else None,
+                recipients_value or None,
+                (str(error_message).strip() or 'Unknown email error.')[:2000],
+                payload_json
+            )
+        )
+        conn.commit()
+    except Exception:
+        app.logger.exception('Failed to log email error for request %s', request_id)
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+def send_email_via_settings(subject, html_body, text_body, recipients, settings, attachments=None, reply_to=None, error_context=None, request_id=None, extra_error_payload=None):
+    recipients = [sanitize_email(addr) for addr in (recipients or []) if sanitize_email(addr)]
+    context_key = sanitize_text(error_context or 'notification', 64) or 'notification'
+    subject_summary = sanitize_text(subject, 150) if subject else '(none)'
+
+    if not recipients:
+        app.logger.info('Skipping email send because no valid recipients were supplied for %s', subject)
+        log_email_error(
+            request_id=request_id,
+            email_type=context_key,
+            subject=subject_summary,
+            recipients=[],
+            error_message='No valid recipients were supplied for this email.',
+            error_payload={'reason': 'missing_recipients'}
+        )
+        send_telegram_notification(
+            'notify_email_error',
+            [
+                '[Email] Delivery skipped',
+                f'Context: {context_key}',
+                f'Subject: {subject_summary}',
+                'Reason: No valid recipients supplied.'
+            ]
+        )
+        return False
+
+    sender_email = sanitize_email(settings.get('sender_email')) or 'no-reply@example.com'
+    sender_name = sanitize_text(settings.get('sender_name') or 'Notifications', 150)
+    message = EmailMessage()
+    message['Subject'] = subject
+    message['From'] = formataddr((sender_name, sender_email))
+    message['To'] = ', '.join(recipients)
+
+    if reply_to and sanitize_email(reply_to):
+        message['Reply-To'] = sanitize_email(reply_to)
+
+    safe_text = text_body or 'Please view this email in an HTML compatible client.'
+    message.set_content(safe_text)
+    if html_body:
+        message.add_alternative(html_body, subtype='html')
+
+    # Gmail has a 25MB limit; we'll use 20MB as a safe threshold
+    MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024  # 20MB total
+    MAX_SINGLE_FILE_SIZE = 10 * 1024 * 1024  # 10MB per file
+    attachment_manifest = []
+    total_attachment_size = 0
+    
+    for attachment in attachments or []:
+        filename = attachment.get('filename') or 'attachment'
+        mimetype = attachment.get('mime_type') or 'application/octet-stream'
+        path = attachment.get('absolute_path')
+        remote_url = attachment.get('remote_url')
+        payload = None
+        file_size = None
+
+        if path and os.path.isfile(path):
+            try:
+                file_size = os.path.getsize(path)
+                with open(path, 'rb') as file_handle:
+                    payload = file_handle.read()
+            except OSError:
+                app.logger.warning('Unable to read attachment from %s', path)
+                payload = None
+        elif remote_url:
+            try:
+                response = requests.get(remote_url, timeout=20)
+                response.raise_for_status()
+                payload = response.content
+                file_size = len(payload)
+            except RequestException:
+                app.logger.warning('Unable to download remote attachment %s', remote_url)
+                payload = None
+
+        if not payload:
+            continue
+
+        file_size = file_size or len(payload)
+
+        if file_size > MAX_SINGLE_FILE_SIZE:
+            app.logger.warning('Skipping attachment %s (%.2f MB) - exceeds single file limit.', filename, file_size / (1024 * 1024))
+            continue
+
+        if total_attachment_size + file_size > MAX_ATTACHMENT_SIZE:
+            app.logger.warning('Skipping attachment %s - would exceed total attachment limit.', filename)
+            continue
+
+        maintype, _, subtype = mimetype.partition('/')
+        if not subtype:
+            maintype = 'application'
+            subtype = 'octet-stream'
+
+        message.add_attachment(payload, maintype=maintype, subtype=subtype, filename=filename)
+        attachment_manifest.append({'filename': filename, 'mime_type': mimetype, 'size': file_size, 'remote': bool(remote_url)})
+        total_attachment_size += file_size
+
+    host = (settings.get('smtp_host') or '').strip()
+    port = int(settings.get('smtp_port') or 0)
+    username = settings.get('smtp_username') or ''
+    password = settings.get('smtp_password') or ''
+    use_ssl = bool(int(settings.get('use_ssl') or 0))
+    use_tls = bool(int(settings.get('use_tls') or 0))
+
+    if not host or not port:
+        app.logger.warning('SMTP configuration incomplete; host or port missing. Email not sent.')
+        payload = dict(extra_error_payload or {})
+        payload.update({
+            'reason': 'missing_smtp_configuration',
+            'host': host,
+            'port': port,
+            'use_ssl': use_ssl,
+            'use_tls': use_tls
+        })
+        log_email_error(
+            request_id=request_id,
+            email_type=context_key,
+            subject=subject_summary,
+            recipients=recipients,
+            error_message='SMTP configuration incomplete; host or port missing.',
+            error_payload=payload
+        )
+        send_telegram_notification(
+            'notify_email_error',
+            [
+                '[Email] Delivery failed',
+                f'Context: {context_key}',
+                f'Subject: {subject_summary}',
+                'Reason: SMTP configuration missing host or port.'
+            ]
+        )
+        return False
+
+    smtp = None
+    try:
+        if use_ssl:
+            smtp = smtplib.SMTP_SSL(host, port, timeout=15)
+        else:
+            smtp = smtplib.SMTP(host, port, timeout=15)
+            smtp.ehlo()
+            if use_tls:
+                smtp.starttls()
+                smtp.ehlo()
+
+        if username or password:
+            smtp.login(username or sender_email, password)
+
+        smtp.send_message(message)
+        success_lines = [
+            '[Email] Delivery succeeded',
+            f'Context: {context_key}',
+            f'Subject: {subject_summary}',
+            f'Recipients: {", ".join(recipients)}',
+            f'Attachments: {len(attachment_manifest)}'
+        ]
+        if request_id:
+            success_lines.append(f'Reference ID: {request_id}')
+        send_telegram_notification('notify_email_success', success_lines)
+        return True
+    except Exception as exc:
+        app.logger.exception('Failed to send email notification with subject %s', subject)
+        payload = dict(extra_error_payload or {})
+        payload.update({
+            'host': host,
+            'port': port,
+            'use_ssl': use_ssl,
+            'use_tls': use_tls,
+            'has_username': bool(username),
+            'attachment_count': len(attachment_manifest)
+        })
+        raw_error = ''.join(traceback.format_exception_only(type(exc), exc)).strip() or str(exc)
+        error_details = sanitize_text(raw_error, 180)
+        log_email_error(
+            request_id=request_id,
+            email_type=context_key,
+            subject=subject_summary,
+            recipients=recipients,
+            error_message=error_details,
+            error_payload=payload
+        )
+        error_lines = [
+            '[Email] Delivery failed',
+            f'Context: {context_key}',
+            f'Subject: {subject_summary}',
+            f'Error: {error_details}',
+            f'Recipients: {", ".join(recipients) if recipients else "(none)"}'
+        ]
+        if request_id:
+            error_lines.append(f'Reference ID: {request_id}')
+        send_telegram_notification('notify_email_error', error_lines)
+        return False
+    finally:
+        if smtp:
+            try:
+                smtp.quit()
+            except Exception:
+                pass
+
+
+def update_email_settings(payload):
+    if not payload:
+        raise ValueError('No data provided.')
+
+    sender_name = sanitize_text(payload.get('sender_name'), 150)
+    sender_email = sanitize_email(payload.get('sender_email'))
+    if not sender_name or not sender_email:
+        raise ValueError('Sender name and sender email are required.')
+
+    raw_recipients = payload.get('admin_recipients') or payload.get('admin_recipient_list') or ''
+    recipient_list = parse_recipient_list(raw_recipients)
+    if not recipient_list:
+        raise ValueError('At least one admin recipient email is required.')
+
+    reply_to = sanitize_email(payload.get('reply_to'))
+    smtp_host = sanitize_text(payload.get('smtp_host'), 150)
+    smtp_port_value = payload.get('smtp_port') or 0
+    try:
+        smtp_port = int(smtp_port_value)
+    except (TypeError, ValueError):
+        raise ValueError('SMTP port must be a number.')
+    if smtp_port <= 0:
+        raise ValueError('SMTP port must be greater than zero.')
+
+    smtp_username = sanitize_text(payload.get('smtp_username'), 150)
+    smtp_password_raw = payload.get('smtp_password')
+    use_tls = 1 if str(payload.get('use_tls')).strip().lower() in {'1', 'true', 'yes', 'on'} else 0
+    use_ssl = 1 if str(payload.get('use_ssl')).strip().lower() in {'1', 'true', 'yes', 'on'} else 0
+    is_active = 1 if str(payload.get('is_active')).strip().lower() in {'1', 'true', 'yes', 'on'} else 0
+
+    existing = fetch_email_settings()
+    encrypted_password = existing.get('smtp_password_encrypted')
+    if smtp_password_raw:
+        encrypted_password = encrypt_secret(smtp_password_raw)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE email_settings
+        SET sender_name=%s,
+            sender_email=%s,
+            admin_recipients=%s,
+            reply_to=%s,
+            smtp_host=%s,
+            smtp_port=%s,
+            smtp_username=%s,
+            smtp_password_encrypted=%s,
+            use_tls=%s,
+            use_ssl=%s,
+            is_active=%s
+        WHERE id = 1
+        """,
+        (
+            sender_name,
+            sender_email,
+            ','.join(recipient_list),
+            reply_to or None,
+            smtp_host,
+            smtp_port,
+            smtp_username or None,
+            encrypted_password,
+            use_tls,
+            use_ssl,
+            is_active
+        )
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    updated = fetch_email_settings()
+    updated['smtp_password'] = ''  # never echo password back to client
+    updated.pop('smtp_password_encrypted', None)
+    return updated
+
+
+def prepare_request_payload(raw_payload, remote_addr=None):
+    payload = raw_payload or {}
+    request_type = (payload.get('request_type') or '').strip().lower()
+    allowed_types = {'service', 'job', 'general'}
+    if request_type not in allowed_types:
+        raise ValueError('Unsupported request type provided.')
+
+    name = sanitize_text(payload.get('name'), 150)
+    if not name:
+        raise ValueError('Full name is required.')
+
+    email = sanitize_email(payload.get('email'))
+    phone = sanitize_phone(payload.get('phone'))
+    subject = sanitize_text(payload.get('subject'), 255) or ''
+    service_name = sanitize_text(payload.get('service') or payload.get('service_name'), 255)
+    job_position = sanitize_text(payload.get('job_position') or payload.get('position'), 255)
+    message = sanitize_text(payload.get('message'))
+    context_page = sanitize_text(payload.get('context_page'), 255)
+    source = sanitize_text(payload.get('source'), 100) or 'web'
+
+    if request_type == 'service':
+        if not service_name:
+            raise ValueError('Please select the service you need help with.')
+        if not phone:
+            raise ValueError('Phone number is required for service requests.')
+        subject = subject or f'Service request: {service_name}'
+    elif request_type == 'job':
+        if not job_position:
+            raise ValueError('Please choose the position you are applying for.')
+        if not email:
+            raise ValueError('Email address is required for job applications.')
+        subject = subject or f'Job application: {job_position}'
+    else:
+        subject = subject or 'New enquiry received'
+
+    metadata = {
+        'origin_ip': remote_addr,
+        'raw': {key: value for key, value in payload.items() if key not in {'csrf_token'}},
+    }
+
+    return {
+        'request_type': request_type,
+        'name': name,
+        'email': email,
+        'phone': phone,
+        'subject': subject,
+        'service_name': service_name,
+        'job_position': job_position,
+        'message': message,
+        'context_page': context_page,
+        'source': source,
+        'metadata': metadata
+    }
+
+
+def store_request(clean_payload, uploaded_files=None, status_override=None):
+    attachments = []
+    conn = None
+    cursor = None
+    db_engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    pg_mode = db_engine == 'postgres'
+
+    def rewind_file_storage(file_storage):
+        stream = getattr(file_storage, 'stream', None)
+        if hasattr(stream, 'seek'):
+            try:
+                stream.seek(0)
+            except (OSError, ValueError):
+                pass
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        status_value = status_override if status_override in REQUEST_STATUSES else 'pending'
+
+        metadata_json = json.dumps(clean_payload.get('metadata') or {})
+        ref_id = generate_unique_ref_id(cursor)
+        request_insert_sql = """
+            INSERT INTO requests (
+                ref_id, request_type, name, email, phone, subject, service_name, job_position,
+                context_page, status, source, message, metadata
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        if pg_mode:
+            request_insert_sql += " RETURNING id"
+
+        cursor.execute(
+            request_insert_sql,
+            (
+                ref_id,
+                clean_payload['request_type'],
+                clean_payload['name'],
+                clean_payload.get('email') or None,
+                clean_payload.get('phone') or None,
+                clean_payload.get('subject') or None,
+                clean_payload.get('service_name') or None,
+                clean_payload.get('job_position') or None,
+                clean_payload.get('context_page') or None,
+                status_value,
+                clean_payload.get('source') or None,
+                clean_payload.get('message') or None,
+                metadata_json
+            )
+        )
+        if pg_mode:
+            row = cursor.fetchone()
+            if not row:
+                raise RuntimeError('Failed to retrieve inserted request ID (postgres).')
+            request_id = row[0]
+        else:
+            request_id = cursor.lastrowid
+
+        for uploaded in uploaded_files or []:
+            if not uploaded or not uploaded.filename:
+                continue
+            if uploaded.content_length and uploaded.content_length > MAX_ATTACHMENT_BYTES:
+                raise ValueError('Attachment is too large. Maximum allowed size is 10MB.')
+
+            rewind_file_storage(uploaded)
+            file_size = getattr(uploaded, 'content_length', None) or 0
+            stored_path = ''
+            absolute_path = None
+            remote_url = ''
+
+            _, ext = os.path.splitext(uploaded.filename)
+            ext = (ext or '').lower().lstrip('.')
+            cloud_resource_type = 'image' if ext in IMAGE_EXTENSIONS else 'raw'
+
+            cloud_result = upload_file_to_cloudinary(
+                uploaded,
+                'requests',
+                resource_type=cloud_resource_type,
+                return_result=True
+            )
+            if isinstance(cloud_result, dict) and cloud_result.get('secure_url'):
+                stored_path = cloud_result.get('secure_url')
+                remote_url = stored_path
+                file_size = cloud_result.get('bytes') or file_size or 0
+            else:
+                rewind_file_storage(uploaded)
+                saved_path = save_file(uploaded, REQUEST_UPLOAD_FOLDER, ATTACHMENT_EXTENSIONS)
+                stored_path = saved_path
+                absolute_path = os.path.join(app.static_folder, saved_path.replace('/', os.sep))
+                if os.path.exists(absolute_path):
+                    try:
+                        file_size = os.path.getsize(absolute_path)
+                    except OSError:
+                        file_size = file_size or 0
+
+            if not stored_path:
+                continue
+
+            insert_file_sql = """
+                INSERT INTO request_files (request_id, original_filename, stored_path, mime_type, file_size_bytes)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+            if pg_mode:
+                insert_file_sql += " RETURNING id"
+
+            cursor.execute(
+                insert_file_sql,
+                (
+                    request_id,
+                    uploaded.filename,
+                    stored_path,
+                    uploaded.mimetype or 'application/octet-stream',
+                    file_size
+                )
+            )
+            if pg_mode:
+                attachment_row = cursor.fetchone()
+                attachment_id = attachment_row[0] if attachment_row else None
+            else:
+                attachment_id = cursor.lastrowid
+            attachments.append({
+                'id': attachment_id,
+                'filename': uploaded.filename,
+                'stored_path': stored_path,
+                'mime_type': uploaded.mimetype or 'application/octet-stream',
+                'file_size_bytes': file_size,
+                'absolute_path': absolute_path,
+                'remote_url': remote_url
+            })
+
+        conn.commit()
+
+        cursor.close()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM requests WHERE id = %s", (request_id,))
+        request_record = cursor.fetchone()
+        return request_record, attachments
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+def generate_request_context(request_row):
+    metadata_raw = request_row.get('metadata') if request_row else {}
+    metadata = {}
+    if isinstance(metadata_raw, str):
+        try:
+            metadata = json.loads(metadata_raw)
+        except json.JSONDecodeError:
+            metadata = {}
+    elif isinstance(metadata_raw, dict):
+        metadata = metadata_raw
+
+    created_at = request_row.get('created_at')
+    updated_at = request_row.get('updated_at')
+
+    return {
+        'id': request_row.get('id'),
+        'ref_id': request_row.get('ref_id'),
+        'request_type': request_row.get('request_type'),
+        'name': request_row.get('name'),
+        'email': request_row.get('email'),
+        'phone': request_row.get('phone'),
+        'subject': request_row.get('subject'),
+        'service_name': request_row.get('service_name'),
+        'job_position': request_row.get('job_position'),
+        'status': request_row.get('status'),
+        'status_label': get_status_label(request_row.get('status')),
+        'message': request_row.get('message'),
+        'created_at': format_friendly_datetime(created_at),
+        'updated_at': format_friendly_datetime(updated_at),
+        'context_page': request_row.get('context_page'),
+        'source': request_row.get('source'),
+        'metadata': metadata,
+        'service_flow': metadata.get('service_flow') if isinstance(metadata, dict) else None,
+        'email_sent_admin': bool(request_row.get('email_sent_admin')),
+        'email_sent_user': bool(request_row.get('email_sent_user')),
+    }
+
+
+def build_request_summary_text(context):
+    lines = []
+    if context.get('ref_id'):
+        lines.append(f"Reference: {context.get('ref_id')}")
+    lines.append(f"Request Type: {context.get('request_type')}")
+    lines.append(f"Name: {context.get('name')}")
+    if context.get('email'):
+        lines.append(f"Email: {context.get('email')}")
+    if context.get('phone'):
+        lines.append(f"Phone: {context.get('phone')}")
+    if context.get('service_name'):
+        lines.append(f"Service: {context.get('service_name')}")
+    if context.get('job_position'):
+        lines.append(f"Position: {context.get('job_position')}")
+    if context.get('context_page'):
+        lines.append(f"Page: {context.get('context_page')}")
+    if context.get('source'):
+        lines.append(f"Source: {context.get('source')}")
+    lines.append('')
+    lines.append('Message:')
+    lines.append(context.get('message') or '(no message provided)')
+    return '\n'.join(lines)
+
+
+def parse_order_for_email(service_flow):
+    """
+    Parse service_flow data into structured order items for email templates.
+    Returns: (order_items, order_totals, schedule_info, customer_notes, location_info, assigned_base_info)
+    Each order_item has: service_name, detail (option_label), price, is_survey
+    """
+    if not service_flow or not isinstance(service_flow, dict):
+        return [], None, None, None, None, None
+
+    selections = service_flow.get('selections') or []
+    totals = service_flow.get('totals') or {}
+    schedule = service_flow.get('schedule') or {}
+    notes = service_flow.get('notes') or ''
+    customer = service_flow.get('customer') or {}
+    travel = service_flow.get('travel') or {}
+
+    # Build order items list - each selection has service_name, option_label, price
+    order_items = []
+    for sel in selections:
+        service_name = sel.get('service_name') or 'Service'
+        option_label = sel.get('option_label') or ''
+        is_survey = sel.get('is_survey_request', False)
+
+        # Add item with service_name and detail (option_label)
+        order_items.append({
+            'service_name': service_name,
+            'detail': option_label,
+            'price': sel.get('price'),
+            'is_survey': is_survey
+        })
+
+    # Build totals dict
+    order_totals = None
+    if order_items:
+        order_totals = {
+            'discount_applied': totals.get('discount_applied', False),
+            'discount_percent': totals.get('discount_percent', 0),
+            'discount_amount': totals.get('discount_amount', 0),
+            'travel_fee': totals.get('travel_fee'),
+            'final_total': totals.get('total_with_travel') or totals.get('amount'),
+            'is_survey_request': totals.get('is_survey_request', False),
+            'has_custom_pricing': totals.get('has_custom_pricing', False)
+        }
+
+    # Build schedule info string
+    schedule_info = None
+    if schedule.get('preferred_date') or schedule.get('preferred_time'):
+        parts = []
+        if schedule.get('preferred_date'):
+            parts.append(str(schedule.get('preferred_date')))
+        if schedule.get('preferred_time'):
+            parts.append(f"at {schedule.get('preferred_time')}")
+        schedule_info = ' '.join(parts)
+
+    # Build location info for email
+    location_info = None
+    customer_address = customer.get('address')
+    customer_lat = travel.get('customer_lat')
+    customer_lng = travel.get('customer_lng')
+    customer_postcode = travel.get('customer_postcode') or customer.get('postcode')
+    
+    # Use postcode as fallback for address if address is empty
+    display_address = customer_address or customer_postcode
+    
+    if display_address or customer_lat:
+        location_info = {
+            'address': display_address,
+            'postcode': customer_postcode if customer_postcode != display_address else None,
+            'lat': customer_lat,
+            'lng': customer_lng,
+            'map_url': None
+        }
+        # Build Google Maps URL
+        if customer_lat and customer_lng:
+            location_info['map_url'] = f"https://www.google.com/maps/search/?api=1&query={customer_lat},{customer_lng}"
+        elif display_address:
+            import urllib.parse
+            location_info['map_url'] = f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(display_address)}"
+
+    # Build assigned base info for admin emails
+    assigned_base_info = None
+    if travel.get('base_name') or travel.get('base_id'):
+        assigned_base_info = {
+            'base_name': travel.get('base_name'),
+            'base_postcode': travel.get('base_postcode'),
+            'distance_miles': travel.get('distance_miles'),
+            'travel_time_minutes': travel.get('travel_time_minutes'),
+            'is_extended_coverage': travel.get('is_extended_coverage', False)
+        }
+
+    return order_items, order_totals, schedule_info, notes if notes else None, location_info, assigned_base_info
+
+
+def process_request_submission(payload, uploaded_files=None, remote_addr=None, extra_metadata=None, status_override=None):
+    clean_payload = prepare_request_payload(payload, remote_addr)
+    if extra_metadata:
+        metadata = clean_payload.get('metadata') or {}
+        metadata.update(extra_metadata)
+        clean_payload['metadata'] = metadata
+    request_record, attachments = store_request(clean_payload, uploaded_files, status_override=status_override)
+    notification_result = send_request_notifications(request_record, attachments)
+
+    log_analytics_event('request_submission', {
+        'request_type': clean_payload.get('request_type'),
+        'source': clean_payload.get('source'),
+        'service_name': clean_payload.get('service_name'),
+        'job_position': clean_payload.get('job_position')
+    })
+
+    response_payload = {
+        'message': 'Your request has been received.',
+        'request_id': request_record.get('id'),
+        'reference': request_record.get('ref_id'),
+        'status': request_record.get('status'),
+        'emails': notification_result
+    }
+    return response_payload
+
+
+def send_request_notifications(request_record, attachments=None):
+    result = {'admin_sent': False, 'user_sent': False}
+    if not request_record:
+        return result
+
+    settings = fetch_email_settings()
+    if not settings or not int(settings.get('is_active') or 0):
+        app.logger.info('Email settings inactive; skipping notifications for request %s', request_record.get('id'))
+        return result
+
+    context = generate_request_context(request_record)
+    service_flow = context.get('service_flow') or {}
+    service_totals = service_flow.get('totals') or {}
+    service_selections = service_flow.get('selections') or []
+    is_survey_request = bool(service_totals.get('is_survey_request') or any(item.get('is_survey_request') for item in service_selections))
+    context['is_survey_request'] = is_survey_request
+    context['status_label'] = context.get('status_label') or get_status_label(context.get('status'))
+    user_email = sanitize_email(context.get('email'))
+    attachments = attachments or []
+
+    # Parse order items for email templates
+    order_items, order_totals, schedule_info, customer_notes, location_info, assigned_base_info = parse_order_for_email(service_flow)
+
+    try:
+        admin_html = render_template(
+            'emails/request_admin.html',
+            request=context,
+            attachments=attachments,
+            order_items=order_items,
+            order_totals=order_totals,
+            schedule_info=schedule_info,
+            customer_notes=customer_notes,
+            location_info=location_info,
+            assigned_base_info=assigned_base_info
+        )
+    except Exception:
+        app.logger.exception('Failed to render admin email template.')
+        admin_html = None
+    admin_text = build_request_summary_text(context)
+
+    admin_subject = f"New {context.get('request_type', 'service')} request from {context.get('name')}"
+    if is_survey_request:
+        admin_subject = f"Survey request – action needed ({context.get('name')})"
+        admin_text = "Survey request – pricing TBD. No payment taken. Please arrange a site visit.\n\n" + admin_text
+
+    result['admin_sent'] = send_email_via_settings(
+        subject=admin_subject,
+        html_body=admin_html,
+        text_body=admin_text,
+        recipients=settings.get('admin_recipient_list'),
+        settings=settings,
+        attachments=attachments,
+        reply_to=user_email or settings.get('reply_to'),
+        error_context='request_admin_notification',
+        request_id=request_record.get('id'),
+        extra_error_payload={
+            'ref_id': context.get('ref_id'),
+            'request_type': context.get('request_type')
+        }
+    )
+
+    if user_email:
+        try:
+            user_html = render_template(
+                'emails/request_user.html',
+                request=context,
+                order_items=order_items,
+                order_totals=order_totals,
+                schedule_info=schedule_info,
+                customer_notes=customer_notes,
+                location_info=location_info
+            )
+        except Exception:
+            app.logger.exception('Failed to render user confirmation email template.')
+            user_html = None
+        user_text = (
+            "Thanks for reaching out! We'll get back to you soon.\n\n" +
+            build_request_summary_text(context)
+        )
+        result['user_sent'] = send_email_via_settings(
+            subject='We received your request',
+            html_body=user_html,
+            text_body=user_text,
+            recipients=[user_email],
+            settings=settings,
+            attachments=None,
+            reply_to=settings.get('reply_to') or settings.get('sender_email'),
+            error_context='request_user_notification',
+            request_id=request_record.get('id'),
+            extra_error_payload={
+                'ref_id': context.get('ref_id'),
+                'request_type': context.get('request_type')
+            }
+        )
+
+    update_request_email_flags(request_record.get('id'), admin_sent=result['admin_sent'], user_sent=result['user_sent'])
+    request_record['email_sent_admin'] = 1 if result['admin_sent'] else 0
+    request_record['email_sent_user'] = 1 if result['user_sent'] else 0
+    return result
+
+
+def update_request_email_flags(request_id, admin_sent=None, user_sent=None):
+    if not request_id:
+        return
+
+    fields = []
+    values = []
+    if admin_sent is not None:
+        fields.append('email_sent_admin = %s')
+        values.append(1 if admin_sent else 0)
+    if user_sent is not None:
+        fields.append('email_sent_user = %s')
+        values.append(1 if user_sent else 0)
+
+    if not fields:
+        return
+
+    values.append(request_id)
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            f"UPDATE requests SET {', '.join(fields)} WHERE id = %s",
+            values
+        )
+        conn.commit()
+    except Exception:
+        app.logger.exception('Failed to update email status flags for request %s', request_id)
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+def send_status_update_notifications(request_row, previous_status=None):
+    result = {'admin_sent': False, 'user_sent': False}
+    if not request_row:
+        return result
+
+    settings = fetch_email_settings()
+    if not settings or not int(settings.get('is_active') or 0):
+        return result
+
+    context = generate_request_context(request_row)
+    context['status_label'] = get_status_label(context.get('status'))
+    context['previous_status'] = previous_status
+    context['previous_status_label'] = get_status_label(previous_status)
+
+    user_email = sanitize_email(context.get('email'))
+    admin_payload = {
+        'ref_id': context.get('ref_id'),
+        'request_type': context.get('request_type'),
+        'status': context.get('status'),
+        'previous_status': previous_status
+    }
+
+    try:
+        admin_html = render_template('emails/request_status_admin.html', request=context)
+    except Exception:
+        app.logger.exception('Failed to render admin status update email template.')
+        admin_html = None
+
+    previous_label = context.get('previous_status_label') or '—'
+    admin_text = (
+        f"Request {context.get('ref_id') or request_row.get('id')} status updated to {context.get('status_label')}\n"
+        f"Previous status: {previous_label}\n\n"
+        f"{build_request_summary_text(context)}"
+    )
+
+    result['admin_sent'] = send_email_via_settings(
+        subject=f"Request {context.get('ref_id') or request_row.get('id')} status updated",
+        html_body=admin_html,
+        text_body=admin_text,
+        recipients=settings.get('admin_recipient_list'),
+        settings=settings,
+        reply_to=settings.get('reply_to') or settings.get('sender_email'),
+        error_context='status_update_admin',
+        request_id=request_row.get('id'),
+        extra_error_payload=admin_payload
+    )
+
+    if user_email:
+        try:
+            user_html = render_template('emails/request_status_user.html', request=context)
+        except Exception:
+            app.logger.exception('Failed to render user status update email template.')
+            user_html = None
+
+        user_text = (
+            f"Hi {context.get('name') or ''},\n\n"
+            f"We've updated the status of your request to {context.get('status_label')}."
+        )
+        if previous_label and previous_status:
+            user_text += f"\nPrevious status: {previous_label}."
+        user_text += "\n\nWe'll follow up soon with any additional details."
+
+        result['user_sent'] = send_email_via_settings(
+            subject='Update on your request status',
+            html_body=user_html,
+            text_body=user_text,
+            recipients=[user_email],
+            settings=settings,
+            reply_to=settings.get('reply_to') or settings.get('sender_email'),
+            error_context='status_update_user',
+            request_id=request_row.get('id'),
+            extra_error_payload={
+                'ref_id': context.get('ref_id'),
+                'status': context.get('status'),
+                'previous_status': previous_status
+            }
+        )
+
+    log_analytics_event('request_status_update', {
+        'request_id': request_row.get('id'),
+        'ref_id': context.get('ref_id'),
+        'status': context.get('status'),
+        'previous_status': previous_status
+    })
+
+    return result
+
+
+def send_quote_ready_notification(request_row, quote_amount):
+    """Send email to customer when survey is complete and quote is ready."""
+    result = {'user_sent': False, 'admin_sent': False}
+    if not request_row:
+        return result
+
+    settings = fetch_email_settings()
+    if not settings or not int(settings.get('is_active') or 0):
+        app.logger.info('Email settings inactive; skipping quote ready notification for request %s', request_row.get('id'))
+        return result
+
+    context = generate_request_context(request_row)
+    context['status_label'] = get_status_label(context.get('status'))
+    context['quote_amount'] = quote_amount
+    context['quote_formatted'] = f"£{quote_amount:.2f}" if quote_amount else 'TBD'
+
+    user_email = sanitize_email(context.get('email'))
+    if not user_email:
+        app.logger.info('No user email for quote ready notification; skipping for request %s', request_row.get('id'))
+        return result
+
+    # Build email content
+    user_subject = f"Your quote is ready - {context.get('quote_formatted')}"
+    user_text = (
+        f"Hi {context.get('name') or 'there'},\n\n"
+        f"Great news! Your survey is complete and we have your quote ready.\n\n"
+        f"Quote Amount: {context.get('quote_formatted')}\n"
+        f"Reference: {context.get('ref_id') or request_row.get('id')}\n\n"
+        f"To proceed with your booking, please reply to this email or contact us to confirm and arrange payment.\n\n"
+        f"We look forward to serving you!\n\n"
+        f"Warm regards,\nClean Co. Team"
+    )
+
+    try:
+        user_html = render_template('emails/quote_ready_user.html', request=context)
+    except Exception:
+        app.logger.warning('Quote ready email template not found; using plain text.')
+        user_html = None
+
+    result['user_sent'] = send_email_via_settings(
+        subject=user_subject,
+        html_body=user_html,
+        text_body=user_text,
+        recipients=[user_email],
+        settings=settings,
+        reply_to=settings.get('reply_to') or settings.get('sender_email'),
+        error_context='quote_ready_user',
+        request_id=request_row.get('id'),
+        extra_error_payload={
+            'ref_id': context.get('ref_id'),
+            'quote_amount': quote_amount
+        }
+    )
+
+    # Notify admin as well
+    admin_text = (
+        f"Quote ready notification sent to customer.\n\n"
+        f"Reference: {context.get('ref_id') or request_row.get('id')}\n"
+        f"Customer: {context.get('name')} ({user_email})\n"
+        f"Quote Amount: {context.get('quote_formatted')}\n"
+        f"Status changed to: {context.get('status_label')}"
+    )
+
+    result['admin_sent'] = send_email_via_settings(
+        subject=f"Quote sent to customer - {context.get('ref_id') or request_row.get('id')}",
+        html_body=None,
+        text_body=admin_text,
+        recipients=settings.get('admin_recipient_list'),
+        settings=settings,
+        reply_to=settings.get('reply_to') or settings.get('sender_email'),
+        error_context='quote_ready_admin',
+        request_id=request_row.get('id'),
+        extra_error_payload={
+            'ref_id': context.get('ref_id'),
+            'quote_amount': quote_amount
+        }
+    )
+
+    log_analytics_event('quote_ready_sent', {
+        'request_id': request_row.get('id'),
+        'ref_id': context.get('ref_id'),
+        'quote_amount': quote_amount,
+        'user_email': user_email
+    })
+
+    return result
+
+
+def get_db_connection():
+    """Return a DB connection for the app's primary DB (mysql or postgres).
+
+    This keeps existing code working by supporting `cursor(dictionary=True)`
+    for both MySQL and Postgres.
+    """
+
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    if engine == 'postgres':
+        dsn = (app.config.get('POSTGRES_URL') or '').strip()
+        if not dsn:
+            raise ValueError('DB_ENGINE=postgres but POSTGRES_URL is not configured')
+        if psycopg2 is None:
+            raise RuntimeError('psycopg2 is not installed (install psycopg2-binary)')
+
+        raw = psycopg2.connect(dsn)
+
+        class _PGConnWrapper:
+            def __init__(self, conn):
+                self._conn = conn
+
+            def cursor(self, dictionary=False, *args, **kwargs):
+                if dictionary:
+                    if RealDictCursor is None:
+                        return self._conn.cursor(*args, **kwargs)
+                    return self._conn.cursor(cursor_factory=RealDictCursor)
+                return self._conn.cursor(*args, **kwargs)
+
+            def commit(self):
+                return self._conn.commit()
+
+            def close(self):
+                return self._conn.close()
+
+            def __getattr__(self, name):
+                return getattr(self._conn, name)
+
+        return _PGConnWrapper(raw)
+
+    # Default: MySQL
+    conn = mysql.connector.connect(
+        host=app.config['MYSQL_HOST'],
+        user=app.config['MYSQL_USER'],
+        password=app.config['MYSQL_PASSWORD'],
+        database=app.config['MYSQL_DB'],
+        port=app.config.get('MYSQL_PORT', 3306)
+    )
+    return conn
+
+
+def get_pg_connection():
+    """Connect to the optional Render Postgres database using POSTGRES_URL."""
+    dsn = (app.config.get('POSTGRES_URL') or '').strip()
+    if not dsn:
+        raise ValueError('POSTGRES_URL is not configured')
+    if psycopg2 is None:
+        raise RuntimeError('psycopg2 is not installed (install psycopg2-binary)')
+    return psycopg2.connect(dsn)
+
+
+def ensure_pg_analytics_table(pg_conn):
+    """Ensure the minimal analytics table exists in Postgres (used only if ANALYTICS_DB=postgres)."""
+    with pg_conn.cursor() as cur:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS analytics (
+                id BIGSERIAL PRIMARY KEY,
+                event_type TEXT NOT NULL,
+                event_data JSONB NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+    pg_conn.commit()
+
+def normalize_price_value(value):
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def haversine_distance_miles(lat1, lon1, lat2, lon2):
+    # Calculate great-circle distance between two lat/lng pairs
+    radius_miles = 3958.8
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lon2 - lon1)
+    a = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return radius_miles * c
+
+
+def ensure_travel_tables():
+    """Create/upgrade travel settings and operating bases for multi-base pricing."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS settings (
+                id BIGSERIAL PRIMARY KEY,
+                tomtom_api_key VARCHAR(255),
+                price_per_minute NUMERIC(6,2) DEFAULT 0.00,
+                extended_price_per_minute NUMERIC(6,2) DEFAULT 0.00,
+                max_service_radius_miles NUMERIC(6,2) DEFAULT 15.00,
+                enable_travel_pricing BOOLEAN DEFAULT FALSE,
+                ask_for_postcode BOOLEAN DEFAULT FALSE
+            )
+            """
+        )
+
+        # Drop legacy base_postcode column if present
+        cursor.execute("ALTER TABLE settings DROP COLUMN IF EXISTS base_postcode")
+
+        # Ensure columns exist (Postgres supports IF NOT EXISTS)
+        cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS tomtom_api_key VARCHAR(255)")
+        cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS price_per_minute NUMERIC(6,2) DEFAULT 0.00")
+        cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS extended_price_per_minute NUMERIC(6,2) DEFAULT 0.00")
+        cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS max_service_radius_miles NUMERIC(6,2) DEFAULT 15.00")
+        cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS enable_travel_pricing BOOLEAN DEFAULT FALSE")
+        cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS ask_for_postcode BOOLEAN DEFAULT FALSE")
+
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS operating_bases (
+                id BIGSERIAL PRIMARY KEY,
+                name VARCHAR(150) NOT NULL,
+                postcode VARCHAR(255) NOT NULL,
+                latitude NUMERIC(10,7) NULL,
+                longitude NUMERIC(10,7) NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+            """
+        )
+
+        # Travel columns on service_requests for audit of assigned base
+        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS travel_fee NUMERIC(10,2)")
+        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS distance_miles NUMERIC(10,2)")
+        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS travel_time_minutes INTEGER")
+        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS pricing_method VARCHAR(50)")
+        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS assigned_base_id INTEGER")
+        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS assigned_base_name VARCHAR(150)")
+    else:
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS settings (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                tomtom_api_key VARCHAR(255),
+                price_per_minute DECIMAL(6,2) DEFAULT 0.00,
+                max_service_radius_miles DECIMAL(6,2) DEFAULT 15.00,
+                enable_travel_pricing TINYINT(1) DEFAULT 0,
+                ask_for_postcode TINYINT(1) DEFAULT 0
+            )
+            """
+        )
+
+        # Drop legacy base_postcode column if present
+        cursor.execute("SHOW COLUMNS FROM settings LIKE 'base_postcode'")
+        if cursor.fetchone():
+            cursor.execute("ALTER TABLE settings DROP COLUMN base_postcode")
+
+        cursor.execute("SHOW COLUMNS FROM settings LIKE 'tomtom_api_key'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE settings ADD COLUMN tomtom_api_key VARCHAR(255) AFTER id")
+
+        cursor.execute("SHOW COLUMNS FROM settings LIKE 'price_per_minute'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE settings ADD COLUMN price_per_minute DECIMAL(6,2) DEFAULT 0.00 AFTER tomtom_api_key")
+
+        cursor.execute("SHOW COLUMNS FROM settings LIKE 'extended_price_per_minute'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE settings ADD COLUMN extended_price_per_minute DECIMAL(6,2) DEFAULT 0.00 AFTER price_per_minute")
+
+        cursor.execute("SHOW COLUMNS FROM settings LIKE 'max_service_radius_miles'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE settings ADD COLUMN max_service_radius_miles DECIMAL(6,2) DEFAULT 15.00 AFTER extended_price_per_minute")
+
+        cursor.execute("SHOW COLUMNS FROM settings LIKE 'enable_travel_pricing'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE settings ADD COLUMN enable_travel_pricing TINYINT(1) DEFAULT 0 AFTER max_service_radius_miles")
+
+        cursor.execute("SHOW COLUMNS FROM settings LIKE 'ask_for_postcode'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE settings ADD COLUMN ask_for_postcode TINYINT(1) DEFAULT 0")
+
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS operating_bases (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(150) NOT NULL,
+                postcode VARCHAR(255) NOT NULL,
+                latitude DECIMAL(10,7) NULL,
+                longitude DECIMAL(10,7) NULL,
+                is_active TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+            """
+        )
+
+        # Travel columns on service_requests for audit of assigned base
+        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'travel_fee'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE service_requests ADD COLUMN travel_fee DECIMAL(10,2) DEFAULT NULL")
+        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'distance_miles'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE service_requests ADD COLUMN distance_miles DECIMAL(10,2) DEFAULT NULL")
+        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'travel_time_minutes'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE service_requests ADD COLUMN travel_time_minutes INT DEFAULT NULL")
+        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'pricing_method'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE service_requests ADD COLUMN pricing_method VARCHAR(50) DEFAULT NULL")
+        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'assigned_base_id'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE service_requests ADD COLUMN assigned_base_id INT NULL")
+        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'assigned_base_name'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE service_requests ADD COLUMN assigned_base_name VARCHAR(150) NULL")
+
+    # Seed default settings row
+    cursor.execute("SELECT COUNT(*) FROM settings")
+    count_settings = cursor.fetchone()[0]
+    if count_settings == 0:
+        if engine == 'postgres':
+            cursor.execute(
+                """
+                INSERT INTO settings (id, tomtom_api_key, price_per_minute, extended_price_per_minute, max_service_radius_miles, enable_travel_pricing, ask_for_postcode)
+                VALUES (1, NULL, 0.00, 0.00, 15.00, FALSE, FALSE)
+                """
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO settings (id, tomtom_api_key, price_per_minute, extended_price_per_minute, max_service_radius_miles, enable_travel_pricing, ask_for_postcode)
+                VALUES (1, NULL, 0.00, 0.00, 15.00, 0, 0)
+                """
+            )
+
+    # Seed initial operating bases if empty
+    cursor.execute("SELECT COUNT(*) FROM operating_bases")
+    base_count = cursor.fetchone()[0]
+    if base_count == 0:
+        seed_bases = [
+            ('Enfield', 'EN1 3ES'),
+            ('Stevenage', 'SG1 1BP'),
+            ('Barnet', 'EN5 5RP'),
+            ('Ware', 'SG12 9AJ'),
+            ('Cheshunt', 'EN8 0XG'),
+            ('Hitchin', 'SG5 1DN'),
+            ('Luton', 'LU1 2HE'),
+            ('Hatfield', 'AL10 0RN'),
+            ('Hertford', 'SG14 1AG'),
+            ('St. Albans', 'AL1 3LD')
+        ]
+        if engine == 'postgres':
+            cursor.executemany(
+                "INSERT INTO operating_bases (name, postcode, is_active) VALUES (%s, %s, TRUE)",
+                seed_bases
+            )
+        else:
+            cursor.executemany(
+                "INSERT INTO operating_bases (name, postcode, is_active) VALUES (%s, %s, 1)",
+                seed_bases
+            )
+
+    # Migration: Add pricing_model column to services if missing
+    if engine == 'postgres':
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS pricing_model VARCHAR(20) DEFAULT 'simple'")
+    else:
+        cursor.execute("SHOW COLUMNS FROM services LIKE 'pricing_model'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE services ADD COLUMN pricing_model VARCHAR(20) DEFAULT 'simple' AFTER discount_percent")
+            app.logger.info('Added pricing_model column to services table.')
+
+    # Migration: Add table header columns for tenancy customization
+    if engine == 'postgres':
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS table_header_col1 VARCHAR(100) DEFAULT 'Property Type'")
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS table_header_col2 VARCHAR(100) DEFAULT 'Standard Price'")
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS table_header_col3 VARCHAR(100) DEFAULT 'Upgrade Option'")
+    else:
+        cursor.execute("SHOW COLUMNS FROM services LIKE 'table_header_col1'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE services ADD COLUMN table_header_col1 VARCHAR(100) DEFAULT 'Property Type' AFTER pricing_model")
+            cursor.execute("ALTER TABLE services ADD COLUMN table_header_col2 VARCHAR(100) DEFAULT 'Standard Price' AFTER table_header_col1")
+            cursor.execute("ALTER TABLE services ADD COLUMN table_header_col3 VARCHAR(100) DEFAULT 'Upgrade Option' AFTER table_header_col2")
+            app.logger.info('Added table_header columns to services table.')
+
+    # Migration: Add allow_multiselect column for simple/options services
+    if engine == 'postgres':
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS allow_multiselect BOOLEAN DEFAULT FALSE")
+    else:
+        cursor.execute("SHOW COLUMNS FROM services LIKE 'allow_multiselect'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE services ADD COLUMN allow_multiselect TINYINT(1) DEFAULT 0 AFTER table_header_col3")
+            app.logger.info('Added allow_multiselect column to services table.')
+
+    # Auto-populate pricing_model based on existing pricing data
+    cursor.execute("SELECT id FROM services WHERE pricing_model IS NULL OR pricing_model = 'simple'")
+    services_to_update = cursor.fetchall()
+    for (service_id,) in services_to_update:
+        # Check for tenancy rates
+        cursor.execute("SELECT COUNT(*) FROM service_tenancy_rates WHERE service_id = %s", (service_id,))
+        if cursor.fetchone()[0] > 0:
+            cursor.execute("UPDATE services SET pricing_model = 'tenancy' WHERE id = %s", (service_id,))
+            continue
+        # Check for pricing tiers
+        cursor.execute("SELECT COUNT(*) FROM service_pricing_tiers WHERE service_id = %s", (service_id,))
+        if cursor.fetchone()[0] > 0:
+            cursor.execute("UPDATE services SET pricing_model = 'deep' WHERE id = %s", (service_id,))
+            continue
+        # Check for pricing items
+        cursor.execute("SELECT COUNT(*) FROM service_pricing_items WHERE service_id = %s", (service_id,))
+        if cursor.fetchone()[0] > 0:
+            cursor.execute("UPDATE services SET pricing_model = 'itemized' WHERE id = %s", (service_id,))
+            continue
+        # Check for legacy options
+        cursor.execute("SELECT COUNT(*) FROM service_options WHERE service_id = %s", (service_id,))
+        if cursor.fetchone()[0] > 0:
+            cursor.execute("UPDATE services SET pricing_model = 'options' WHERE id = %s", (service_id,))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def fetch_travel_settings():
+    ensure_travel_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM settings ORDER BY id ASC LIMIT 1")
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row or {}
+
+
+def serialize_travel_settings(raw):
+    raw = raw or {}
+    return {
+        'id': raw.get('id'),
+        'tomtom_api_key': raw.get('tomtom_api_key') or '',
+        'price_per_minute': normalize_price_value(raw.get('price_per_minute')) or 0,
+        'extended_price_per_minute': normalize_price_value(raw.get('extended_price_per_minute')) or 0,
+        'max_service_radius_miles': normalize_price_value(raw.get('max_service_radius_miles')) or 15.0,
+        'enable_travel_pricing': bool(raw.get('enable_travel_pricing')),
+        'ask_for_postcode': bool(raw.get('ask_for_postcode'))
+    }
+
+
+def upsert_travel_settings(payload):
+    ensure_travel_tables()
+    tomtom_api_key = (payload.get('tomtom_api_key') or '').strip()
+    price_per_minute = normalize_price_value(payload.get('price_per_minute'))
+    extended_price_per_minute = normalize_price_value(payload.get('extended_price_per_minute'))
+    max_service_radius_miles = normalize_price_value(payload.get('max_service_radius_miles'))
+    enable_travel_pricing = bool(str_to_bool(payload.get('enable_travel_pricing')))
+    ask_for_postcode = bool(str_to_bool(payload.get('ask_for_postcode')))
+
+    if price_per_minute is None:
+        price_per_minute = 0
+    if extended_price_per_minute is None:
+        extended_price_per_minute = 0
+    if max_service_radius_miles is None or max_service_radius_miles <= 0:
+        max_service_radius_miles = 15.0
+
+    if enable_travel_pricing and not tomtom_api_key:
+        raise ValueError('TomTom API key is required when enabling travel pricing.')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    values = (
+        tomtom_api_key or None,
+        price_per_minute,
+        extended_price_per_minute,
+        max_service_radius_miles,
+        enable_travel_pricing,
+        ask_for_postcode
+    )
+
+    cursor.execute(
+        """
+        UPDATE settings
+        SET tomtom_api_key=%s,
+            price_per_minute=%s,
+            extended_price_per_minute=%s,
+            max_service_radius_miles=%s,
+            enable_travel_pricing=%s,
+            ask_for_postcode=%s
+        WHERE id = 1
+        """,
+        values
+    )
+    if cursor.rowcount == 0:
+        cursor.execute(
+            """
+            INSERT INTO settings (id, tomtom_api_key, price_per_minute, extended_price_per_minute, max_service_radius_miles, enable_travel_pricing, ask_for_postcode)
+            VALUES (1, %s, %s, %s, %s, %s, %s)
+            """,
+            values
+        )
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return fetch_travel_settings()
+
+
+def fetch_operating_bases(include_inactive=False):
+    ensure_travel_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    if include_inactive:
+        clause = ''
+        params = ()
+    else:
+        condition, cond_params = build_active_true_condition('is_active', engine)
+        clause = f"WHERE {condition}"
+        params = cond_params
+    cursor.execute(
+        f"""
+        SELECT id, name, postcode, latitude, longitude, is_active, created_at, updated_at
+        FROM operating_bases
+        {clause}
+        ORDER BY id ASC
+        """,
+        params
+    )
+    bases = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    normalized = []
+    for base in bases or []:
+        if base.get('latitude') is not None:
+            try:
+                base['latitude'] = float(base['latitude'])
+            except (TypeError, ValueError):
+                base['latitude'] = None
+        if base.get('longitude') is not None:
+            try:
+                base['longitude'] = float(base['longitude'])
+            except (TypeError, ValueError):
+                base['longitude'] = None
+        base['is_active'] = bool(base.get('is_active'))
+        normalized.append(base)
+    return normalized
+
+
+def upsert_operating_base(payload, base_id=None):
+    ensure_travel_tables()
+    name = sanitize_text(payload.get('name'), 150)
+    postcode = sanitize_text(payload.get('postcode'), 255)
+    is_active = bool(str_to_bool(payload.get('is_active', True)))
+
+    if not name or not postcode:
+        raise ValueError('Name and postcode are required for an operating base.')
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    latitude = None
+    longitude = None
+    try:
+        settings = fetch_travel_settings()
+        api_key = settings.get('tomtom_api_key')
+        geocoded = geocode_postcode_tomtom(postcode, api_key) if api_key else None
+        if geocoded:
+            latitude = geocoded.get('lat')
+            longitude = geocoded.get('lng')
+    except Exception:
+        app.logger.warning('Unable to geocode base %s', postcode, exc_info=True)
+
+    if base_id:
+        cursor.execute(
+            """
+            UPDATE operating_bases
+            SET name=%s, postcode=%s, latitude=%s, longitude=%s, is_active=%s
+            WHERE id = %s
+            """,
+            (name, postcode, latitude, longitude, is_active, base_id)
+        )
+    else:
+        cursor.execute(
+            """
+            INSERT INTO operating_bases (name, postcode, latitude, longitude, is_active)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (name, postcode, latitude, longitude, is_active)
+        )
+        base_id = cursor.lastrowid
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return base_id
+
+
+def set_operating_base_active(base_id, is_active=True):
+    ensure_travel_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE operating_bases SET is_active=%s WHERE id=%s",
+        (1 if is_active else 0, base_id)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def delete_operating_base(base_id):
+    ensure_travel_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM operating_bases WHERE id=%s", (base_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def geocode_postcode_tomtom(postcode, api_key):
+    if not postcode or not api_key:
+        return None
+    url = f"https://api.tomtom.com/search/2/geocode/{urllib.parse.quote(postcode)}.json"
+    response = requests.get(url, params={"key": api_key, "limit": 1}, timeout=10)
+    response.raise_for_status()
+    data = response.json() or {}
+    results = data.get("results") or []
+    if not results:
+        return None
+    position = results[0].get("position") or {}
+    lat = position.get("lat")
+    lon = position.get("lon")
+    if lat is None or lon is None:
+        return None
+    return {"lat": float(lat), "lng": float(lon)}
+
+
+def calculate_route_tomtom(origin, destination, api_key):
+    if not origin or not destination or not api_key:
+        return None
+    route_url = "https://api.tomtom.com/routing/1/calculateRoute/{},{}:{},{}".format(
+        origin['lat'], origin['lng'], destination['lat'], destination['lng']
+    )
+    params = {
+        "key": api_key,
+        "travelMode": "car"
+    }
+    try:
+        response = requests.get(f"{route_url}/json", params=params, timeout=12)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as req_err:
+        # Gracefully handle all TomTom errors (unreachable route, bad coordinates, timeouts, etc.)
+        status = None
+        detail = None
+        if hasattr(req_err, 'response') and req_err.response is not None:
+            status = req_err.response.status_code
+            try:
+                detail = (req_err.response.json() or {}).get('errorText')
+            except Exception:
+                detail = str(req_err)[:100]
+        else:
+            detail = str(req_err)[:100]
+        app.logger.debug("TomTom routing failed: status=%s detail=%s", status, detail)
+        # Return None for any routing failure - don't raise
+        return None
+    payload = response.json() or {}
+    routes = payload.get('routes') or []
+    if not routes:
+        return None
+    summary = routes[0].get('summary') or {}
+    distance_meters = summary.get('lengthInMeters')
+    travel_seconds = summary.get('travelTimeInSeconds')
+    distance_miles = round(float(distance_meters) / 1609.344, 2) if distance_meters is not None else None
+    travel_minutes = round(float(travel_seconds) / 60) if travel_seconds is not None else None
+    return {
+        'distance_miles': distance_miles,
+        'travel_time_minutes': travel_minutes,
+        'pricing_method': 'tomtom'
+    }
+
+
+def _geocode_base_if_needed(base_row, api_key):
+    if not api_key:
+        return None
+    if base_row.get('latitude') is not None and base_row.get('longitude') is not None:
+        return {'lat': float(base_row['latitude']), 'lng': float(base_row['longitude'])}
+
+    origin = geocode_postcode_tomtom(base_row.get('postcode'), api_key)
+    if not origin:
+        return None
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE operating_bases SET latitude=%s, longitude=%s WHERE id=%s",
+            (origin['lat'], origin['lng'], base_row.get('id'))
+        )
+        conn.commit()
+    except Exception:
+        app.logger.debug('Failed to cache geocode for base %s', base_row.get('id'))
+    finally:
+        try:
+            cursor.close()
+            conn.close()
+        except Exception:
+            pass
+    return origin
+
+
+def resolve_travel_time(user_postcode, settings=None):
+    settings = settings or fetch_travel_settings()
+    api_key = (settings or {}).get('tomtom_api_key')
+    price_per_minute = normalize_price_value((settings or {}).get('price_per_minute')) or 0
+    max_radius = normalize_price_value((settings or {}).get('max_service_radius_miles')) or 15.0
+    user_postcode = sanitize_text(user_postcode, 255)
+
+    if not user_postcode:
+        raise ValueError('Customer postcode/address is required to calculate travel distance.')
+    if not api_key:
+        raise ValueError('Travel pricing is unavailable. Please add a TomTom API key.')
+
+    bases = fetch_operating_bases(include_inactive=False)
+    if not bases:
+        raise ValueError('Travel pricing is unavailable. Please configure at least one operating base.')
+
+    try:
+        destination = geocode_postcode_tomtom(user_postcode, api_key)
+    except Exception:
+        app.logger.warning('TomTom geocoding failed for: %s', user_postcode)
+        destination = None
+
+    if not destination:
+        raise ValueError('Unable to locate the address provided. Please enter a valid UK postcode or address.')
+
+    best_within_radius = None
+    best_overall = None  # Track closest base even if outside radius
+    routing_failures = 0  # Track consecutive routing failures
+    max_routing_failures = 3  # Stop early if destination is likely unreachable
+    
+    app.logger.info('Calculating travel from %d bases to: %s', len(bases), user_postcode)
+    
+    for base in bases:
+        # Early exit if routing keeps failing (likely unreachable destination like overseas)
+        if routing_failures >= max_routing_failures and best_overall is None:
+            app.logger.info('Stopping route checks after %d failures - destination may be unreachable: %s', routing_failures, user_postcode)
+            break
+        
+        origin = None
+        try:
+            origin = _geocode_base_if_needed(base, api_key)
+        except Exception:
+            app.logger.debug('Failed to geocode base %s', base.get('id'))
+            origin = None
+
+        if not origin:
+            app.logger.debug('Skipping base %s (%s) - no coordinates', base.get('id'), base.get('name'))
+            continue
+
+        route = calculate_route_tomtom(origin, destination, api_key)
+
+        if not route:
+            routing_failures += 1
+            app.logger.debug('Routing failed for base %s (%s)', base.get('id'), base.get('name'))
+            continue
+        
+        # Reset failure count on success
+        routing_failures = 0
+
+        distance = route.get('distance_miles')
+        travel_time = route.get('travel_time_minutes')
+        is_within_radius = not (max_radius and distance is not None and distance > max_radius)
+        
+        app.logger.info('Base %s (%s): distance=%.1f miles, time=%d mins, within_radius=%s', 
+                       base.get('id'), base.get('name'), distance or 0, travel_time or 0, is_within_radius)
+        
+        # Track best within radius
+        if is_within_radius:
+            if best_within_radius is None:
+                best_within_radius = {'base': base, 'route': route}
+            else:
+                current_best_time = best_within_radius['route'].get('travel_time_minutes')
+                if current_best_time is None and travel_time is not None:
+                    best_within_radius = {'base': base, 'route': route}
+                elif current_best_time is not None and travel_time is not None and travel_time < current_best_time:
+                    best_within_radius = {'base': base, 'route': route}
+        
+        # Track best overall (closest base regardless of radius)
+        if best_overall is None:
+            best_overall = {'base': base, 'route': route}
+        else:
+            current_overall_time = best_overall['route'].get('travel_time_minutes')
+            if current_overall_time is None and travel_time is not None:
+                best_overall = {'base': base, 'route': route}
+            elif current_overall_time is not None and travel_time is not None and travel_time < current_overall_time:
+                best_overall = {'base': base, 'route': route}
+
+    # Use best within radius if available, otherwise use closest base (extended coverage)
+    best = best_within_radius
+    is_extended_coverage = False
+    
+    if not best and best_overall:
+        # Customer is outside normal radius but we can still serve them
+        best = best_overall
+        is_extended_coverage = True
+    
+    if not best:
+        # All routing attempts failed - likely unreachable (overseas, etc.)
+        # Build service area names for the error message
+        service_area_names = [b.get('name') for b in bases if b.get('name')]
+        if service_area_names:
+            areas_text = ', '.join(service_area_names[:5])
+            if len(service_area_names) > 5:
+                areas_text += f' and {len(service_area_names) - 5} more'
+            raise ValueError(f'We cannot reach this location by road. Our service areas include: {areas_text}. Please enter a valid UK address.')
+        raise ValueError('We cannot reach this location by road. Please enter a UK address within our service area.')
+
+    # Log the final selection
+    app.logger.info('Selected base: %s (%s) - distance=%.1f miles, time=%d mins, extended_coverage=%s',
+                   best['base'].get('id'), best['base'].get('name'),
+                   best['route'].get('distance_miles') or 0, 
+                   best['route'].get('travel_time_minutes') or 0,
+                   is_extended_coverage)
+
+    route = best['route']
+    route['pricing_method'] = 'tomtom'
+    route['base_id'] = best['base'].get('id')
+    route['base_name'] = best['base'].get('name')
+    route['base_postcode'] = best['base'].get('postcode')
+    route['max_service_radius_miles'] = max_radius
+    route['price_per_minute'] = price_per_minute
+    route['is_extended_coverage'] = is_extended_coverage
+    # Include customer destination coordinates for map link
+    route['customer_lat'] = destination.get('lat') if destination else None
+    route['customer_lng'] = destination.get('lng') if destination else None
+    route['customer_postcode'] = user_postcode
+    return route
+
+
+def calculate_travel_cost(user_postcode):
+    settings = fetch_travel_settings() or {}
+
+    api_key = (settings.get('tomtom_api_key') or '').strip()
+    price_per_minute = normalize_price_value(settings.get('price_per_minute')) or 0
+    extended_price_per_minute = normalize_price_value(settings.get('extended_price_per_minute')) or 0
+    enable_pricing = bool(settings.get('enable_travel_pricing'))
+
+    if not enable_pricing:
+        return {
+            'travel_fee': 0,
+            'distance_miles': None,
+            'travel_time_minutes': None,
+            'pricing_method': 'disabled'
+        }
+
+    user_postcode = sanitize_text(user_postcode, 255)
+    if not user_postcode:
+        raise ValueError('Please provide a postcode or address for travel pricing.')
+    if not api_key:
+        raise ValueError('Travel pricing is temporarily unavailable. Please contact the team.')
+
+    travel_data = resolve_travel_time(user_postcode, settings)
+    travel_minutes = travel_data.get('travel_time_minutes')
+    if travel_minutes is None:
+        raise ValueError('Unable to calculate travel time right now.')
+
+    is_extended_coverage = travel_data.get('is_extended_coverage', False)
+    
+    if is_extended_coverage and extended_price_per_minute > 0:
+        # Extended coverage: charge for round-trip (2x travel time) at extended rate
+        travel_fee = round((travel_minutes * 2) * extended_price_per_minute, 2)
+    else:
+        # Normal coverage: one-way travel at standard rate
+        travel_fee = round(travel_minutes * price_per_minute, 2)
+    
+    return {
+        'travel_fee': travel_fee,
+        'distance_miles': travel_data.get('distance_miles'),
+        'travel_time_minutes': travel_minutes,
+        'pricing_method': travel_data.get('pricing_method') or 'tomtom',
+        'base_id': travel_data.get('base_id'),
+        'base_name': travel_data.get('base_name'),
+        'base_postcode': travel_data.get('base_postcode'),
+        'max_service_radius_miles': travel_data.get('max_service_radius_miles'),
+        'is_extended_coverage': is_extended_coverage
+    }
+
+
+def parse_price_input(value):
+    if value in (None, ''):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        cleaned = str(value).strip()
+        if not cleaned:
+            return None
+        return float(cleaned)
+
+def fetch_services_from_db(include_inactive=False):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    if include_inactive:
+        where_clause = ""
+        params = ()
+    else:
+        condition, cond_params = build_active_true_condition('s.is_active', engine)
+        where_clause = f"WHERE {condition}"
+        params = cond_params
+    cursor.execute(
+        f"""
+        SELECT
+            s.id,
+            s.title,
+            s.name,
+            s.short_description,
+            s.description,
+            s.price,
+            s.discount_threshold,
+            s.discount_percent,
+            s.pricing_model,
+            s.table_header_col1,
+            s.table_header_col2,
+            s.table_header_col3,
+            s.allow_multiselect,
+            s.image_path,
+            s.is_active,
+            s.created_at,
+            s.updated_at
+        FROM services s
+        {where_clause}
+        ORDER BY s.id ASC
+        """,
+        params
+    )
+    services_rows = cursor.fetchall()
+
+    services = OrderedDict()
+    for row in services_rows:
+        created_at = row.get('created_at')
+        updated_at = row.get('updated_at')
+        service_id = row.get('id')
+        services[service_id] = {
+            'id': service_id,
+            'title': row.get('title'),
+            'name': row.get('name') or row.get('title'),
+            'short_description': row.get('short_description') or '',
+            'description': row.get('description'),
+            'price': normalize_price_value(row.get('price')),
+            'discount_threshold': normalize_price_value(row.get('discount_threshold')),
+            'discount_percent': normalize_price_value(row.get('discount_percent')),
+            'pricing_model': row.get('pricing_model') or 'simple',
+            'table_header_col1': row.get('table_header_col1') or 'Property Type',
+            'table_header_col2': row.get('table_header_col2') or 'Standard Price',
+            'table_header_col3': row.get('table_header_col3') or 'Upgrade Option',
+            'allow_multiselect': row.get('allow_multiselect') or 0,
+            'image_path': row.get('image_path'),
+            'is_active': bool(row.get('is_active')),
+            'created_at': created_at.isoformat() if isinstance(created_at, datetime) else created_at,
+            'updated_at': updated_at.isoformat() if isinstance(updated_at, datetime) else updated_at,
+            'options': [],
+            'pricing_items': [],
+            'pricing_tiers': [],
+            'tenancy_rates': [],
+            'pricing_type': None
+        }
+
+    service_ids = list(services.keys())
+    if service_ids:
+        placeholders = ','.join(['%s'] * len(service_ids))
+
+        # Legacy options
+        option_where = f"WHERE o.service_id IN ({placeholders})"
+        option_params = list(service_ids)
+        if not include_inactive:
+            condition, cond_params = build_active_true_condition('o.is_active', engine)
+            option_where += f" AND {condition}"
+            option_params.extend(cond_params)
+        cursor.execute(
+            f"""
+            SELECT o.id, o.service_id, o.label, o.price, o.sort_order, o.is_active
+            FROM service_options o
+            {option_where}
+            ORDER BY o.service_id ASC, o.sort_order ASC, o.id ASC
+            """,
+            option_params
+        )
+        for opt in cursor.fetchall():
+            svc = services.get(opt['service_id'])
+            if svc:
+                svc['options'].append({
+                    'id': opt['id'],
+                    'label': opt.get('label'),
+                    'price': normalize_price_value(opt.get('price')),
+                    'sort_order': opt.get('sort_order') or 0,
+                    'is_active': bool(opt.get('is_active'))
+                })
+
+        # Pricing items (carpet/upholstery)
+        cursor.execute(
+            f"""
+            SELECT id, service_id, item_name, price
+            FROM service_pricing_items
+            WHERE service_id IN ({placeholders})
+            ORDER BY service_id ASC, id ASC
+            """,
+            service_ids
+        )
+        for item in cursor.fetchall():
+            svc = services.get(item['service_id'])
+            if svc:
+                svc['pricing_items'].append({
+                    'id': item['id'],
+                    'item_name': item.get('item_name'),
+                    'price': normalize_price_value(item.get('price'))
+                })
+
+        # Pricing tiers (deep cleaning hourly)
+        cursor.execute(
+            f"""
+            SELECT id, service_id, tier_name, hourly_rate, min_staff, equipment_fee, detergent_fee
+            FROM service_pricing_tiers
+            WHERE service_id IN ({placeholders})
+            ORDER BY service_id ASC, id ASC
+            """,
+            service_ids
+        )
+        for tier in cursor.fetchall():
+            svc = services.get(tier['service_id'])
+            if svc:
+                svc['pricing_tiers'].append({
+                    'id': tier['id'],
+                    'tier_name': tier.get('tier_name'),
+                    'hourly_rate': normalize_price_value(tier.get('hourly_rate')),
+                    'min_staff': tier.get('min_staff'),
+                    'equipment_fee': normalize_price_value(tier.get('equipment_fee')),
+                    'detergent_fee': normalize_price_value(tier.get('detergent_fee'))
+                })
+
+        # Tenancy rates
+        cursor.execute(
+            f"""
+            SELECT id, service_id, label, standard_price, deep_clean_price, is_blocker, blocker_msg
+            FROM service_tenancy_rates
+            WHERE service_id IN ({placeholders})
+            ORDER BY service_id ASC, id ASC
+            """,
+            service_ids
+        )
+        for rate in cursor.fetchall():
+            svc = services.get(rate['service_id'])
+            if svc:
+                svc['tenancy_rates'].append({
+                    'id': rate['id'],
+                    'label': rate.get('label'),
+                    'standard_price': normalize_price_value(rate.get('standard_price')),
+                    'deep_clean_price': normalize_price_value(rate.get('deep_clean_price')),
+                    'is_blocker': bool(rate.get('is_blocker')),
+                    'blocker_msg': rate.get('blocker_msg')
+                })
+
+        # Set pricing_type based on pricing_model or infer from data for backwards compatibility
+        for svc in services.values():
+            pricing_model = svc.get('pricing_model')
+            if pricing_model and pricing_model != 'simple':
+                # Use explicit pricing_model as pricing_type
+                svc['pricing_type'] = pricing_model
+            elif svc['tenancy_rates']:
+                svc['pricing_type'] = 'tenancy'
+            elif svc['pricing_tiers']:
+                svc['pricing_type'] = 'deep'
+            elif svc['pricing_items']:
+                svc['pricing_type'] = 'itemized'
+            elif svc['options']:
+                svc['pricing_type'] = 'options'
+            else:
+                svc['pricing_type'] = 'simple'
+
+    cursor.close()
+    conn.close()
+    return list(services.values())
+
+
+def format_currency_label(value):
+    normalized = normalize_price_value(value)
+    if normalized is None:
+        return 'Custom quote'
+    return f"£{normalized:,.2f}"
+
+
+def format_friendly_datetime(dt_value):
+    """Format datetime as 'Thursday 12th December 2025, 12:30 PM'."""
+    if not dt_value:
+        return ''
+    if isinstance(dt_value, str):
+        try:
+            dt_value = datetime.fromisoformat(dt_value.replace('Z', '+00:00'))
+        except ValueError:
+            return dt_value
+    if not isinstance(dt_value, datetime):
+        return str(dt_value) if dt_value else ''
+    
+    day = dt_value.day
+    # Add ordinal suffix
+    if 11 <= day <= 13:
+        suffix = 'th'
+    else:
+        suffix = {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+    
+    return dt_value.strftime(f'%A {day}{suffix} %B %Y, %I:%M %p')
+
+
+def parse_preferred_date(value):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(str(value), '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return None
+
+
+def resolve_service_selections(raw_selections):
+    if not isinstance(raw_selections, list) or not raw_selections:
+        raise ValueError('Please select at least one service to continue.')
+
+    # Collect service ids
+    service_ids = []
+    for entry in raw_selections:
+        if isinstance(entry, dict) and entry.get('service_id'):
+            try:
+                service_ids.append(int(entry.get('service_id')))
+            except (TypeError, ValueError):
+                continue
+    service_ids = list({sid for sid in service_ids if sid})
+
+    # Load services with pricing data
+    services = fetch_services_from_db(include_inactive=False)
+    service_map = {svc['id']: svc for svc in services if svc['id'] in service_ids}
+
+    resolved = []
+    pricing_details = []
+    subtotal = 0.0
+    has_custom_price = False
+
+    for entry in raw_selections:
+        if not isinstance(entry, dict):
+            continue
+
+        service_id = entry.get('service_id')
+        try:
+            service_id = int(service_id)
+        except (TypeError, ValueError):
+            service_id = None
+
+        if not service_id or service_id not in service_map:
+            raise ValueError('One of the selected services is invalid or unavailable.')
+
+        service = service_map[service_id]
+        pricing_model = entry.get('pricing_model') or entry.get('model_type') or service.get('pricing_type')
+        payload = entry.get('pricing_payload') or {}
+        is_survey_request = bool(payload.get('is_survey_request') or entry.get('is_survey_request'))
+
+        resolved_item = {
+            'service_id': service_id,
+            'service_name': service.get('name') or service.get('title'),
+            'service_option_id': None,
+            'option_label': None,
+            'price': None,
+            'is_survey_request': is_survey_request
+        }
+
+        detail = {}
+
+        if is_survey_request:
+            resolved_item.update({
+                'service_option_id': None,
+                'option_label': sanitize_text(entry.get('option_label') or 'Survey required', 150),
+                'price': None
+            })
+            detail = {
+                'model': 'survey_required',
+                'is_survey_request': True,
+                'option_label': resolved_item['option_label']
+            }
+            has_custom_price = True
+            resolved.append(resolved_item)
+            pricing_details.append({**detail, 'service_id': service_id})
+            continue
+
+        if pricing_model in ('tenancy', 'tenancy_rates'):
+            rate_id = payload.get('rate_id') or payload.get('selection')
+            variant = (payload.get('variant') or 'standard').lower()
+            rate = next((r for r in service.get('tenancy_rates', []) if int(r['id']) == int(rate_id)), None)
+            if not rate:
+                raise ValueError('Selected property size is no longer available.')
+            if rate.get('is_blocker'):
+                raise ValueError(rate.get('blocker_msg') or 'This property requires a survey. Please contact the team.')
+            price_value = normalize_price_value(rate.get('deep_clean_price') if variant == 'deep' else rate.get('standard_price'))
+            # Build detailed option label with property size and clean type
+            property_label = rate.get('label') or 'Property'
+            clean_type = 'Deep Clean' if variant == 'deep' else 'Standard Clean'
+            detailed_label = f"{property_label} • {clean_type}"
+            resolved_item.update({
+                'service_option_id': rate.get('id'),
+                'option_label': detailed_label,
+                'price': price_value
+            })
+            detail = {
+                'model': 'tenancy',
+                'rate_id': rate.get('id'),
+                'variant': variant,
+                'label': rate.get('label'),
+                'price': price_value
+            }
+
+        elif pricing_model in ('deep', 'deep_tiers'):
+            tier_id = payload.get('tier_id') or payload.get('selection') or payload.get('option_id')
+            tier = next((t for t in service.get('pricing_tiers', []) if int(t['id']) == int(tier_id)), None)
+            if not tier:
+                raise ValueError('Selected deep cleaning tier is no longer available.')
+            min_staff = int(tier.get('min_staff') or 1)
+            hours = float(payload.get('hours') or 0)
+            staff = int(payload.get('staff') or min_staff)
+            if staff < min_staff:
+                raise ValueError(f"Minimum staff for this tier is {min_staff}.")
+            if hours <= 0:
+                raise ValueError('Please provide estimated hours greater than 0.')
+            hourly_rate = normalize_price_value(tier.get('hourly_rate'))
+            if hourly_rate is None:
+                raise ValueError('This tier does not have a valid hourly rate yet.')
+            equipment_fee = normalize_price_value(tier.get('equipment_fee')) or 0
+            detergent_fee = normalize_price_value(tier.get('detergent_fee')) or 0
+            price_value = round((hourly_rate * staff * hours) + equipment_fee + detergent_fee, 2)
+            # Build detailed option label with all parameters
+            tier_name = tier.get('tier_name') or 'Deep clean'
+            detail_parts = [tier_name, f"Staff: {staff}", f"Hours: {hours}"]
+            detailed_label = ' • '.join(detail_parts)
+            resolved_item.update({
+                'service_option_id': tier.get('id'),
+                'option_label': detailed_label,
+                'price': price_value
+            })
+            detail = {
+                'model': 'deep',
+                'tier_id': tier.get('id'),
+                'tier_name': tier.get('tier_name'),
+                'staff': staff,
+                'hours': hours,
+                'hourly_rate': hourly_rate,
+                'equipment_fee': equipment_fee,
+                'detergent_fee': detergent_fee,
+                'price': price_value
+            }
+
+        elif pricing_model in ('itemized', 'itemized_discount'):
+            quantities = payload.get('quantities') or {}
+            if not isinstance(quantities, dict) or not quantities:
+                raise ValueError('Please select at least one item.')
+            subtotal = 0.0
+            lines = []
+            item_details = []  # For readable display
+            for item in service.get('pricing_items', []):
+                qty = 0
+                try:
+                    qty = int(quantities.get(str(item['id'])) or quantities.get(item['id']) or 0)
+                except (TypeError, ValueError):
+                    qty = 0
+                price = normalize_price_value(item.get('price')) or 0
+                if qty > 0:
+                    subtotal += qty * price
+                    lines.append(f"{qty} × {item.get('item_name')}")
+                    item_details.append(f"{item.get('item_name')} (x{qty})")
+            if subtotal <= 0:
+                raise ValueError('Please select at least one item to continue.')
+
+            discount_threshold = normalize_price_value(service.get('discount_threshold')) or 0
+            discount_percent = normalize_price_value(service.get('discount_percent')) or 0
+            discount_amount = 0.0
+            if discount_threshold and discount_percent and subtotal > discount_threshold:
+                discount_amount = round(subtotal * (discount_percent / 100), 2)
+            price_value = round(subtotal - discount_amount, 2)
+
+            # Generate detailed label from actual items instead of 'Custom selection'
+            detailed_label = ', '.join(item_details) if item_details else 'Custom selection'
+
+            resolved_item.update({
+                'service_option_id': None,
+                'option_label': detailed_label,
+                'price': price_value
+            })
+            detail = {
+                'model': 'itemized',
+                'quantities': quantities,
+                'lines': lines,
+                'item_details': item_details,
+                'subtotal': subtotal,
+                'discount_threshold': discount_threshold,
+                'discount_percent': discount_percent,
+                'discount_amount': discount_amount,
+                'price': price_value
+            }
+
+        elif payload.get('type') == 'multiselect_options' or (payload.get('selectedOptions') and isinstance(payload.get('selectedOptions'), list)):
+            # Multiselect options with discount support
+            selected_options = payload.get('selectedOptions', [])
+            if not selected_options:
+                raise ValueError('Please select at least one option.')
+            
+            # Validate all selected options exist and are active
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+            option_ids = [opt.get('id') for opt in selected_options if opt.get('id')]
+            if not option_ids:
+                cursor.close()
+                conn.close()
+                raise ValueError('Invalid option selection.')
+            
+            placeholders = ','.join(['%s'] * len(option_ids))
+            condition, cond_params = build_active_true_condition('o.is_active', engine)
+            cursor.execute(
+                f"""
+                SELECT o.id AS option_id, o.label AS option_label, o.price AS option_price, o.is_active AS option_active
+                FROM service_options o
+                WHERE o.id IN ({placeholders}) AND o.service_id = %s AND {condition}
+                """,
+                (*option_ids, service_id, *cond_params)
+            )
+            valid_options = {row['option_id']: row for row in cursor.fetchall()}
+            cursor.close()
+            conn.close()
+
+            # Calculate subtotal from valid options
+            subtotal_multiselect = 0.0
+            option_labels = []
+            for opt in selected_options:
+                opt_id = opt.get('id')
+                if opt_id not in valid_options:
+                    raise ValueError('One of the selected options is no longer available.')
+                db_opt = valid_options[opt_id]
+                opt_price = normalize_price_value(db_opt.get('option_price')) or 0
+                subtotal_multiselect += opt_price
+                option_labels.append(db_opt.get('option_label'))
+
+            if subtotal_multiselect <= 0:
+                raise ValueError('Please select at least one priced option.')
+
+            # Apply discount if threshold met
+            discount_threshold = normalize_price_value(service.get('discount_threshold')) or 0
+            discount_percent = normalize_price_value(service.get('discount_percent')) or 0
+            discount_amount = 0.0
+            if discount_threshold > 0 and discount_percent > 0 and subtotal_multiselect > discount_threshold:
+                discount_amount = round(subtotal_multiselect * (discount_percent / 100), 2)
+            price_value = round(subtotal_multiselect - discount_amount, 2)
+
+            resolved_item.update({
+                'service_option_id': option_ids[0] if option_ids else None,  # Keep first for backwards compat
+                'option_label': ', '.join(option_labels),
+                'price': price_value
+            })
+            detail = {
+                'model': 'multiselect_options',
+                'selected_option_ids': option_ids,
+                'option_labels': option_labels,
+                'subtotal': subtotal_multiselect,
+                'discount_threshold': discount_threshold,
+                'discount_percent': discount_percent,
+                'discount_amount': discount_amount,
+                'price': price_value
+            }
+
+        else:
+            # Legacy options fallback
+            option_id = entry.get('service_option_id') or entry.get('option_id')
+            custom_label = sanitize_text(entry.get('option_label'), 150)
+            price_value = entry.get('price')
+            if option_id:
+                conn = get_db_connection()
+                cursor = conn.cursor(dictionary=True)
+                cursor.execute(
+                    """
+                    SELECT o.id AS option_id, o.label AS option_label, o.price AS option_price, o.is_active AS option_active,
+                           o.service_id, s.name AS service_name, s.title AS service_title, s.is_active AS service_active
+                    FROM service_options o
+                    JOIN services s ON s.id = o.service_id
+                    WHERE o.id = %s
+                    """,
+                    (option_id,)
+                )
+                option_row = cursor.fetchone()
+                cursor.close()
+                conn.close()
+                if not option_row or not option_row.get('option_active') or not option_row.get('service_active'):
+                    raise ValueError('One of the selected options is no longer available.')
+                resolved_item.update({
+                    'service_option_id': option_row['option_id'],
+                    'option_label': option_row.get('option_label'),
+                    'price': normalize_price_value(option_row.get('option_price'))
+                })
+                detail = {'model': 'options', 'option_id': option_row['option_id'], 'price': resolved_item['price']}
+            else:
+                resolved_item.update({
+                    'service_option_id': None,
+                    'option_label': custom_label or 'Custom package',
+                    'price': normalize_price_value(price_value)
+                })
+                detail = {'model': 'custom', 'price': resolved_item['price']}
+
+        if resolved_item['price'] is None:
+            has_custom_price = True
+        else:
+            subtotal += resolved_item['price']
+
+        resolved.append(resolved_item)
+        pricing_details.append({**detail, 'service_id': service_id})
+
+    if not resolved:
+        raise ValueError('Please select at least one valid service option.')
+
+    return resolved, subtotal, has_custom_price, pricing_details
+
+
+def persist_service_request_bundle(customer, schedule, notes, selections, total_price, has_custom, legacy_request_id=None, travel=None, pricing_details=None, status_value='pending'):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    db_engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    pg_mode = db_engine == 'postgres'
+    try:
+        normalized_status = status_value if status_value in REQUEST_STATUSES else 'pending'
+        insert_request_sql = """
+            INSERT INTO service_requests (
+                customer_name, email, phone, address,
+                preferred_date, preferred_time, notes,
+                total_price, pricing_details, status, legacy_request_id,
+                travel_fee, distance_miles, travel_time_minutes, pricing_method,
+                assigned_base_id, assigned_base_name
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        if pg_mode:
+            insert_request_sql += " RETURNING id"
+
+        cursor.execute(
+            insert_request_sql,
+            (
+                customer.get('name'),
+                customer.get('email') or None,
+                customer.get('phone') or None,
+                customer.get('address') or None,
+                schedule.get('preferred_date'),
+                schedule.get('preferred_time'),
+                notes or None,
+                total_price if not has_custom else None,
+                json.dumps(pricing_details or []),
+                normalized_status,
+                legacy_request_id,
+                (travel or {}).get('travel_fee'),
+                (travel or {}).get('distance_miles'),
+                (travel or {}).get('travel_time_minutes'),
+                (travel or {}).get('pricing_method'),
+                (travel or {}).get('base_id'),
+                (travel or {}).get('base_name')
+            )
+        )
+        if pg_mode:
+            new_row = cursor.fetchone()
+            if not new_row:
+                raise RuntimeError('Unable to retrieve service_request id (postgres).')
+            service_request_id = new_row[0]
+        else:
+            service_request_id = cursor.lastrowid
+
+        for item in selections:
+            cursor.execute(
+                """
+                INSERT INTO service_request_items (
+                    service_request_id, service_id, service_option_id, option_label, price
+                ) VALUES (%s, %s, %s, %s, %s)
+                """,
+                (
+                    service_request_id,
+                    item.get('service_id'),
+                    item.get('service_option_id'),
+                    item.get('option_label'),
+                    item.get('price')
+                )
+            )
+
+        conn.commit()
+        return service_request_id
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def attach_service_request_reference(request_id, service_request_id):
+    if not request_id or not service_request_id:
+        return
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT metadata FROM requests WHERE id = %s", (request_id,))
+    row = cursor.fetchone()
+    metadata = {}
+    if row and row.get('metadata'):
+        try:
+            metadata = json.loads(row['metadata'])
+        except json.JSONDecodeError:
+            metadata = {}
+    cursor.close()
+
+    service_flow = metadata.get('service_flow') or {}
+    service_flow['service_request_id'] = service_request_id
+    metadata['service_flow'] = service_flow
+
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE requests SET metadata = %s WHERE id = %s",
+        (json.dumps(metadata), request_id)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def fetch_service_request_detail(legacy_request_id):
+    if not legacy_request_id:
+        return None
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM service_requests WHERE legacy_request_id = %s", (legacy_request_id,))
+    service_request = cursor.fetchone()
+    if not service_request:
+        cursor.close()
+        conn.close()
+        return None
+
+    cursor.execute(
+        "SELECT id, service_id, service_option_id, option_label, price FROM service_request_items WHERE service_request_id = %s ORDER BY id ASC",
+        (service_request['id'],)
+    )
+    items = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    created_at = service_request.get('created_at')
+    updated_at = service_request.get('updated_at')
+    if isinstance(created_at, datetime):
+        service_request['created_at'] = created_at.isoformat()
+    if isinstance(updated_at, datetime):
+        service_request['updated_at'] = updated_at.isoformat()
+    service_request['total_price'] = normalize_price_value(service_request.get('total_price'))
+    for item in items:
+        item['price'] = normalize_price_value(item.get('price'))
+    service_request['items'] = items
+    return service_request
+
+
+def sync_service_request_status(request_id, new_status):
+    if not request_id or not new_status or new_status not in REQUEST_STATUSES:
+        return
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE service_requests SET status = %s WHERE legacy_request_id = %s",
+        (new_status, request_id)
+    )
+    if cursor.rowcount:
+        conn.commit()
+    cursor.close()
+    conn.close()
+
+def fetch_job_positions_from_db():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT id, title, description, image_path FROM job_positions")
+    jobs = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jobs
+
+def fetch_testimonials_from_db(shuffle=False, include_pending=False):
+    """Fetch testimonials from database.
+    
+    Args:
+        shuffle: If True, randomize the order
+        include_pending: If True, include pending testimonials (for admin). 
+                        If False, only return approved testimonials (for public site).
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    if include_pending:
+        cursor.execute("""
+            SELECT id, name, message, image_url, rating, status, is_verified_customer, email, created_at 
+            FROM testimonials 
+            ORDER BY created_at DESC
+        """)
+    else:
+        cursor.execute("""
+            SELECT id, name, message, image_url, rating, is_verified_customer 
+            FROM testimonials 
+            WHERE status = 'approved'
+            ORDER BY created_at DESC
+        """)
+    
+    testimonials = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    if shuffle and testimonials:
+        random.shuffle(testimonials)
+    return testimonials
+
+
+def log_analytics_event(event_type, event_data=None):
+    if not event_type:
+        return
+    conn = None
+    cursor = None
+    pg_conn = None
+    try:
+        target = (app.config.get('ANALYTICS_DB') or 'mysql').strip().lower()
+
+        if target == 'postgres' and (app.config.get('POSTGRES_URL') or '').strip():
+            pg_conn = get_pg_connection()
+            ensure_pg_analytics_table(pg_conn)
+            with pg_conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO analytics (event_type, event_data) VALUES (%s, %s)",
+                    (event_type, PGJson(event_data) if (PGJson and event_data is not None) else None)
+                )
+            pg_conn.commit()
+        else:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            payload = json.dumps(event_data) if event_data is not None else None
+            cursor.execute(
+                "INSERT INTO analytics (event_type, event_data) VALUES (%s, %s)",
+                (event_type, payload)
+            )
+            conn.commit()
+    except Exception:
+        app.logger.exception('Failed to log analytics event: %s', event_type)
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+        if pg_conn:
+            try:
+                pg_conn.close()
+            except Exception:
+                pass
+
+
+DEFAULT_HERO_CONTENT = {
+    'id': 1,
+    'title': 'Professional Cleaning Services',
+    'subtitle': 'Reliable, affordable cleaning for your home or office. Get your free, no-obligation quote today!',
+    'tagline': 'Trusted Cleaning Experts',
+    'small_text_line1': 'Over 150 satisfied clients nationwide',
+    'small_text_line2': 'Eco-friendly products and flexible scheduling',
+    'small_text_line3': 'Fully vetted, professional cleaning teams',
+    'stat1_text': '98% · Client satisfaction score',
+    'stat2_text': '24h · Response time for every request',
+    'stat3_text': 'Emergency · Cleanups available when you need them',
+    'hero_background_image': None
+}
+
+
+
+DEFAULT_SITE_SETTINGS = {
+    'id': 1,
+    'company_name': 'Clean Co.',
+    'logo_path': None
+}
+
+
+DEFAULT_TELEGRAM_SETTINGS = {
+    'id': 1,
+    'bot_token': '',
+    'chat_id': '',
+    'is_active': 0,
+    'notify_email_success': 1,
+    'notify_email_error': 1,
+    'notify_admin_login': 1,
+    'notify_login_failure': 1
+}
+
+
+def fetch_hero_content():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT id, title, subtitle, tagline, small_text_line1, small_text_line2, small_text_line3, stat1_text, stat2_text, stat3_text, hero_background_image FROM hero_content WHERE id = 1"
+    )
+    hero = cursor.fetchone()
+    if not hero:
+        cursor.close()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO hero_content (id, title, subtitle, tagline, small_text_line1, small_text_line2, small_text_line3, stat1_text, stat2_text, stat3_text, hero_background_image) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (
+                DEFAULT_HERO_CONTENT['id'],
+                DEFAULT_HERO_CONTENT['title'],
+                DEFAULT_HERO_CONTENT['subtitle'],
+                DEFAULT_HERO_CONTENT['tagline'],
+                DEFAULT_HERO_CONTENT['small_text_line1'],
+                DEFAULT_HERO_CONTENT['small_text_line2'],
+                DEFAULT_HERO_CONTENT['small_text_line3'],
+                DEFAULT_HERO_CONTENT['stat1_text'],
+                DEFAULT_HERO_CONTENT['stat2_text'],
+                DEFAULT_HERO_CONTENT['stat3_text'],
+                DEFAULT_HERO_CONTENT['hero_background_image']
+            )
+        )
+        conn.commit()
+        cursor.close()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT id, title, subtitle, tagline, small_text_line1, small_text_line2, small_text_line3, stat1_text, stat2_text, stat3_text, hero_background_image FROM hero_content WHERE id = 1"
+        )
+        hero = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return hero or DEFAULT_HERO_CONTENT.copy()
+
+
+def fetch_hero_badges(include_inactive=False):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT id, image_path, created_at FROM hero_badges ORDER BY created_at ASC")
+    badges = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return badges
+
+
+def fetch_contact_info():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT id, headline, phone, email, operating_hours, service_areas, quote_background FROM contact_info WHERE id = 1"
+    )
+    info = cursor.fetchone()
+    if not info:
+        cursor.close()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO contact_info (id, headline, phone, email, operating_hours, service_areas, quote_background) VALUES (1, %s, %s, %s, %s, %s, NULL)",
+            (
+                'Talk to Us',
+                '+233 24 000 0000',
+                'hello@cleanco.com',
+                'Monday – Saturday, 7:00am to 7:00pm. Emergency cleanups available on request.',
+                'We serve nationwide across major cities and suburbs.'
+            )
+        )
+        conn.commit()
+        cursor.close()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT id, headline, phone, email, operating_hours, service_areas, quote_background FROM contact_info WHERE id = 1"
+        )
+        info = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return info
+
+
+def fetch_footer_info():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT id, phone, email, location, facebook, instagram, twitter FROM footer_info WHERE id = 1"
+    )
+    footer = cursor.fetchone()
+    if not footer:
+        cursor.close()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO footer_info (id, phone, email, location, facebook, instagram, twitter) VALUES (1, %s, %s, %s, '', '', '')",
+            ('+233 24 000 0000', 'hello@cleanco.com', 'Accra, Ghana')
+        )
+        conn.commit()
+        cursor.close()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT id, phone, email, location, facebook, instagram, twitter FROM footer_info WHERE id = 1"
+        )
+        footer = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return footer
+
+
+def fetch_site_content():
+    """Fetch all site content sections as a dictionary keyed by section_key."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    condition, params = build_active_true_condition('is_active', engine)
+    cursor.execute(
+        f"SELECT section_key, content_text, content_json FROM site_content WHERE {condition}",
+        params
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    content = {}
+    for row in rows:
+        key = row.get('section_key')
+        if not key:
+            continue
+        text_value = row.get('content_text') or ''
+        json_value = row.get('content_json')
+        if json_value:
+            try:
+                if isinstance(json_value, str):
+                    content[key] = json.loads(json_value)
+                else:
+                    content[key] = json_value
+            except (json.JSONDecodeError, TypeError):
+                content[key] = text_value
+        else:
+            content[key] = text_value
+    return content
+
+
+def fetch_site_settings():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT id, company_name, logo_path FROM site_settings WHERE id = 1"
+    )
+    settings = cursor.fetchone()
+    if not settings:
+        cursor.close()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO site_settings (id, company_name, logo_path) VALUES (%s, %s, %s)",
+            (
+                DEFAULT_SITE_SETTINGS['id'],
+                DEFAULT_SITE_SETTINGS['company_name'],
+                DEFAULT_SITE_SETTINGS['logo_path']
+            )
+        )
+        conn.commit()
+        cursor.close()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT id, company_name, logo_path FROM site_settings WHERE id = 1"
+        )
+        settings = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if not settings:
+        return DEFAULT_SITE_SETTINGS.copy()
+    normalized = {
+        'id': settings.get('id') or DEFAULT_SITE_SETTINGS['id'],
+        'company_name': sanitize_text(settings.get('company_name'), 255) or DEFAULT_SITE_SETTINGS['company_name'],
+        'logo_path': settings.get('logo_path') or None
+    }
+    return normalized
+
+
+def _bool_from_db(value):
+    try:
+        return bool(int(value))
+    except (TypeError, ValueError):
+        return False
+
+
+def fetch_telegram_settings():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT id, bot_token, chat_id, is_active, notify_email_success, notify_email_error, notify_admin_login, notify_login_failure FROM telegram_settings WHERE id = 1"
+    )
+    settings = cursor.fetchone()
+    if not settings:
+        cursor.close()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO telegram_settings (id, is_active, notify_email_success, notify_email_error, notify_admin_login, notify_login_failure) VALUES (1, 0, 1, 1, 1, 1)"
+        )
+        conn.commit()
+        cursor.close()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT id, bot_token, chat_id, is_active, notify_email_success, notify_email_error, notify_admin_login, notify_login_failure FROM telegram_settings WHERE id = 1"
+        )
+        settings = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if not settings:
+        return DEFAULT_TELEGRAM_SETTINGS.copy()
+
+    normalized = DEFAULT_TELEGRAM_SETTINGS.copy()
+    normalized.update({
+        'id': settings.get('id') or DEFAULT_TELEGRAM_SETTINGS['id'],
+        'bot_token': (settings.get('bot_token') or '').strip(),
+        'chat_id': (settings.get('chat_id') or '').strip(),
+        'is_active': _bool_from_db(settings.get('is_active')),
+        'notify_email_success': _bool_from_db(settings.get('notify_email_success')),
+        'notify_email_error': _bool_from_db(settings.get('notify_email_error')),
+        'notify_admin_login': _bool_from_db(settings.get('notify_admin_login')),
+        'notify_login_failure': _bool_from_db(settings.get('notify_login_failure'))
+    })
+    return normalized
+
+
+def update_telegram_settings(payload):
+    if not payload:
+        raise ValueError('No data provided.')
+
+    bot_token = sanitize_text(payload.get('bot_token'), 255)
+    chat_id = sanitize_text(payload.get('chat_id'), 128)
+    is_active = 1 if str_to_bool(payload.get('is_active')) else 0
+    notify_email_success = 1 if str_to_bool(payload.get('notify_email_success')) else 0
+    notify_email_error = 1 if str_to_bool(payload.get('notify_email_error')) else 0
+    notify_admin_login = 1 if str_to_bool(payload.get('notify_admin_login')) else 0
+    notify_login_failure = 1 if str_to_bool(payload.get('notify_login_failure')) else 0
+
+    if is_active and (not bot_token or not chat_id):
+        raise ValueError('Bot token and chat ID are required when Telegram notifications are active.')
+
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE telegram_settings
+            SET bot_token=%s,
+                chat_id=%s,
+                is_active=%s,
+                notify_email_success=%s,
+                notify_email_error=%s,
+                notify_admin_login=%s,
+                notify_login_failure=%s
+            WHERE id = 1
+            """,
+            (
+                bot_token or None,
+                chat_id or None,
+                is_active,
+                notify_email_success,
+                notify_email_error,
+                notify_admin_login,
+                notify_login_failure
+            )
+        )
+        conn.commit()
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+    return fetch_telegram_settings()
+
+
+def send_telegram_notification(preference_key, message_lines):
+    try:
+        settings = fetch_telegram_settings()
+    except Exception:
+        app.logger.exception('Failed to load Telegram settings for notification dispatch.')
+        return False
+
+    if not settings.get('is_active'):
+        return False
+    if preference_key and not settings.get(preference_key, True):
+        return False
+
+    bot_token = (settings.get('bot_token') or '').strip()
+    chat_id = (settings.get('chat_id') or '').strip()
+    if not bot_token or not chat_id:
+        return False
+
+    if isinstance(message_lines, str):
+        lines = [message_lines]
+    else:
+        lines = list(message_lines or [])
+
+    cleaned_lines = [normalize_message(line) for line in lines if normalize_message(line)]
+    if not cleaned_lines:
+        return False
+
+    message = '\n'.join(cleaned_lines).strip()
+    if not message:
+        return False
+
+    max_length = 3500
+    if len(message) > max_length:
+        message = f"{message[:max_length - 3]}..."
+
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {
+        'chat_id': chat_id,
+        'text': message,
+        'disable_notification': False,
+        'disable_web_page_preview': True
+    }
+
+    try:
+        response = requests.post(url, json=payload, timeout=5)
+        if not response.ok:
+            app.logger.warning('Telegram notification failed: %s', response.text)
+            return False
+    except RequestException:
+        app.logger.exception('Unable to send Telegram notification.')
+        return False
+
+    return True
+
+
+def fetch_admin_user(username):
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT id, username, password_hash FROM admin_users WHERE username = %s LIMIT 1",
+            (username,)
+        )
+        return cursor.fetchone()
+    except Exception:
+        app.logger.exception('Failed to fetch admin user %s', username)
+        return None
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+def normalize_message(text):
+    return re.sub(r'\s+', ' ', str(text)).strip()
+
+# --- API Routes (Frontend) ---
+
+@app.route('/api/requests', methods=['POST'])
+def create_request_entry():
+    is_json = request.content_type and 'application/json' in request.content_type
+    payload = request.get_json(silent=True) if is_json else request.form.to_dict()
+    payload = payload or {}
+    if 'request_type' not in payload:
+        inferred_type = payload.get('type') or payload.get('form_type')
+        if inferred_type:
+            payload['request_type'] = inferred_type
+
+    uploaded_files = []
+    if not is_json and request.files:
+        for key in request.files:
+            uploaded_files.extend([file_item for file_item in request.files.getlist(key) if file_item and file_item.filename])
+
+    try:
+        response_payload = process_request_submission(payload, uploaded_files, request.remote_addr)
+        return jsonify(response_payload), 201
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        app.logger.exception('Failed to process incoming request.')
+        return jsonify({'error': 'We were unable to process your request right now.'}), 500
+
+
+@app.route('/api/book-service', methods=['POST'])
+def book_service():
+    data = request.get_json(silent=True) or {}
+    payload = {
+        'request_type': 'service',
+        'name': data.get('name'),
+        'phone': data.get('phone'),
+        'service': data.get('service'),
+        'message': data.get('message'),
+        'email': data.get('email'),
+        'source': 'legacy-api'
+    }
+    try:
+        response_payload = process_request_submission(payload, None, request.remote_addr)
+        return jsonify(response_payload), 201
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        app.logger.exception('Legacy book_service endpoint failed.')
+        return jsonify({'error': 'Unable to process booking at this time.'}), 500
+
+
+@app.route('/api/apply-job', methods=['POST'])
+def apply_job():
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        payload = request.form.to_dict()
+        payload['request_type'] = 'job'
+        attachments = []
+        for key in request.files:
+            attachments.extend([file_item for file_item in request.files.getlist(key) if file_item and file_item.filename])
+    else:
+        data = request.get_json(silent=True) or {}
+        payload = {
+            'request_type': 'job',
+            'name': data.get('name'),
+            'email': data.get('email'),
+            'phone': data.get('phone'),
+            'position': data.get('position'),
+            'message': data.get('message'),
+            'source': 'legacy-api'
+        }
+        attachments = None
+
+    try:
+        response_payload = process_request_submission(payload, attachments, request.remote_addr)
+        return jsonify(response_payload), 201
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        app.logger.exception('Failed to submit job application')
+        return jsonify({'error': 'Unable to submit application at this time.'}), 500
+
+
+@app.route('/api/services', methods=['GET'])
+def get_services():
+    try:
+        include_inactive = str_to_bool(request.args.get('include_inactive', '0'))
+        services = fetch_services_from_db(include_inactive=include_inactive)
+        return jsonify(services)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/travel-quote', methods=['POST'])
+def travel_quote():
+    data = request.get_json(silent=True) or {}
+    postcode = sanitize_text(data.get('postcode'), 255)
+    base_amount = normalize_price_value(data.get('base_amount'))
+    try:
+        quote = calculate_travel_cost(postcode)
+        total = None
+        if base_amount is not None and quote.get('travel_fee') is not None:
+            total = round(base_amount + quote.get('travel_fee'), 2)
+        quote['total'] = total
+        return jsonify(quote)
+    except ValueError as exc:
+        message = str(exc)
+        payload = {'error': message}
+        if 'out of area' in message.lower():
+            payload['code'] = 'out_of_area'
+        return jsonify(payload), 400
+    except Exception:
+        app.logger.exception('Failed to calculate travel quote')
+        return jsonify({'error': 'Unable to calculate travel cost right now.'}), 500
+
+
+@app.route('/api/service-requests', methods=['POST'])
+def create_service_request():
+    payload = request.get_json(silent=True) or {}
+
+    try:
+        selections_raw = payload.get('selections') or payload.get('cart')
+        selections, subtotal, has_custom, pricing_details = resolve_service_selections(selections_raw)
+        has_survey_request = any(item.get('is_survey_request') for item in selections)
+
+        user_postcode = sanitize_text(payload.get('postcode'), 255)
+        travel_quote = None
+        if user_postcode:
+            travel_quote = calculate_travel_cost(user_postcode)
+        else:
+            travel_quote = {
+                'travel_fee': 0,
+                'distance_miles': None,
+                'travel_time_minutes': None,
+                'pricing_method': 'disabled'
+            }
+
+        customer_data = payload.get('customer') or {}
+        schedule_data = payload.get('schedule') or {}
+
+        customer_name = sanitize_text(customer_data.get('name'), 150)
+        if not customer_name:
+            raise ValueError('Please provide your full name.')
+        customer_email = sanitize_email(customer_data.get('email'))
+        customer_phone = sanitize_phone(customer_data.get('phone'))
+        if not customer_phone:
+            raise ValueError('Please enter a phone number so we can reach you.')
+        customer_address = sanitize_text(customer_data.get('address') or payload.get('address'), 255)
+
+        preferred_date_raw = schedule_data.get('preferred_date') or payload.get('preferred_date')
+        preferred_time = sanitize_text(schedule_data.get('preferred_time') or payload.get('preferred_time'), 32)
+        parsed_date = parse_preferred_date(preferred_date_raw)
+        if preferred_date_raw and not parsed_date:
+            raise ValueError('Please choose a valid preferred date.')
+
+        notes = sanitize_text(payload.get('notes') or schedule_data.get('notes'), 1000)
+
+        travel_fee_value = travel_quote.get('travel_fee') if travel_quote else None
+        services_subtotal_display = 'To be confirmed (survey required)' if has_survey_request else (format_currency_label(subtotal) if not has_custom else 'Custom quote')
+        total_with_travel = None
+        if not has_custom and not has_survey_request and subtotal is not None:
+            total_with_travel = subtotal
+            if travel_fee_value is not None:
+                total_with_travel = round(subtotal + travel_fee_value, 2)
+
+        summary_lines = ['Selections:']
+        for item in selections:
+            summary_lines.append(
+                f"- {item['service_name']} · {item['option_label']} ({format_currency_label(item.get('price'))})"
+            )
+        summary_lines.append('')
+        summary_lines.append(f"Services subtotal: {services_subtotal_display}")
+        if travel_fee_value is not None and not has_survey_request:
+            summary_lines.append(f"Logistics & Area Fee: {format_currency_label(travel_fee_value)}")
+        if has_survey_request:
+            summary_lines.append('Pricing: Survey required before confirming total. No payment taken.')
+        elif total_with_travel is not None:
+            summary_lines.append(f"Estimated total: {format_currency_label(total_with_travel)}")
+        summary_lines.append('')
+        summary_lines.append(f"Preferred date: {preferred_date_raw or 'Flexible'}")
+        summary_lines.append(f"Preferred time: {preferred_time or 'Flexible'}")
+        if customer_address:
+            summary_lines.append(f"Address: {customer_address}")
+        if notes:
+            summary_lines.append('')
+            summary_lines.append(f"Notes: {notes}")
+        if travel_quote:
+            summary_lines.append('')
+            if travel_quote.get('distance_miles') is not None:
+                summary_lines.append(f"Distance: {travel_quote.get('distance_miles')} miles")
+            if travel_quote.get('base_name'):
+                summary_lines.append(f"Assigned base: {travel_quote.get('base_name')}")
+
+        service_metadata = {
+            'customer': {
+                'name': customer_name,
+                'email': customer_email,
+                'phone': customer_phone,
+                'address': customer_address
+            },
+            'schedule': {
+                'preferred_date': preferred_date_raw,
+                'preferred_time': preferred_time
+            },
+            'notes': notes,
+            'selections': selections,
+            'pricing_details': pricing_details,
+            'totals': {
+                'amount': subtotal if (not has_custom and not has_survey_request) else None,
+                'has_custom_pricing': has_custom,
+                'is_survey_request': has_survey_request,
+                'display': services_subtotal_display,
+                'travel_fee': travel_fee_value,
+                'total_with_travel': total_with_travel
+            },
+            'travel': travel_quote
+        }
+
+        primary_service_name = selections[0]['service_name'] if selections else 'Cleaning package'
+        public_payload = {
+            'request_type': 'service',
+            'name': customer_name,
+            'email': customer_email,
+            'phone': customer_phone,
+            'service_name': primary_service_name,
+            'message': '\n'.join(summary_lines),
+            'context_page': payload.get('context_page') or '/#services',
+            'source': 'service-flow'
+        }
+
+        submission = process_request_submission(
+            public_payload,
+            uploaded_files=None,
+            remote_addr=request.remote_addr,
+            extra_metadata={'service_flow': service_metadata},
+            status_override='survey_needed' if has_survey_request else None
+        )
+
+        customer_bundle = {
+            'name': customer_name,
+            'email': customer_email,
+            'phone': customer_phone,
+            'address': customer_address
+        }
+        schedule_bundle = {
+            'preferred_date': parsed_date,
+            'preferred_time': preferred_time
+        }
+        stored_total_for_db = total_with_travel if not has_custom and not has_survey_request else None
+
+        service_request_id = persist_service_request_bundle(
+            customer_bundle,
+            schedule_bundle,
+            notes,
+            selections,
+            stored_total_for_db if stored_total_for_db is not None else subtotal,
+            has_custom,
+            submission.get('request_id'),
+            travel_quote,
+            pricing_details,
+            status_value='survey_needed' if has_survey_request else 'pending'
+        )
+        attach_service_request_reference(submission.get('request_id'), service_request_id)
+
+        submission['service_request_id'] = service_request_id
+        submission['travel'] = travel_quote
+        if total_with_travel is not None:
+            submission['total_with_travel'] = total_with_travel
+        submission['message'] = 'Thanks! Your survey request has been received. We will call to arrange a visit.' if has_survey_request else 'Thanks! Your booking request has been received.'
+        return jsonify(submission), 201
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        app.logger.exception('Failed to process service flow request')
+        return jsonify({'error': 'Unable to submit request at this time.'}), 500
+
+
+@app.route('/api/job-positions', methods=['GET'])
+def get_job_positions():
+    try:
+        jobs = fetch_job_positions_from_db()
+        return jsonify(jobs)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/services/add', methods=['POST'])
+@admin_login_required
+def add_service():
+    try:
+        service_name = sanitize_text(request.form.get('name') or request.form.get('title'), 120)
+        short_description = (request.form.get('short_description') or '').strip()
+        description = (request.form.get('description') or '').strip()
+        raw_price = request.form.get('price')
+        raw_discount_threshold = request.form.get('discount_threshold')
+        raw_discount_percent = request.form.get('discount_percent')
+        pricing_model = (request.form.get('pricing_model') or 'simple').strip().lower()
+        is_active = str_to_bool(request.form.get('is_active', '1'))
+
+        # New config fields
+        table_header_col1 = (request.form.get('table_header_col1') or 'Property Type').strip()[:100]
+        table_header_col2 = (request.form.get('table_header_col2') or 'Standard Price').strip()[:100]
+        table_header_col3 = (request.form.get('table_header_col3') or 'Upgrade Option').strip()[:100]
+        allow_multiselect = str_to_bool(request.form.get('allow_multiselect', '0'))
+
+        if not service_name:
+            return jsonify({'error': 'Service name is required.'}), 400
+        if not description:
+            return jsonify({'error': 'Description is required.'}), 400
+
+        # Validate pricing_model
+        valid_pricing_models = ('simple', 'options', 'tenancy', 'deep', 'itemized')
+        if pricing_model not in valid_pricing_models:
+            pricing_model = 'simple'
+
+        if not short_description:
+            short_description = description[:150]
+
+        try:
+            price = float(raw_price) if raw_price not in (None, '') else None
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Price must be a number or left blank for custom quotes.'}), 400
+
+        try:
+            discount_threshold = float(raw_discount_threshold) if raw_discount_threshold not in (None, '') else None
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Discount threshold must be a valid number.'}), 400
+
+        try:
+            discount_percent = float(raw_discount_percent) if raw_discount_percent not in (None, '') else None
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Discount percent must be a valid number.'}), 400
+
+        try:
+            image_path = upload_service_image()
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO services (title, name, short_description, description, price, discount_threshold, discount_percent, pricing_model, table_header_col1, table_header_col2, table_header_col3, allow_multiselect, image_path, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                service_name,
+                service_name,
+                short_description,
+                description,
+                price,
+                discount_threshold,
+                discount_percent,
+                pricing_model,
+                table_header_col1,
+                table_header_col2,
+                table_header_col3,
+                1 if allow_multiselect else 0,
+                image_path or None,
+                1 if is_active else 0
+            )
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Service added!'}), 201
+    except Exception as e:
+        app.logger.exception('Failed to add service')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/services/edit/<int:service_id>', methods=['PUT'])
+@admin_login_required
+def edit_service(service_id):
+    try:
+        service_name = sanitize_text(request.form.get('name') or request.form.get('title'), 120)
+        short_description = (request.form.get('short_description') or '').strip()
+        description = (request.form.get('description') or '').strip()
+        raw_price = request.form.get('price')
+        raw_discount_threshold = request.form.get('discount_threshold')
+        raw_discount_percent = request.form.get('discount_percent')
+        pricing_model = (request.form.get('pricing_model') or '').strip().lower()
+        existing_image = request.form.get('existing_image', '')
+        is_active = str_to_bool(request.form.get('is_active', '1'))
+
+        # New config fields
+        table_header_col1 = (request.form.get('table_header_col1') or 'Property Type').strip()[:100]
+        table_header_col2 = (request.form.get('table_header_col2') or 'Standard Price').strip()[:100]
+        table_header_col3 = (request.form.get('table_header_col3') or 'Upgrade Option').strip()[:100]
+        allow_multiselect = str_to_bool(request.form.get('allow_multiselect', '0'))
+
+        if not service_name:
+            return jsonify({'error': 'Service name is required.'}), 400
+        if not description:
+            return jsonify({'error': 'Description is required.'}), 400
+
+        # Validate pricing_model
+        valid_pricing_models = ('simple', 'options', 'tenancy', 'deep', 'itemized')
+        if pricing_model and pricing_model not in valid_pricing_models:
+            pricing_model = None  # Don't update if invalid
+
+        if not short_description:
+            short_description = description[:150]
+
+        try:
+            price = float(raw_price) if raw_price not in (None, '') else None
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Price must be a number or left blank for custom quotes.'}), 400
+
+        try:
+            discount_threshold = float(raw_discount_threshold) if raw_discount_threshold not in (None, '') else None
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Discount threshold must be a valid number.'}), 400
+
+        try:
+            discount_percent = float(raw_discount_percent) if raw_discount_percent not in (None, '') else None
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Discount percent must be a valid number.'}), 400
+
+        try:
+            image_path = upload_service_image(existing_image)
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if image_path:
+            cursor.execute(
+                """
+                UPDATE services
+                SET title=%s, name=%s, short_description=%s, description=%s, price=%s, discount_threshold=%s, discount_percent=%s, pricing_model=%s, table_header_col1=%s, table_header_col2=%s, table_header_col3=%s, allow_multiselect=%s, image_path=%s, is_active=%s
+                WHERE id=%s
+                """,
+                (service_name, service_name, short_description, description, price, discount_threshold, discount_percent, pricing_model or None, table_header_col1, table_header_col2, table_header_col3, 1 if allow_multiselect else 0, image_path, 1 if is_active else 0, service_id)
+            )
+        else:
+            if pricing_model:
+                cursor.execute(
+                    """
+                    UPDATE services
+                    SET title=%s, name=%s, short_description=%s, description=%s, price=%s, discount_threshold=%s, discount_percent=%s, pricing_model=%s, table_header_col1=%s, table_header_col2=%s, table_header_col3=%s, allow_multiselect=%s, is_active=%s
+                    WHERE id=%s
+                    """,
+                    (service_name, service_name, short_description, description, price, discount_threshold, discount_percent, pricing_model, table_header_col1, table_header_col2, table_header_col3, 1 if allow_multiselect else 0, 1 if is_active else 0, service_id)
+                )
+            else:
+                cursor.execute(
+                    """
+                    UPDATE services
+                    SET title=%s, name=%s, short_description=%s, description=%s, price=%s, discount_threshold=%s, discount_percent=%s, table_header_col1=%s, table_header_col2=%s, table_header_col3=%s, allow_multiselect=%s, is_active=%s
+                    WHERE id=%s
+                    """,
+                    (service_name, service_name, short_description, description, price, discount_threshold, discount_percent, table_header_col1, table_header_col2, table_header_col3, 1 if allow_multiselect else 0, 1 if is_active else 0, service_id)
+                )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Service updated!'})
+    except Exception as e:
+        app.logger.exception('Failed to update service')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/services/delete/<int:service_id>', methods=['DELETE'])
+@admin_login_required
+def delete_service(service_id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM services WHERE id=%s", (service_id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Service deleted!'})
+    except Exception as e:
+        app.logger.exception('Failed to delete service')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/api/services/<int:service_id>/options', methods=['POST'])
+@admin_login_required
+def add_service_option(service_id):
+    payload = request.get_json(silent=True) or {}
+    label = sanitize_text(payload.get('label'), 150)
+    sort_order = payload.get('sort_order', 0)
+    is_active = str_to_bool(payload.get('is_active', '1'))
+
+    try:
+        sort_order = int(sort_order)
+    except (TypeError, ValueError):
+        sort_order = 0
+
+    if not label:
+        return jsonify({'error': 'Option label is required.'}), 400
+
+    try:
+        price = parse_price_input(payload.get('price'))
+    except ValueError:
+        return jsonify({'error': 'Invalid price supplied.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT id FROM services WHERE id = %s", (service_id,))
+    service_row = cursor.fetchone()
+    if not service_row:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Service not found.'}), 404
+
+    cursor.close()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO service_options (service_id, label, price, sort_order, is_active)
+        VALUES (%s, %s, %s, %s, %s)
+        """,
+        (service_id, label, price, sort_order, 1 if is_active else 0)
+    )
+    option_id = cursor.lastrowid
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        'id': option_id,
+        'label': label,
+        'price': normalize_price_value(price),
+        'sort_order': sort_order,
+        'is_active': bool(is_active)
+    }), 201
+
+
+@app.route('/admin/api/services/<int:service_id>/options/<int:option_id>', methods=['PUT'])
+@admin_login_required
+def update_service_option(service_id, option_id):
+    payload = request.get_json(silent=True) or {}
+    label = sanitize_text(payload.get('label'), 150)
+    sort_order = payload.get('sort_order')
+    is_active = payload.get('is_active')
+
+    try:
+        price = parse_price_input(payload.get('price'))
+    except ValueError:
+        return jsonify({'error': 'Invalid price supplied.'}), 400
+
+    updates = []
+    params = []
+    if label:
+        updates.append('label = %s')
+        params.append(label)
+    if price is not None or payload.get('price') in (None, ''):
+        updates.append('price = %s')
+        params.append(price)
+    if sort_order is not None:
+        try:
+            sort_order = int(sort_order)
+        except (TypeError, ValueError):
+            sort_order = 0
+        params.append(sort_order)
+    if is_active is not None:
+        updates.append('is_active = %s')
+        params.append(1 if str_to_bool(is_active) else 0)
+
+    if not updates:
+        return jsonify({'error': 'No updates supplied.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    updates.append('updated_at = CURRENT_TIMESTAMP')
+    set_clause = ', '.join(updates)
+    cursor.execute(
+        f"UPDATE service_options SET {set_clause} WHERE id = %s AND service_id = %s",
+        (*params, option_id, service_id)
+    )
+    if cursor.rowcount == 0:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Option not found.'}), 404
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Option updated.'})
+
+
+@app.route('/admin/api/services/<int:service_id>/options/<int:option_id>', methods=['DELETE'])
+@admin_login_required
+def delete_service_option(service_id, option_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM service_options WHERE id = %s AND service_id = %s",
+        (option_id, service_id)
+    )
+    if cursor.rowcount == 0:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Option not found.'}), 404
+    conn.commit()
+    cursor.close()
+    return jsonify({'message': 'Option deleted.'})
+
+
+@app.route('/admin/api/services/<int:service_id>/options/reorder', methods=['POST'])
+@admin_login_required
+def reorder_service_options(service_id):
+    payload = request.get_json(silent=True) or {}
+    order = payload.get('order')
+    if not isinstance(order, list) or not order:
+        return jsonify({'error': 'Option order must be an array of IDs.'}), 400
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    for index, option_id in enumerate(order, start=1):
+        cursor.execute(
+            "UPDATE service_options SET sort_order = %s WHERE id = %s AND service_id = %s",
+            (index, option_id, service_id)
+        )
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Option order updated.'})
+
+
+# Pricing items (e.g., carpet/upholstery line items)
+@app.route('/admin/api/services/<int:service_id>/pricing/items', methods=['POST'])
+@admin_login_required
+def add_pricing_item(service_id):
+    payload = request.get_json(silent=True) or {}
+    item_name = sanitize_text(payload.get('item_name'), 255)
+    try:
+        price = parse_price_input(payload.get('price'))
+    except ValueError:
+        return jsonify({'error': 'Invalid price supplied.'}), 400
+
+    if not item_name:
+        return jsonify({'error': 'Item name is required.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT id FROM services WHERE id = %s", (service_id,))
+    if not cursor.fetchone():
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Service not found.'}), 404
+
+    cursor.close()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO service_pricing_items (service_id, item_name, price)
+        VALUES (%s, %s, %s)
+        """,
+        (service_id, item_name, price)
+    )
+    conn.commit()
+    item_id = cursor.lastrowid
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Pricing item added.', 'id': item_id}), 201
+
+
+@app.route('/admin/api/pricing/items/<int:item_id>', methods=['PUT'])
+@admin_login_required
+def update_pricing_item(item_id):
+    payload = request.get_json(silent=True) or {}
+    updates = []
+    params = []
+
+    item_name = sanitize_text(payload.get('item_name'), 255)
+    if item_name:
+        updates.append('item_name = %s')
+        params.append(item_name)
+
+    if 'price' in payload:
+        try:
+            price = parse_price_input(payload.get('price'))
+        except ValueError:
+            return jsonify({'error': 'Invalid price supplied.'}), 400
+        updates.append('price = %s')
+        params.append(price)
+
+    if not updates:
+        return jsonify({'error': 'No updates supplied.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    set_clause = ', '.join(updates)
+    cursor.execute(
+        f"UPDATE service_pricing_items SET {set_clause} WHERE id = %s",
+        (*params, item_id)
+    )
+    if cursor.rowcount == 0:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Pricing item not found.'}), 404
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Pricing item updated.'})
+
+
+@app.route('/admin/api/pricing/items/<int:item_id>', methods=['DELETE'])
+@admin_login_required
+def delete_pricing_item(item_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM service_pricing_items WHERE id = %s", (item_id,))
+    if cursor.rowcount == 0:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Pricing item not found.'}), 404
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Pricing item deleted.'})
+
+
+# Pricing tiers (e.g., deep cleaning hourly tiers)
+@app.route('/admin/api/services/<int:service_id>/pricing/tiers', methods=['POST'])
+@admin_login_required
+def add_pricing_tier(service_id):
+    payload = request.get_json(silent=True) or {}
+    tier_name = sanitize_text(payload.get('tier_name'), 255)
+    try:
+        hourly_rate = parse_price_input(payload.get('hourly_rate'))
+        equipment_fee = parse_price_input(payload.get('equipment_fee'))
+        detergent_fee = parse_price_input(payload.get('detergent_fee'))
+    except ValueError:
+        return jsonify({'error': 'Invalid price supplied.'}), 400
+
+    try:
+        min_staff = int(payload.get('min_staff')) if payload.get('min_staff') not in (None, '') else None
+    except (TypeError, ValueError):
+        return jsonify({'error': 'min_staff must be a whole number or blank.'}), 400
+
+    if not tier_name:
+        return jsonify({'error': 'Tier name is required.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT id FROM services WHERE id = %s", (service_id,))
+    if not cursor.fetchone():
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Service not found.'}), 404
+
+    cursor.close()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO service_pricing_tiers (service_id, tier_name, hourly_rate, min_staff, equipment_fee, detergent_fee)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+        (service_id, tier_name, hourly_rate, min_staff, equipment_fee, detergent_fee)
+    )
+    conn.commit()
+    tier_id = cursor.lastrowid
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Pricing tier added.', 'id': tier_id}), 201
+
+
+@app.route('/admin/api/pricing/tiers/<int:tier_id>', methods=['PUT'])
+@admin_login_required
+def update_pricing_tier(tier_id):
+    payload = request.get_json(silent=True) or {}
+    updates = []
+    params = []
+
+    tier_name = sanitize_text(payload.get('tier_name'), 255)
+    if tier_name:
+        updates.append('tier_name = %s')
+        params.append(tier_name)
+
+    if 'hourly_rate' in payload:
+        try:
+            hourly_rate = parse_price_input(payload.get('hourly_rate'))
+        except ValueError:
+            return jsonify({'error': 'Invalid price supplied for hourly_rate.'}), 400
+        updates.append('hourly_rate = %s')
+        params.append(hourly_rate)
+
+    if 'equipment_fee' in payload:
+        try:
+            equipment_fee = parse_price_input(payload.get('equipment_fee'))
+        except ValueError:
+            return jsonify({'error': 'Invalid price supplied for equipment_fee.'}), 400
+        updates.append('equipment_fee = %s')
+        params.append(equipment_fee)
+
+    if 'detergent_fee' in payload:
+        try:
+            detergent_fee = parse_price_input(payload.get('detergent_fee'))
+        except ValueError:
+            return jsonify({'error': 'Invalid price supplied for detergent_fee.'}), 400
+        updates.append('detergent_fee = %s')
+        params.append(detergent_fee)
+
+    if 'min_staff' in payload:
+        try:
+            min_staff = int(payload.get('min_staff')) if payload.get('min_staff') not in (None, '') else None
+        except (TypeError, ValueError):
+            return jsonify({'error': 'min_staff must be a whole number or blank.'}), 400
+        updates.append('min_staff = %s')
+        params.append(min_staff)
+
+    if not updates:
+        return jsonify({'error': 'No updates supplied.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    updates.append('updated_at = CURRENT_TIMESTAMP')
+    set_clause = ', '.join(updates)
+    cursor.execute(
+        f"UPDATE service_pricing_tiers SET {set_clause} WHERE id = %s",
+        (*params, tier_id)
+    )
+    if cursor.rowcount == 0:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Pricing tier not found.'}), 404
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Pricing tier updated.'})
+
+
+@app.route('/admin/api/pricing/tiers/<int:tier_id>', methods=['DELETE'])
+@admin_login_required
+def delete_pricing_tier(tier_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM service_pricing_tiers WHERE id = %s", (tier_id,))
+    if cursor.rowcount == 0:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Pricing tier not found.'}), 404
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Pricing tier deleted.'})
+
+
+# Tenancy rates (end of tenancy)
+@app.route('/admin/api/services/<int:service_id>/pricing/tenancy', methods=['POST'])
+@admin_login_required
+def add_tenancy_rate(service_id):
+    payload = request.get_json(silent=True) or {}
+    label = sanitize_text(payload.get('label'), 255)
+    blocker_msg = sanitize_text(payload.get('blocker_msg'), 500)
+    is_blocker = str_to_bool(payload.get('is_blocker', '0'))
+
+    try:
+        standard_price = parse_price_input(payload.get('standard_price'))
+        deep_clean_price = parse_price_input(payload.get('deep_clean_price'))
+    except ValueError:
+        return jsonify({'error': 'Invalid price supplied.'}), 400
+
+    if not label:
+        return jsonify({'error': 'Label is required.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT id FROM services WHERE id = %s", (service_id,))
+    if not cursor.fetchone():
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Service not found.'}), 404
+
+    cursor.close()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO service_tenancy_rates (service_id, label, standard_price, deep_clean_price, is_blocker, blocker_msg)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+        (service_id, label, standard_price, deep_clean_price, 1 if is_blocker else 0, blocker_msg)
+    )
+    conn.commit()
+    rate_id = cursor.lastrowid
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Tenancy rate added.', 'id': rate_id}), 201
+
+
+@app.route('/admin/api/pricing/tenancy/<int:rate_id>', methods=['PUT'])
+@admin_login_required
+def update_tenancy_rate(rate_id):
+    payload = request.get_json(silent=True) or {}
+    updates = []
+    params = []
+
+    label = sanitize_text(payload.get('label'), 255)
+    if label:
+        updates.append('label = %s')
+        params.append(label)
+
+    if 'standard_price' in payload:
+        try:
+            standard_price = parse_price_input(payload.get('standard_price'))
+        except ValueError:
+            return jsonify({'error': 'Invalid price supplied for standard_price.'}), 400
+        updates.append('standard_price = %s')
+        params.append(standard_price)
+
+    if 'deep_clean_price' in payload:
+        try:
+            deep_clean_price = parse_price_input(payload.get('deep_clean_price'))
+        except ValueError:
+            return jsonify({'error': 'Invalid price supplied for deep_clean_price.'}), 400
+        updates.append('deep_clean_price = %s')
+        params.append(deep_clean_price)
+
+    if 'is_blocker' in payload:
+        updates.append('is_blocker = %s')
+        params.append(1 if str_to_bool(payload.get('is_blocker')) else 0)
+
+    if 'blocker_msg' in payload:
+        blocker_msg = sanitize_text(payload.get('blocker_msg'), 500)
+        updates.append('blocker_msg = %s')
+        params.append(blocker_msg)
+
+    if not updates:
+        return jsonify({'error': 'No updates supplied.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    set_clause = ', '.join(updates)
+    cursor.execute(
+        f"UPDATE service_tenancy_rates SET {set_clause} WHERE id = %s",
+        (*params, rate_id)
+    )
+    if cursor.rowcount == 0:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Tenancy rate not found.'}), 404
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Tenancy rate updated.'})
+
+
+@app.route('/admin/api/pricing/tenancy/<int:rate_id>', methods=['DELETE'])
+@admin_login_required
+def delete_tenancy_rate(rate_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM service_tenancy_rates WHERE id = %s", (rate_id,))
+    if cursor.rowcount == 0:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Tenancy rate not found.'}), 404
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Tenancy rate deleted.'})
+
+
+@app.route('/api/job-positions/add', methods=['POST'])
+def add_job_position():
+    try:
+        title = request.form['title']
+        description = request.form['description']
+        try:
+            image_path = upload_job_image()
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO job_positions (title, description, image_path) VALUES (%s, %s, %s)",
+            (title, description, image_path)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Job position added!'}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/job-positions/edit/<int:id>', methods=['PUT'])
+def edit_job_position(id):
+    try:
+        title = request.form['title']
+        description = request.form['description']
+        existing_image = request.form.get('existing_image', '')
+        try:
+            image_path = upload_job_image(existing_image)
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if image_path:
+            cursor.execute(
+                "UPDATE job_positions SET title=%s, description=%s, image_path=%s WHERE id=%s",
+                (title, description, image_path, id)
+            )
+        else:
+            cursor.execute(
+                "UPDATE job_positions SET title=%s, description=%s WHERE id=%s",
+                (title, description, id)
+            )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Job position updated!'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/job-positions/delete/<int:id>', methods=['DELETE'])
+def delete_job_position(id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM job_positions WHERE id=%s", (id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Job position deleted!'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/testimonials', methods=['GET'])
+def get_testimonials():
+    try:
+        # Admin can pass ?include_all=1 to get pending testimonials too
+        include_all = request.args.get('include_all', '0') == '1'
+        testimonials = fetch_testimonials_from_db(include_pending=include_all)
+        return jsonify(testimonials)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/testimonials/submit', methods=['POST'])
+def submit_testimonial():
+    """Public endpoint for customers to submit testimonials.
+    Auto-approves if name matches an existing customer in requests table.
+    """
+    data = request.json
+    name = (data.get('name') or '').strip()
+    message = (data.get('message') or '').strip()
+    rating = data.get('rating', 5)
+    email = (data.get('email') or '').strip() or None
+    
+    # Validate required fields
+    if not name:
+        return jsonify({'error': 'Please enter your name.'}), 400
+    if not message:
+        return jsonify({'error': 'Please write a review.'}), 400
+    if len(message) < 10:
+        return jsonify({'error': 'Please write a longer review (at least 10 characters).'}), 400
+    
+    # Validate rating
+    try:
+        rating = int(rating)
+        if rating < 1 or rating > 5:
+            rating = 5
+    except (ValueError, TypeError):
+        rating = 5
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Check if this name exists in our requests table (existing customer)
+        # Use case-insensitive comparison and look for exact or partial match
+        cursor.execute("""
+            SELECT DISTINCT name 
+            FROM requests 
+            WHERE LOWER(TRIM(name)) = LOWER(%s)
+            OR LOWER(TRIM(name)) LIKE LOWER(%s)
+            LIMIT 1
+        """, (name, f'%{name}%'))
+        
+        existing_customer = cursor.fetchone()
+        is_verified = existing_customer is not None
+        status = 'approved' if is_verified else 'pending'
+        
+        # Insert the testimonial
+        cursor.execute("""
+            INSERT INTO testimonials (name, message, rating, email, status, is_verified_customer, image_url)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (name, message, rating, email, status, is_verified, ''))
+        
+        testimonial_id = cursor.lastrowid
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        if is_verified:
+            return jsonify({
+                'message': 'Thank you! Your review has been published.',
+                'status': 'approved',
+                'is_verified': True,
+                'id': testimonial_id
+            }), 201
+        else:
+            return jsonify({
+                'message': 'Thank you! Your review will be published after verification.',
+                'status': 'pending',
+                'is_verified': False,
+                'id': testimonial_id
+            }), 201
+            
+    except Exception as e:
+        app.logger.error(f'Error submitting testimonial: {e}')
+        return jsonify({'error': 'Unable to submit review. Please try again.'}), 500
+
+
+@app.route('/api/testimonials/add', methods=['POST'])
+def add_testimonial():
+    data = request.json
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        query = "INSERT INTO testimonials (name, message, image_url) VALUES (%s, %s, %s)"
+        cursor.execute(query, (data['name'], data['message'], data.get('image_url', '')))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Testimonial added!'}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/testimonials/edit/<int:id>', methods=['PUT'])
+def edit_testimonial(id):
+    data = request.json
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        query = "UPDATE testimonials SET name=%s, message=%s, image_url=%s WHERE id=%s"
+        cursor.execute(query, (data['name'], data['message'], data.get('image_url', ''), id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Testimonial updated!'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/testimonials/delete/<int:id>', methods=['DELETE'])
+def delete_testimonial(id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM testimonials WHERE id=%s", (id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Testimonial deleted!'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/testimonials/approve/<int:id>', methods=['POST'])
+def approve_testimonial(id):
+    """Approve a pending testimonial."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE testimonials SET status = 'approved' WHERE id = %s", (id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Testimonial approved!'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/testimonials/reject/<int:id>', methods=['POST'])
+def reject_testimonial(id):
+    """Reject a pending testimonial (deletes it)."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM testimonials WHERE id = %s", (id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Testimonial rejected and removed.'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/analytics/event', methods=['POST'])
+def create_analytics_event():
+    data = request.get_json(silent=True) or {}
+    event_type = (data.get('event_type') or '').strip()
+    if not event_type:
+        return jsonify({'error': 'event_type is required'}), 400
+    event_payload = data.get('event_data')
+    log_analytics_event(event_type, event_payload)
+    return jsonify({'message': 'Event recorded'}), 201
+
+
+@app.route('/admin/api/dashboard/live-stats', methods=['GET'])
+@admin_login_required
+def admin_dashboard_live_stats():
+    """Lightweight endpoint for live dashboard polling - returns status counts and recent requests"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+        
+        # Get status counts
+        cursor.execute("""
+            SELECT 
+                status,
+                COUNT(*) as count
+            FROM requests
+            GROUP BY status
+        """)
+        status_rows = cursor.fetchall()
+        counts = {row['status']: row['count'] for row in status_rows}
+        
+        # Ensure all statuses are present
+        for status in ['pending', 'in_progress', 'completed', 'cancelled', 'survey_needed']:
+            if status not in counts:
+                counts[status] = 0
+        
+        # Get total
+        counts['total'] = sum(counts.values())
+        
+        # Get recent requests (top 15)
+        cursor.execute("""
+            SELECT 
+                r.id,
+                r.ref_id,
+                r.name,
+                r.email,
+                r.request_type,
+                r.service_name,
+                r.job_position,
+                r.status,
+                r.created_at,
+                r.updated_at,
+                sr.total_price
+            FROM requests r
+            LEFT JOIN service_requests sr ON r.id = sr.legacy_request_id
+            ORDER BY r.created_at DESC
+            LIMIT 15
+        """)
+        recent_rows = cursor.fetchall()
+        
+        recent_requests = []
+        for row in recent_rows:
+            recent_requests.append({
+                'id': row['id'],
+                'ref_id': row['ref_id'],
+                'name': row['name'],
+                'email': row['email'],
+                'request_type': row['request_type'],
+                'service_name': row['service_name'] or row['job_position'] or 'General',
+                'status': row['status'],
+                'price': float(row['total_price']) if row['total_price'] else None,
+                'created_at': row['created_at'].isoformat() if row['created_at'] else None,
+                'updated_at': row['updated_at'].isoformat() if row['updated_at'] else None
+            })
+        
+        # Visitor count (analytics events in last 10 minutes)
+        if engine == 'postgres':
+            cursor.execute(
+                """
+                SELECT COUNT(*) as visitors
+                FROM analytics
+                WHERE created_at >= NOW() - INTERVAL '10 minutes'
+                """
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT COUNT(*) as visitors
+                FROM analytics
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+                """
+            )
+        visitor_row = cursor.fetchone()
+        visitor_count = visitor_row['visitors'] if visitor_row else 0
+        
+        # Today's new requests count
+        if engine == 'postgres':
+            cursor.execute(
+                """
+                SELECT COUNT(*) as today_count
+                FROM requests
+                WHERE DATE(created_at) = CURRENT_DATE
+                """
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT COUNT(*) as today_count
+                FROM requests
+                WHERE DATE(created_at) = CURDATE()
+                """
+            )
+        today_row = cursor.fetchone()
+        today_count = today_row['today_count'] if today_row else 0
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'counts': counts,
+            'recent_requests': recent_requests,
+            'visitor_count': visitor_count,
+            'today_count': today_count,
+            'last_updated': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/api/analytics/live', methods=['GET'])
+@admin_login_required
+def admin_analytics_live():
+    """Lightweight endpoint for live analytics polling"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+        
+        # Get period from query param (default 30 days)
+        days = request.args.get('days', 30, type=int)
+        
+        # Count analytics events
+        def count_event(event_type, period_days=None):
+            if period_days:
+                if engine == 'postgres':
+                    cursor.execute(
+                        "SELECT COUNT(*) as cnt FROM analytics WHERE event_type = %s AND created_at >= NOW() - (%s * INTERVAL '1 day')",
+                        (event_type, period_days)
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT COUNT(*) as cnt FROM analytics WHERE event_type = %s AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)",
+                        (event_type, period_days)
+                    )
+            else:
+                if engine == 'postgres':
+                    cursor.execute(
+                        "SELECT COUNT(*) as cnt FROM analytics WHERE event_type = %s AND DATE(created_at) = CURRENT_DATE",
+                        (event_type,)
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT COUNT(*) as cnt FROM analytics WHERE event_type = %s AND DATE(created_at) = CURDATE()",
+                        (event_type,)
+                    )
+            return cursor.fetchone()['cnt']
+        
+        # Period totals from analytics
+        visits = count_event('homepage_visit', days)
+        service_views = count_event('service_view', days)
+        
+        # Bookings/jobs/contacts from requests table (matching original endpoint)
+        if engine == 'postgres':
+            cursor.execute(
+                """
+                SELECT COUNT(*) as cnt FROM requests
+                WHERE request_type = 'service'
+                AND created_at >= NOW() - (%s * INTERVAL '1 day')
+                """,
+                (days,)
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT COUNT(*) as cnt FROM requests 
+                WHERE request_type = 'service' 
+                AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
+                """,
+                (days,)
+            )
+        bookings = cursor.fetchone()['cnt']
+        
+        if engine == 'postgres':
+            cursor.execute(
+                """
+                SELECT COUNT(*) as cnt FROM requests
+                WHERE request_type = 'job'
+                AND created_at >= NOW() - (%s * INTERVAL '1 day')
+                """,
+                (days,)
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT COUNT(*) as cnt FROM requests 
+                WHERE request_type = 'job' 
+                AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
+                """,
+                (days,)
+            )
+        job_applications = cursor.fetchone()['cnt']
+        
+        if engine == 'postgres':
+            cursor.execute(
+                """
+                SELECT COUNT(*) as cnt FROM requests
+                WHERE request_type = 'general'
+                AND created_at >= NOW() - (%s * INTERVAL '1 day')
+                """,
+                (days,)
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT COUNT(*) as cnt FROM requests 
+                WHERE request_type = 'general' 
+                AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
+                """,
+                (days,)
+            )
+        contact_submissions = cursor.fetchone()['cnt']
+        
+        # Today totals
+        today_visits = count_event('homepage_visit')
+        today_service_views = count_event('service_view')
+        
+        if engine == 'postgres':
+            cursor.execute("SELECT COUNT(*) as cnt FROM requests WHERE request_type = 'service' AND DATE(created_at) = CURRENT_DATE")
+        else:
+            cursor.execute("SELECT COUNT(*) as cnt FROM requests WHERE request_type = 'service' AND DATE(created_at) = CURDATE()")
+        today_bookings = cursor.fetchone()['cnt']
+        
+        # Conversion rate (visits to bookings)
+        conversion_rate = round((bookings / visits * 100), 1) if visits > 0 else 0
+        
+        # Revenue data
+        if engine == 'postgres':
+            cursor.execute(
+                """
+                SELECT COALESCE(SUM(total_price), 0) as total
+                FROM service_requests
+                WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
+                    AND status = 'completed'
+                """,
+                (days,)
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT COALESCE(SUM(total_price), 0) as total
+                FROM service_requests
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
+                    AND status = 'completed'
+                """,
+                (days,)
+            )
+        period_revenue = float(cursor.fetchone()['total'] or 0)
+        
+        if engine == 'postgres':
+            cursor.execute(
+                """
+                SELECT COALESCE(SUM(total_price), 0) as total
+                FROM service_requests
+                WHERE DATE(created_at) = CURRENT_DATE
+                    AND status = 'completed'
+                """
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT COALESCE(SUM(total_price), 0) as total
+                FROM service_requests
+                WHERE DATE(created_at) = CURDATE()
+                    AND status = 'completed'
+                """
+            )
+        today_revenue = float(cursor.fetchone()['total'] or 0)
+        
+        if engine == 'postgres':
+            cursor.execute(
+                """
+                SELECT COALESCE(SUM(total_price), 0) as total
+                FROM service_requests
+                WHERE created_at >= NOW() - (7 * INTERVAL '1 day')
+                    AND status = 'completed'
+                """
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT COALESCE(SUM(total_price), 0) as total
+                FROM service_requests
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                    AND status = 'completed'
+                """
+            )
+        week_revenue = float(cursor.fetchone()['total'] or 0)
+        
+        if engine == 'postgres':
+            cursor.execute(
+                """
+                SELECT COALESCE(SUM(total_price), 0) as total
+                FROM service_requests
+                WHERE created_at >= date_trunc('month', NOW())
+                    AND created_at < date_trunc('month', NOW()) + INTERVAL '1 month'
+                    AND status = 'completed'
+                """
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT COALESCE(SUM(total_price), 0) as total
+                FROM service_requests
+                WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())
+                    AND status = 'completed'
+                """
+            )
+        month_revenue = float(cursor.fetchone()['total'] or 0)
+        
+        # Request status counts for funnel
+        if engine == 'postgres':
+            cursor.execute(
+                """
+                SELECT status, COUNT(*) as count
+                FROM requests
+                WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
+                GROUP BY status
+                """,
+                (days,)
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT status, COUNT(*) as count
+                FROM requests
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
+                GROUP BY status
+                """,
+                (days,)
+            )
+        status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'period': {
+                'visits': visits,
+                'service_views': service_views,
+                'bookings': bookings,
+                'job_applications': job_applications,
+                'contact_submissions': contact_submissions,
+                'conversion_rate': conversion_rate
+            },
+            'today': {
+                'visits': today_visits,
+                'service_views': today_service_views,
+                'bookings': today_bookings
+            },
+            'revenue': {
+                'period': period_revenue,
+                'today': today_revenue,
+                'week': week_revenue,
+                'month': month_revenue
+            },
+            'funnel': {
+                'visits': visits,
+                'views': service_views,
+                'requests': bookings + job_applications + contact_submissions,
+                'confirmed': status_counts.get('in_progress', 0) + status_counts.get('completed', 0),
+                'completed': status_counts.get('completed', 0)
+            },
+            'last_updated': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/api/analytics/summary', methods=['GET'])
+@admin_login_required
+def analytics_summary():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    def count_analytics_event(event_type):
+        cursor.execute("SELECT COUNT(*) AS total FROM analytics WHERE event_type = %s", (event_type,))
+        return cursor.fetchone()['total']
+
+    def count_analytics_event_today(event_type):
+        if engine == 'postgres':
+            cursor.execute(
+                "SELECT COUNT(*) AS total FROM analytics WHERE event_type = %s AND DATE(created_at) = CURRENT_DATE",
+                (event_type,)
+            )
+        else:
+            cursor.execute(
+                "SELECT COUNT(*) AS total FROM analytics WHERE event_type = %s AND DATE(created_at) = CURDATE()",
+                (event_type,)
+            )
+        return cursor.fetchone()['total']
+
+    visits = count_analytics_event('homepage_visit')
+    service_views = count_analytics_event('service_view')
+
+    cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'job'")
+    job_applications_count = cursor.fetchone()['total']
+
+    cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'service'")
+    bookings_count = cursor.fetchone()['total']
+
+    cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'general'")
+    contact_submissions = cursor.fetchone()['total']
+
+    cursor.execute(
+        """
+        SELECT service_name AS label, COUNT(*) AS total
+        FROM requests
+        WHERE request_type = 'service' AND service_name IS NOT NULL AND service_name <> ''
+        GROUP BY service_name
+        ORDER BY total DESC
+        LIMIT 1
+        """
+    )
+    most_viewed_row = cursor.fetchone()
+    most_viewed_service = most_viewed_row['label'] if most_viewed_row else None
+
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            SELECT EXTRACT(HOUR FROM created_at) AS hour, COUNT(*) AS total
+            FROM analytics
+            GROUP BY EXTRACT(HOUR FROM created_at)
+            ORDER BY total DESC
+            LIMIT 1
+            """
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT HOUR(created_at) AS hour, COUNT(*) AS total
+            FROM analytics
+            GROUP BY HOUR(created_at)
+            ORDER BY total DESC
+            LIMIT 1
+            """
+        )
+    peak_row = cursor.fetchone()
+    peak_hour = peak_row['hour'] if peak_row else None
+    peak_traffic_time = f"{int(peak_hour):02d}:00" if peak_hour is not None else None
+
+    today = {
+        'visits': count_analytics_event_today('homepage_visit'),
+        'contact_submissions': count_analytics_event_today('contact_form'),
+        'service_views': count_analytics_event_today('service_view'),
+    }
+
+    if engine == 'postgres':
+        cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'job' AND DATE(created_at) = CURRENT_DATE")
+    else:
+        cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'job' AND DATE(created_at) = CURDATE()")
+    today['job_applications'] = cursor.fetchone()['total']
+
+    if engine == 'postgres':
+        cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'service' AND DATE(created_at) = CURRENT_DATE")
+    else:
+        cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'service' AND DATE(created_at) = CURDATE()")
+    today['bookings'] = cursor.fetchone()['total']
+
+    if engine == 'postgres':
+        cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'general' AND DATE(created_at) = CURRENT_DATE")
+    else:
+        cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'general' AND DATE(created_at) = CURDATE()")
+    today['contact_submissions'] = cursor.fetchone()['total']
+
+    cursor.execute(
+        "SELECT event_type, created_at FROM analytics ORDER BY created_at DESC LIMIT 5"
+    )
+    recent_events = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        'visits': visits,
+        'service_views': service_views,
+        'job_applications': job_applications_count,
+        'bookings': bookings_count,
+        'contact_submissions': contact_submissions,
+        'most_viewed_service': most_viewed_service,
+        'peak_traffic_time': peak_traffic_time,
+        'today': today,
+        'recent_events': recent_events
+    })
+
+
+@app.route('/admin/api/requests', methods=['GET'])
+@admin_login_required
+def admin_list_requests():
+    status_filter = (request.args.get('status') or '').strip().lower()
+    request_type_filter = (request.args.get('request_type') or '').strip().lower()
+    limit_param = request.args.get('limit', '100')
+
+    try:
+        limit = max(1, min(int(limit_param), 250))
+    except (TypeError, ValueError):
+        limit = 100
+
+    filters = []
+    params = []
+    if status_filter and status_filter in REQUEST_STATUSES:
+        filters.append('status = %s')
+        params.append(status_filter)
+    if request_type_filter in {'service', 'job', 'general'}:
+        filters.append('request_type = %s')
+        params.append(request_type_filter)
+
+    where_clause = f"WHERE {' AND '.join(filters)}" if filters else ''
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        f"""
+        SELECT id, request_type, name, email, phone, subject, service_name, job_position,
+             ref_id, status, source, created_at, email_sent_admin, email_sent_user
+        FROM requests
+        {where_clause}
+        ORDER BY created_at DESC
+        LIMIT %s
+        """,
+        (*params, limit)
+    )
+    results = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    for row in results:
+        created_at = row.get('created_at')
+        if isinstance(created_at, datetime):
+            row['created_at'] = created_at.isoformat()
+        row['email_sent_admin'] = bool(row.get('email_sent_admin'))
+        row['email_sent_user'] = bool(row.get('email_sent_user'))
+
+    return jsonify(results)
+
+
+@app.route('/admin/api/requests/grouped', methods=['GET'])
+@admin_login_required
+def admin_list_requests_grouped():
+    request_type_filter = (request.args.get('request_type') or '').strip().lower()
+    limit_param = request.args.get('limit', '200')
+
+    try:
+        limit = max(1, min(int(limit_param), 500))
+    except (TypeError, ValueError):
+        limit = 200
+
+    filters = []
+    params = []
+
+    if request_type_filter in {'service', 'job', 'general'}:
+        filters.append('request_type = %s')
+        params.append(request_type_filter)
+
+    where_clause = f"WHERE {' AND '.join(filters)}" if filters else ''
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        f"""
+        SELECT id, request_type, name, email, phone, subject, service_name, job_position,
+               ref_id, status, source, created_at, email_sent_admin, email_sent_user
+        FROM requests
+        {where_clause}
+        ORDER BY created_at DESC
+        LIMIT %s
+        """,
+        (*params, limit)
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    grouped = {
+        'pending': [],
+        'in_progress': [],
+        'survey_needed': [],
+        'completed_by_month': [],
+        'cancelled_by_month': []
+    }
+
+    monthly_maps = {
+        'completed': OrderedDict(),
+        'cancelled': OrderedDict()
+    }
+
+    for row in rows:
+        item = dict(row)
+        created_at_value = item.get('created_at')
+        dt_value = created_at_value if isinstance(created_at_value, datetime) else None
+        if dt_value is None and created_at_value:
+            try:
+                dt_value = datetime.fromisoformat(str(created_at_value))
+            except (ValueError, TypeError):
+                dt_value = None
+
+        if isinstance(created_at_value, datetime):
+            item['created_at'] = created_at_value.isoformat()
+        else:
+            item['created_at'] = str(created_at_value) if created_at_value is not None else None
+
+        item['email_sent_admin'] = bool(item.get('email_sent_admin'))
+        item['email_sent_user'] = bool(item.get('email_sent_user'))
+
+        status = (item.get('status') or 'pending').strip().lower()
+        if status not in REQUEST_STATUSES:
+            status = 'pending'
+
+        if status in {'completed', 'cancelled'}:
+            month_key = 'unknown'
+            month_label = 'Unknown'
+            if dt_value:
+                month_key = dt_value.strftime('%Y-%m')
+                month_label = f"{calendar.month_name[dt_value.month]} {dt_value.year}"
+
+            monthly_map = monthly_maps['completed' if status == 'completed' else 'cancelled']
+            if month_key not in monthly_map:
+                monthly_map[month_key] = {
+                    'key': month_key,
+                    'label': month_label,
+                    'items': []
+                }
+            monthly_map[month_key]['items'].append(item)
+        else:
+            grouped[status].append(item)
+
+    grouped['completed_by_month'] = list(monthly_maps['completed'].values())
+    grouped['cancelled_by_month'] = list(monthly_maps['cancelled'].values())
+
+    summary_counts = {
+        'pending': len(grouped['pending']),
+        'in_progress': len(grouped['in_progress']),
+        'survey_needed': len(grouped['survey_needed']),
+        'completed': sum(len(group['items']) for group in grouped['completed_by_month']),
+        'cancelled': sum(len(group['items']) for group in grouped['cancelled_by_month'])
+    }
+
+    response_payload = {
+        'pending': grouped['pending'],
+        'in_progress': grouped['in_progress'],
+        'survey_needed': grouped['survey_needed'],
+        'completed_by_month': grouped['completed_by_month'],
+        'cancelled_by_month': grouped['cancelled_by_month'],
+        'summary_counts': summary_counts
+    }
+
+    if request_type_filter in {'service', 'job', 'general'}:
+        response_payload['filters'] = {'request_type': request_type_filter}
+
+    return jsonify(response_payload)
+
+
+@app.route('/admin/api/requests/<int:request_id>', methods=['GET', 'PATCH'])
+@admin_login_required
+def admin_request_detail(request_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM requests WHERE id = %s", (request_id,))
+    request_row = cursor.fetchone()
+
+    if not request_row:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Request not found.'}), 404
+
+    original_status = request_row.get('status')
+    previous_status = original_status
+    status_changed = False
+    total_cost_updated = False
+    new_total_cost = None
+
+    if request.method == 'PATCH':
+        data = request.get_json(silent=True) or {}
+        updates = []
+        params = []
+
+        if 'status' in data:
+            new_status = (data.get('status') or '').strip().lower()
+            if new_status not in REQUEST_STATUSES:
+                cursor.close()
+                conn.close()
+                return jsonify({'error': 'Invalid status provided.'}), 400
+            updates.append('status = %s')
+            params.append(new_status)
+            if new_status != original_status:
+                status_changed = True
+                previous_status = original_status
+
+        if 'admin_notes' in data:
+            notes = sanitize_text(data.get('admin_notes'))
+            updates.append('admin_notes = %s')
+            params.append(notes or None)
+
+        # Handle total_cost update in service_requests table
+        if 'total_cost' in data:
+            raw_cost = data.get('total_cost')
+            if raw_cost is not None:
+                try:
+                    new_total_cost = float(raw_cost)
+                    if new_total_cost < 0:
+                        new_total_cost = None
+                except (ValueError, TypeError):
+                    new_total_cost = None
+            # Update service_requests table
+            cursor.execute(
+                "UPDATE service_requests SET total_price = %s WHERE legacy_request_id = %s",
+                (new_total_cost, request_id)
+            )
+            if cursor.rowcount > 0:
+                total_cost_updated = True
+
+        if updates:
+            updates.append('updated_at = CURRENT_TIMESTAMP')
+            set_clause = ', '.join(updates)
+            cursor.execute(f"UPDATE requests SET {set_clause} WHERE id = %s", (*params, request_id))
+        conn.commit()
+
+        cursor.execute("SELECT * FROM requests WHERE id = %s", (request_id,))
+        request_row = cursor.fetchone()
+        if not status_changed:
+            # If status didn't change (e.g., same value was submitted) keep previous reference consistent
+            previous_status = request_row.get('status') if request_row else previous_status
+
+    cursor.execute(
+        "SELECT id, original_filename, stored_path, mime_type, file_size_bytes, created_at FROM request_files WHERE request_id = %s",
+        (request_id,)
+    )
+    attachments = cursor.fetchall()
+    for attachment in attachments:
+        created = attachment.get('created_at')
+        if isinstance(created, datetime):
+            attachment['created_at'] = created.isoformat()
+        stored_path = (attachment.get('stored_path') or '').strip()
+        if stored_path.startswith(('http://', 'https://')):
+            attachment['remote_url'] = stored_path
+            attachment['absolute_path'] = None
+        else:
+            normalized_path = os.path.normpath(stored_path).replace('\\', '/').lstrip('/')
+            if normalized_path and not normalized_path.startswith('..'):
+                absolute_path = safe_join(app.static_folder, normalized_path)
+            else:
+                absolute_path = None
+            if absolute_path and os.path.isfile(absolute_path):
+                attachment['absolute_path'] = absolute_path
+            else:
+                attachment['absolute_path'] = None
+            attachment['remote_url'] = ''
+    cursor.close()
+    conn.close()
+
+    status_notification = None
+    quote_ready_notification = None
+    if request.method == 'PATCH' and status_changed and request_row:
+        # Check if transitioning from survey_needed to pending with price > 0
+        new_status = request_row.get('status', '').lower()
+        is_survey_to_pending = (
+            previous_status == 'survey_needed' and
+            new_status in ('pending', 'in_progress') and
+            new_total_cost is not None and
+            new_total_cost > 0
+        )
+        if is_survey_to_pending:
+            try:
+                quote_ready_notification = send_quote_ready_notification(request_row, new_total_cost)
+            except Exception:
+                app.logger.exception('Failed to send quote ready notification for request %s', request_id)
+                quote_ready_notification = {'user_sent': False}
+        else:
+            try:
+                status_notification = send_status_update_notifications(request_row, previous_status)
+            except Exception:
+                app.logger.exception('Failed to dispatch status update notifications for request %s', request_id)
+                status_notification = {'admin_sent': False, 'user_sent': False}
+        try:
+            sync_service_request_status(request_id, request_row.get('status'))
+        except Exception:
+            app.logger.exception('Failed to sync service request status for %s', request_id)
+
+    detail = generate_request_context(request_row)
+    detail['admin_notes'] = request_row.get('admin_notes')
+    detail['attachments'] = attachments
+    detail['metadata'] = detail.get('metadata') or {}
+    detail['service_flow'] = detail.get('service_flow') or detail['metadata'].get('service_flow')
+    detail['service_request'] = fetch_service_request_detail(request_id)
+
+    travel_summary = {}
+    if detail['service_flow'] and isinstance(detail['service_flow'], dict):
+        travel_summary = detail['service_flow'].get('travel') or {}
+    if detail['service_request']:
+        travel_summary = travel_summary or {}
+        travel_summary.setdefault('travel_fee', detail['service_request'].get('travel_fee'))
+        travel_summary.setdefault('distance_miles', detail['service_request'].get('distance_miles'))
+        travel_summary.setdefault('travel_time_minutes', detail['service_request'].get('travel_time_minutes'))
+        travel_summary.setdefault('pricing_method', detail['service_request'].get('pricing_method'))
+        travel_summary.setdefault('base_id', detail['service_request'].get('assigned_base_id'))
+        travel_summary.setdefault('base_name', detail['service_request'].get('assigned_base_name'))
+    detail['travel'] = travel_summary
+
+    detail['status_label'] = get_status_label(detail.get('status'))
+    detail['previous_status'] = previous_status
+    detail['previous_status_label'] = get_status_label(previous_status)
+    detail['status_changed'] = status_changed
+    detail['status_notification'] = status_notification
+    detail['quote_ready_notification'] = quote_ready_notification
+    detail['total_cost_updated'] = total_cost_updated
+    return jsonify(detail)
+
+
+@app.route('/admin/api/requests/<int:request_id>/files/<int:file_id>', methods=['GET'])
+@app.route('/admin/api/requests/<int:request_id>/files/<int:file_id>/download', methods=['GET'])
+@admin_login_required
+def admin_download_request_file(request_id, file_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT original_filename, stored_path FROM request_files WHERE id = %s AND request_id = %s",
+        (file_id, request_id)
+    )
+    file_row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if not file_row:
+        return jsonify({'error': 'File not found.'}), 404
+
+    stored_path = (file_row.get('stored_path') or '').strip()
+    if not stored_path:
+        return jsonify({'error': 'File path invalid.'}), 400
+
+    as_attachment = request.path.endswith('/download') or request.args.get('download', '1') != '0'
+    download_name = file_row.get('original_filename') or 'attachment'
+
+    if stored_path.startswith(('http://', 'https://')):
+        try:
+            remote_resp = requests.get(stored_path, timeout=30)
+            remote_resp.raise_for_status()
+        except RequestException:
+            return jsonify({'error': 'Unable to retrieve the attachment from remote storage.'}), 502
+
+        mimetype = file_row.get('mime_type') or remote_resp.headers.get('Content-Type') or 'application/octet-stream'
+        content = remote_resp.content or b''
+        file_stream = BytesIO(content)
+        file_stream.seek(0)
+        return send_file(
+            file_stream,
+            mimetype=mimetype,
+            as_attachment=as_attachment,
+            download_name=download_name
+        )
+
+    normalized_path = os.path.normpath(stored_path).replace('\\', '/')
+    normalized_path = normalized_path.lstrip('/')
+    if normalized_path.startswith('..'):
+        return jsonify({'error': 'File path invalid.'}), 400
+    absolute_path = safe_join(app.static_folder, normalized_path)
+    if not absolute_path or not os.path.isfile(absolute_path):
+        return jsonify({'error': 'File is missing from the server.'}), 410
+
+    directory, filename = os.path.split(absolute_path)
+
+    return send_from_directory(
+        directory,
+        os.path.basename(filename),
+        as_attachment=as_attachment,
+        download_name=download_name or os.path.basename(filename)
+    )
+
+
+@app.route('/admin/api/email-settings', methods=['GET', 'POST'])
+@admin_login_required
+def admin_email_settings():
+    if request.method == 'GET':
+        settings = fetch_email_settings()
+        settings['smtp_password'] = ''
+        settings.pop('smtp_password_encrypted', None)
+        return jsonify(settings)
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        updated = update_email_settings(payload)
+        return jsonify({'message': 'Email settings updated.', 'settings': updated})
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        app.logger.exception('Failed to update email settings.')
+        return jsonify({'error': 'Unable to update email settings at this time.'}), 500
+
+
+@app.route('/admin/api/travel-settings', methods=['GET', 'POST'])
+@admin_login_required
+def admin_travel_settings_api():
+    if request.method == 'GET':
+        settings = serialize_travel_settings(fetch_travel_settings())
+        return jsonify(settings)
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        updated = serialize_travel_settings(upsert_travel_settings(payload))
+        return jsonify({'message': 'Travel settings saved.', 'settings': updated})
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        app.logger.exception('Failed to update travel settings.')
+        return jsonify({'error': 'Unable to update travel settings right now.'}), 500
+
+
+@app.route('/admin/api/site-content', methods=['GET', 'POST'])
+@admin_login_required
+def admin_site_content_api():
+    """GET: Fetch all site content sections. POST: Update specific section(s)."""
+    if request.method == 'GET':
+        content = fetch_site_content()
+        return jsonify(content)
+
+    payload = request.get_json(silent=True) or {}
+    if not payload:
+        return jsonify({'error': 'No data provided.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    updated_keys = []
+
+    try:
+        for section_key, value in payload.items():
+            section_key = sanitize_text(section_key, 50)
+            if not section_key:
+                continue
+
+            # Determine if it's JSON or text content
+            if isinstance(value, (dict, list)):
+                content_text = None
+                content_json = json.dumps(value)
+            else:
+                content_text = sanitize_text(str(value), 10000) if value else ''
+                content_json = None
+
+            cursor.execute(
+                """
+                UPDATE site_content
+                SET content_text=%s,
+                    content_json=%s,
+                    updated_at=CURRENT_TIMESTAMP
+                WHERE section_key=%s
+                """,
+                (content_text, content_json, section_key)
+            )
+            if cursor.rowcount == 0:
+                cursor.execute(
+                    """
+                    INSERT INTO site_content (section_key, content_text, content_json)
+                    VALUES (%s, %s, %s)
+                    """,
+                    (section_key, content_text, content_json)
+                )
+            updated_keys.append(section_key)
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        updated_content = fetch_site_content()
+        return jsonify({
+            'message': f'Updated {len(updated_keys)} section(s).',
+            'updated': updated_keys,
+            'content': updated_content
+        })
+    except Exception:
+        app.logger.exception('Failed to update site content.')
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+        return jsonify({'error': 'Unable to update site content right now.'}), 500
+
+
+@app.route('/admin/api/team-photo', methods=['POST', 'DELETE'])
+@admin_login_required
+def admin_team_photo_api():
+    """Upload or delete team photo for About section."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Get current team photo path
+        cursor.execute("SELECT content_text FROM site_content WHERE section_key = 'team_photo'")
+        row = cursor.fetchone()
+        existing_path = row['content_text'] if row else ''
+        
+        if request.method == 'DELETE':
+            if existing_path:
+                delete_uploaded_file(existing_path)
+            cursor.execute(
+                "DELETE FROM site_content WHERE section_key = 'team_photo'"
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return jsonify({'message': 'Team photo removed.', 'team_photo': ''})
+        
+        # POST - upload new photo
+        new_path = upload_team_photo(existing_path)
+        if new_path and new_path != existing_path:
+            # Delete old file if different
+            if existing_path and existing_path != new_path:
+                delete_uploaded_file(existing_path)
+            
+            cursor.execute(
+                """
+                UPDATE site_content
+                SET content_text=%s,
+                    updated_at=CURRENT_TIMESTAMP
+                WHERE section_key='team_photo'
+                """,
+                (new_path,)
+            )
+            if cursor.rowcount == 0:
+                cursor.execute(
+                    """
+                    INSERT INTO site_content (section_key, content_text)
+                    VALUES ('team_photo', %s)
+                    """,
+                    (new_path,)
+                )
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return jsonify({'message': 'Team photo uploaded.', 'team_photo': new_path})
+        
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'No file uploaded.', 'team_photo': existing_path})
+    except Exception:
+        app.logger.exception('Failed to update team photo.')
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+        return jsonify({'error': 'Unable to update team photo.'}), 500
+
+
+@app.route('/admin/site-content')
+@admin_login_required
+def admin_site_content_page():
+    """Render the Site Content admin page."""
+    site_settings = fetch_site_settings()
+    site_content = fetch_site_content()
+    return render_template('admin/site_content.html', site_settings=site_settings, site_content=site_content)
+
+
+@app.route('/admin/api/operating-bases', methods=['GET', 'POST'])
+@admin_login_required
+def admin_operating_bases():
+    if request.method == 'GET':
+        bases = fetch_operating_bases(include_inactive=True)
+        return jsonify(bases)
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        base_id = payload.get('id')
+        saved_id = upsert_operating_base(payload, base_id=base_id)
+        bases = fetch_operating_bases(include_inactive=True)
+        return jsonify({'message': 'Operating base saved.', 'id': saved_id, 'bases': bases})
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        app.logger.exception('Failed to save operating base.')
+        return jsonify({'error': 'Unable to save operating base right now.'}), 500
+
+
+@app.route('/admin/api/operating-bases/<int:base_id>', methods=['DELETE', 'PATCH'])
+@admin_login_required
+def admin_operating_base_item(base_id):
+    if request.method == 'DELETE':
+        try:
+            delete_operating_base(base_id)
+            bases = fetch_operating_bases(include_inactive=True)
+            return jsonify({'message': 'Operating base deleted.', 'bases': bases})
+        except Exception:
+            app.logger.exception('Failed to delete operating base %s', base_id)
+            return jsonify({'error': 'Unable to delete operating base right now.'}), 500
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        if 'is_active' in payload and len(payload.keys()) == 1:
+            set_operating_base_active(base_id, bool(payload.get('is_active')))
+        else:
+            payload['id'] = base_id
+            upsert_operating_base(payload, base_id=base_id)
+        bases = fetch_operating_bases(include_inactive=True)
+        return jsonify({'message': 'Operating base updated.', 'bases': bases})
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        app.logger.exception('Failed to update operating base %s', base_id)
+        return jsonify({'error': 'Unable to update operating base right now.'}), 500
+
+
+@app.route('/admin/api/hero', methods=['GET', 'POST'])
+@admin_login_required
+def admin_hero():
+    if request.method == 'GET':
+        hero = fetch_hero_content()
+        return jsonify(hero)
+
+    current = fetch_hero_content()
+
+    title = sanitize_text(request.form.get('title') or current.get('title'), 255)
+    subtitle = sanitize_text(request.form.get('subtitle') or current.get('subtitle'), 255)
+    tagline = sanitize_text(request.form.get('tagline') or current.get('tagline'), 255)
+    existing_background = request.form.get('existing_background', '').strip()
+
+    if not title or not subtitle or not tagline:
+        return jsonify({'error': 'Hero title, subtitle, and tagline are required.'}), 400
+
+    try:
+        background_image = upload_hero_background(existing_background)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
+    if background_image and existing_background and background_image != existing_background:
+        delete_uploaded_file(existing_background)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE hero_content SET title=%s, subtitle=%s, background_image=%s, tagline=%s WHERE id = 1",
+        (title, subtitle, background_image, tagline)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    hero = fetch_hero_content()
+    return jsonify({'message': 'Hero content updated.', 'hero': hero})
+
+
+@app.route('/admin/api/hero/badges', methods=['GET', 'POST'])
+@admin_login_required
+def admin_hero_badges():
+    if request.method == 'GET':
+        badges = fetch_hero_badges(include_inactive=True)
+        return jsonify(badges)
+
+    try:
+        image_path = upload_badge_image()
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
+    if not image_path:
+        return jsonify({'error': 'Badge image is required.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO hero_badges (image_path) VALUES (%s)", (image_path,))
+    badge_id = cursor.lastrowid
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return jsonify({'message': 'Badge uploaded.', 'badge': {'id': badge_id, 'image_path': image_path}}), 201
+
+
+@app.route('/admin/api/hero/badges/<int:badge_id>', methods=['DELETE'])
+@admin_login_required
+def admin_delete_hero_badge(badge_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT image_path FROM hero_badges WHERE id = %s", (badge_id,))
+    badge = cursor.fetchone()
+    if not badge:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Badge not found.'}), 404
+
+    image_path = badge['image_path']
+    cursor.close()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM hero_badges WHERE id = %s", (badge_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    delete_uploaded_file(image_path)
+
+    return jsonify({'message': 'Badge deleted.'})
+
+
+@app.route('/admin/hero-content', methods=['GET', 'POST'])
+@admin_login_required
+def admin_hero_content_page():
+    message = request.args.get('message', '').strip()
+    error = request.args.get('error', '').strip()
+
+    if request.method == 'POST':
+        form_id = request.form.get('form_id', 'hero').strip()
+        redirect_params = {}
+        try:
+            if form_id == 'hero':
+                title = sanitize_text(request.form.get('title'), 255)
+                subtitle = sanitize_text(request.form.get('subtitle'), 255)
+                tagline = sanitize_text(request.form.get('tagline'), 255)
+                small_text_line1 = sanitize_text(request.form.get('small_text_line1'), 255)
+                small_text_line2 = sanitize_text(request.form.get('small_text_line2'), 255)
+                small_text_line3 = sanitize_text(request.form.get('small_text_line3'), 255)
+                stat1_text = sanitize_text(request.form.get('stat1_text'), 255)
+                stat2_text = sanitize_text(request.form.get('stat2_text'), 255)
+                stat3_text = sanitize_text(request.form.get('stat3_text'), 255)
+                existing_background = request.form.get('existing_background', '').strip()
+                remove_background = str_to_bool(request.form.get('remove_background', 'false'))
+
+                if not title or not subtitle:
+                    raise ValueError('Hero title and subtitle are required.')
+
+                background_file = request.files.get('background_image')
+                has_new_background = bool(background_file and background_file.filename)
+
+                try:
+                    background_image = upload_hero_background(existing_background)
+                except ValueError as exc:
+                    raise ValueError(str(exc))
+
+                if remove_background and not has_new_background:
+                    background_image = ''
+
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE hero_content SET title=%s, subtitle=%s, tagline=%s, small_text_line1=%s, small_text_line2=%s, small_text_line3=%s, stat1_text=%s, stat2_text=%s, stat3_text=%s, hero_background_image=%s WHERE id = 1",
+                    (
+                        title,
+                        subtitle,
+                        tagline,
+                        small_text_line1,
+                        small_text_line2,
+                        small_text_line3,
+                        stat1_text,
+                        stat2_text,
+                        stat3_text,
+                        background_image or None
+                    )
+                )
+                conn.commit()
+                cursor.close()
+                conn.close()
+
+                if has_new_background and existing_background and background_image and background_image != existing_background:
+                    delete_uploaded_file(existing_background)
+                elif remove_background and not has_new_background and existing_background:
+                    delete_uploaded_file(existing_background)
+
+                redirect_params['message'] = 'Hero content updated.'
+
+            elif form_id == 'badge_upload':
+                try:
+                    image_path = upload_badge_image()
+                except ValueError as exc:
+                    raise ValueError(str(exc))
+
+                if not image_path:
+                    raise ValueError('Badge image is required.')
+
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO hero_badges (image_path) VALUES (%s)", (image_path,))
+                conn.commit()
+                cursor.close()
+                conn.close()
+
+                redirect_params['message'] = 'Badge uploaded.'
+
+            elif form_id == 'badge_delete':
+                try:
+                    badge_id = int(request.form.get('badge_id'))
+                except (TypeError, ValueError):
+                    raise ValueError('Invalid badge selection.')
+
+                conn = get_db_connection()
+                cursor = conn.cursor(dictionary=True)
+                cursor.execute("SELECT image_path FROM hero_badges WHERE id = %s", (badge_id,))
+                badge = cursor.fetchone()
+                if not badge:
+                    cursor.close()
+                    conn.close()
+                    raise ValueError('Badge not found.')
+
+                image_path = badge['image_path']
+                cursor.close()
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM hero_badges WHERE id = %s", (badge_id,))
+                conn.commit()
+                cursor.close()
+                conn.close()
+                delete_uploaded_file(image_path)
+                redirect_params['message'] = 'Badge deleted.'
+
+            else:
+                raise ValueError('Unsupported action.')
+
+        except ValueError as exc:
+            app.logger.info('Hero content update validation error: %s', exc)
+            redirect_params['error'] = normalize_message(exc)
+        except Exception:
+            app.logger.exception('Failed to update hero content')
+            redirect_params['error'] = 'Unable to process that request right now.'
+
+        return redirect(url_for('admin_hero_content_page', **redirect_params))
+
+    hero = fetch_hero_content()
+    badges = fetch_hero_badges(include_inactive=True)
+    site_settings = fetch_site_settings()
+
+    return render_template(
+        'admin/hero_content.html',
+        hero=hero,
+        hero_badges=badges,
+        site_settings=site_settings,
+        message=message,
+        error=error
+    )
+
+
+
+
+@app.route('/admin/quote-section', methods=['GET', 'POST'])
+@admin_login_required
+def admin_quote_section():
+    message = request.args.get('message', '').strip()
+    error = request.args.get('error', '').strip()
+
+    if request.method == 'POST':
+        redirect_params = {}
+        try:
+            headline = sanitize_text(request.form.get('headline'), 255)
+            phone = sanitize_text(request.form.get('phone'), 50)
+            email = sanitize_text(request.form.get('email'), 100)
+            operating_hours = sanitize_text(request.form.get('operating_hours'))
+            service_areas = sanitize_text(request.form.get('service_areas'))
+            existing_background = request.form.get('existing_background', '').strip()
+            remove_background = str_to_bool(request.form.get('remove_background', 'false'))
+
+            if not headline or not phone or not email:
+                raise ValueError('Headline, phone, and email are required.')
+
+            background_file = request.files.get('quote_background')
+            has_new_background = bool(background_file and background_file.filename)
+
+            try:
+                background_path = upload_quote_background(existing_background or '')
+            except ValueError as exc:
+                raise ValueError(str(exc))
+
+            if remove_background and not has_new_background:
+                background_path = ''
+
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE contact_info SET headline=%s, phone=%s, email=%s, operating_hours=%s, service_areas=%s, quote_background=%s WHERE id = 1",
+                (
+                    headline,
+                    phone,
+                    email,
+                    operating_hours,
+                    service_areas,
+                    background_path or None
+                )
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            if has_new_background and existing_background and background_path and background_path != existing_background:
+                delete_uploaded_file(existing_background)
+            elif remove_background and not has_new_background and existing_background:
+                delete_uploaded_file(existing_background)
+
+            redirect_params['message'] = 'Contact information updated.'
+
+        except ValueError as exc:
+            app.logger.info('Quote section validation error: %s', exc)
+            redirect_params['error'] = normalize_message(exc)
+        except Exception:
+            app.logger.exception('Failed to update quote section')
+            redirect_params['error'] = 'Unable to process that request right now.'
+
+        return redirect(url_for('admin_quote_section', **redirect_params))
+
+    contact_info = fetch_contact_info()
+    site_settings = fetch_site_settings()
+    return render_template(
+        'admin/quote_section.html',
+        contact_info=contact_info,
+        site_settings=site_settings,
+        message=message,
+        error=error
+    )
+
+
+@app.route('/admin/footer-settings', methods=['GET', 'POST'])
+@admin_login_required
+def admin_footer_settings():
+    message = request.args.get('message', '').strip()
+    error = request.args.get('error', '').strip()
+    footer = fetch_footer_info()
+    site_settings = fetch_site_settings()
+
+    if request.method == 'POST':
+        redirect_params = {}
+        try:
+            phone = sanitize_text(request.form.get('footer_phone'), 50)
+            email = sanitize_text(request.form.get('footer_email'), 100)
+            location = sanitize_text(request.form.get('footer_location'), 255)
+            facebook = request.form.get('social_facebook', '').strip()
+            instagram = request.form.get('social_instagram', '').strip()
+            twitter = request.form.get('social_twitter', '').strip()
+
+            if not phone or not email or not location:
+                raise ValueError('Footer phone, email, and location are required.')
+
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE footer_info SET phone=%s, email=%s, location=%s, facebook=%s, instagram=%s, twitter=%s WHERE id = 1",
+                (phone, email, location, facebook, instagram, twitter)
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            redirect_params['message'] = 'Footer settings updated.'
+
+        except ValueError as exc:
+            app.logger.info('Footer settings validation error: %s', exc)
+            redirect_params['error'] = normalize_message(exc)
+        except Exception:
+            app.logger.exception('Failed to update footer settings')
+            redirect_params['error'] = 'Unable to process that request right now.'
+
+        return redirect(url_for('admin_footer_settings', **redirect_params))
+
+    return render_template(
+        'admin/footer_settings.html',
+        footer=footer,
+        site_settings=site_settings,
+        message=message,
+        error=error
+    )
+
+
+@app.route('/admin/telegram', methods=['GET', 'POST'])
+@admin_login_required
+def admin_telegram_settings():
+    site_settings = fetch_site_settings()
+    telegram_settings = fetch_telegram_settings()
+    success_message = None
+    error_message = None
+
+    if request.method == 'POST':
+        form_values = request.form.to_dict()
+        try:
+            telegram_settings = update_telegram_settings(form_values)
+            success_message = 'Telegram settings updated successfully.'
+        except ValueError as exc:
+            error_message = str(exc)
+            telegram_settings = {
+                'id': telegram_settings.get('id', 1),
+                'bot_token': sanitize_text(form_values.get('bot_token'), 255),
+                'chat_id': sanitize_text(form_values.get('chat_id'), 128),
+                'is_active': str_to_bool(form_values.get('is_active')),
+                'notify_email_success': str_to_bool(form_values.get('notify_email_success')),
+                'notify_email_error': str_to_bool(form_values.get('notify_email_error')),
+                'notify_admin_login': str_to_bool(form_values.get('notify_admin_login')),
+                'notify_login_failure': str_to_bool(form_values.get('notify_login_failure'))
+            }
+        except Exception:
+            app.logger.exception('Failed to update Telegram settings.')
+            error_message = 'An unexpected error occurred while updating Telegram settings.'
+            telegram_settings = fetch_telegram_settings()
+
+    return render_template(
+        'admin/telegram_settings.html',
+        site_settings=site_settings,
+        telegram_settings=telegram_settings,
+        success_message=success_message,
+        error_message=error_message
+    )
+
+
+@app.route('/admin/branding', methods=['GET', 'POST'])
+@admin_login_required
+def admin_brand_settings():
+    message = request.args.get('message', '').strip()
+    error = request.args.get('error', '').strip()
+    site_settings = fetch_site_settings()
+
+    if request.method == 'POST':
+        redirect_params = {}
+        try:
+            company_name = sanitize_text(request.form.get('company_name'), 255)
+            existing_logo = (request.form.get('existing_logo') or site_settings.get('logo_path') or '').strip()
+            remove_logo = str_to_bool(request.form.get('remove_logo', 'false'))
+            logo_file = request.files.get('logo')
+            has_new_logo = bool(logo_file and logo_file.filename)
+
+            if not company_name:
+                raise ValueError('Company name is required.')
+
+            try:
+                logo_path = upload_brand_logo(existing_logo)
+            except ValueError as exc:
+                raise ValueError(str(exc))
+
+            if remove_logo and not has_new_logo:
+                logo_path = ''
+
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE site_settings SET company_name=%s, logo_path=%s WHERE id = 1",
+                (
+                    company_name,
+                    logo_path or None
+                )
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            if has_new_logo and existing_logo and logo_path and logo_path != existing_logo:
+                delete_uploaded_file(existing_logo)
+            elif remove_logo and not has_new_logo and existing_logo:
+                delete_uploaded_file(existing_logo)
+
+            redirect_params['message'] = 'Brand settings updated.'
+
+        except ValueError as exc:
+            app.logger.info('Brand settings validation error: %s', exc)
+            redirect_params['error'] = normalize_message(exc)
+        except Exception:
+            app.logger.exception('Failed to update brand settings')
+            redirect_params['error'] = 'Unable to process that request right now.'
+
+        return redirect(url_for('admin_brand_settings', **redirect_params))
+
+    site_settings = fetch_site_settings()
+    return render_template(
+        'admin/branding.html',
+        site_settings=site_settings,
+        message=message,
+        error=error
+    )
+
+
+@app.route('/admin', methods=['GET', 'POST'])
+def admin_login():
+    if session.get('admin_logged_in'):
+        return redirect(url_for('admin_dashboard'))
+
+    error = ''
+    site_settings = fetch_site_settings()
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
+        remote_ip = request.remote_addr or 'unknown'
+        user_agent = sanitize_text(request.headers.get('User-Agent'), 150) or 'unknown'
+        sanitized_username = sanitize_text(username, 64) if username else ''
+        failure_reason = None
+
+        if not username or not password:
+            error = 'Username and password are required.'
+            failure_reason = 'missing_credentials'
+        else:
+            user = fetch_admin_user(username)
+            if user and user.get('password_hash') and check_password_hash(user['password_hash'], password):
+                session.clear()
+                session['admin_logged_in'] = True
+                session['admin_username'] = user.get('username')
+                session.permanent = False
+                send_telegram_notification(
+                    'notify_admin_login',
+                    [
+                        '[Admin] Login success',
+                        f'Username: {user.get("username")}',
+                        f'IP: {remote_ip}',
+                        f'Agent: {user_agent}'
+                    ]
+                )
+                return redirect(url_for('admin_dashboard'))
+            else:
+                error = 'Invalid username or password.'
+                failure_reason = 'invalid_credentials'
+
+        if failure_reason:
+            details = [
+                '[Admin] Login failure',
+                f'Username: {sanitized_username or "(empty)"}',
+                f'IP: {remote_ip}',
+                f'Agent: {user_agent}'
+            ]
+            if failure_reason == 'missing_credentials':
+                details.append('Reason: Missing username or password.')
+            send_telegram_notification('notify_login_failure', details)
+
+    return render_template('admin_login.html', error=error, site_settings=site_settings)
+
+
+@app.route('/admin/logout', methods=['POST', 'GET'])
+def admin_logout():
+    username = session.get('admin_username')
+    was_logged_in = session.get('admin_logged_in')
+
+    session.pop('admin_logged_in', None)
+    session.pop('admin_username', None)
+    session.permanent = False
+
+    if was_logged_in and username:
+        send_telegram_notification(
+            'notify_admin_login',
+            [
+                '[Admin] Logout',
+                f'Username: {sanitize_text(username, 64)}',
+                f'IP: {request.remote_addr or "unknown"}'
+            ]
+        )
+
+    if request.method == 'POST':
+        prefers_json = request.is_json
+        if not prefers_json:
+            best = request.accept_mimetypes.best
+            prefers_json = (
+                best == 'application/json'
+                and request.accept_mimetypes[best] > request.accept_mimetypes['text/html']
+            )
+        if prefers_json:
+            return jsonify({'message': 'Logged out.'})
+    return redirect(url_for('admin_login'))
+
+
+@app.route('/admin/dashboard')
+@admin_login_required
+def admin_dashboard():
+    site_settings = fetch_site_settings()
+    return render_template('admin/dashboard.html', site_settings=site_settings)
+
+
+@app.route('/dashboard')
+def legacy_dashboard():
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/bookings')
+@admin_login_required
+def admin_bookings():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM bookings ORDER BY created_at DESC")
+    bookings = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify(bookings)
+
+
+@app.route('/admin/applications')
+@admin_login_required
+def admin_applications():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM job_applications ORDER BY created_at DESC")
+    applications = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify(applications)
+
+
+@app.route('/')
+def index():
+    services = fetch_services_from_db()
+    job_positions = fetch_job_positions_from_db()
+    testimonials = fetch_testimonials_from_db(shuffle=True)
+    hero_content = fetch_hero_content()
+    hero_badges = fetch_hero_badges()
+    contact_info = fetch_contact_info()
+    footer_info = fetch_footer_info()
+    site_settings = fetch_site_settings()
+    travel_settings = fetch_travel_settings()
+    site_content = fetch_site_content()
+
+    hero_small_texts = [
+        text for text in (
+            hero_content.get('small_text_line1'),
+            hero_content.get('small_text_line2'),
+            hero_content.get('small_text_line3')
+        ) if text
+    ]
+
+    hero_stat_cards = []
+    for raw_stat in (
+        hero_content.get('stat1_text'),
+        hero_content.get('stat2_text'),
+        hero_content.get('stat3_text')
+    ):
+        if not raw_stat:
+            continue
+        parts = [segment.strip() for segment in raw_stat.split('·') if segment and segment.strip()]
+        if not parts:
+            continue
+        hero_stat_cards.append({
+            'primary': parts[0],
+            'secondary': parts[1] if len(parts) > 1 else '',
+            'tertiary': parts[2] if len(parts) > 2 else '',
+            'raw': raw_stat.strip()
+        })
+
+    log_analytics_event('homepage_visit', {
+        'ip': request.remote_addr
+    })
+    return render_template(
+        'index.html',
+        services=services,
+        job_positions=job_positions,
+        testimonials=testimonials,
+        hero=hero_content,
+        hero_badges=hero_badges,
+        hero_small_texts=hero_small_texts,
+        hero_stat_cards=hero_stat_cards,
+        contact_info=contact_info,
+        footer_info=footer_info,
+        site_settings=site_settings,
+        travel_settings=travel_settings,
+        site_content=site_content
+    )
+
+
+@app.route('/company-info')
+def company_info():
+    return redirect(url_for('index') + '#who-we-are')
+
+
+# =============================================================================
+# AI ASSISTANT ENDPOINTS
+# =============================================================================
+
+def get_ai_assistant():
+    """Get AI assistant instance"""
+    try:
+        from ai_assistant import init_assistant, get_assistant
+        assistant = get_assistant()
+        if not assistant:
+            engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+            if engine == 'postgres':
+                db_config = {
+                    'engine': 'postgres',
+                    'postgres_url': (app.config.get('POSTGRES_URL') or '').strip()
+                }
+            else:
+                db_config = {
+                    'engine': 'mysql',
+                    'host': Config.MYSQL_HOST,
+                    'user': Config.MYSQL_USER,
+                    'password': Config.MYSQL_PASSWORD,
+                    'database': Config.MYSQL_DB
+                }
+            assistant = init_assistant(db_config)
+        return assistant
+    except Exception as e:
+        print(f"AI Assistant init error: {e}")
+        return None
+
+
+@app.route('/admin/api/ai/query', methods=['POST'])
+@admin_login_required
+def ai_query():
+    """Process AI query from admin"""
+    assistant = get_ai_assistant()
+    if not assistant:
+        return jsonify({'error': 'AI Assistant not available'}), 503
+    
+    data = request.get_json() or {}
+    message = data.get('message', '').strip()
+    chat_id = data.get('chat_id', 'admin_web')
+    
+    if not message:
+        return jsonify({'error': 'Message required'}), 400
+    
+    result = assistant.process_message(message, chat_id)
+    return jsonify(result)
+
+
+@app.route('/admin/api/ai/settings', methods=['GET', 'POST'])
+@admin_login_required
+def ai_settings():
+    """Get or update AI settings"""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    if request.method == 'GET':
+        cursor.execute("SELECT * FROM ai_settings WHERE id = 1")
+        settings = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if settings:
+            # Mask API key for security
+            if settings.get('api_key'):
+                key = settings['api_key']
+                settings['api_key_masked'] = f"{key[:8]}...{key[-4:]}" if len(key) > 12 else '****'
+                settings['api_key'] = ''  # Don't send actual key
+            return jsonify(settings)
+        return jsonify({
+            'ai_provider': 'groq',
+            'model': 'openai/gpt-oss-20b',
+            'reasoning_effort': 'medium',
+            'is_enabled': False,
+            'telegram_ai_enabled': False
+        })
+    
+    # POST - update settings
+    data = request.get_json() or {}
+    
+    ai_provider = data.get('ai_provider', 'groq')
+    api_key = data.get('api_key', '').strip()
+    model = data.get('model', 'openai/gpt-oss-20b')
+    reasoning_effort = data.get('reasoning_effort', 'medium')
+    is_enabled = bool(data.get('is_enabled'))
+    telegram_ai_enabled = bool(data.get('telegram_ai_enabled'))
+    allowed_chat_ids = data.get('allowed_chat_ids', '')
+    daily_limit = int(data.get('daily_limit', 100))
+    
+    # Update then insert fallback (works on both MySQL and Postgres)
+    if api_key:
+        cursor.execute(
+            """
+            UPDATE ai_settings
+            SET ai_provider=%s,
+                api_key=%s,
+                model=%s,
+                reasoning_effort=%s,
+                is_enabled=%s,
+                telegram_ai_enabled=%s,
+                allowed_chat_ids=%s,
+                daily_limit=%s,
+                updated_at=NOW()
+            WHERE id = 1
+            """,
+            (ai_provider, api_key, model, reasoning_effort, is_enabled, telegram_ai_enabled, allowed_chat_ids, daily_limit)
+        )
+        if cursor.rowcount == 0:
+            cursor.execute(
+                """
+                INSERT INTO ai_settings (id, ai_provider, api_key, model, reasoning_effort, is_enabled, telegram_ai_enabled, allowed_chat_ids, daily_limit)
+                VALUES (1, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (ai_provider, api_key, model, reasoning_effort, is_enabled, telegram_ai_enabled, allowed_chat_ids, daily_limit)
+            )
+    else:
+        cursor.execute(
+            """
+            UPDATE ai_settings
+            SET ai_provider=%s,
+                model=%s,
+                reasoning_effort=%s,
+                is_enabled=%s,
+                telegram_ai_enabled=%s,
+                allowed_chat_ids=%s,
+                daily_limit=%s,
+                updated_at=NOW()
+            WHERE id = 1
+            """,
+            (ai_provider, model, reasoning_effort, is_enabled, telegram_ai_enabled, allowed_chat_ids, daily_limit)
+        )
+        if cursor.rowcount == 0:
+            cursor.execute(
+                """
+                INSERT INTO ai_settings (id, ai_provider, model, reasoning_effort, is_enabled, telegram_ai_enabled, allowed_chat_ids, daily_limit)
+                VALUES (1, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (ai_provider, model, reasoning_effort, is_enabled, telegram_ai_enabled, allowed_chat_ids, daily_limit)
+            )
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    # Reload assistant settings
+    assistant = get_ai_assistant()
+    if assistant:
+        assistant.reload_settings()
+    
+    return jsonify({'success': True, 'message': 'AI settings saved'})
+
+
+@app.route('/admin/api/ai/stats', methods=['GET'])
+@admin_login_required
+def ai_stats():
+    """Get AI usage stats"""
+    assistant = get_ai_assistant()
+    if assistant:
+        stats = assistant.get_quick_stats()
+        return jsonify(stats)
+    return jsonify({})
+
+
+@app.route('/admin/api/ai/test', methods=['POST'])
+@admin_login_required
+def ai_test():
+    """Test AI connection"""
+    assistant = get_ai_assistant()
+    if not assistant:
+        return jsonify({'success': False, 'message': 'AI Assistant not initialized'})
+    
+    ready, message = assistant.is_ready()
+    if not ready:
+        return jsonify({'success': False, 'message': message})
+    
+    # Try a simple test query
+    result = assistant.process_message("Hello, please confirm you're working by saying 'AI Assistant Ready'", 'test')
+    return jsonify({
+        'success': result.get('success', False),
+        'message': result.get('message', 'Test failed')[:500]
+    })
+
+
+# =============================================================================
+# TELEGRAM BOT WEBHOOK & AI CHAT
+# =============================================================================
+
+@app.route('/telegram/webhook/<token>', methods=['POST'])
+def telegram_webhook(token):
+    """Receive Telegram webhook updates"""
+    # Verify token matches our bot
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT bot_token, is_active FROM telegram_settings WHERE id = 1")
+    tg_settings = cursor.fetchone()
+    
+    cursor.execute("SELECT telegram_ai_enabled, allowed_chat_ids FROM ai_settings WHERE id = 1")
+    ai_settings = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    if not tg_settings or tg_settings.get('bot_token') != token:
+        return jsonify({'error': 'Invalid token'}), 403
+    
+    if not tg_settings.get('is_active'):
+        return jsonify({'error': 'Bot not active'}), 403
+    
+    # Get the update
+    update = request.get_json() or {}
+    message = update.get('message', {})
+    
+    if not message:
+        return jsonify({'ok': True})
+    
+    chat_id = str(message.get('chat', {}).get('id', ''))
+    text = message.get('text', '').strip()
+    username = message.get('from', {}).get('username', 'Unknown')
+    first_name = message.get('from', {}).get('first_name', '')
+    
+    if not text or not chat_id:
+        return jsonify({'ok': True})
+    
+    # Check allowed chat IDs
+    allowed_ids = (ai_settings.get('allowed_chat_ids') or '').split(',')
+    allowed_ids = [cid.strip() for cid in allowed_ids if cid.strip()]
+    
+    if allowed_ids and chat_id not in allowed_ids:
+        send_telegram_message(tg_settings['bot_token'], chat_id, 
+            "⛔ You are not authorized to use this bot.\n\n"
+            f"Your Chat ID: <code>{chat_id}</code>\n"
+            "Share this ID with the admin to get access."
+        )
+        return jsonify({'ok': True})
+    
+    # Handle commands
+    if text.startswith('/'):
+        response = handle_telegram_command(text, chat_id, username, first_name, tg_settings, ai_settings)
+    elif ai_settings.get('telegram_ai_enabled'):
+        # AI mode - process as AI query
+        response = handle_telegram_ai_query(text, chat_id)
+    else:
+        response = "💡 Use /help to see available commands.\n\nTo chat naturally, ask the admin to enable AI mode."
+    
+    # Send response
+    if response:
+        send_telegram_message(tg_settings['bot_token'], chat_id, response)
+    
+    return jsonify({'ok': True})
+
+
+def send_telegram_message(bot_token: str, chat_id: str, text: str, parse_mode: str = 'HTML') -> bool:
+    """Send a message via Telegram"""
+    try:
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        # Split long messages
+        max_len = 4000
+        messages = [text[i:i+max_len] for i in range(0, len(text), max_len)]
+        
+        for msg in messages:
+            payload = {
+                'chat_id': chat_id,
+                'text': msg,
+                'parse_mode': parse_mode
+            }
+            requests.post(url, json=payload, timeout=10)
+        return True
+    except Exception as e:
+        print(f"Telegram send error: {e}")
+        return False
+
+
+def handle_telegram_command(text: str, chat_id: str, username: str, first_name: str, tg_settings: dict, ai_settings: dict) -> str:
+    """Handle Telegram bot commands"""
+    parts = text[1:].split(maxsplit=1)
+    command = parts[0].lower().split('@')[0]
+    args = parts[1] if len(parts) > 1 else ''
+    
+    if command == 'start':
+        return (
+            f"👋 Hello {first_name or username}!\n\n"
+            "🧹 <b>Done-Well Cleaners AI Assistant</b>\n\n"
+            "I can help you manage requests, check stats, and more.\n\n"
+            f"Your Chat ID: <code>{chat_id}</code>\n\n"
+            "Use /help to see available commands."
+        )
+    
+    elif command == 'help':
+        ai_mode = "✅ Enabled" if ai_settings.get('telegram_ai_enabled') else "❌ Disabled"
+        return (
+            "📋 <b>Available Commands:</b>\n\n"
+            "/start - Start the bot\n"
+            "/help - Show this help\n"
+            "/status - System status\n"
+            "/today - Today's summary\n"
+            "/pending - Pending requests\n"
+            "/search [query] - Search requests\n"
+            "/request [REF-ID] - Get request details\n"
+            "/update [REF-ID] [status] - Update status\n"
+            "/ai [question] - Ask AI assistant\n\n"
+            f"🤖 <b>AI Chat Mode:</b> {ai_mode}\n"
+            "When enabled, you can chat naturally without commands!"
+        )
+    
+    elif command == 'status':
+        return get_system_status_for_telegram()
+    
+    elif command == 'today':
+        return get_today_summary_for_telegram()
+    
+    elif command == 'pending':
+        return get_pending_requests_for_telegram()
+    
+    elif command == 'search':
+        if not args:
+            return "❓ Usage: /search [name or email or ref_id]"
+        return search_requests_for_telegram(args)
+    
+    elif command == 'request':
+        if not args:
+            return "❓ Usage: /request [REF-ID]\nExample: /request REQ-ABC123"
+        return get_request_details_for_telegram(args.strip().upper())
+    
+    elif command == 'update':
+        if not args or len(args.split()) < 2:
+            return (
+                "❓ Usage: /update [REF-ID] [status]\n\n"
+                "Valid statuses:\n"
+                "• pending\n"
+                "• in_progress\n"
+                "• completed\n"
+                "• cancelled\n"
+                "• survey_needed\n\n"
+                "Example: /update REQ-ABC123 completed"
+            )
+        parts = args.split(maxsplit=1)
+        return update_request_for_telegram(parts[0].strip().upper(), parts[1].strip().lower())
+    
+    elif command == 'ai':
+        if not args:
+            return "❓ Usage: /ai [your question]\nExample: /ai How many pending requests today?"
+        return handle_telegram_ai_query(args, chat_id)
+    
+    elif command == 'chatid' or command == 'id':
+        return f"🆔 Your Chat ID: <code>{chat_id}</code>"
+    
+    else:
+        return f"❓ Unknown command: /{command}\n\nUse /help to see available commands."
+
+
+def handle_telegram_ai_query(query: str, chat_id: str) -> str:
+    """Process AI query via Telegram"""
+    assistant = get_ai_assistant()
+    
+    if not assistant:
+        return "❌ AI Assistant not configured. Please set up in Admin > AI Settings."
+    
+    ready, error = assistant.is_ready()
+    if not ready:
+        return f"❌ {error}"
+    
+    try:
+        result = assistant.process_message(query, f"telegram_{chat_id}")
+        
+        if result.get('success'):
+            return result.get('message', 'No response from AI')
+        else:
+            return f"❌ {result.get('message', 'AI error occurred')}"
+    except Exception as e:
+        return f"❌ AI Error: {str(e)}"
+
+
+def get_system_status_for_telegram() -> str:
+    """Get system status for Telegram"""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    
+    cursor.execute("SELECT status, COUNT(*) as count FROM requests GROUP BY status")
+    status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
+    
+    condition, params = build_active_true_condition('is_active', engine)
+    cursor.execute(
+        f"SELECT COUNT(*) as total FROM services WHERE {condition}",
+        params
+    )
+    active_services = cursor.fetchone()['total']
+    
+    cursor.close()
+    conn.close()
+    
+    total = sum(status_counts.values())
+    
+    return (
+        "📊 <b>System Status</b>\n\n"
+        f"📝 Total Requests: {total}\n"
+        f"⏳ Pending: {status_counts.get('pending', 0)}\n"
+        f"🔄 In Progress: {status_counts.get('in_progress', 0)}\n"
+        f"✅ Completed: {status_counts.get('completed', 0)}\n"
+        f"❌ Cancelled: {status_counts.get('cancelled', 0)}\n"
+        f"📋 Survey Needed: {status_counts.get('survey_needed', 0)}\n\n"
+        f"🧹 Active Services: {active_services}"
+    )
+
+
+def get_today_summary_for_telegram() -> str:
+    """Get today's summary for Telegram"""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN request_type = 'service' THEN 1 ELSE 0 END) as services,
+                SUM(CASE WHEN request_type = 'job' THEN 1 ELSE 0 END) as jobs,
+                SUM(CASE WHEN request_type = 'general' THEN 1 ELSE 0 END) as general
+            FROM requests
+            WHERE DATE(created_at) = CURRENT_DATE
+            """
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN request_type = 'service' THEN 1 ELSE 0 END) as services,
+                SUM(CASE WHEN request_type = 'job' THEN 1 ELSE 0 END) as jobs,
+                SUM(CASE WHEN request_type = 'general' THEN 1 ELSE 0 END) as general
+            FROM requests
+            WHERE DATE(created_at) = CURDATE()
+            """
+        )
+    today = cursor.fetchone()
+    
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            SELECT COUNT(*) as count FROM requests 
+            WHERE status = 'completed' AND DATE(updated_at) = CURRENT_DATE
+            """
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT COUNT(*) as count FROM requests 
+            WHERE status = 'completed' AND DATE(updated_at) = CURDATE()
+            """
+        )
+    completed_today = cursor.fetchone()['count']
+    
+    cursor.close()
+    conn.close()
+    
+    return (
+        "📅 <b>Today's Summary</b>\n\n"
+        f"📥 New Requests: {today['total']}\n"
+        f"  • Service: {today['services']}\n"
+        f"  • Job Applications: {today['jobs']}\n"
+        f"  • General: {today['general']}\n\n"
+        f"✅ Completed Today: {completed_today}"
+    )
+
+
+def get_pending_requests_for_telegram() -> str:
+    """Get pending requests for Telegram"""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    cursor.execute("""
+        SELECT ref_id, name, request_type, created_at
+        FROM requests
+        WHERE status = 'pending'
+        ORDER BY created_at DESC
+        LIMIT 10
+    """)
+    requests_list = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    if not requests_list:
+        return "✨ No pending requests!"
+    
+    lines = ["📋 <b>Pending Requests</b>\n"]
+    for req in requests_list:
+        created = req['created_at'].strftime('%d/%m %H:%M') if req['created_at'] else ''
+        lines.append(f"• <code>{req['ref_id']}</code> - {req['name']} ({req['request_type']}) {created}")
+    
+    lines.append(f"\n📝 Showing {len(requests_list)} pending requests")
+    return "\n".join(lines)
+
+
+def search_requests_for_telegram(query: str) -> str:
+    """Search requests for Telegram"""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    search_term = f"%{query}%"
+    cursor.execute("""
+        SELECT ref_id, name, email, request_type, status, created_at
+        FROM requests
+        WHERE name LIKE %s OR email LIKE %s OR ref_id LIKE %s OR phone LIKE %s
+        ORDER BY created_at DESC
+        LIMIT 10
+    """, (search_term, search_term, search_term, search_term))
+    
+    results = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    if not results:
+        return f"🔍 No results found for: {query}"
+    
+    lines = [f"🔍 <b>Search Results for '{query}'</b>\n"]
+    for req in results:
+        status_emoji = {'pending': '⏳', 'in_progress': '🔄', 'completed': '✅', 'cancelled': '❌'}.get(req['status'], '📝')
+        lines.append(f"{status_emoji} <code>{req['ref_id']}</code> - {req['name']}\n   {req['request_type']} | {req['status']}")
+    
+    return "\n".join(lines)
+
+
+def get_request_details_for_telegram(ref_id: str) -> str:
+    """Get request details for Telegram"""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    cursor.execute("SELECT * FROM requests WHERE ref_id = %s", (ref_id,))
+    req = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    if not req:
+        return f"❌ Request not found: {ref_id}"
+    
+    status_emoji = {'pending': '⏳', 'in_progress': '🔄', 'completed': '✅', 'cancelled': '❌', 'survey_needed': '📋'}.get(req['status'], '📝')
+    created = req['created_at'].strftime('%d/%m/%Y %H:%M') if req['created_at'] else 'N/A'
+    
+    return (
+        f"📄 <b>Request Details</b>\n\n"
+        f"🔖 Ref: <code>{req['ref_id']}</code>\n"
+        f"👤 Name: {req['name']}\n"
+        f"📧 Email: {req['email']}\n"
+        f"📱 Phone: {req.get('phone', 'N/A')}\n"
+        f"📝 Type: {req['request_type']}\n"
+        f"{status_emoji} Status: {req['status']}\n"
+        f"🧹 Service: {req.get('service_name') or 'N/A'}\n"
+        f"📅 Created: {created}\n"
+        f"💬 Message: {(req.get('message') or 'No message')[:200]}"
+    )
+
+
+def update_request_for_telegram(ref_id: str, new_status: str) -> str:
+    """Update request status via Telegram"""
+    valid_statuses = {'pending', 'in_progress', 'completed', 'cancelled', 'survey_needed'}
+    
+    if new_status not in valid_statuses:
+        return f"❌ Invalid status: {new_status}\n\nValid: {', '.join(valid_statuses)}"
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("UPDATE requests SET status = %s, updated_at = NOW() WHERE ref_id = %s", (new_status, ref_id))
+    affected = cursor.rowcount
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    if affected:
+        status_emoji = {'pending': '⏳', 'in_progress': '🔄', 'completed': '✅', 'cancelled': '❌', 'survey_needed': '📋'}.get(new_status, '📝')
+        return f"✅ Updated!\n\n<code>{ref_id}</code> → {status_emoji} {new_status}"
+    
+    return f"❌ Request not found: {ref_id}"
+
+
+@app.route('/admin/api/telegram/set-webhook', methods=['POST'])
+@admin_login_required
+def set_telegram_webhook():
+    """Set Telegram webhook URL"""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT bot_token FROM telegram_settings WHERE id = 1")
+    settings = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    if not settings or not settings.get('bot_token'):
+        return jsonify({'success': False, 'message': 'Bot token not configured'})
+    
+    bot_token = settings['bot_token']
+    
+    # Get base URL from request or use provided
+    data = request.get_json() or {}
+    base_url = data.get('base_url', request.host_url.rstrip('/'))
+    
+    webhook_url = f"{base_url}/telegram/webhook/{bot_token}"
+    
+    try:
+        # Set webhook via Telegram API
+        url = f"https://api.telegram.org/bot{bot_token}/setWebhook"
+        response = requests.post(url, json={'url': webhook_url}, timeout=10)
+        result = response.json()
+        
+        if result.get('ok'):
+            return jsonify({
+                'success': True, 
+                'message': 'Webhook set successfully!',
+                'webhook_url': webhook_url
+            })
+        else:
+            return jsonify({
+                'success': False, 
+                'message': result.get('description', 'Failed to set webhook')
+            })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/admin/api/telegram/webhook-info', methods=['GET'])
+@admin_login_required
+def get_telegram_webhook_info():
+    """Get current Telegram webhook info"""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT bot_token FROM telegram_settings WHERE id = 1")
+    settings = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    if not settings or not settings.get('bot_token'):
+        return jsonify({'success': False, 'message': 'Bot token not configured'})
+    
+    try:
+        url = f"https://api.telegram.org/bot{settings['bot_token']}/getWebhookInfo"
+        response = requests.get(url, timeout=10)
+        return jsonify(response.json())
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/admin/api/analytics/chart-data', methods=['GET'])
+@admin_login_required
+def analytics_chart_data():
+    """Get analytics data for charts with date range support"""
+    days = request.args.get('days', '30', type=str)
+    try:
+        days = min(int(days), 90)  # Max 90 days
+    except:
+        days = 30
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    
+    # Get daily data for the period
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            SELECT 
+                DATE(created_at) as date,
+                SUM(CASE WHEN event_type = 'homepage_visit' THEN 1 ELSE 0 END) as visits,
+                SUM(CASE WHEN event_type = 'service_view' THEN 1 ELSE 0 END) as service_views
+            FROM analytics
+            WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+            """,
+            (days,)
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT 
+                DATE(created_at) as date,
+                SUM(CASE WHEN event_type = 'homepage_visit' THEN 1 ELSE 0 END) as visits,
+                SUM(CASE WHEN event_type = 'service_view' THEN 1 ELSE 0 END) as service_views
+            FROM analytics
+            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+            """,
+            (days,)
+        )
+    analytics_data = cursor.fetchall()
+    
+    # Get requests data
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            SELECT 
+                DATE(created_at) as date,
+                SUM(CASE WHEN request_type = 'service' THEN 1 ELSE 0 END) as service_requests,
+                SUM(CASE WHEN request_type = 'job' THEN 1 ELSE 0 END) as job_applications,
+                SUM(CASE WHEN request_type = 'general' THEN 1 ELSE 0 END) as contact_forms
+            FROM requests
+            WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+            """,
+            (days,)
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT 
+                DATE(created_at) as date,
+                SUM(CASE WHEN request_type = 'service' THEN 1 ELSE 0 END) as service_requests,
+                SUM(CASE WHEN request_type = 'job' THEN 1 ELSE 0 END) as job_applications,
+                SUM(CASE WHEN request_type = 'general' THEN 1 ELSE 0 END) as contact_forms
+            FROM requests
+            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+            """,
+            (days,)
+        )
+    requests_data = cursor.fetchall()
+    
+    # Get status breakdown
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            SELECT status, COUNT(*) as count
+            FROM requests
+            WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
+            GROUP BY status
+            """,
+            (days,)
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT status, COUNT(*) as count
+            FROM requests
+            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+            GROUP BY status
+            """,
+            (days,)
+        )
+    status_breakdown = {row['status']: row['count'] for row in cursor.fetchall()}
+    
+    # Get service popularity
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            SELECT service_name, COUNT(*) as count
+            FROM requests
+            WHERE request_type = 'service' 
+                AND service_name IS NOT NULL 
+                AND service_name != ''
+                AND created_at >= NOW() - (%s * INTERVAL '1 day')
+            GROUP BY service_name
+            ORDER BY count DESC
+            LIMIT 5
+            """,
+            (days,)
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT service_name, COUNT(*) as count
+            FROM requests
+            WHERE request_type = 'service' 
+                AND service_name IS NOT NULL 
+                AND service_name != ''
+                AND created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+            GROUP BY service_name
+            ORDER BY count DESC
+            LIMIT 5
+            """,
+            (days,)
+        )
+    top_services = cursor.fetchall()
+    
+    # Get hourly distribution
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            SELECT EXTRACT(HOUR FROM created_at) as hour, COUNT(*) as count
+            FROM analytics
+            WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
+            GROUP BY EXTRACT(HOUR FROM created_at)
+            ORDER BY hour
+            """,
+            (days,)
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT HOUR(created_at) as hour, COUNT(*) as count
+            FROM analytics
+            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+            GROUP BY HOUR(created_at)
+            ORDER BY hour
+            """,
+            (days,)
+        )
+    hourly_data = cursor.fetchall()
+    
+    # Calculate conversion rate
+    if engine == 'postgres':
+        cursor.execute(
+            "SELECT COUNT(*) as c FROM requests WHERE status = 'completed' AND created_at >= NOW() - (%s * INTERVAL '1 day')",
+            (days,)
+        )
+    else:
+        cursor.execute(
+            "SELECT COUNT(*) as c FROM requests WHERE status = 'completed' AND created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)",
+            (days,)
+        )
+    completed = cursor.fetchone()['c']
+    if engine == 'postgres':
+        cursor.execute(
+            "SELECT COUNT(*) as c FROM requests WHERE created_at >= NOW() - (%s * INTERVAL '1 day')",
+            (days,)
+        )
+    else:
+        cursor.execute(
+            "SELECT COUNT(*) as c FROM requests WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)",
+            (days,)
+        )
+    total_requests = cursor.fetchone()['c']
+    conversion_rate = round((completed / total_requests * 100) if total_requests > 0 else 0, 1)
+    
+    cursor.close()
+    conn.close()
+    
+    # Merge analytics and requests data by date
+    date_map = {}
+    for row in analytics_data:
+        d = row['date'].strftime('%Y-%m-%d') if row['date'] else None
+        if d:
+            date_map[d] = {
+                'date': d,
+                'visits': row['visits'],
+                'service_views': row['service_views'],
+                'service_requests': 0,
+                'job_applications': 0,
+                'contact_forms': 0
+            }
+    
+    for row in requests_data:
+        d = row['date'].strftime('%Y-%m-%d') if row['date'] else None
+        if d:
+            if d not in date_map:
+                date_map[d] = {'date': d, 'visits': 0, 'service_views': 0}
+            date_map[d]['service_requests'] = row['service_requests']
+            date_map[d]['job_applications'] = row['job_applications']
+            date_map[d]['contact_forms'] = row['contact_forms']
+    
+    # Sort by date
+    chart_data = sorted(date_map.values(), key=lambda x: x['date'])
+    
+    return jsonify({
+        'chart_data': chart_data,
+        'status_breakdown': status_breakdown,
+        'top_services': top_services,
+        'hourly_distribution': hourly_data,
+        'conversion_rate': conversion_rate,
+        'total_requests': total_requests,
+        'completed': completed,
+        'period_days': days
+    })
+
+
+@app.route('/admin/ai-settings')
+@admin_login_required
+def admin_ai_settings_page():
+    """AI Settings admin page"""
+    site_settings = fetch_site_settings()
+    return render_template('admin/ai_settings.html', site_settings=site_settings)
+
+
+@app.route('/admin/api/analytics/detailed')
+@admin_login_required
+def admin_api_analytics_detailed():
+    """Advanced analytics with revenue trends, funnel, geographic data"""
+    days = request.args.get('days', 30, type=int)
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    
+    # Revenue Trend - daily revenue from completed service_requests
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            SELECT DATE(updated_at) as date,
+                     SUM(COALESCE(total_price, 0)) as revenue,
+                     COUNT(*) as completed_count
+            FROM service_requests
+            WHERE status = 'completed'
+                AND updated_at >= NOW() - (%s * INTERVAL '1 day')
+            GROUP BY DATE(updated_at)
+            ORDER BY date ASC
+            """,
+            (days,)
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT DATE(updated_at) as date,
+                     SUM(COALESCE(total_price, 0)) as revenue,
+                     COUNT(*) as completed_count
+            FROM service_requests
+            WHERE status = 'completed'
+                AND updated_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+            GROUP BY DATE(updated_at)
+            ORDER BY date ASC
+            """,
+            (days,)
+        )
+    revenue_data = cursor.fetchall()
+    
+    # Convert to serializable format
+    revenue_trend = []
+    for row in revenue_data:
+        revenue_trend.append({
+            'date': row['date'].strftime('%Y-%m-%d') if row['date'] else None,
+            'revenue': float(row['revenue'] or 0),
+            'completed_count': row['completed_count']
+        })
+    
+    # Total Revenue Stats from service_requests
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            SELECT 
+                SUM(CASE WHEN updated_at >= NOW() - (%s * INTERVAL '1 day') AND status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as period_revenue,
+                SUM(CASE WHEN DATE(updated_at) = CURRENT_DATE AND status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as today_revenue,
+                SUM(CASE WHEN updated_at >= NOW() - (7 * INTERVAL '1 day') AND status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as week_revenue,
+                SUM(CASE WHEN date_trunc('month', updated_at) = date_trunc('month', CURRENT_DATE) AND status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as month_revenue
+            FROM service_requests
+            """,
+            (days,)
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT 
+                SUM(CASE WHEN updated_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY) AND status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as period_revenue,
+                SUM(CASE WHEN DATE(updated_at) = CURDATE() AND status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as today_revenue,
+                SUM(CASE WHEN updated_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as week_revenue,
+                SUM(CASE WHEN MONTH(updated_at) = MONTH(CURDATE()) AND YEAR(updated_at) = YEAR(CURDATE()) AND status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as month_revenue
+            FROM service_requests
+            """,
+            (days,)
+        )
+    revenue_stats = cursor.fetchone()
+    
+    # Conversion Funnel - use service_requests for service-related metrics
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            SELECT 
+                (SELECT COUNT(*) FROM analytics WHERE event_type = 'visit' AND created_at >= NOW() - (%s * INTERVAL '1 day')) as visits,
+                (SELECT COUNT(*) FROM analytics WHERE event_type = 'service_view' AND created_at >= NOW() - (%s * INTERVAL '1 day')) as service_views,
+                (SELECT COUNT(*) FROM service_requests WHERE created_at >= NOW() - (%s * INTERVAL '1 day')) as quote_requests,
+                (SELECT COUNT(*) FROM service_requests WHERE status IN ('in_progress', 'completed') AND created_at >= NOW() - (%s * INTERVAL '1 day')) as confirmed,
+                (SELECT COUNT(*) FROM service_requests WHERE status = 'completed' AND created_at >= NOW() - (%s * INTERVAL '1 day')) as completed
+            """,
+            (days, days, days, days, days)
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT 
+                (SELECT COUNT(*) FROM analytics WHERE event_type = 'visit' AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)) as visits,
+                (SELECT COUNT(*) FROM analytics WHERE event_type = 'service_view' AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)) as service_views,
+                (SELECT COUNT(*) FROM service_requests WHERE created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)) as quote_requests,
+                (SELECT COUNT(*) FROM service_requests WHERE status IN ('in_progress', 'completed') AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)) as confirmed,
+                (SELECT COUNT(*) FROM service_requests WHERE status = 'completed' AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)) as completed
+            """,
+            (days, days, days, days, days)
+        )
+    funnel_data = cursor.fetchone()
+    
+    conversion_funnel = {
+        'visits': funnel_data['visits'] or 0,
+        'service_views': funnel_data['service_views'] or 0,
+        'quote_requests': funnel_data['quote_requests'] or 0,
+        'confirmed': funnel_data['confirmed'] or 0,
+        'completed': funnel_data['completed'] or 0
+    }
+    
+    # Calculate conversion rates
+    if conversion_funnel['visits'] > 0:
+        conversion_funnel['view_rate'] = round((conversion_funnel['service_views'] / conversion_funnel['visits']) * 100, 1)
+    else:
+        conversion_funnel['view_rate'] = 0
+    
+    if conversion_funnel['service_views'] > 0:
+        conversion_funnel['request_rate'] = round((conversion_funnel['quote_requests'] / conversion_funnel['service_views']) * 100, 1)
+    else:
+        conversion_funnel['request_rate'] = 0
+    
+    if conversion_funnel['quote_requests'] > 0:
+        conversion_funnel['completion_rate'] = round((conversion_funnel['completed'] / conversion_funnel['quote_requests']) * 100, 1)
+    else:
+        conversion_funnel['completion_rate'] = 0
+    
+    # Day of Week Analysis - use service_requests for revenue, requests for general count
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            SELECT 
+                EXTRACT(ISODOW FROM created_at) as day_num,
+                TO_CHAR(created_at, 'FMDay') as day_name,
+                COUNT(*) as request_count
+            FROM requests
+            WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
+            GROUP BY EXTRACT(ISODOW FROM created_at), TO_CHAR(created_at, 'FMDay')
+            ORDER BY day_num
+            """,
+            (days,)
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT 
+                DAYOFWEEK(created_at) as day_num,
+                DAYNAME(created_at) as day_name,
+                COUNT(*) as request_count
+            FROM requests
+            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+            GROUP BY DAYOFWEEK(created_at), DAYNAME(created_at)
+            ORDER BY day_num
+            """,
+            (days,)
+        )
+    day_data = cursor.fetchall()
+    
+    # Get revenue by day from service_requests
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            SELECT 
+                EXTRACT(ISODOW FROM updated_at) as day_num,
+                SUM(CASE WHEN status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as revenue
+            FROM service_requests
+            WHERE updated_at >= NOW() - (%s * INTERVAL '1 day')
+            GROUP BY EXTRACT(ISODOW FROM updated_at)
+            """,
+            (days,)
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT 
+                DAYOFWEEK(updated_at) as day_num,
+                SUM(CASE WHEN status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as revenue
+            FROM service_requests
+            WHERE updated_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+            GROUP BY DAYOFWEEK(updated_at)
+            """,
+            (days,)
+        )
+    day_revenue = {row['day_num']: float(row['revenue'] or 0) for row in cursor.fetchall()}
+    
+    day_of_week = []
+    for row in day_data:
+        day_of_week.append({
+            'day': row['day_name'],
+            'requests': row['request_count'],
+            'revenue': day_revenue.get(row['day_num'], 0)
+        })
+    
+    # Service Performance - join service_requests with service_request_items and services
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            SELECT 
+                s.name as service_name,
+                COUNT(DISTINCT sr.id) as total_requests,
+                COUNT(DISTINCT CASE WHEN sr.status = 'completed' THEN sr.id END) as completed,
+                SUM(CASE WHEN sr.status = 'completed' THEN COALESCE(sri.price, 0) ELSE 0 END) as revenue,
+                AVG(CASE WHEN sr.status = 'completed' THEN COALESCE(sri.price, 0) ELSE NULL END) as avg_value
+            FROM service_requests sr
+            JOIN service_request_items sri ON sr.id = sri.service_request_id
+            JOIN services s ON sri.service_id = s.id
+            WHERE sr.created_at >= NOW() - (%s * INTERVAL '1 day')
+            GROUP BY s.id, s.name
+            ORDER BY revenue DESC
+            LIMIT 10
+            """,
+            (days,)
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT 
+                s.name as service_name,
+                COUNT(DISTINCT sr.id) as total_requests,
+                COUNT(DISTINCT CASE WHEN sr.status = 'completed' THEN sr.id END) as completed,
+                SUM(CASE WHEN sr.status = 'completed' THEN COALESCE(sri.price, 0) ELSE 0 END) as revenue,
+                AVG(CASE WHEN sr.status = 'completed' THEN COALESCE(sri.price, 0) ELSE NULL END) as avg_value
+            FROM service_requests sr
+            JOIN service_request_items sri ON sr.id = sri.service_request_id
+            JOIN services s ON sri.service_id = s.id
+            WHERE sr.created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+            GROUP BY s.id, s.name
+            ORDER BY revenue DESC
+            LIMIT 10
+            """,
+            (days,)
+        )
+    service_perf = cursor.fetchall()
+    
+    service_performance = []
+    for row in service_perf:
+        service_performance.append({
+            'name': row['service_name'],
+            'requests': row['total_requests'],
+            'completed': row['completed'],
+            'revenue': float(row['revenue'] or 0),
+            'avg_value': float(row['avg_value'] or 0)
+        })
+    
+    # Geographic Distribution - from service_requests which has address
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            WITH _sr AS (
+                SELECT
+                    address,
+                    status,
+                    total_price,
+                    string_to_array(address, ',') AS parts
+                FROM service_requests
+                WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
+                  AND address IS NOT NULL AND address != ''
+            )
+            SELECT
+                COALESCE(
+                    NULLIF(
+                        btrim(array_to_string(
+                            parts[GREATEST(array_upper(parts, 1) - 1, 1):array_upper(parts, 1)],
+                            ','
+                        )),
+                        ''
+                    ),
+                    'Unknown'
+                ) AS area,
+                COUNT(*) as request_count,
+                SUM(CASE WHEN status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as revenue
+            FROM _sr
+            GROUP BY area
+            ORDER BY request_count DESC
+            LIMIT 10
+            """,
+            (days,)
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT 
+                COALESCE(SUBSTRING_INDEX(address, ',', -2), 'Unknown') as area,
+                COUNT(*) as request_count,
+                SUM(CASE WHEN status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as revenue
+            FROM service_requests
+            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+              AND address IS NOT NULL AND address != ''
+            GROUP BY area
+            ORDER BY request_count DESC
+            LIMIT 10
+            """,
+            (days,)
+        )
+    geo_data = cursor.fetchall()
+    
+    geographic = []
+    for row in geo_data:
+        geographic.append({
+            'area': row['area'].strip() if row['area'] else 'Unknown',
+            'requests': row['request_count'],
+            'revenue': float(row['revenue'] or 0)
+        })
+    
+    cursor.close()
+    conn.close()
+    
+    return jsonify({
+        'revenue_trend': revenue_trend,
+        'revenue_stats': {
+            'period': float(revenue_stats['period_revenue'] or 0),
+            'today': float(revenue_stats['today_revenue'] or 0),
+            'week': float(revenue_stats['week_revenue'] or 0),
+            'month': float(revenue_stats['month_revenue'] or 0)
+        },
+        'conversion_funnel': conversion_funnel,
+        'day_of_week': day_of_week,
+        'service_performance': service_performance,
+        'geographic': geographic,
+        'period_days': days
+    })
+
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)

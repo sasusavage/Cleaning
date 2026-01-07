@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Clean Co.' %}
+    <title>Footer Settings | {{ company_name }} Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f3f4f6;
+            --surface: #ffffff;
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --border: #e5e7eb;
+            --text: #1f2937;
+            --muted: #6b7280;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg);
+            display: flex;
+            min-height: 100vh;
+            color: var(--text);
+        }
+
+        .sidebar {
+            width: 240px;
+            background: #111827;
+            color: #f9fafb;
+            padding: 2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            align-self: flex-start;
+            z-index: 120;
+        }
+
+        .sidebar__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .sidebar__toggle {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0.45rem 0.7rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+            color: #f9fafb;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .sidebar__toggle:hover {
+            background: rgba(255, 255, 255, 0.14);
+        }
+
+        .sidebar .logo {
+            font-weight: 600;
+            font-size: 1.25rem;
+        }
+
+        .sidebar__nav {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .sidebar--menu-open .sidebar__nav {
+            display: flex;
+        }
+
+        .sidebar__logout-form {
+            margin-top: 0.75rem;
+        }
+
+        .sidebar__logout-button {
+            width: 100%;
+            display: block;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(248, 113, 113, 0.25);
+            background: rgba(248, 113, 113, 0.12);
+            color: #fca5a5;
+            font-weight: 600;
+            font-size: 0.95rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .sidebar__logout-button:hover,
+        .sidebar__logout-button:focus {
+            background: rgba(248, 113, 113, 0.2);
+            color: #fee2e2;
+            outline: none;
+        }
+
+        .sidebar .nav-link {
+            color: #d1d5db;
+            text-decoration: none;
+            padding: 0.65rem 0.75rem;
+            border-radius: 0.5rem;
+            transition: background 0.2s ease;
+            display: block;
+        }
+
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            background: rgba(37, 99, 235, 0.2);
+            color: #fff;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 2.5rem 3rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .page-header h1 {
+            margin: 0;
+            font-size: 1.75rem;
+        }
+
+        .card {
+            background: var(--surface);
+            border-radius: 1rem;
+            border: 1px solid var(--border);
+            padding: 1.75rem;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        .grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .grid--two {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        input[type="text"],
+        input[type="url"],
+        textarea {
+            font: inherit;
+            padding: 0.65rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            background: #fff;
+            transition: border-color 0.2s ease;
+        }
+
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        input:focus,
+        textarea:focus {
+            outline: 2px solid rgba(37, 99, 235, 0.2);
+            border-color: var(--primary);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.65rem 1.1rem;
+            font-weight: 600;
+            border-radius: 0.55rem;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-outline {
+            border-color: var(--border);
+            color: var(--text);
+            background: #fff;
+        }
+
+        .section-title {
+            margin: 0 0 1.25rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .text-muted {
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .alert {
+            padding: 0.85rem 1rem;
+            border-radius: 0.65rem;
+            font-size: 0.95rem;
+        }
+
+        .alert--error {
+            background: rgba(239, 68, 68, 0.15);
+            color: #991b1b;
+        }
+
+        .alert--success {
+            background: rgba(16, 185, 129, 0.15);
+            color: #047857;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+        }
+
+        @media (max-width: 1024px) {
+            body {
+                flex-direction: column;
+                min-height: 100vh;
+            }
+
+            .sidebar {
+                width: 100%;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.75rem;
+                padding: 1.15rem 1.5rem;
+                height: auto;
+                overflow: visible;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            }
+
+            .sidebar__header {
+                margin-bottom: 0;
+            }
+
+            .sidebar__toggle {
+                display: inline-flex;
+            }
+
+            .sidebar__nav {
+                display: none;
+                padding-top: 0.75rem;
+                border-top: 1px solid rgba(255, 255, 255, 0.15);
+            }
+
+            .main-content {
+                padding: 1.75rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 1.5rem;
+            }
+
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.75rem;
+            }
+
+            .form-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .form-actions .btn {
+                width: 100%;
+            }
+
+            .grid--two {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .sidebar {
+                padding: 1rem 1.25rem;
+            }
+
+            .main-content {
+                padding: 1.25rem;
+            }
+
+            .card {
+                padding: 1.5rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .sidebar {
+                padding: 0.9rem 1rem;
+            }
+
+            .page-header h1 {
+                font-size: 1.5rem;
+            }
+
+            .card {
+                padding: 1.25rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar__header">
+            <div class="logo">{{ company_name }} Admin</div>
+            <button type="button" class="sidebar__toggle" aria-expanded="false" aria-controls="sidebar-nav">Menu</button>
+        </div>
+        <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">Hero Content</a>
+            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
+            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">Quote &amp; Contact</a>
+            <a class="nav-link active" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
+            <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
+                <button type="submit" class="sidebar__logout-button">Log Out</button>
+            </form>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <div class="page-header">
+            <h1>Footer Settings</h1>
+            <a class="btn btn-outline" href="{{ url_for('admin_dashboard') }}">← Back to Dashboard</a>
+        </div>
+
+        {% if error %}
+        <div class="alert alert--error">{{ error }}</div>
+        {% endif %}
+        {% if message %}
+        <div class="alert alert--success">{{ message }}</div>
+        {% endif %}
+
+        <form method="post" class="card grid" style="gap: 2rem;">
+            <section>
+                <h2 class="section-title">Contact Details</h2>
+                <div class="grid grid--two">
+                    <div class="form-group">
+                        <label for="footer_phone">Support Phone</label>
+                        <input id="footer_phone" type="text" name="footer_phone" value="{{ footer.phone or '' }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="footer_email">Support Email</label>
+                        <input id="footer_email" type="text" name="footer_email" value="{{ footer.email or '' }}" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="footer_location">Location</label>
+                    <textarea id="footer_location" name="footer_location" rows="3" required>{{ footer.location or '' }}</textarea>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="section-title">Social Links</h2>
+                <div class="grid grid--two">
+                    <div class="form-group">
+                        <label for="social_facebook">Facebook URL</label>
+                        <input id="social_facebook" type="url" name="social_facebook" value="{{ footer.facebook or '' }}" placeholder="https://facebook.com/your-page">
+                    </div>
+                    <div class="form-group">
+                        <label for="social_instagram">Instagram URL</label>
+                        <input id="social_instagram" type="url" name="social_instagram" value="{{ footer.instagram or '' }}" placeholder="https://instagram.com/your-handle">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="social_twitter">Twitter URL</label>
+                    <input id="social_twitter" type="url" name="social_twitter" value="{{ footer.twitter or '' }}" placeholder="https://twitter.com/your-handle">
+                </div>
+            </section>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save Footer Settings</button>
+            </div>
+        </form>
+    </div>
+    <script>
+        const sidebar = document.querySelector('.sidebar');
+        const sidebarToggle = document.querySelector('.sidebar__toggle');
+        const sidebarLinks = document.querySelectorAll('.sidebar__nav .nav-link');
+
+        if (sidebar && sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                const isOpen = sidebar.classList.toggle('sidebar--menu-open');
+                sidebarToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            });
+
+            sidebarLinks.forEach((link) => {
+                link.addEventListener('click', () => {
+                    if (window.innerWidth <= 1024 && sidebar.classList.contains('sidebar--menu-open')) {
+                        sidebar.classList.remove('sidebar--menu-open');
+                        sidebarToggle.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            });
+
+            window.addEventListener('resize', () => {
+                if (window.innerWidth > 1024 && sidebar.classList.contains('sidebar--menu-open')) {
+                    sidebar.classList.remove('sidebar--menu-open');
+                    sidebarToggle.setAttribute('aria-expanded', 'false');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

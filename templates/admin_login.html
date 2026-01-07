@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Clean Co.' %}
+    <title>Admin Login | {{ company_name }}</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --surface: #ffffff;
+            --bg: #f3f4f6;
+            --border: #e5e7eb;
+            --text: #1f2937;
+            --muted: #6b7280;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg);
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: var(--text);
+        }
+
+        .login-card {
+            width: min(420px, 92vw);
+            background: var(--surface);
+            border-radius: 1.1rem;
+            border: 1px solid var(--border);
+            padding: 2.25rem;
+            box-shadow: 0 24px 40px rgba(15, 23, 42, 0.12);
+            display: flex;
+            flex-direction: column;
+            gap: 1.75rem;
+        }
+
+        .login-card__header {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .login-card__title {
+            margin: 0;
+            font-size: 1.65rem;
+            font-weight: 700;
+        }
+
+        .login-card__subtitle {
+            margin: 0;
+            font-size: 0.95rem;
+            color: var(--muted);
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+        }
+
+        label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: rgba(17, 24, 39, 0.85);
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            font: inherit;
+            padding: 0.7rem 0.85rem;
+            border-radius: 0.6rem;
+            border: 1px solid var(--border);
+            background: #fff;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+            outline: none;
+        }
+
+        .alert {
+            padding: 0.85rem 1rem;
+            border-radius: 0.75rem;
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            background: rgba(239, 68, 68, 0.12);
+            color: #991b1b;
+            font-size: 0.92rem;
+        }
+
+        button {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: none;
+            border-radius: 0.65rem;
+            background: var(--primary);
+            color: #fff;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        button:hover,
+        button:focus {
+            background: var(--primary-dark);
+        }
+
+        @media (max-width: 480px) {
+            .login-card {
+                padding: 1.75rem;
+                gap: 1.5rem;
+            }
+
+            .login-card__title {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="login-card" aria-labelledby="admin-login-heading">
+        <header class="login-card__header">
+            <h1 id="admin-login-heading" class="login-card__title">Admin Access</h1>
+            <p class="login-card__subtitle">Sign in to manage {{ company_name }} content.</p>
+        </header>
+        {% if error %}
+        <div class="alert" role="alert">{{ error }}</div>
+        {% endif %}
+        <form method="post" novalidate>
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input id="username" name="username" type="text" autocomplete="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input id="password" name="password" type="password" autocomplete="current-password" required>
+            </div>
+            <button type="submit">Sign In</button>
+        </form>
+    </main>
+</body>
+</html>

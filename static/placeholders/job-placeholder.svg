@@ -1,0 +1,10 @@
+<svg width="400" height="320" viewBox="0 0 400 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Job placeholder">
+  <rect width="400" height="320" rx="28" ry="28" fill="#f8fbff" />
+  <rect x="50" y="64" width="148" height="32" rx="14" fill="#e3eaff" />
+  <rect x="50" y="112" width="300" height="18" rx="9" fill="#e3eaff" />
+  <rect x="50" y="140" width="260" height="18" rx="9" fill="#dfe7ff" />
+  <rect x="50" y="168" width="180" height="18" rx="9" fill="#dfe7ff" />
+  <rect x="50" y="218" width="120" height="24" rx="12" fill="#7c82ff" />
+  <rect x="198" y="210" width="120" height="28" rx="14" fill="#eff2ff" stroke="#7c82ff" stroke-width="2" />
+  <circle cx="320" cy="220" r="38" fill="#7c82ff" opacity="0.12" />
+</svg>

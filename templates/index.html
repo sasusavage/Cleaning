@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Clean Co.' %}
+    {% set company_logo = site_settings.logo_path if site_settings and site_settings.logo_path else '' %}
+    {% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
+    <title>{{ hero.title or 'Professional Cleaning Services' }} | {{ company_name }}</title>
+    <meta name="description" content="Reliable, affordable residential and commercial cleaning services. {{ company_name }} delivers spotless spaces with flexible scheduling and tailored packages.">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('favicon_asset', filename='apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('favicon_asset', filename='favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('favicon_asset', filename='favicon-16x16.png') }}">
+    <link rel="manifest" href="{{ url_for('favicon_asset', filename='site.webmanifest') }}">
+    <link rel="shortcut icon" href="{{ url_for('favicon') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="preloader" id="preloader" aria-live="polite" role="status">
+        <div class="preloader__inner">
+            <span class="preloader__logo">{{ company_name | upper }}</span>
+            <span class="preloader__pulse" aria-hidden="true"></span>
+            <span class="preloader__label">Preparing sparkle</span>
+        </div>
+    </div>
+
+    <div class="glow glow--top" aria-hidden="true"></div>
+    <div class="glow glow--bottom" aria-hidden="true"></div>
+
+    <nav class="nav" data-animate="fade-in">
+        <div class="nav__rail">
+            <a class="nav__item nav__item--brand" href="#top" title="{{ company_name }}">
+                {% if company_logo_url %}
+                <img class="nav__brand-logo" src="{{ company_logo_url }}" alt="{{ company_name }} logo">
+                {% endif %}
+                <span class="nav__brand-text">{{ company_name }}</span>
+            </a>
+
+            <div class="nav__items" id="primary-nav" role="navigation" aria-label="Primary">
+                <a class="nav__item" href="#services" title="Services" data-section="services">
+                    <span class="nav__label">Services</span>
+                </a>
+
+                <a class="nav__item" href="#who-we-are" title="About Done-Well" data-section="who-we-are">
+                    <span class="nav__label">About</span>
+                </a>
+
+                <a class="nav__item" href="#testimonials" title="Testimonials" data-section="testimonials">
+                    <span class="nav__label">Testimonials</span>
+                </a>
+
+                <a class="nav__item" href="#careers" title="Careers" data-section="careers">
+                    <span class="nav__label">Careers</span>
+                </a>
+
+                <a class="nav__item" href="#reviews" title="Leave a Review" data-section="reviews">
+                    <span class="nav__label">Reviews</span>
+                </a>
+            </div>
+
+            <a class="nav__item nav__item--cta button button--primary" href="#services" title="Book a Service">
+                Book a Service
+            </a>
+
+            <button class="nav__toggle" aria-label="Toggle navigation" aria-controls="primary-nav" aria-expanded="false">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M3 6h18M3 12h18M3 18h18"/>
+                </svg>
+            </button>
+        </div>
+    </nav>
+
+    <main>
+        {% set hero_background_url = hero.hero_background_image | media_url if hero and hero.hero_background_image else '' %}
+        {% set quote_background_url = contact_info.quote_background | media_url if contact_info and contact_info.quote_background else '' %}
+        {% set contact_headline = contact_info.headline if contact_info and contact_info.headline else 'Talk to Us' %}
+        {% set contact_phone = contact_info.phone if contact_info and contact_info.phone else '+233 24 000 0000' %}
+        {% set contact_email = contact_info.email if contact_info and contact_info.email else 'hello@cleanco.com' %}
+        {% set contact_hours = contact_info.operating_hours if contact_info and contact_info.operating_hours else 'Monday – Saturday, 7:00am to 7:00pm. Emergency cleanups available on request.' %}
+        {% set contact_service_areas = contact_info.service_areas if contact_info and contact_info.service_areas else 'We serve nationwide across major cities and suburbs.' %}
+        {% set contact_phone_href = contact_phone | replace(' ', '') | replace('-', '') | replace('(', '') | replace(')', '') %}
+        {% set contact_email_href = contact_email %}
+        {% set footer_phone = footer_info.phone if footer_info and footer_info.phone else '+233 24 000 0000' %}
+        {% set footer_email = footer_info.email if footer_info and footer_info.email else 'hello@cleanco.com' %}
+        {% set footer_location = footer_info.location if footer_info and footer_info.location else 'Accra, Ghana' %}
+        {% set footer_facebook = footer_info.facebook if footer_info and footer_info.facebook else '' %}
+        {% set footer_instagram = footer_info.instagram if footer_info and footer_info.instagram else '' %}
+        {% set footer_twitter = footer_info.twitter if footer_info and footer_info.twitter else '' %}
+        {% set footer_phone_href = footer_phone | replace(' ', '') | replace('-', '') | replace('(', '') | replace(')', '') %}
+        <header class="panel hero{% if hero_background_url %} hero--has-background{% endif %}" id="top" {% if hero_background_url %}style="--hero-background:url('{{ hero_background_url }}');"{% endif %}>
+            {% if hero_badges %}
+            <div class="badge-marquee" aria-label="Certifications and partners">
+                <div class="badge-marquee__track">
+                    {% for badge in hero_badges %}
+                    <div class="badge-marquee__item">
+                        <img src="{{ badge.image_path | media_url }}" alt="Certification badge {{ loop.index }}" loading="lazy">
+                    </div>
+                    {% endfor %}
+                    {% for badge in hero_badges %}
+                    <div class="badge-marquee__item">
+                        <img src="{{ badge.image_path | media_url }}" alt="Certification badge duplicate {{ loop.index }}" loading="lazy" aria-hidden="true">
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            <div class="hero__content" data-animate="grow">
+                <p class="hero__eyebrow">{{ hero.tagline or 'Trusted Cleaning Experts' }}</p>
+                <h1 class="hero__title">{{ hero.title or 'Professional Cleaning Services' }}</h1>
+                <p class="hero__subtitle">{{ hero.subtitle or 'Reliable, affordable cleaning for your home or office. Get your free, no-obligation quote today!' }}</p>
+                <div class="hero__cta button-group">
+                    <a class="button button--primary" href="{{ hero.button_link or '#services' }}">{{ hero.button_text or 'Book a Service' }}</a>
+                    <a class="button button--ghost" href="#testimonials">See Reviews</a>
+                </div>
+                {% if hero_small_texts %}
+                <div class="hero__meta" data-animate="fade-in">
+                    {% for detail in hero_small_texts %}
+                    <div class="hero__meta-item">{{ detail }}</div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="hero__meta" data-animate="fade-in">
+                    <div class="hero__meta-item">Over 150 satisfied clients nationwide</div>
+                    <div class="hero__meta-item">Eco-friendly products and flexible scheduling</div>
+                    <div class="hero__meta-item">Fully vetted, professional cleaning teams</div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="hero__visual grow-on-load" aria-hidden="true">
+                <div class="hero__orb" data-depth="0.3"></div>
+                {% if hero_stat_cards %}
+                    {% set variants = ['primary', 'secondary', 'tertiary'] %}
+                    {% set depth_values = ['0.18', '0.12', '0.2'] %}
+                    {% for stat in hero_stat_cards %}
+                    {% set variant = variants[loop.index0] if loop.index0 < variants|length else 'secondary' %}
+                    {% set depth = depth_values[loop.index0] if loop.index0 < depth_values|length else '0.12' %}
+                    <div class="hero__card hero__card--{{ variant }}" data-depth="{{ depth }}">
+                        {% if stat.primary %}<strong>{{ stat.primary }}</strong>{% endif %}
+                        {% if stat.secondary %}{{ stat.secondary }}{% else %}{{ stat.raw }}{% endif %}
+                        <span class="hero__card-line"></span>
+                        {% if stat.tertiary %}{{ stat.tertiary }}{% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="hero__card hero__card--primary" data-depth="0.18">
+                        <strong>98%</strong>
+                        Client satisfaction score
+                        <span class="hero__card-line"></span>
+                        Weekly quality checks
+                    </div>
+                    <div class="hero__card hero__card--secondary" data-depth="0.12">
+                        <strong>24h</strong>
+                        Response time for every request
+                        <span class="hero__card-line"></span>
+                        Emergency cleanups available
+                    </div>
+                {% endif %}
+            </div>
+        </header>
+
+        <section class="panel services" id="services">
+            <div class="section__header" data-animate="fade-in">
+                <p class="section__eyebrow">Our Services</p>
+                <h2 class="section__title">Tailored cleaning solutions that keep your spaces spotless without disrupting your day.</h2>
+            </div>
+            {% set primary_services = services[:3] if services else [] %}
+            {% set drawer_services = services[3:] if services and services|length > 3 else [] %}
+            <div class="services__grid" id="services-grid" data-services-grid>
+                {% for service in primary_services %}
+                {% set image_url = service.image_path | media_url if service.image_path else '' %}
+                {% set price_state = namespace(min_price=None) %}
+                {% for option in service.options or [] %}
+                    {% if option.price is not none %}
+                        {% if price_state.min_price is none or option.price < price_state.min_price %}
+                            {% set price_state.min_price = option.price %}
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+                {% if price_state.min_price is none and service.price is not none %}
+                    {% set price_state.min_price = service.price %}
+                {% endif %}
+                {% set price_label = 'Custom pricing' if price_state.min_price is none else 'from £%.2f' % price_state.min_price %}
+                <article class="service-card" data-animate="reveal">
+                    {% if image_url %}
+                    <div class="card-image-container">
+                        <img src="{{ image_url }}" class="card-image" alt="{{ service.name }} image" loading="lazy">
+                    </div>
+                    {% endif %}
+                    <div class="service-card__body">
+                        <h3>{{ service.name }}</h3>
+                        {% set card_summary = service.short_description or service.description %}
+                        <p class="service-card__description">{{ card_summary }}</p>
+                        <button class="link-button service-read-more" type="button" data-service-id="{{ service.id }}" data-auto-expand="true" style="justify-content:flex-start; padding:0;">Read More...</button>
+                        <p class="service-card__price">{{ price_label }}</p>
+                        <button class="button button--ghost service-request-trigger" type="button" data-service-id="{{ service.id }}" style="margin-top: 1.25rem; width: 100%; justify-content: center;">Request This Service</button>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% if drawer_services %}
+            <div class="drawer" id="services-drawer" data-drawer aria-hidden="true">
+                <div class="services__grid services__grid--drawer" id="services-drawer-grid">
+                    {% for service in drawer_services %}
+                    {% set image_url = service.image_path | media_url if service.image_path else '' %}
+                    {% set price_state = namespace(min_price=None) %}
+                    {% for option in service.options or [] %}
+                        {% if option.price is not none %}
+                            {% if price_state.min_price is none or option.price < price_state.min_price %}
+                                {% set price_state.min_price = option.price %}
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if price_state.min_price is none and service.price is not none %}
+                        {% set price_state.min_price = service.price %}
+                    {% endif %}
+                    {% set price_label = 'Custom pricing' if price_state.min_price is none else 'from £%.2f' % price_state.min_price %}
+                    <article class="service-card" data-animate="reveal">
+                        {% if image_url %}
+                        <div class="card-image-container">
+                            <img src="{{ image_url }}" class="card-image" alt="{{ service.name }} image" loading="lazy">
+                        </div>
+                        {% endif %}
+                        <div class="service-card__body">
+                            <h3>{{ service.name }}</h3>
+                            {% set card_summary = service.short_description or service.description %}
+                            <p class="service-card__description">{{ card_summary }}</p>
+                            <button class="link-button service-read-more" type="button" data-service-id="{{ service.id }}" data-auto-expand="true" style="justify-content:flex-start; padding:0;">Read More...</button>
+                            <p class="service-card__price">{{ price_label }}</p>
+                            <button class="button button--ghost service-request-trigger" type="button" data-service-id="{{ service.id }}" style="margin-top: 1.25rem; width: 100%; justify-content: center;">Request This Service</button>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="drawer-toggle">
+                {% set drawer_count = drawer_services|length %}
+                <button class="button button--ghost drawer-toggle__button" type="button" data-drawer-toggle="services-drawer" data-drawer-expand-label="View {{ drawer_count }} more service{{ 's' if drawer_count != 1 else '' }}" data-drawer-collapse-label="Show fewer services" aria-controls="services-drawer" aria-expanded="false">
+                    View {{ drawer_count }} more service{{ 's' if drawer_count != 1 else '' }}
+                </button>
+            </div>
+            {% endif %}
+            <p class="text-muted services__empty" id="services-empty" {% if services %}hidden{% endif %}>Services are being configured. Check back soon.</p>
+        </section>
+
+        <!-- Why Choose Us Section -->
+        {% set why_choose_data = site_content.why_choose_us if site_content and site_content.why_choose_us else {} %}
+        {% set why_items = why_choose_data.get('items', []) if why_choose_data else [] %}
+        <section class="panel why-choose" id="why-choose">
+            <div class="section__header" data-animate="fade-in">
+                <p class="section__eyebrow">Why Us</p>
+                <h2 class="section__title">Why Choose Done-Well?</h2>
+            </div>
+            <div class="why-choose__grid" data-animate="reveal">
+                {% if why_items %}
+                    {% for item in why_items %}
+                    <div class="why-card">
+                        <div class="why-card__icon">
+                            {% if item.icon == 'shield-check' %}
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+                            {% elif item.icon == 'leaf' %}
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
+                            {% elif item.icon == 'badge-check' %}
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>
+                            {% elif item.icon == 'calendar-x' %}
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="10" y1="14" x2="14" y2="18"/><line x1="14" y1="14" x2="10" y2="18"/></svg>
+                            {% else %}
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            {% endif %}
+                        </div>
+                        <h3 class="why-card__title">{{ item.title }}</h3>
+                        <p class="why-card__desc">{{ item.description }}</p>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="why-card">
+                        <div class="why-card__icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+                        </div>
+                        <h3 class="why-card__title">Vetted & Insured</h3>
+                        <p class="why-card__desc">All cleaners are DBS checked, fully insured and professionally trained.</p>
+                    </div>
+                    <div class="why-card">
+                        <div class="why-card__icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
+                        </div>
+                        <h3 class="why-card__title">Eco-Friendly Products</h3>
+                        <p class="why-card__desc">We use green cleaning products to reduce your carbon footprint.</p>
+                    </div>
+                    <div class="why-card">
+                        <div class="why-card__icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>
+                        </div>
+                        <h3 class="why-card__title">Satisfaction Guarantee</h3>
+                        <p class="why-card__desc">Not happy? Tell us within 24 hours and we will redo it free.</p>
+                    </div>
+                    <div class="why-card">
+                        <div class="why-card__icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="10" y1="14" x2="14" y2="18"/><line x1="14" y1="14" x2="10" y2="18"/></svg>
+                        </div>
+                        <h3 class="why-card__title">No Contracts</h3>
+                        <p class="why-card__desc">Book only when you need us. No annual sign-ups required.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- Who We Are Section -->
+        {% set about_summary = site_content.about_summary if site_content and site_content.about_summary else 'We provide high-quality cleaning service by hiring vetted and screened experienced cleaners. We are punctual and always come equipped and ready to do the job as agreed.' %}
+        {% set team_photo = site_content.team_photo if site_content and site_content.team_photo else '' %}
+        <section class="panel who-we-are" id="who-we-are">
+            <div class="who-we-are__grid" data-animate="grow">
+                <div class="who-we-are__text">
+                    <p class="section__eyebrow">About Us</p>
+                    <h2 class="section__title">Who We Are</h2>
+                    <p class="who-we-are__summary">{{ about_summary[:350] }}{% if about_summary|length > 350 %}...{% endif %}</p>
+                    <button class="button button--primary" type="button" data-open-company-profile="profile-story">Read Our Full Story</button>
+                </div>
+                <div class="who-we-are__image">
+                    {% if team_photo %}
+                    <img src="{{ team_photo | media_url }}" alt="Our Professional Team" class="who-we-are__photo" loading="lazy">
+                    {% else %}
+                    <div class="who-we-are__placeholder">
+                        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        <span>Our Professional Team</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+
+        <!-- Areas We Cover Section -->
+        {% set areas_text = site_content.areas_covered if site_content and site_content.areas_covered else 'Enfield, Stevenage, Barnet, St. Albans, and surrounding areas.' %}
+        <section class="areas-covered" id="areas-covered">
+            <div class="areas-covered__inner" data-animate="fade-in">
+                <div class="areas-covered__icon">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                </div>
+                <div class="areas-covered__content">
+                    <h2 class="areas-covered__title">Areas We Cover</h2>
+                    <p class="areas-covered__text">Proudly serving <strong>{{ areas_text }}</strong></p>
+                </div>
+            </div>
+        </section>
+
+        <section class="testimonials" id="testimonials">
+            <div class="panel">
+                <div class="section__header" data-animate="fade-in">
+                    <p class="section__eyebrow">What Our Clients Say</p>
+                    <h2 class="section__title">A trusted name for homes, offices, and everything in between.</h2>
+                </div>
+                {% set testimonial_count = testimonials | length %}
+                {% if testimonial_count > 0 %}
+                    {% if testimonial_count > 3 %}
+                    <div class="testimonial-slider-container">
+                        <button type="button" class="slider-nav slider-nav--prev" aria-label="Previous testimonials" title="Previous">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                        </button>
+                        <div id="testimonial-slider" class="testimonial-slider" role="region" aria-live="polite" aria-label="Client testimonials">
+                            {% for t in testimonials %}
+                            <article class="testimonial-card">
+                                <div class="testimonial-rating">{% for i in range(t.rating|default(5)) %}★{% endfor %}{% for i in range(5 - t.rating|default(5)) %}☆{% endfor %}</div>
+                                <p class="testimonial-message" data-full-text="{{ t.message }}">"{{ t.message }}"</p>
+                                <button type="button" class="testimonial-read-more" style="display: none;" aria-expanded="false">
+                                    Read more <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </button>
+                                <cite>{{ t.name }}{% if t.is_verified_customer %} <span class="verified-badge" title="Verified Customer">✓</span>{% endif %}</cite>
+                            </article>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="slider-nav slider-nav--next" aria-label="Next testimonials" title="Next">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </button>
+                        <div class="slider-dots" role="tablist" aria-label="Testimonial slides"></div>
+                    </div>
+                    {% else %}
+                    <div class="testimonials__grid static-testimonials" aria-live="polite">
+                        {% for t in testimonials %}
+                        <article class="testimonial-card" data-animate="reveal">
+                            <div class="testimonial-rating">{% for i in range(t.rating|default(5)) %}★{% endfor %}{% for i in range(5 - t.rating|default(5)) %}☆{% endfor %}</div>
+                            <p class="testimonial-message" data-full-text="{{ t.message }}">"{{ t.message }}"</p>
+                            <button type="button" class="testimonial-read-more" style="display: none;" aria-expanded="false">
+                                Read more <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </button>
+                            <cite>{{ t.name }}{% if t.is_verified_customer %} <span class="verified-badge" title="Verified Customer">✓</span>{% endif %}</cite>
+                        </article>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                {% else %}
+                    <p class="text-muted">Testimonials are being gathered. Check back soon.</p>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="panel careers" id="careers">
+            <div class="section__header" data-animate="fade-in">
+                <p class="section__eyebrow">Join Our Team</p>
+                <h2 class="section__title">Build a career with {{ company_name }}. We are always looking for dedicated professionals.</h2>
+            </div>
+            {% if job_positions %}
+            {% set job_count = job_positions | length %}
+            {% set primary_jobs = job_positions[:3] %}
+            {% set drawer_jobs = job_positions[3:] %}
+            {% set drawer_job_count = drawer_jobs | length %}
+            <div class="services__grid">
+                {% for job in primary_jobs %}
+                <article class="service-card" data-animate="reveal">
+                    {% set job_image_url = job.image_path | media_url if job.image_path else '' %}
+                    {% if job_image_url %}
+                    <div class="card-image-container">
+                        <img src="{{ job_image_url }}" class="card-image" alt="{{ job.title }} image" loading="lazy">
+                    </div>
+                    {% endif %}
+                    <div class="service-card__body">
+                        <h3>{{ job.title }}</h3>
+                        <p>{{ job.description }}</p>
+                        <button class="button button--ghost" data-job="{{ job.title }}" style="margin-top: 1.5rem; width: 100%; justify-content: center;">Apply Now</button>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% if drawer_jobs %}
+            <div class="drawer" id="careers-drawer" data-drawer aria-hidden="true">
+                <div class="services__grid services__grid--drawer">
+                    {% for job in drawer_jobs %}
+                    <article class="service-card" data-animate="reveal">
+                        {% set job_image_url = job.image_path | media_url if job.image_path else '' %}
+                        {% if job_image_url %}
+                        <div class="card-image-container">
+                            <img src="{{ job_image_url }}" class="card-image" alt="{{ job.title }} image" loading="lazy">
+                        </div>
+                        {% endif %}
+                        <div class="service-card__body">
+                            <h3>{{ job.title }}</h3>
+                            <p>{{ job.description }}</p>
+                            <button class="button button--ghost" data-job="{{ job.title }}" style="margin-top: 1.5rem; width: 100%; justify-content: center;">Apply Now</button>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="drawer-toggle">
+                <button class="button button--ghost drawer-toggle__button" type="button" data-drawer-toggle="careers-drawer" data-drawer-expand-label="View {{ drawer_job_count }} more role{{ 's' if drawer_job_count != 1 else '' }}" data-drawer-collapse-label="Show fewer roles" aria-controls="careers-drawer" aria-expanded="false">
+                    View {{ drawer_job_count }} more role{{ 's' if drawer_job_count != 1 else '' }}
+                </button>
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="services__grid">
+                <p class="text-muted">We are updating the team page. Check back soon.</p>
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="panel contact" id="reviews" {% if quote_background_url %}style="--quote-image:url('{{ quote_background_url }}');"{% endif %}>
+            <div class="section__header" data-animate="fade-in">
+                <p class="section__eyebrow">Share Your Experience</p>
+                <h2 class="section__title">We'd love to hear from you! Leave a review about your cleaning experience.</h2>
+            </div>
+            <div class="contact__grid">
+                <div class="contact__info" data-animate="grow">
+                    <div class="contact__card" data-animate="reveal">
+                        <h3>{{ contact_headline }}</h3>
+                        <p>Call or WhatsApp our client care team to plan your ideal cleaning schedule.</p>
+                        <p><a href="tel:{{ contact_phone_href }}">{{ contact_phone }}</a></p>
+                        <p><a href="mailto:{{ contact_email_href }}">{{ contact_email }}</a></p>
+                    </div>
+                    <div class="contact__card" data-animate="reveal">
+                        <h3>Operating Hours</h3>
+                        <p>{{ contact_hours }}</p>
+                    </div>
+                    <div class="contact__card" data-animate="reveal">
+                        <h3>Your Review Matters</h3>
+                        <p>If you're an existing customer, your review will be published immediately. New reviewers will be verified by our team.</p>
+                    </div>
+                </div>
+                <div class="quote" data-animate="grow">
+                    <form id="testimonial-form" novalidate>
+                        <div class="form-row">
+                            <label for="testimonial-name">Your Name <span style="color:#dc2626;">*</span></label>
+                            <input type="text" id="testimonial-name" name="name" placeholder="Enter your full name" required>
+                            <small class="form-hint">Use the same name from your booking for instant verification.</small>
+                        </div>
+                        <div class="form-row">
+                            <label for="testimonial-email">Email Address (Optional)</label>
+                            <input type="email" id="testimonial-email" name="email" placeholder="you@example.com">
+                            <small class="form-hint">We'll notify you when your review is published.</small>
+                        </div>
+                        <div class="form-row">
+                            <label>Your Rating <span style="color:#dc2626;">*</span></label>
+                            <div class="star-rating" id="star-rating">
+                                <button type="button" class="star-btn" data-rating="1" aria-label="Rate 1 star">★</button>
+                                <button type="button" class="star-btn" data-rating="2" aria-label="Rate 2 stars">★</button>
+                                <button type="button" class="star-btn" data-rating="3" aria-label="Rate 3 stars">★</button>
+                                <button type="button" class="star-btn" data-rating="4" aria-label="Rate 4 stars">★</button>
+                                <button type="button" class="star-btn active" data-rating="5" aria-label="Rate 5 stars">★</button>
+                            </div>
+                            <input type="hidden" id="testimonial-rating" name="rating" value="5">
+                        </div>
+                        <div class="form-row">
+                            <label for="testimonial-message">Your Review <span style="color:#dc2626;">*</span></label>
+                            <textarea id="testimonial-message" name="message" rows="4" placeholder="Tell us about your experience with our cleaning service..." required></textarea>
+                        </div>
+                        <button class="button button--primary" type="submit">Submit Review</button>
+                        <p class="form-feedback" id="testimonial-feedback" role="status" aria-live="polite"></p>
+                    </form>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    {% set footer_offices = site_content.office_addresses if site_content and site_content.office_addresses else {} %}
+    <footer class="footer">
+        <div class="footer__content">
+            <div class="footer__col">
+                <h3>{{ company_name }}</h3>
+                <p>Professional cleaning for homes and offices. We make your space sparkle while you focus on what matters.</p>
+            </div>
+            <div class="footer__col">
+                <h3>Quick Links</h3>
+                <ul class="footer__links">
+                    <li><a href="#services">Our Services</a></li>
+                    <li><a href="#testimonials">Testimonials</a></li>
+                    <li><a href="#careers">Join the Team</a></li>
+                    <li><a href="#reviews">Leave a Review</a></li>
+                </ul>
+            </div>
+            <div class="footer__col">
+                <h3>Contact Us</h3>
+                <ul class="footer__links">
+                    <li><a href="tel:{{ footer_phone_href }}">{{ footer_phone }}</a></li>
+                    <li><a href="mailto:{{ footer_email }}">{{ footer_email }}</a></li>
+                </ul>
+                <div class="footer__offices">
+                    {% if footer_offices %}
+                        {% for key, office in footer_offices.items() %}
+                        <div class="footer__office">
+                            <span class="footer__office-name">{{ office.name if office.name else key | title }}</span>
+                            <span class="footer__office-address">{{ office.address if office.address else office }}</span>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="footer__office">
+                            <span class="footer__office-name">London Office</span>
+                            <span class="footer__office-address">86-90 Paul Street, London, EC2A 4NE</span>
+                        </div>
+                        <div class="footer__office">
+                            <span class="footer__office-name">Stevenage Office</span>
+                            <span class="footer__office-address">319 Ripon Road, Stevenage SG1 4LT</span>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="footer__col">
+                <h3>Follow Us</h3>
+                <div class="social-links">
+                    {% if footer_facebook %}
+                    <a href="{{ footer_facebook }}" aria-label="Facebook" target="_blank" rel="noopener">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></svg>
+                    </a>
+                    {% endif %}
+                    {% if footer_instagram %}
+                    <a href="{{ footer_instagram }}" aria-label="Instagram" target="_blank" rel="noopener">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+                    </a>
+                    {% endif %}
+                    {% if footer_twitter %}
+                    <a href="{{ footer_twitter }}" aria-label="Twitter" target="_blank" rel="noopener">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"></path></svg>
+                    </a>
+                    {% endif %}
+                    {% if not footer_facebook and not footer_instagram and not footer_twitter %}
+                    <p class="text-muted">Follow our social channels for updates.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="footer__bottom">
+            <p>&copy; <span id="year"></span> {{ company_name }}. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <a href="#" class="back-to-top" id="backToTop" aria-label="Back to top">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 15l-6-6-6 6"/>
+        </svg>
+    </a>
+
+    {% if travel_settings and travel_settings.ask_for_postcode %}
+    <div class="modal postcode-modal" id="postcode-modal" aria-hidden="true">
+        <div class="modal__overlay" tabindex="-1" data-close-modal></div>
+        <div class="modal__content" role="dialog" aria-modal="true" aria-labelledby="postcode-modal-title">
+            <button class="modal__close" aria-label="Close modal" data-close-modal>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <h2 id="postcode-modal-title" class="modal__title">Add your location</h2>
+            <p class="modal__subtitle">We use your postcode or address to confirm coverage and calculate any travel fee before you pick services.</p>
+            <form id="postcode-form" class="modal__form" novalidate>
+                <div class="form-row">
+                    <label for="postcode-entry">Postcode or address</label>
+                    <input type="text" id="postcode-entry" name="postcode_entry" placeholder="10 Downing St, SW1A 2AA" required>
+                    <small class="form-hint">Required to continue.</small>
+                </div>
+                <p class="form-feedback" id="postcode-feedback" role="status" aria-live="polite"></p>
+                <button type="submit" class="button button--primary" data-postcode-submit>Continue</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="modal" id="coverage-modal" aria-hidden="true">
+        <div class="modal__overlay" tabindex="-1" data-close-modal></div>
+        <div class="modal__content" role="dialog" aria-modal="true" aria-labelledby="coverage-modal-title">
+            <button class="modal__close" aria-label="Close modal" data-close-modal>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <h2 id="coverage-modal-title" class="modal__title">Outside our coverage</h2>
+            <p class="modal__subtitle">We couldn't find an active base within our service radius for this location. Please try a nearby postcode or contact us to discuss options.</p>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end; margin-top:1rem;">
+                <button type="button" class="button button--ghost" data-close-modal>Close</button>
+                <a class="button button--primary" href="#contact">Contact the team</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Extended Coverage Confirmation Modal -->
+    <div class="modal" id="extended-coverage-modal" aria-hidden="true">
+        <div class="modal__overlay" tabindex="-1"></div>
+        <div class="modal__content" role="dialog" aria-modal="true" aria-labelledby="extended-coverage-modal-title">
+            <button class="modal__close" aria-label="Close modal" id="extended-coverage-close">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <h2 id="extended-coverage-modal-title" class="modal__title">Extended Coverage Area</h2>
+            
+            <!-- Normal extended coverage content (with fee) -->
+            <div id="extended-coverage-with-fee">
+                <p class="modal__subtitle" id="extended-coverage-message">Your location is outside our standard service radius. We can still reach you, but additional travel charges will apply for the round-trip journey.</p>
+                <div id="extended-coverage-details" style="background:#fef3c7; border-radius:8px; padding:1rem; margin:1rem 0; color:#92400e;">
+                    <strong>Travel fee estimate:</strong> <span id="extended-coverage-fee">—</span>
+                    <br><small>Based on live traffic data for both directions.</small>
+                </div>
+                <p style="font-size:0.9rem; color:#6b7280;">Would you like to proceed with your booking?</p>
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end; margin-top:1rem;">
+                    <button type="button" class="button button--ghost" id="extended-coverage-cancel">No, cancel</button>
+                    <button type="button" class="button button--primary" id="extended-coverage-proceed">Yes, proceed</button>
+                </div>
+            </div>
+            
+            <!-- Not in service area content (no fee / £0) -->
+            <div id="extended-coverage-not-available" style="display:none;">
+                <div style="text-align:center; margin-bottom:1.5rem;">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 1rem;">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <p class="modal__subtitle" style="color:#dc2626; font-weight:600;">We're not currently servicing your area</p>
+                </div>
+                <p style="font-size:0.95rem; color:#4b5563; margin-bottom:1rem;">Unfortunately, your location is outside our current service coverage. We're always expanding, so please check back soon!</p>
+                
+                <div style="background:#f0f9ff; border-radius:8px; padding:1rem; margin:1rem 0; color:#0369a1;">
+                    <strong style="display:block; margin-bottom:0.5rem;">📍 Areas we currently serve:</strong>
+                    <p style="margin:0; font-size:0.9rem;" id="extended-coverage-areas">{{ site_content.areas_covered if site_content and site_content.areas_covered else 'Enfield, Stevenage, Barnet, Ware, Cheshunt, Hitchin, Luton, Hatfield, Hartford, St. Albans, Potters Bar, Hertford, Watford, Welwyn Garden City, Letchworth and surrounding areas.' }}</p>
+                </div>
+                
+                <div style="background:#f3f4f6; border-radius:8px; padding:1rem; margin:1rem 0;">
+                    <strong style="display:block; margin-bottom:0.5rem;">📞 Want us to expand to your area?</strong>
+                    <p style="margin:0; font-size:0.9rem; color:#4b5563;">Contact us and let us know! We're always looking to grow our coverage.</p>
+                </div>
+                
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:center; margin-top:1.5rem;">
+                    <a href="#contact" class="button button--primary" id="extended-coverage-contact">Contact Us</a>
+                    <button type="button" class="button button--ghost" id="extended-coverage-close-btn">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="service-modal" aria-hidden="true">
+        <div class="modal__overlay" tabindex="-1" data-close-modal></div>
+        <div class="modal__content modal__content--xl" role="dialog" aria-modal="true" aria-labelledby="service-modal-title">
+            <button class="modal__close" aria-label="Close modal" data-close-modal>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <h2 id="service-modal-title" class="modal__title">Plan Your Cleaning Package</h2>
+            <p class="modal__subtitle">Move through each service, pick the option that suits your space, and submit everything in one request.</p>
+            {% if travel_settings and travel_settings.ask_for_postcode %}
+            <button type="button" class="link-button flow-edit-location" id="flow-edit-location" data-open-postcode>Change location</button>
+            {% endif %}
+            <form id="service-request-flow" class="service-flow" novalidate>
+                <aside class="service-flow__sidebar">
+                    <div class="flow-checklist">
+                        <p class="flow-checklist__label">Progress</p>
+                        <ol class="flow-checklist__list">
+                            <li data-flow-step-indicator="1" class="is-active">Choose Services</li>
+                            <li data-flow-step-indicator="2">Review Summary</li>
+                            <li data-flow-step-indicator="3">Schedule &amp; Contact</li>
+                        </ol>
+                    </div>
+                    <div class="flow-mini-cart">
+                        <div class="flow-mini-cart__header">
+                            <h3>Selections</h3>
+                            <p class="flow-mini-cart__count"><span id="flow-mini-count">0</span> chosen</p>
+                        </div>
+                        <ul id="flow-mini-cart" class="flow-mini-cart__list"></ul>
+                        <p class="flow-mini-cart__total">Services subtotal: <strong id="flow-mini-services-total">—</strong></p>
+                        <p class="flow-mini-cart__total" id="flow-mini-logistics-row" style="display:none;">Logistics &amp; Area Fee: <strong id="flow-mini-logistics-fee">—</strong></p>
+                        <p class="flow-mini-cart__total">Estimated total: <strong id="flow-mini-cart-total">—</strong></p>
+                    </div>
+                </aside>
+                <div class="service-flow__content">
+                    <section class="flow-step is-active" data-flow-step="1">
+                        <header class="flow-step__header">
+                            <p class="flow-step__eyebrow">Service <span id="flow-service-index">1</span> of <span id="flow-service-count">1</span></p>
+                            <h3 id="flow-service-name">Service Name</h3>
+                            <p id="flow-service-description" class="flow-step__description">Description</p>
+                        </header>
+                        <div class="flow-options" id="flow-options" role="group" aria-live="polite"></div>
+                        <p class="flow-price" id="flow-price-display">Select an option to see pricing.</p>
+                        <div class="flow-actions">
+                            <button type="button" class="button button--ghost" data-flow-prev>Back</button>
+                            <button type="button" class="button button--ghost" data-flow-skip>Skip This Service</button>
+                            <button type="button" class="button button--primary" data-flow-next disabled>Next Service</button>
+                        </div>
+                    </section>
+                    <section class="flow-step" data-flow-step="2">
+                        <header class="flow-step__header">
+                            <p class="flow-step__eyebrow">Step 2</p>
+                            <h3>Review your selections</h3>
+                            <p>Confirm the services and options you picked. You can edit anything before scheduling.</p>
+                        </header>
+                        <ul class="flow-summary__list" id="flow-summary-services"></ul>
+                        {% if travel_settings and travel_settings.ask_for_postcode %}
+                        <div class="flow-summary__postcode">
+                            <label for="flow-summary-postcode">Service address &amp; postcode</label>
+                            <div class="flow-summary__postcode-row">
+                                <input type="text" id="flow-summary-postcode" name="flow_summary_postcode" placeholder="10 Downing St, SW1A 2AA">
+                                <button type="button" class="button button--ghost" data-flow-refresh-travel>Update travel</button>
+                            </div>
+                            <small class="form-hint">Edit your address here and click Update travel to recalculate fees. The schedule step will mirror these details automatically.</small>
+                        </div>
+                        {% endif %}
+                        <div class="flow-summary__totals">
+                            <div class="flow-summary__line">
+                                <span>Services Subtotal</span>
+                                <strong id="flow-summary-services-total">—</strong>
+                            </div>
+                            <div class="flow-summary__line" id="flow-summary-travel-row" style="display:none;">
+                                <div>
+                                    <span>Logistics &amp; Area Fee</span>
+                                    <small id="flow-summary-travel-note" class="form-hint"></small>
+                                </div>
+                                <strong id="flow-summary-travel">—</strong>
+                            </div>
+                            <div class="flow-summary__line flow-summary__line--grand">
+                                <span>Estimated total</span>
+                                <strong id="flow-summary-total">—</strong>
+                            </div>
+                        </div>
+                        <p class="form-feedback" id="flow-summary-feedback" role="status" aria-live="polite"></p>
+                        <div class="flow-actions">
+                            <button type="button" class="button button--ghost" data-flow-summary-back>Back to Services</button>
+                            <button type="button" class="button button--primary" data-flow-summary-next>Continue to Schedule</button>
+                        </div>
+                    </section>
+                    <section class="flow-step" data-flow-step="3">
+                        <header class="flow-step__header">
+                            <p class="flow-step__eyebrow">Final Step</p>
+                            <h3>Schedule and contact details</h3>
+                            <p>Share how we can reach you and when you’d like the service.</p>
+                        </header>
+                        <div class="flow-form-grid">
+                            <div class="form-row">
+                                <label for="flow-name">Full Name</label>
+                                <input type="text" id="flow-name" name="flow_name" placeholder="Ama Mensah" required>
+                            </div>
+                            <div class="form-row">
+                                <label for="flow-email">Email Address</label>
+                                <input type="email" id="flow-email" name="flow_email" placeholder="you@example.com" required>
+                            </div>
+                            <div class="form-row">
+                                <label for="flow-phone">Phone Number</label>
+                                <input type="tel" id="flow-phone" name="flow_phone" placeholder="024 000 0000" required>
+                            </div>
+                            <div class="form-row">
+                                <label for="flow-location">Address / Location</label>
+                                <input type="text" id="flow-location" name="flow_location" placeholder="East Legon, Accra" required {% if travel_settings and travel_settings.ask_for_postcode %}readonly{% endif %}>
+                                {% if travel_settings and travel_settings.ask_for_postcode %}
+                                <small class="form-hint">Edit this in the summary step above.</small>
+                                {% endif %}
+                            </div>
+                            <div class="form-row">
+                                <label for="flow-date">Preferred Date</label>
+                                <input type="date" id="flow-date" name="flow_date" required>
+                            </div>
+                            <div class="form-row">
+                                <label for="flow-time">Preferred Time</label>
+                                <input type="time" id="flow-time" name="flow_time" required>
+                            </div>
+                            {% if travel_settings and travel_settings.ask_for_postcode %}
+                            <div class="form-row">
+                                <label for="flow-postcode">Postcode or address</label>
+                                <input type="text" id="flow-postcode" name="flow_postcode" placeholder="10 Downing St, SW1A 2AA" required readonly>
+                                <small class="form-hint">Update this via the summary step so we can recalculate your travel time.</small>
+                            </div>
+                            {% endif %}
+                            <div class="form-row form-row--full">
+                                <label for="flow-notes">Additional Notes</label>
+                                <textarea id="flow-notes" name="flow_notes" rows="3" placeholder="Pets on-site, gate code, or anything we should know."></textarea>
+                            </div>
+                        </div>
+                        <div class="flow-actions">
+                            <button type="button" class="button button--ghost" data-flow-schedule-back>Back to Summary</button>
+                            <button type="submit" class="button button--primary" data-flow-submit>Submit Request</button>
+                        </div>
+                        <p class="form-feedback" id="flow-feedback" role="status" aria-live="polite"></p>
+                    </section>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Company Profile Modal -->
+    {% set landing_intro = site_content.landing_intro if site_content and site_content.landing_intro else 'Thank you for visiting our website. Done-Well is a registered cleaning company providing commercial, domestic, office cleaning and household services in England across Enfield, Stevenage, Barnet, Ware, Cheshunt, Hitchin, Luton, Hatfield, Hartford, St. Albans and surrounding areas.' %}
+    {% set company_history = site_content.company_history if site_content and site_content.company_history else 'Done-Well Cleaners Limited was established out of the enthusiasm and ache to give our clients tailored and specialised cleaning services that meet their expectation. Our professional cleaning journey started in 2014 at Bracknell Odeon Cinema and home-to-home cleaning service.' %}
+    {% set green_focus = site_content.green_focus if site_content and site_content.green_focus else 'We centre a greener environment in our operations, recommend eco products, and happily use your preferred supplies. We keep a personal touch on every booking, maintain excellent customer relationships, and aim to keep the same cleaner for consistency. Every cleaner is fully trained, insured, DBS certified, and vetted for ID, right to work, address, and references.' %}
+    {% set who_we_are_detail = site_content.who_we_are_detail if site_content and site_content.who_we_are_detail else 'We provide high-quality cleaning by hiring vetted, screened, and experienced cleaners—not a robotic platform. We are punctual, arrive equipped, and guarantee satisfaction; if you are unhappy, we will redo it for free.' %}
+    {% set vision_statement = site_content.vision_statement if site_content and site_content.vision_statement else 'We are constantly working to be recognized by our clients, employees and the industry as the most professional, respected and leading cleaning services provider for domestic and commercial facilities in England.' %}
+    {% set mission_statement = site_content.mission_statement if site_content and site_content.mission_statement else 'Done-Well believes in creating a positive impact on the homes and workplaces of our clients, the working life of our staff, and our local environment so satisfaction stays high, retention grows, and the environment is healthier for all.' %}
+    {% set core_values = site_content.core_values if site_content and site_content.core_values else 'Professionalism & Quality • Trust & Integrity • Reliability & Customer Focus • Team & Community. Putting these into practice creates long-term benefits for customers, employees, suppliers, and the communities we serve.' %}
+    {% set security_guarantee = site_content.security_guarantee if site_content and site_content.security_guarantee else 'We prioritise attitude and professionalism. All cleaners are company trained, insured and DBS certified. We respect every client home and facility. If you are not completely happy, tell us within 24 hours and we will resolve it.' %}
+    {% set guarantee_extra = site_content.guarantee_extra if site_content and site_content.guarantee_extra else 'If you are not completely happy, please tell us within 24 hours so we can resolve it. We maintain the same cleaner for consistency, and any holiday or sickness replacement is communicated in advance.' %}
+    {% set guarantee_bullets_raw = site_content.guarantee_bullets if site_content and site_content.guarantee_bullets else 'High-quality cleaning with competitive pricing across our areas.\nVetted, trained, experienced, and well-motivated cleaners adaptable to your needs.\nIdentity, right-to-work, address, and reference checks on every cleaner; documents held on file.\nInsurance cover for property damage; key and lock replacement included.\nFlexible, personalised service with scheduling to suit your lifestyle and no annual contracts.\nNo extra travel charges; excellent client retention from consistent standards.' %}
+    {% set guarantee_bullets = guarantee_bullets_raw.split('\n') if guarantee_bullets_raw else [] %}
+    {% set office_data = site_content.office_addresses if site_content and site_content.office_addresses else {} %}
+    {% set contact_data = site_content.contact_info if site_content and site_content.contact_info else {} %}
+    <div class="modal" id="companyProfileModal" aria-hidden="true">
+        <div class="modal__overlay" tabindex="-1" data-close-modal></div>
+        <div class="modal__content modal__content--xl company-profile-modal" role="dialog" aria-modal="true" aria-labelledby="company-profile-title">
+            <button class="modal__close" aria-label="Close modal" data-close-modal>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <h2 id="company-profile-title" class="modal__title">About Done-Well Cleaning Ltd.</h2>
+            <p class="modal__subtitle">Tailored and specialised cleaning services since 2014</p>
+
+            <div class="profile-tabs">
+                <nav class="profile-tabs__nav" role="tablist">
+                    <button class="profile-tab active" role="tab" aria-selected="true" aria-controls="profile-story" id="tab-story" data-tab="profile-story">Our Story</button>
+                    <button class="profile-tab" role="tab" aria-selected="false" aria-controls="profile-mission" id="tab-mission" data-tab="profile-mission">Mission & Values</button>
+                    <button class="profile-tab" role="tab" aria-selected="false" aria-controls="profile-guarantee" id="tab-guarantee" data-tab="profile-guarantee">Guarantee</button>
+                    <button class="profile-tab" role="tab" aria-selected="false" aria-controls="profile-contact" id="tab-contact" data-tab="profile-contact">Contact</button>
+                </nav>
+
+                <div class="profile-tabs__panels">
+                    <!-- Our Story Tab -->
+                    <div class="profile-panel active" role="tabpanel" id="profile-story" aria-labelledby="tab-story">
+                        <div class="profile-section">
+                            <h3>Welcome to Done-Well Cleaning Limited</h3>
+                            <p data-editable="landing_intro">{{ landing_intro }}</p>
+                        </div>
+                        <div class="profile-section">
+                            <h3>Our History</h3>
+                            <p data-editable="company_history">{{ company_history }}</p>
+                        </div>
+                        <div class="profile-section">
+                            <h3>Green & Client-Focused</h3>
+                            <p data-editable="green_focus">{{ green_focus }}</p>
+                        </div>
+                        <div class="profile-section">
+                            <h3>Who We Are</h3>
+                            <p data-editable="who_we_are_detail">{{ who_we_are_detail }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Mission & Values Tab -->
+                    <div class="profile-panel" role="tabpanel" id="profile-mission" aria-labelledby="tab-mission" hidden>
+                        <div class="profile-section">
+                            <h3>Mission Statement</h3>
+                            <p data-editable="mission_statement">{{ mission_statement }}</p>
+                        </div>
+                        <div class="profile-section">
+                            <h3>Our Core Values</h3>
+                            <p data-editable="core_values">{{ core_values }}</p>
+                        </div>
+                        <div class="profile-section">
+                            <h3>Vision Statement</h3>
+                            <p data-editable="vision_statement">{{ vision_statement }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Guarantee Tab -->
+                    <div class="profile-panel" role="tabpanel" id="profile-guarantee" aria-labelledby="tab-guarantee" hidden>
+                        <div class="profile-section">
+                            <h3>Security & Guarantee</h3>
+                            <p data-editable="security_guarantee">{{ security_guarantee }}</p>
+                            <p data-editable="guarantee_extra">{{ guarantee_extra }}</p>
+                        </div>
+                        <div class="profile-section">
+                            <h3>Why Choose Our Services?</h3>
+                            <ul class="profile-list">
+                                {% for line in guarantee_bullets %}
+                                {% set trimmed = line.strip() %}
+                                {% if trimmed %}
+                                <li data-editable="guarantee_bullets">{{ trimmed }}</li>
+                                {% endif %}
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div class="profile-badges">
+                            <div class="profile-badge">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                <span>Trained</span>
+                            </div>
+                            <div class="profile-badge">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                <span>DBS Certified</span>
+                            </div>
+                            <div class="profile-badge">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                <span>Insured</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Contact Tab -->
+                    <div class="profile-panel" role="tabpanel" id="profile-contact" aria-labelledby="tab-contact" hidden>
+                        <div class="profile-offices">
+                            {% if office_data %}
+                            {% for key, office in office_data.items() %}
+                            <div class="profile-office">
+                                <h3>{{ office.name if office.name else key | title ~ ' Office' }}</h3>
+                                <p>{{ office.address if office.address else office }}</p>
+                            </div>
+                            {% endfor %}
+                            {% else %}
+                            <div class="profile-office">
+                                <h3>London Office</h3>
+                                <p>3RD FLOOR, 86-90 PAUL STREET, LONDON, EC2A 4NE, ENGLAND</p>
+                            </div>
+                            <div class="profile-office">
+                                <h3>Stevenage Office</h3>
+                                <p>319 Ripon Road, Stevenage SG1 4LT, Hertfordshire</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="profile-section">
+                            <h3>Get in Touch</h3>
+                            <ul class="profile-contact-list">
+                                <li>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                    <a href="mailto:{{ contact_data.email if contact_data.email else 'info@done-wellcleaninglimited.org' }}">{{ contact_data.email if contact_data.email else 'info@done-wellcleaninglimited.org' }}</a>
+                                </li>
+                                <li>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                                    <a href="tel:{{ contact_data.phone if contact_data.phone else '07955247481' }}">{{ contact_data.phone if contact_data.phone else '07955247481' }}</a>
+                                    {% if contact_data.phone_alt %} / <a href="tel:{{ contact_data.phone_alt }}">{{ contact_data.phone_alt }}</a>{% endif %}
+                                </li>
+                                <li>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                                    <span>WhatsApp: {{ contact_data.whatsapp if contact_data.whatsapp else '07955247481' }}</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.SERVICE_CATALOG = {{ (services or []) | tojson | safe }};
+        window.ASK_FOR_POSTCODE = {{ (travel_settings.ask_for_postcode if travel_settings else False) | tojson | safe }};
+    </script>
+
+    <div class="modal" id="job-modal" aria-hidden="true">
+        <div class="modal__overlay" tabindex="-1" data-close-modal></div>
+        <div class="modal__content" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <button class="modal__close" aria-label="Close modal" data-close-modal>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <h2 id="modal-title" class="modal__title">Apply for <span id="job-title-placeholder">Position</span></h2>
+            <p class="modal__subtitle">Send us your details and we'll get back to you.</p>
+            <form id="job-application-form" class="modal__form" enctype="multipart/form-data">
+                <div class="form-row">
+                    <label for="applicant-name">Full Name</label>
+                    <input type="text" id="applicant-name" name="name" required placeholder="Jane Doe">
+                </div>
+                <div class="form-row">
+                    <label for="applicant-email">Email Address</label>
+                    <input type="email" id="applicant-email" name="email" required placeholder="jane@example.com">
+                </div>
+                <div class="form-row">
+                    <label for="applicant-phone">Phone Number</label>
+                    <input type="tel" id="applicant-phone" name="phone" required placeholder="(555) 123-4567">
+                </div>
+                <div class="form-row">
+                    <label for="applicant-message">Why are you a good fit?</label>
+                    <textarea id="applicant-message" name="message" rows="3" required placeholder="Tell us about your experience..."></textarea>
+                </div>
+                <div class="form-row">
+                    <label for="applicant-resume">Attach Resume (PDF, DOC, DOCX, JPG)</label>
+                    <input type="file" id="applicant-resume" name="resume" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" />
+                    <small style="display:block; margin-top:0.5rem; color:#6b7280;">Optional, max 10MB.</small>
+                </div>
+                <input type="hidden" id="job-position" name="position">
+                <button type="submit" class="button button--primary" style="width: 100%; justify-content: center;">Send Application</button>
+                <div class="form-feedback"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Testimonial Modal -->
+    <div id="testimonialModal" class="modal testimonial-modal" aria-hidden="true">
+        <div class="modal__overlay" data-close-modal></div>
+        <div class="modal__content">
+            <button type="button" class="modal__close" data-close-modal aria-label="Close">&times;</button>
+            <div class="testimonial-modal__content">
+                <div class="testimonial-modal__rating" id="testimonialModalRating"></div>
+                <blockquote class="testimonial-modal__message" id="testimonialModalMessage"></blockquote>
+                <cite class="testimonial-modal__author" id="testimonialModalAuthor"></cite>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

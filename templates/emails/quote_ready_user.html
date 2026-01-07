@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Your Quote is Ready</title>
+    <style>
+        body { font-family: Arial, sans-serif; color: #1f2937; }
+        .wrapper { max-width: 600px; margin: 0 auto; padding: 24px; }
+        .quote-box { display: inline-block; padding: 16px 28px; border-radius: 12px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; font-size: 24px; font-weight: 700; margin: 16px 0; }
+        .card { margin-top: 20px; padding: 20px; border: 1px solid #e5e7eb; border-radius: 10px; background: #f9fafb; }
+        .cta-button { display: inline-block; padding: 14px 28px; background: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; margin-top: 20px; }
+        .cta-button:hover { background: #1d4ed8; }
+        .footer { margin-top: 24px; font-size: 12px; color: #6b7280; }
+        .highlight { color: #059669; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <p style="margin:0 0 16px; font-size: 18px;">Hi {{ request.name or 'there' }},</p>
+        <p style="margin:0 0 16px; font-size: 16px;">Great news! 🎉 Your survey is complete and we have your quote ready.</p>
+        
+        <div style="text-align: center; margin: 24px 0;">
+            <div class="quote-box">{{ request.quote_formatted }}</div>
+        </div>
+        
+        <div class="card">
+            <p style="margin:0 0 8px;"><strong>Request Details</strong></p>
+            <p style="margin:0 0 8px;">Reference: <span class="highlight">{{ request.ref_id or request.id }}</span></p>
+            {% if request.service_name %}<p style="margin:0 0 8px;">Service: {{ request.service_name }}</p>{% endif %}
+            <p style="margin:0;">Requested on: {{ request.created_at }}</p>
+        </div>
+        
+        <p style="margin:24px 0 12px;">To proceed with your booking, simply reply to this email or contact us to confirm and arrange payment.</p>
+        
+        <p style="margin:16px 0 0;">We look forward to serving you!</p>
+        <p style="margin:16px 0 0;">Warm regards,<br><strong>Clean Co. Team</strong></p>
+        
+        <p class="footer">This message was sent because you requested a survey from Clean Co. If you have any questions, simply reply to this email.</p>
+    </div>
+</body>
+</html>

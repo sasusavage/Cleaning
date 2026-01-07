@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Clean Co.' %}
+    <title>Site Content - {{ company_name }} Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f3f4f6;
+            --surface: #ffffff;
+            --text: #1f2937;
+            --border: #e5e7eb;
+            --success: #10b981;
+            --error: #ef4444;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 250px;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 120;
+        }
+        .sidebar__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+        }
+        .sidebar__toggle {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border);
+            background: #f1f5f9;
+            color: var(--text);
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .sidebar__nav {
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar--menu-open .sidebar__nav {
+            display: flex;
+        }
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 2rem;
+        }
+        .nav-link {
+            display: block;
+            padding: 0.75rem 1rem;
+            color: var(--text);
+            text-decoration: none;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            transition: background 0.2s;
+        }
+        .nav-link:hover, .nav-link.active {
+            background: #eff6ff;
+            color: var(--primary);
+        }
+        .main-content {
+            flex: 1;
+            padding: 2rem;
+            max-width: 900px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        .title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0;
+        }
+        .subtitle {
+            color: #6b7280;
+            margin: 0.25rem 0 0;
+            font-size: 0.95rem;
+        }
+        .card {
+            background: var(--surface);
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .card__title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 0 0 0.25rem;
+        }
+        .card__desc {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin: 0 0 1rem;
+        }
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            font-family: inherit;
+            font-size: 0.95rem;
+            box-sizing: border-box;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        .form-hint {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-top: 0.35rem;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            border: none;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .btn:active {
+            transform: scale(0.98);
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+        .btn-primary:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        .btn-back {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+        .btn-back:hover {
+            background: #f9fafb;
+        }
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+        .toast--success {
+            background: var(--success);
+            color: white;
+        }
+        .toast--error {
+            background: var(--error);
+            color: white;
+        }
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .section-divider {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 2rem 0;
+        }
+        .office-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 100%;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.5rem;
+                padding: 1rem 1.25rem;
+                overflow: visible;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                height: auto;
+                position: relative;
+            }
+            .sidebar__header {
+                width: 100%;
+            }
+            .sidebar__toggle {
+                display: inline-flex;
+            }
+            .sidebar__nav {
+                display: none;
+                flex-direction: column;
+                padding-top: 0.5rem;
+                border-top: 1px solid var(--border);
+            }
+            .sidebar--menu-open .sidebar__nav {
+                display: flex;
+            }
+            body {
+                flex-direction: column;
+            }
+            .main-content {
+                padding: 1.5rem;
+            }
+            .header {
+                flex-wrap: wrap;
+                gap: 0.75rem;
+            }
+        }
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 1.25rem;
+            }
+            .card {
+                padding: 1.25rem;
+            }
+            .title {
+                font-size: 1.25rem;
+            }
+        }
+        @media (max-width: 640px) {
+            .office-grid {
+                grid-template-columns: 1fr;
+            }
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .btn-back {
+                width: 100%;
+                text-align: center;
+            }
+        }
+        @media (max-width: 480px) {
+            .main-content {
+                padding: 1rem;
+            }
+            .card {
+                padding: 1rem;
+            }
+            .btn {
+                padding: 0.65rem 1rem;
+                font-size: 0.9rem;
+            }
+            .form-group input,
+            .form-group textarea {
+                padding: 0.65rem;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar__header">
+            <div class="logo">{{ company_name }} Admin</div>
+            <button type="button" class="sidebar__toggle" aria-expanded="false" aria-controls="sidebar-nav">Menu</button>
+        </div>
+        <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">Hero Content</a>
+            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand & Logo</a>
+            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">Quote & Contact</a>
+            <a class="nav-link active" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
+            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <div>
+                <h1 class="title">Site Content</h1>
+                <p class="subtitle">Manage the "About Us" sections and company profile content displayed on the homepage.</p>
+            </div>
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-back">← Back to Dashboard</a>
+        </div>
+
+        <form id="site-content-form">
+            <!-- Landing Intro -->
+            <div class="card">
+                <h2 class="card__title">Landing Intro</h2>
+                <p class="card__desc">Welcome text shown at the start of the Company Profile modal.</p>
+                <div class="form-group">
+                    <label for="landing_intro">Landing Intro</label>
+                    <textarea id="landing_intro" name="landing_intro" rows="3">{{ site_content.landing_intro if site_content and site_content.landing_intro else '' }}</textarea>
+                    <p class="form-hint">One short paragraph; keep it concise.</p>
+                </div>
+            </div>
+
+            <!-- About Summary -->
+            <div class="card">
+                <h2 class="card__title">About Summary</h2>
+                <p class="card__desc">Short description shown in the "Who We Are" section on the homepage.</p>
+                <div class="form-group">
+                    <label for="about_summary">About Summary</label>
+                    <textarea id="about_summary" name="about_summary" rows="4">{{ site_content.about_summary if site_content and site_content.about_summary else '' }}</textarea>
+                    <p class="form-hint">First ~350 characters are shown on the homepage; full text appears in the modal.</p>
+                </div>
+            </div>
+
+            <!-- Company History -->
+            <div class="card">
+                <h2 class="card__title">Company History</h2>
+                <p class="card__desc">Our Story section in the Company Profile modal.</p>
+                <div class="form-group">
+                    <label for="company_history">Company History</label>
+                    <textarea id="company_history" name="company_history" rows="4">{{ site_content.company_history if site_content and site_content.company_history else '' }}</textarea>
+                </div>
+            </div>
+
+            <!-- Team Photo -->
+            <div class="card">
+                <h2 class="card__title">Team Photo</h2>
+                <p class="card__desc">Upload a photo of your team to display in the About Us section.</p>
+                <div class="form-group">
+                    <label>Current Photo</label>
+                    <div id="team-photo-preview" style="margin-bottom: 1rem;">
+                        {% if site_content and site_content.team_photo %}
+                        <img src="{{ site_content.team_photo | media_url }}" alt="Team Photo" style="max-width: 100%; max-height: 250px; border-radius: 0.5rem; border: 1px solid var(--border);">
+                        {% else %}
+                        <p style="color: #6b7280; font-style: italic;">No team photo uploaded yet.</p>
+                        {% endif %}
+                    </div>
+                    <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                        <label for="team_photo_input" class="btn btn-primary" style="cursor: pointer; margin: 0;">
+                            <input type="file" id="team_photo_input" accept="image/png,image/jpeg,image/webp" style="display: none;">
+                            {{ 'Change Photo' if site_content and site_content.team_photo else 'Upload Photo' }}
+                        </label>
+                        {% if site_content and site_content.team_photo %}
+                        <button type="button" class="btn btn-back" id="remove-team-photo-btn" style="color: #ef4444; border-color: #ef4444;">Remove Photo</button>
+                        {% endif %}
+                    </div>
+                    <p class="form-hint">Recommended: landscape image at least 800px wide. Supported formats: PNG, JPG, WEBP.</p>
+                </div>
+            </div>
+
+            <!-- Green & Client Focus -->
+            <div class="card">
+                <h2 class="card__title">Green & Client Focus</h2>
+                <p class="card__desc">Paragraph about eco focus, personal touch, and vetting.</p>
+                <div class="form-group">
+                    <label for="green_focus">Green & Client Focus</label>
+                    <textarea id="green_focus" name="green_focus" rows="3">{{ site_content.green_focus if site_content and site_content.green_focus else '' }}</textarea>
+                </div>
+            </div>
+
+            <!-- Who We Are Detail -->
+            <div class="card">
+                <h2 class="card__title">Who We Are (Detail)</h2>
+                <p class="card__desc">Detailed "Who We Are" text shown in the story tab.</p>
+                <div class="form-group">
+                    <label for="who_we_are_detail">Who We Are Detail</label>
+                    <textarea id="who_we_are_detail" name="who_we_are_detail" rows="3">{{ site_content.who_we_are_detail if site_content and site_content.who_we_are_detail else '' }}</textarea>
+                </div>
+            </div>
+
+            <!-- Mission & Vision -->
+            <div class="card">
+                <h2 class="card__title">Mission & Vision</h2>
+                <p class="card__desc">Displayed in the "Mission & Values" tab of the Company Profile modal.</p>
+                <div class="form-group">
+                    <label for="mission_statement">Mission Statement</label>
+                    <textarea id="mission_statement" name="mission_statement" rows="3">{{ site_content.mission_statement if site_content and site_content.mission_statement else '' }}</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="vision_statement">Vision Statement</label>
+                    <textarea id="vision_statement" name="vision_statement" rows="3">{{ site_content.vision_statement if site_content and site_content.vision_statement else '' }}</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="core_values">Core Values</label>
+                    <textarea id="core_values" name="core_values" rows="3">{{ site_content.core_values if site_content and site_content.core_values else '' }}</textarea>
+                </div>
+            </div>
+
+            <!-- Security & Guarantee -->
+            <div class="card">
+                <h2 class="card__title">Security & Guarantee</h2>
+                <p class="card__desc">Displayed in the "Guarantee" tab of the Company Profile modal.</p>
+                <div class="form-group">
+                    <label for="security_guarantee">Security & Guarantee Text</label>
+                    <textarea id="security_guarantee" name="security_guarantee" rows="4">{{ site_content.security_guarantee if site_content and site_content.security_guarantee else '' }}</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="guarantee_extra">Guarantee Follow-up</label>
+                    <textarea id="guarantee_extra" name="guarantee_extra" rows="3">{{ site_content.guarantee_extra if site_content and site_content.guarantee_extra else '' }}</textarea>
+                    <p class="form-hint">e.g., 24-hour resolution, same-cleaner consistency and notice for replacements.</p>
+                </div>
+                <div class="form-group">
+                    <label for="guarantee_bullets">Why Choose Us (bullets)</label>
+                    <textarea id="guarantee_bullets" name="guarantee_bullets" rows="4">{{ site_content.guarantee_bullets if site_content and site_content.guarantee_bullets else '' }}</textarea>
+                    <p class="form-hint">One bullet per line. These appear under "Why Choose Our Services?"</p>
+                </div>
+            </div>
+
+            <!-- Areas Covered -->
+            <div class="card">
+                <h2 class="card__title">Areas Covered</h2>
+                <p class="card__desc">Displayed in the "Areas We Cover" banner on the homepage.</p>
+                <div class="form-group">
+                    <label for="areas_covered">Areas Covered</label>
+                    <textarea id="areas_covered" name="areas_covered" rows="2">{{ site_content.areas_covered if site_content and site_content.areas_covered else '' }}</textarea>
+                    <p class="form-hint">List the areas separated by commas (e.g., "Enfield, Stevenage, Barnet...").</p>
+                </div>
+            </div>
+
+            <!-- Office Addresses -->
+            <div class="card">
+                <h2 class="card__title">Office Addresses</h2>
+                <p class="card__desc">Displayed in the Contact tab and footer.</p>
+                {% set offices = site_content.office_addresses if site_content and site_content.office_addresses else {} %}
+                {% set london_office = offices.london if offices and offices.london else {} %}
+                {% set stevenage_office = offices.stevenage if offices and offices.stevenage else {} %}
+                <div class="office-grid">
+                    <div class="form-group">
+                        <label for="office_london_name">London Office Name</label>
+                        <input type="text" id="office_london_name" name="office_london_name" value="{{ london_office.name if london_office and london_office.name else 'London Office' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="office_london_address">London Office Address</label>
+                        <input type="text" id="office_london_address" name="office_london_address" value="{{ london_office.address if london_office and london_office.address else '' }}">
+                    </div>
+                </div>
+                <div class="office-grid">
+                    <div class="form-group">
+                        <label for="office_stevenage_name">Stevenage Office Name</label>
+                        <input type="text" id="office_stevenage_name" name="office_stevenage_name" value="{{ stevenage_office.name if stevenage_office and stevenage_office.name else 'Stevenage Office' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="office_stevenage_address">Stevenage Office Address</label>
+                        <input type="text" id="office_stevenage_address" name="office_stevenage_address" value="{{ stevenage_office.address if stevenage_office and stevenage_office.address else '' }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contact Info -->
+            <div class="card">
+                <h2 class="card__title">Contact Information</h2>
+                <p class="card__desc">Contact details shown in the Company Profile modal.</p>
+                {% set contact = site_content.contact_info if site_content and site_content.contact_info else {} %}
+                <div class="office-grid">
+                    <div class="form-group">
+                        <label for="contact_email">Email</label>
+                        <input type="email" id="contact_email" name="contact_email" value="{{ contact.email if contact and contact.email else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="contact_phone">Phone</label>
+                        <input type="text" id="contact_phone" name="contact_phone" value="{{ contact.phone if contact and contact.phone else '' }}">
+                    </div>
+                </div>
+                <div class="office-grid">
+                    <div class="form-group">
+                        <label for="contact_phone_alt">Alternative Phone</label>
+                        <input type="text" id="contact_phone_alt" name="contact_phone_alt" value="{{ contact.phone_alt if contact and contact.phone_alt else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="contact_whatsapp">WhatsApp</label>
+                        <input type="text" id="contact_whatsapp" name="contact_whatsapp" value="{{ contact.whatsapp if contact and contact.whatsapp else '' }}">
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="save-btn">Save All Changes</button>
+        </form>
+    </div>
+
+    <div id="toast" class="toast" style="display:none;"></div>
+
+    <script>
+        // Sidebar toggle functionality
+        const sidebar = document.querySelector('.sidebar');
+        const sidebarToggle = document.querySelector('.sidebar__toggle');
+        
+        if (sidebar && sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                const expanded = sidebarToggle.getAttribute('aria-expanded') === 'true';
+                const nextExpanded = !expanded;
+                sidebarToggle.setAttribute('aria-expanded', String(nextExpanded));
+                sidebar.classList.toggle('sidebar--menu-open', nextExpanded);
+            });
+
+            sidebar.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', () => {
+                    if (window.matchMedia('(max-width: 1024px)').matches) {
+                        sidebar.classList.remove('sidebar--menu-open');
+                        sidebarToggle.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            });
+        }
+
+        const form = document.getElementById('site-content-form');
+        const saveBtn = document.getElementById('save-btn');
+        const toast = document.getElementById('toast');
+
+        function showToast(message, type = 'success') {
+            toast.textContent = message;
+            toast.className = 'toast toast--' + type;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3500);
+        }
+
+        function normalizeMediaPath(path) {
+            if (!path) return '';
+            const trimmed = String(path).trim();
+            if (/^(https?:)?\/\//.test(trimmed) || trimmed.startsWith('data:')) {
+                return trimmed;
+            }
+            const cleaned = trimmed.replace(/^\/+/, '').replace(/^static\//, '');
+            return '/static/' + cleaned;
+        }
+
+        // Team Photo Upload
+        const teamPhotoInput = document.getElementById('team_photo_input');
+        const teamPhotoPreview = document.getElementById('team-photo-preview');
+        const removeTeamPhotoBtn = document.getElementById('remove-team-photo-btn');
+
+        if (teamPhotoInput) {
+            teamPhotoInput.addEventListener('change', async function() {
+                const file = this.files[0];
+                if (!file) return;
+
+                const formData = new FormData();
+                formData.append('team_photo', file);
+
+                try {
+                    const res = await fetch('/admin/api/team-photo', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.team_photo) {
+                        const previewSrc = normalizeMediaPath(data.team_photo);
+                        teamPhotoPreview.innerHTML = previewSrc
+                            ? '<img src="' + previewSrc + '" alt="Team Photo" style="max-width: 100%; max-height: 250px; border-radius: 0.5rem; border: 1px solid var(--border);">'
+                            : '<p style="color: #6b7280; font-style: italic;">No team photo uploaded yet.</p>';
+                        // Update button label
+                        teamPhotoInput.parentElement.innerHTML = '<input type="file" id="team_photo_input" accept="image/png,image/jpeg,image/webp" style="display: none;">Change Photo';
+                        // Add remove button if not present
+                        if (!document.getElementById('remove-team-photo-btn')) {
+                            const removeBtn = document.createElement('button');
+                            removeBtn.type = 'button';
+                            removeBtn.className = 'btn btn-back';
+                            removeBtn.id = 'remove-team-photo-btn';
+                            removeBtn.style.cssText = 'color: #ef4444; border-color: #ef4444;';
+                            removeBtn.textContent = 'Remove Photo';
+                            removeBtn.addEventListener('click', removeTeamPhoto);
+                            teamPhotoInput.parentElement.parentElement.insertBefore(removeBtn, teamPhotoInput.parentElement.nextSibling);
+                        }
+                        showToast(data.message || 'Team photo uploaded!', 'success');
+                        // Re-bind event listener
+                        document.getElementById('team_photo_input').addEventListener('change', arguments.callee);
+                    } else {
+                        showToast(data.error || 'Failed to upload photo.', 'error');
+                    }
+                } catch (err) {
+                    showToast('Network error. Please try again.', 'error');
+                }
+            });
+        }
+
+        async function removeTeamPhoto() {
+            if (!confirm('Are you sure you want to remove the team photo?')) return;
+
+            try {
+                const res = await fetch('/admin/api/team-photo', {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    teamPhotoPreview.innerHTML = '<p style="color: #6b7280; font-style: italic;">No team photo uploaded yet.</p>';
+                    // Update button label
+                    const label = document.querySelector('label[for="team_photo_input"]');
+                    if (label) {
+                        label.innerHTML = '<input type="file" id="team_photo_input" accept="image/png,image/jpeg,image/webp" style="display: none;">Upload Photo';
+                        // Re-bind event listener
+                        document.getElementById('team_photo_input').addEventListener('change', function() {
+                            const file = this.files[0];
+                            if (!file) return;
+                            const formData = new FormData();
+                            formData.append('team_photo', file);
+                            fetch('/admin/api/team-photo', {
+                                method: 'POST',
+                                body: formData
+                            }).then(r => r.json()).then(d => {
+                                if (d.team_photo) location.reload();
+                            });
+                        });
+                    }
+                    // Remove the remove button
+                    const removeBtn = document.getElementById('remove-team-photo-btn');
+                    if (removeBtn) removeBtn.remove();
+                    showToast(data.message || 'Team photo removed!', 'success');
+                } else {
+                    showToast(data.error || 'Failed to remove photo.', 'error');
+                }
+            } catch (err) {
+                showToast('Network error. Please try again.', 'error');
+            }
+        }
+
+        if (removeTeamPhotoBtn) {
+            removeTeamPhotoBtn.addEventListener('click', removeTeamPhoto);
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+
+            const payload = {
+                landing_intro: document.getElementById('landing_intro').value.trim(),
+                about_summary: document.getElementById('about_summary').value.trim(),
+                company_history: document.getElementById('company_history').value.trim(),
+                green_focus: document.getElementById('green_focus').value.trim(),
+                who_we_are_detail: document.getElementById('who_we_are_detail').value.trim(),
+                mission_statement: document.getElementById('mission_statement').value.trim(),
+                vision_statement: document.getElementById('vision_statement').value.trim(),
+                core_values: document.getElementById('core_values').value.trim(),
+                security_guarantee: document.getElementById('security_guarantee').value.trim(),
+                guarantee_extra: document.getElementById('guarantee_extra').value.trim(),
+                guarantee_bullets: document.getElementById('guarantee_bullets').value.trim(),
+                areas_covered: document.getElementById('areas_covered').value.trim(),
+                office_addresses: {
+                    london: {
+                        name: document.getElementById('office_london_name').value.trim(),
+                        address: document.getElementById('office_london_address').value.trim()
+                    },
+                    stevenage: {
+                        name: document.getElementById('office_stevenage_name').value.trim(),
+                        address: document.getElementById('office_stevenage_address').value.trim()
+                    }
+                },
+                contact_info: {
+                    email: document.getElementById('contact_email').value.trim(),
+                    phone: document.getElementById('contact_phone').value.trim(),
+                    phone_alt: document.getElementById('contact_phone_alt').value.trim(),
+                    whatsapp: document.getElementById('contact_whatsapp').value.trim()
+                }
+            };
+
+            try {
+                const res = await fetch('/admin/api/site-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast(data.message || 'Site content saved successfully!', 'success');
+                } else {
+                    showToast(data.error || 'Failed to save.', 'error');
+                }
+            } catch (err) {
+                showToast('Network error. Please try again.', 'error');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save All Changes';
+            }
+        });
+    </script>
+</body>
+</html>
