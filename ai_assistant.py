@@ -32,21 +32,6 @@ except ImportError:
     GROQ_AVAILABLE = False
     Groq = None
 
-# Try to import OpenAI - fallback provider
-try:
-    import openai
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-    openai = None
-
-# Try to import Anthropic (Claude) - alternative AI provider
-try:
-    import anthropic
-    ANTHROPIC_AVAILABLE = True
-except ImportError:
-    ANTHROPIC_AVAILABLE = False
-    anthropic = None
 
 
 class AIAssistant:
