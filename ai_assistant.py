@@ -32,21 +32,7 @@ except ImportError:
     GROQ_AVAILABLE = False
     Groq = None
 
-# Try to import OpenAI - fallback provider
-try:
-    import openai
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-    openai = None
 
-# Try to import Anthropic (Claude) - alternative AI provider
-try:
-    import anthropic
-    ANTHROPIC_AVAILABLE = True
-except ImportError:
-    ANTHROPIC_AVAILABLE = False
-    anthropic = None
 
 
 class AIAssistant:
@@ -296,13 +282,7 @@ class AIAssistant:
         
         if self.ai_provider == 'groq' and not GROQ_AVAILABLE:
             return False, "Groq package not installed. Run: pip install groq"
-        
-        if self.ai_provider == 'openai' and not OPENAI_AVAILABLE:
-            return False, "OpenAI package not installed. Run: pip install openai"
-        
-        if self.ai_provider == 'anthropic' and not ANTHROPIC_AVAILABLE:
-            return False, "Anthropic package not installed. Run: pip install anthropic"
-        
+     
         return True, "Ready"
     
     def get_system_context(self) -> str:
@@ -481,27 +461,8 @@ Always be helpful, concise, and professional. If you can't perform an action, ex
         
         return completion.choices[0].message.content
     
-    def _call_openai(self, messages: List[Dict]) -> str:
-        """Call OpenAI API"""
-        if not OPENAI_AVAILABLE:
-            return "OpenAI not available"
-        
-        client = openai.OpenAI(api_key=self.api_key)
-        response = client.chat.completions.create(
-            model=self.model or "gpt-4o-mini",
-            messages=messages,
-            max_tokens=self.max_tokens,
-            temperature=self.temperature
-        )
-        return response.choices[0].message.content
     
-    def _call_anthropic(self, messages: List[Dict]) -> str:
-        """Call Anthropic Claude API"""
-        if not ANTHROPIC_AVAILABLE:
-            return "Anthropic not available"
-        
-        client = anthropic.Anthropic(api_key=self.api_key)
-        
+    
         # Extract system message
         system_msg = ""
         chat_messages = []

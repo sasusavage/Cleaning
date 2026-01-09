@@ -24,6 +24,9 @@ from email.utils import formataddr
 from io import BytesIO
 from datetime import datetime
 import calendar
+import time
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 try:
     import psycopg2
@@ -94,6 +97,12 @@ REQUEST_STATUS_LABELS = {
     'cancelled': 'Cancelled',
     'survey_needed': 'Survey Needed'
 }
+
+TRAVEL_CACHE_TTL_SECONDS = 15 * 60
+SESSION_TRAVEL_CACHE_TTL_SECONDS = 10 * 60
+_travel_quote_cache = {}
+_travel_cache_lock = threading.Lock()
+EMAIL_EXECUTOR = ThreadPoolExecutor(max_workers=4)
 
 def allowed_file(filename, allowed_extensions=None):
     extensions = allowed_extensions or IMAGE_EXTENSIONS
@@ -1001,7 +1010,7 @@ def process_request_submission(payload, uploaded_files=None, remote_addr=None, e
         metadata.update(extra_metadata)
         clean_payload['metadata'] = metadata
     request_record, attachments = store_request(clean_payload, uploaded_files, status_override=status_override)
-    notification_result = send_request_notifications(request_record, attachments)
+    queue_request_notifications(request_record, attachments)
 
     log_analytics_event('request_submission', {
         'request_type': clean_payload.get('request_type'),
@@ -1015,7 +1024,7 @@ def process_request_submission(payload, uploaded_files=None, remote_addr=None, e
         'request_id': request_record.get('id'),
         'reference': request_record.get('ref_id'),
         'status': request_record.get('status'),
-        'emails': notification_result
+        'emails': {'queued': True}
     }
     return response_payload
 
@@ -1119,6 +1128,26 @@ def send_request_notifications(request_record, attachments=None):
     request_record['email_sent_admin'] = 1 if result['admin_sent'] else 0
     request_record['email_sent_user'] = 1 if result['user_sent'] else 0
     return result
+
+
+def queue_request_notifications(request_record, attachments=None):
+    if not request_record:
+        return
+
+    record_copy = dict(request_record)
+    attachments_copy = [dict(item) for item in (attachments or [])]
+
+    def _deliver():
+        try:
+            with app.app_context():
+                send_request_notifications(record_copy, attachments_copy)
+        except Exception:
+            app.logger.exception('Async notification delivery failed for request %s', record_copy.get('id'))
+
+    try:
+        EMAIL_EXECUTOR.submit(_deliver)
+    except Exception:
+        _deliver()
 
 
 def update_request_email_flags(request_id, admin_sent=None, user_sent=None):
@@ -1861,6 +1890,74 @@ def delete_operating_base(base_id):
     conn.close()
 
 
+def _normalize_postcode_key(postcode):
+    return (postcode or '').strip().upper().replace(' ', '')
+
+
+def _get_cached_travel_quote(postcode):
+    key = _normalize_postcode_key(postcode)
+    if not key:
+        return None
+    now = time.time()
+    with _travel_cache_lock:
+        entry = _travel_quote_cache.get(key)
+        if not entry:
+            return None
+        if entry.get('expires_at', 0) <= now:
+            _travel_quote_cache.pop(key, None)
+            return None
+        return dict(entry['quote'])
+
+
+def _store_cached_travel_quote(postcode, quote):
+    key = _normalize_postcode_key(postcode)
+    if not key or not isinstance(quote, dict):
+        return
+    payload = dict(quote)
+    expires_at = time.time() + TRAVEL_CACHE_TTL_SECONDS
+    with _travel_cache_lock:
+        _travel_quote_cache[key] = {'quote': payload, 'expires_at': expires_at}
+
+
+def _store_session_travel_quote(postcode, quote):
+    key = _normalize_postcode_key(postcode)
+    if not key or not isinstance(quote, dict):
+        return
+    try:
+        cache = session.get('travel_quote_cache') or {}
+        cache[key] = {
+            'quote': quote,
+            'ts': int(time.time())
+        }
+        if len(cache) > 5:
+            ordered = sorted(cache.items(), key=lambda item: item[1].get('ts', 0))
+            for stale_key, _ in ordered[:-5]:
+                cache.pop(stale_key, None)
+        session['travel_quote_cache'] = cache
+    except Exception as exc:
+        app.logger.debug('Unable to persist travel quote in session: %s', exc)
+
+
+def _get_session_travel_quote(postcode):
+    key = _normalize_postcode_key(postcode)
+    if not key:
+        return None
+    cache = session.get('travel_quote_cache') or {}
+    entry = cache.get(key)
+    if not entry:
+        return None
+    ts = entry.get('ts') or 0
+    if time.time() - ts > SESSION_TRAVEL_CACHE_TTL_SECONDS:
+        cache.pop(key, None)
+        session['travel_quote_cache'] = cache
+        return None
+    quote = entry.get('quote')
+    if isinstance(quote, dict):
+        _store_cached_travel_quote(postcode, quote)
+        return dict(quote)
+    return None
+
+
 def geocode_postcode_tomtom(postcode, api_key):
     if not postcode or not api_key:
         return None
@@ -2082,6 +2179,10 @@ def resolve_travel_time(user_postcode, settings=None):
 
 
 def calculate_travel_cost(user_postcode):
+    cached = _get_cached_travel_quote(user_postcode)
+    if cached:
+        return cached
+
     settings = fetch_travel_settings() or {}
 
     api_key = (settings.get('tomtom_api_key') or '').strip()
@@ -2117,7 +2218,7 @@ def calculate_travel_cost(user_postcode):
         # Normal coverage: one-way travel at standard rate
         travel_fee = round(travel_minutes * price_per_minute, 2)
     
-    return {
+    result = {
         'travel_fee': travel_fee,
         'distance_miles': travel_data.get('distance_miles'),
         'travel_time_minutes': travel_minutes,
@@ -2128,6 +2229,8 @@ def calculate_travel_cost(user_postcode):
         'max_service_radius_miles': travel_data.get('max_service_radius_miles'),
         'is_extended_coverage': is_extended_coverage
     }
+    _store_cached_travel_quote(user_postcode, result)
+    return result
 
 
 def parse_price_input(value):
@@ -3386,6 +3489,9 @@ def travel_quote():
         if base_amount is not None and quote.get('travel_fee') is not None:
             total = round(base_amount + quote.get('travel_fee'), 2)
         quote['total'] = total
+        session_quote = dict(quote)
+        session_quote.pop('total', None)
+        _store_session_travel_quote(postcode, session_quote)
         return jsonify(quote)
     except ValueError as exc:
         message = str(exc)
@@ -3410,7 +3516,9 @@ def create_service_request():
         user_postcode = sanitize_text(payload.get('postcode'), 255)
         travel_quote = None
         if user_postcode:
-            travel_quote = calculate_travel_cost(user_postcode)
+            travel_quote = _get_session_travel_quote(user_postcode)
+            if not travel_quote:
+                travel_quote = calculate_travel_cost(user_postcode)
         else:
             travel_quote = {
                 'travel_fee': 0,
