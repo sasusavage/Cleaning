@@ -32,9 +32,6 @@ except ImportError:
     GROQ_AVAILABLE = False
     Groq = None
 
-
-
-
 class AIAssistant:
     """AI Assistant for cleaning service management"""
     
