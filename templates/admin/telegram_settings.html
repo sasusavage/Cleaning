@@ -272,36 +272,35 @@
         @media (max-width: 1024px) {
             body {
                 flex-direction: column;
-                min-height: 100vh;
             }
-
             .sidebar {
+                position: relative;
                 width: 100%;
-                flex-direction: column;
-                align-items: stretch;
-                gap: 0.75rem;
-                padding: 1.15rem 1.5rem;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.12);
                 height: auto;
+                padding: 1rem 1.25rem;
                 overflow: visible;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             }
-
             .sidebar__header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
                 margin-bottom: 0;
             }
-
             .sidebar__toggle {
-                display: inline-flex;
+                display: flex;
             }
-
             .sidebar__nav {
                 display: none;
-                padding-top: 0.75rem;
-                border-top: 1px solid rgba(255, 255, 255, 0.15);
+                padding-top: 1rem;
+                margin-top: 1rem;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
             }
-
+            .sidebar--menu-open .sidebar__nav {
+                display: flex;
+            }
             .main-content {
-                padding: 1.75rem;
+                padding: 1.5rem;
             }
         }
 
@@ -340,13 +339,35 @@
                 width: 100%;
             }
         }
+
+        @media (max-width: 480px) {
+            .sidebar {
+                padding: 0.9rem 1rem;
+            }
+
+            .page-header h1 {
+                font-size: 1.5rem;
+            }
+
+            .card {
+                padding: 1.25rem;
+            }
+
+            .form-grid {
+                gap: 1rem;
+            }
+
+            .form-group label {
+                font-size: 0.85rem;
+            }
+        }
     </style>
 </head>
 <body>
     <aside class="sidebar" id="sidebar">
         <div class="sidebar__header">
             <div class="logo">{{ company_name }} Admin</div>
-            <button class="sidebar__toggle" type="button" id="sidebarToggle">Menu</button>
+            <button class="sidebar__toggle" type="button" id="sidebarToggle" aria-expanded="false">Menu</button>
         </div>
         <nav class="sidebar__nav">
             <a class="nav-link" href="{{ url_for('admin_dashboard') }}#analytics">Analytics</a>
@@ -451,18 +472,32 @@
     </main>
 
     <script>
-        const sidebarToggle = document.getElementById('sidebarToggle');
         const sidebar = document.getElementById('sidebar');
-        sidebarToggle?.addEventListener('click', () => {
-            sidebar.classList.toggle('sidebar--menu-open');
-        });
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebarLinks = document.querySelectorAll('.sidebar__nav .nav-link');
 
-        const links = document.querySelectorAll('.sidebar__nav .nav-link');
-        links.forEach(link => {
-            if (link.href === window.location.href) {
-                link.classList.add('active');
-            }
-        });
+        if (sidebar && sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                const isOpen = sidebar.classList.toggle('sidebar--menu-open');
+                sidebarToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            });
+
+            sidebarLinks.forEach((link) => {
+                link.addEventListener('click', () => {
+                    if (window.innerWidth <= 1024 && sidebar.classList.contains('sidebar--menu-open')) {
+                        sidebar.classList.remove('sidebar--menu-open');
+                        sidebarToggle.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            });
+
+            window.addEventListener('resize', () => {
+                if (window.innerWidth > 1024 && sidebar.classList.contains('sidebar--menu-open')) {
+                    sidebar.classList.remove('sidebar--menu-open');
+                    sidebarToggle.setAttribute('aria-expanded', 'false');
+                }
+            });
+        }
     </script>
 </body>
 </html>

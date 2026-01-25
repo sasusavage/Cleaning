@@ -1236,55 +1236,46 @@
         @media (max-width: 1024px) {
             body {
                 flex-direction: column;
-                height: auto;
             }
-
             .sidebar {
+                position: relative;
                 width: 100%;
-                flex-direction: column;
-                align-items: stretch;
-                gap: 0.5rem;
+                height: auto;
                 padding: 1rem 1.25rem;
                 overflow: visible;
-                border-right: none;
-                border-bottom: 1px solid var(--border);
-                height: auto;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             }
-
+            .sidebar__header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                width: 100%;
+            }
             .logo {
                 margin-bottom: 0;
             }
-
-            .nav-link {
-                margin-bottom: 0.5rem;
-            }
-
-            .main-content {
-                padding: 1.5rem;
-            }
-
-            .header {
-                flex-wrap: wrap;
-                gap: 0.75rem;
-            }
-
-            .sidebar__header {
-                width: 100%;
-            }
-
             .sidebar__toggle {
-                display: inline-flex;
+                display: flex;
             }
-
             .sidebar__nav {
                 display: none;
                 flex-direction: column;
-                padding-top: 0.5rem;
-                border-top: 1px solid var(--border);
+                padding-top: 1rem;
+                margin-top: 1rem;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
             }
-
             .sidebar--menu-open .sidebar__nav {
                 display: flex;
+            }
+            .nav-link {
+                margin-bottom: 0.25rem;
+            }
+            .main-content {
+                padding: 1.5rem;
+            }
+            .header {
+                flex-wrap: wrap;
+                gap: 0.75rem;
             }
         }
 
