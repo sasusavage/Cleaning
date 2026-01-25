@@ -118,7 +118,7 @@
         .sidebar__link:hover, .sidebar__link--active { background: rgba(255, 255, 255, 0.08); color: #fff; }
         .sidebar__link--active { background: rgba(124, 58, 237, 0.25); color: #c4b5fd; }
 
-        .main { flex: 1; padding: 2rem; max-width: 900px; }
+        .main { flex: 1; padding: 2rem; overflow-y: auto; }
 
         .page-header { margin-bottom: 2rem; }
         .page-header__title { margin: 0 0 0.5rem; font-size: 1.65rem; font-weight: 700; display: flex; align-items: center; gap: 0.75rem; }
@@ -309,13 +309,20 @@
             <button type="button" class="sidebar__toggle" aria-expanded="false">Menu</button>
         </div>
         <nav class="sidebar__nav">
-            <a class="sidebar__link" href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+            <a class="sidebar__link" href="{{ url_for('admin_dashboard') }}#analytics">Analytics</a>
+            <a class="sidebar__link" href="{{ url_for('admin_dashboard') }}#requests">Requests</a>
+            <a class="sidebar__link" href="{{ url_for('admin_dashboard') }}#services">Services</a>
+            <a class="sidebar__link" href="{{ url_for('admin_dashboard') }}#travel">Travel Pricing</a>
+            <a class="sidebar__link" href="{{ url_for('admin_dashboard') }}#positions">Job Positions</a>
+            <a class="sidebar__link" href="{{ url_for('admin_dashboard') }}#testimonials">Testimonials</a>
             <a class="sidebar__link" href="{{ url_for('admin_hero_content_page') }}">Hero Content</a>
-            <a class="sidebar__link" href="{{ url_for('admin_brand_settings') }}">Brand & Logo</a>
-            <a class="sidebar__link" href="{{ url_for('admin_quote_section') }}">Quote & Contact</a>
+            <a class="sidebar__link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
+            <a class="sidebar__link" href="{{ url_for('admin_quote_section') }}">Quote &amp; Contact</a>
             <a class="sidebar__link" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
             <a class="sidebar__link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
-            <a class="sidebar__link sidebar__link--active" href="{{ url_for('admin_ai_settings_page') }}">AI Assistant</a>
+            <a class="sidebar__link" href="{{ url_for('admin_dashboard') }}#email">Email Settings</a>
+            <a class="sidebar__link" href="{{ url_for('admin_telegram_settings') }}">📱 Telegram</a>
+            <a class="sidebar__link sidebar__link--active" href="{{ url_for('admin_ai_settings_page') }}">🤖 AI Assistant</a>
             <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
                 <button type="submit" class="sidebar__logout-button">Log Out</button>
             </form>

@@ -127,17 +127,14 @@
 
         .sidebar .nav-link:hover,
         .sidebar .nav-link.active {
-            background: rgba(37, 99, 235, 0.2);
-            color: #fff;
+            background: rgba(37, 99, 235, 0.25);
+            color: #93c5fd;
         }
 
         .main-content {
             flex: 1;
-            padding: 2.5rem 3rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1.75rem;
-            min-height: 0;
+            padding: 2rem;
+            overflow-y: auto;
         }
 
         .page-header {
@@ -352,14 +349,23 @@
             <button class="sidebar__toggle" type="button" id="sidebarToggle">Menu</button>
         </div>
         <nav class="sidebar__nav">
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#analytics">Analytics</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">Requests</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">Services</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">Travel Pricing</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">Job Positions</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">Testimonials</a>
             <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">Hero Content</a>
             <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
             <a class="nav-link" href="{{ url_for('admin_quote_section') }}">Quote &amp; Contact</a>
+            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
             <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">Email Settings</a>
+            <a class="nav-link active" href="{{ url_for('admin_telegram_settings') }}">📱 Telegram</a>
+            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}" style="background: rgba(124, 58, 237, 0.25); color: #c4b5fd;">🤖 AI Assistant</a>
         </nav>
         <form class="sidebar__logout-form" action="{{ url_for('admin_logout') }}" method="post">
-            <button class="sidebar__logout-button" type="submit">Sign Out</button>
+            <button class="sidebar__logout-button" type="submit">Log Out</button>
         </form>
     </aside>
 

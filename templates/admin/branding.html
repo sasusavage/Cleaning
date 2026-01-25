@@ -9,6 +9,7 @@
     <style>
         :root {
             --primary: #2563eb;
+            --primary-dark: #1d4ed8;
             --primary-soft: rgba(37, 99, 235, 0.12);
             --bg: #f3f4f6;
             --surface: #ffffff;
@@ -17,27 +18,31 @@
             --border: #e5e7eb;
         }
 
+        * { box-sizing: border-box; }
+
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             background: var(--bg);
             color: var(--text);
             margin: 0;
             display: flex;
-            height: 100vh;
+            min-height: 100vh;
         }
 
         .sidebar {
-            width: 250px;
-            background: var(--surface);
-            border-right: 1px solid var(--border);
-            padding: 1.5rem;
+            width: 240px;
+            background: #111827;
+            color: #f9fafb;
+            padding: 2rem 1.5rem;
             display: flex;
             flex-direction: column;
+            gap: 1.5rem;
             position: sticky;
             top: 0;
             height: 100vh;
             overflow-y: auto;
             align-self: flex-start;
+            z-index: 120;
         }
 
         .sidebar__header {
@@ -45,25 +50,34 @@
             align-items: center;
             justify-content: space-between;
             gap: 0.75rem;
-            margin-bottom: 2rem;
+            margin-bottom: 0.75rem;
         }
 
         .sidebar__toggle {
             display: none;
             align-items: center;
             justify-content: center;
-            padding: 0.5rem 0.75rem;
+            padding: 0.45rem 0.7rem;
             border-radius: 0.5rem;
-            border: 1px solid var(--border);
-            background: #f1f5f9;
-            color: var(--text);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+            color: #f9fafb;
             font-weight: 600;
             cursor: pointer;
+        }
+
+        .sidebar__toggle:hover {
+            background: rgba(255, 255, 255, 0.14);
         }
 
         .sidebar__nav {
             display: flex;
             flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .sidebar--menu-open .sidebar__nav {
+            display: flex;
         }
 
         .sidebar__logout-form {
@@ -77,42 +91,46 @@
             border-radius: 0.5rem;
             border: 1px solid rgba(248, 113, 113, 0.25);
             background: rgba(248, 113, 113, 0.12);
-            color: #b91c1c;
+            color: #fca5a5;
             font-weight: 600;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             font-family: inherit;
             cursor: pointer;
-            transition: background 0.2s ease, color 0.2s ease;
+            transition: background 0.2s ease;
         }
 
         .sidebar__logout-button:hover,
         .sidebar__logout-button:focus {
             background: rgba(248, 113, 113, 0.2);
-            color: #7f1d1d;
+            color: #fef2f2;
             outline: none;
         }
 
         .logo {
-            font-size: 1.25rem;
+            font-size: 1.1rem;
             font-weight: 700;
-            color: var(--primary);
+            color: #f9fafb;
         }
 
         .nav-link {
             display: block;
-            padding: 0.75rem 1rem;
-            color: var(--text);
+            padding: 0.65rem 0.9rem;
+            color: #9ca3af;
             text-decoration: none;
             border-radius: 0.5rem;
-            margin-bottom: 0.5rem;
-            transition: background 0.2s;
+            font-size: 0.9rem;
+            transition: background 0.2s, color 0.2s;
             cursor: pointer;
         }
 
-        .nav-link:hover,
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #f9fafb;
+        }
+
         .nav-link.active {
-            background: #eff6ff;
-            color: var(--primary);
+            background: rgba(37, 99, 235, 0.25);
+            color: #93c5fd;
         }
 
         .main-content {
@@ -319,11 +337,20 @@
             <button type="button" class="sidebar__toggle" aria-expanded="false" aria-controls="sidebar-nav">Menu</button>
         </div>
         <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#analytics">Analytics</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">Requests</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">Services</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">Travel Pricing</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">Job Positions</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">Testimonials</a>
             <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">Hero Content</a>
             <a class="nav-link active" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
             <a class="nav-link" href="{{ url_for('admin_quote_section') }}">Quote &amp; Contact</a>
+            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
             <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">Email Settings</a>
+            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">📱 Telegram</a>
+            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}" style="background: rgba(124, 58, 237, 0.25); color: #c4b5fd;">🤖 AI Assistant</a>
             <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
                 <button type="submit" class="sidebar__logout-button">Log Out</button>
             </form>
