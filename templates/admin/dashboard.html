@@ -1794,34 +1794,59 @@
                         <label for="email-reply-to">Reply-To (optional)</label>
                         <input type="email" id="email-reply-to" name="reply_to">
                     </div>
+                    
+                    <!-- Email Provider Selection -->
                     <div class="form-group">
-                        <label for="email-smtp-host">SMTP Host</label>
-                        <input type="text" id="email-smtp-host" name="smtp_host" required>
+                        <label for="email-provider">Email Provider</label>
+                        <select id="email-provider" name="email_provider" onchange="toggleEmailProviderFields()">
+                            <option value="smtp">SMTP</option>
+                            <option value="resend">Resend</option>
+                        </select>
                     </div>
+
+                    <!-- SMTP Settings -->
+                    <div id="smtp-settings-group">
+                        <div class="form-group">
+                            <label for="email-smtp-host">SMTP Host</label>
+                            <input type="text" id="email-smtp-host" name="smtp_host">
+                        </div>
+                        <div class="form-group">
+                            <label for="email-smtp-port">SMTP Port</label>
+                            <input type="number" id="email-smtp-port" name="smtp_port" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="email-smtp-username">SMTP Username</label>
+                            <input type="text" id="email-smtp-username" name="smtp_username">
+                        </div>
+                        <div class="form-group">
+                            <label for="email-smtp-password">SMTP Password (leave blank to keep current)</label>
+                            <input type="password" id="email-smtp-password" name="smtp_password" autocomplete="new-password">
+                        </div>
+                        <div class="form-group" style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" id="email-use-tls" name="use_tls">
+                                Use TLS
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" id="email-use-ssl" name="use_ssl">
+                                Use SSL
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Resend Settings -->
+                    <div id="resend-settings-group" style="display: none;">
+                        <div class="form-group">
+                            <label for="email-resend-api-key">Resend API Key (leave blank to keep current)</label>
+                            <input type="password" id="email-resend-api-key" name="resend_api_key" autocomplete="new-password">
+                            <small style="color: #6b7280;">Get your API key from <a href="https://resend.com" target="_blank" rel="noopener">resend.com</a></small>
+                        </div>
+                    </div>
+
                     <div class="form-group">
-                        <label for="email-smtp-port">SMTP Port</label>
-                        <input type="number" id="email-smtp-port" name="smtp_port" required min="1">
-                    </div>
-                    <div class="form-group">
-                        <label for="email-smtp-username">SMTP Username</label>
-                        <input type="text" id="email-smtp-username" name="smtp_username">
-                    </div>
-                    <div class="form-group">
-                        <label for="email-smtp-password">SMTP Password (leave blank to keep current)</label>
-                        <input type="password" id="email-smtp-password" name="smtp_password" autocomplete="new-password">
-                    </div>
-                    <div class="form-group" style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
-                        <label style="display: flex; align-items: center; gap: 0.5rem;">
-                            <input type="checkbox" id="email-use-tls" name="use_tls">
-                            Use TLS
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 0.5rem;">
-                            <input type="checkbox" id="email-use-ssl" name="use_ssl">
-                            Use SSL
-                        </label>
                         <label style="display: flex; align-items: center; gap: 0.5rem;">
                             <input type="checkbox" id="email-is-active" name="is_active">
-                            Enable Notifications
+                            Enable Email Notifications
                         </label>
                     </div>
                     <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
@@ -3957,10 +3982,18 @@
             const recipients = settings.admin_recipients || (Array.isArray(settings.admin_recipient_list) ? settings.admin_recipient_list.join(', ') : '');
             setValue('admin_recipients')(recipients);
             setValue('reply_to')(settings.reply_to || '');
+            
+            // Email provider
+            setValue('email_provider')(settings.email_provider || 'smtp');
+            
+            // SMTP settings
             setValue('smtp_host')(settings.smtp_host || '');
             setValue('smtp_port')(settings.smtp_port || '');
             setValue('smtp_username')(settings.smtp_username || '');
             setValue('smtp_password')('');
+            
+            // Resend settings
+            setValue('resend_api_key')('');
 
             const tlsEnabled = String(settings.use_tls).toLowerCase() === 'true' || Number(settings.use_tls) === 1;
             const sslEnabled = String(settings.use_ssl).toLowerCase() === 'true' || Number(settings.use_ssl) === 1;
@@ -3969,6 +4002,23 @@
             setChecked('use_tls')(tlsEnabled);
             setChecked('use_ssl')(sslEnabled);
             setChecked('is_active')(isActive);
+            
+            // Toggle provider fields visibility
+            toggleEmailProviderFields();
+        }
+
+        function toggleEmailProviderFields() {
+            const provider = document.getElementById('email-provider')?.value || 'smtp';
+            const smtpGroup = document.getElementById('smtp-settings-group');
+            const resendGroup = document.getElementById('resend-settings-group');
+            
+            if (provider === 'resend') {
+                if (smtpGroup) smtpGroup.style.display = 'none';
+                if (resendGroup) resendGroup.style.display = 'block';
+            } else {
+                if (smtpGroup) smtpGroup.style.display = 'block';
+                if (resendGroup) resendGroup.style.display = 'none';
+            }
         }
 
         if (requestTypeFilter) {
@@ -3983,10 +4033,12 @@
                     sender_email: (emailSettingsForm.elements.namedItem('sender_email')?.value || '').trim(),
                     admin_recipients: (emailSettingsForm.elements.namedItem('admin_recipients')?.value || '').trim(),
                     reply_to: (emailSettingsForm.elements.namedItem('reply_to')?.value || '').trim(),
+                    email_provider: (emailSettingsForm.elements.namedItem('email_provider')?.value || 'smtp').trim(),
                     smtp_host: (emailSettingsForm.elements.namedItem('smtp_host')?.value || '').trim(),
                     smtp_port: (emailSettingsForm.elements.namedItem('smtp_port')?.value || '').trim(),
                     smtp_username: (emailSettingsForm.elements.namedItem('smtp_username')?.value || '').trim(),
                     smtp_password: emailSettingsForm.elements.namedItem('smtp_password')?.value || '',
+                    resend_api_key: emailSettingsForm.elements.namedItem('resend_api_key')?.value || '',
                     use_tls: Boolean(emailSettingsForm.elements.namedItem('use_tls')?.checked),
                     use_ssl: Boolean(emailSettingsForm.elements.namedItem('use_ssl')?.checked),
                     is_active: Boolean(emailSettingsForm.elements.namedItem('is_active')?.checked)

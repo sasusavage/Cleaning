@@ -10,7 +10,19 @@ import logging
 import threading
 from datetime import datetime
 from typing import Optional, Dict, Any, Callable
-import mysql.connector
+
+# DB drivers
+try:
+    import mysql.connector
+except ImportError:
+    mysql_connector = None
+
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+except ImportError:
+    psycopg2 = None
+    RealDictCursor = None
 
 try:
     import requests
@@ -28,6 +40,7 @@ class TelegramBotAI:
     
     def __init__(self, db_config: Dict[str, Any]):
         self.db_config = db_config
+        self.db_engine = (db_config.get('engine') or 'mysql').strip().lower()
         self.bot_token = None
         self.chat_id = None
         self.is_active = False
@@ -42,8 +55,43 @@ class TelegramBotAI:
         self._load_settings()
     
     def _get_db_connection(self):
-        """Get database connection"""
-        return mysql.connector.connect(**self.db_config)
+        """Get database connection based on engine"""
+        if self.db_engine == 'postgres':
+            dsn = (self.db_config.get('postgres_url') or '').strip()
+            if not dsn:
+                raise ValueError('Postgres engine selected but postgres_url is not configured')
+            if psycopg2 is None:
+                raise RuntimeError('psycopg2 is not installed')
+
+            raw = psycopg2.connect(dsn)
+
+            class _PGConnWrapper:
+                def __init__(self, conn):
+                    self._conn = conn
+
+                def cursor(self, dictionary=False, *args, **kwargs):
+                    if dictionary:
+                        if RealDictCursor is None:
+                            return self._conn.cursor(*args, **kwargs)
+                        return self._conn.cursor(cursor_factory=RealDictCursor)
+                    return self._conn.cursor(*args, **kwargs)
+
+                def commit(self):
+                    return self._conn.commit()
+
+                def close(self):
+                    return self._conn.close()
+
+                def __getattr__(self, name):
+                    return getattr(self._conn, name)
+
+            return _PGConnWrapper(raw)
+
+        # MySQL connection
+        if mysql_connector is None:
+            raise RuntimeError('mysql-connector-python is not installed')
+        mysql_config = {k: v for k, v in self.db_config.items() if k not in ('engine', 'postgres_url')}
+        return mysql.connector.connect(**mysql_config)
     
     def _load_settings(self):
         """Load bot settings from database"""
@@ -98,6 +146,7 @@ class TelegramBotAI:
         self.register_command('request', self._cmd_request, 'Get request details')
         self.register_command('update', self._cmd_update, 'Update request status')
         self.register_command('ai', self._cmd_ai, 'Ask AI assistant')
+        self.register_command('menu', self._cmd_menu, 'Show quick action menu')
     
     def register_command(self, name: str, handler: Callable, description: str = ''):
         """Register a command handler"""
@@ -112,8 +161,8 @@ class TelegramBotAI:
             return True  # Allow all if no restrictions
         return str(chat_id) in self.allowed_chat_ids
     
-    def send_message(self, chat_id: str, text: str, parse_mode: str = 'HTML') -> bool:
-        """Send a message to a chat"""
+    def send_message(self, chat_id: str, text: str, parse_mode: str = 'HTML', reply_markup: dict = None) -> bool:
+        """Send a message to a chat with optional inline keyboard"""
         if not self.bot_token or not REQUESTS_AVAILABLE:
             return False
         
@@ -124,11 +173,20 @@ class TelegramBotAI:
                 'text': text[:4096],  # Telegram limit
                 'parse_mode': parse_mode
             }
+            if reply_markup:
+                payload['reply_markup'] = json.dumps(reply_markup)
             response = requests.post(url, json=payload, timeout=10)
             return response.status_code == 200
         except Exception as e:
             logger.error(f"Failed to send message: {e}")
             return False
+    
+    def send_message_with_buttons(self, chat_id: str, text: str, buttons: list, parse_mode: str = 'HTML') -> bool:
+        """Send a message with inline keyboard buttons"""
+        reply_markup = {
+            'inline_keyboard': buttons
+        }
+        return self.send_message(chat_id, text, parse_mode, reply_markup)
     
     def process_message(self, message: Dict) -> Optional[str]:
         """Process an incoming message and return response"""
@@ -249,21 +307,21 @@ Use /help to see available commands.
             conn = self._get_db_connection()
             cursor = conn.cursor(dictionary=True)
             
-            # Get request counts
+            # Get request counts - Postgres compatible
             cursor.execute("""
                 SELECT 
-                    SUM(status = 'pending') as pending,
-                    SUM(status = 'in_progress') as in_progress,
-                    SUM(status = 'completed') as completed,
-                    SUM(status = 'survey_needed') as survey_needed
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending,
+                    COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as in_progress,
+                    COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+                    COUNT(CASE WHEN status = 'survey_needed' THEN 1 END) as survey_needed
                 FROM requests
             """)
             stats = cursor.fetchone()
             
-            # Today's count
+            # Today's count - use CURRENT_DATE for Postgres compatibility
             cursor.execute("""
                 SELECT COUNT(*) as today FROM requests 
-                WHERE DATE(created_at) = CURDATE()
+                WHERE DATE(created_at) = CURRENT_DATE
             """)
             today = cursor.fetchone()['today']
             
@@ -328,7 +386,7 @@ Use /help to see available commands.
                     request_type,
                     COUNT(*) as count
                 FROM requests
-                WHERE DATE(created_at) = CURDATE()
+                WHERE DATE(created_at) = CURRENT_DATE
                 GROUP BY request_type
             """)
             by_type = {row['request_type']: row['count'] for row in cursor.fetchall()}
@@ -338,7 +396,7 @@ Use /help to see available commands.
                     status,
                     COUNT(*) as count
                 FROM requests
-                WHERE DATE(updated_at) = CURDATE()
+                WHERE DATE(updated_at) = CURRENT_DATE
                 GROUP BY status
             """)
             by_status = {row['status']: row['count'] for row in cursor.fetchall()}
@@ -491,6 +549,83 @@ Use /update {ref_id} <status> to update."""
         
         return self._handle_ai_query(chat_id, args)
     
+    def _cmd_menu(self, chat_id: str, args: str, username: str) -> str:
+        """Show quick action menu with inline buttons"""
+        buttons = [
+            [
+                {'text': '📊 Status', 'callback_data': 'cmd_status'},
+                {'text': '📅 Today', 'callback_data': 'cmd_today'}
+            ],
+            [
+                {'text': '🟡 Pending', 'callback_data': 'cmd_pending'},
+                {'text': '💰 Revenue', 'callback_data': 'ai_revenue'}
+            ],
+            [
+                {'text': '🏆 Top Services', 'callback_data': 'ai_top_services'},
+                {'text': '📈 Analytics', 'callback_data': 'ai_analytics'}
+            ],
+            [
+                {'text': '🤖 Ask AI', 'callback_data': 'ai_help'}
+            ]
+        ]
+        
+        self.send_message_with_buttons(
+            chat_id,
+            "📋 <b>Quick Actions Menu</b>\n\nTap a button or just type naturally:",
+            buttons
+        )
+        return None  # Message already sent
+    
+    def handle_callback_query(self, callback_query: Dict) -> Optional[str]:
+        """Handle inline button callbacks"""
+        callback_id = callback_query.get('id')
+        chat_id = str(callback_query.get('message', {}).get('chat', {}).get('id', ''))
+        data = callback_query.get('data', '')
+        username = callback_query.get('from', {}).get('username', 'Unknown')
+        
+        # Acknowledge the callback
+        self._answer_callback(callback_id)
+        
+        response = None
+        
+        # Handle command callbacks
+        if data == 'cmd_status':
+            response = self._cmd_status(chat_id, '', username)
+        elif data == 'cmd_today':
+            response = self._cmd_today(chat_id, '', username)
+        elif data == 'cmd_pending':
+            response = self._cmd_pending(chat_id, '', username)
+        elif data == 'ai_revenue':
+            response = self._handle_ai_query(chat_id, "Show me the revenue report for the last 30 days")
+        elif data == 'ai_top_services':
+            response = self._handle_ai_query(chat_id, "What are the top performing services this month?")
+        elif data == 'ai_analytics':
+            response = self._handle_ai_query(chat_id, "Give me an analytics summary for the last 7 days")
+        elif data == 'ai_help':
+            response = "🤖 <b>AI Mode Active!</b>\n\nJust type your question naturally:\n\n• \"How are we doing today?\"\n• \"Search for John Smith\"\n• \"Mark ABC123 as completed\"\n• \"Email the customer about REF-XYZ\"\n• \"Show customer history for john@email.com\""
+        elif data.startswith('update_'):
+            # Handle status update callbacks like update_REF123_completed
+            parts = data.split('_')
+            if len(parts) >= 3:
+                ref_id = parts[1]
+                new_status = parts[2]
+                response = self._cmd_update(chat_id, f"{ref_id} {new_status}", username)
+        
+        if response:
+            self.send_message(chat_id, response)
+        
+        return response
+    
+    def _answer_callback(self, callback_id: str):
+        """Answer callback query to remove loading state"""
+        if not self.bot_token or not REQUESTS_AVAILABLE:
+            return
+        try:
+            url = f"https://api.telegram.org/bot{self.bot_token}/answerCallbackQuery"
+            requests.post(url, json={'callback_query_id': callback_id}, timeout=5)
+        except Exception:
+            pass
+    
     # =====================
     # POLLING & WEBHOOKS
     # =====================
@@ -553,6 +688,13 @@ Use /update {ref_id} <status> to update."""
         if update_id > self.last_update_id:
             self.last_update_id = update_id
         
+        # Handle callback queries (button presses)
+        callback_query = update.get('callback_query')
+        if callback_query:
+            self.handle_callback_query(callback_query)
+            return
+        
+        # Handle regular messages
         message = update.get('message')
         if message:
             chat_id = str(message.get('chat', {}).get('id', ''))
@@ -562,6 +704,12 @@ Use /update {ref_id} <status> to update."""
     
     def handle_webhook(self, update_data: Dict) -> Optional[str]:
         """Handle webhook update (for use with Flask)"""
+        # Handle callback queries
+        callback_query = update_data.get('callback_query')
+        if callback_query:
+            return self.handle_callback_query(callback_query)
+        
+        # Handle messages
         message = update_data.get('message')
         if message:
             chat_id = str(message.get('chat', {}).get('id', ''))

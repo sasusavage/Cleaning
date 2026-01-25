@@ -16,6 +16,7 @@ import base64
 import hashlib
 import traceback
 import math
+import mimetypes
 import requests
 from requests import RequestException
 import urllib.parse
@@ -27,6 +28,11 @@ import calendar
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
+
+try:
+    import resend
+except ImportError:
+    resend = None
 
 try:
     import psycopg2
@@ -327,7 +333,11 @@ def fetch_email_settings():
 
     smtp_password = decrypt_secret(row.get('smtp_password_encrypted')) if row.get('smtp_password_encrypted') else ''
     row['smtp_password'] = smtp_password
+    resend_api_key = decrypt_secret(row.get('resend_api_key_encrypted')) if row.get('resend_api_key_encrypted') else ''
+    row['resend_api_key'] = resend_api_key
     row['admin_recipient_list'] = parse_recipient_list(row.get('admin_recipients'))
+    # Default to 'smtp' if not set
+    row['email_provider'] = (row.get('email_provider') or 'smtp').strip().lower()
     return row
 
 
@@ -375,6 +385,165 @@ def log_email_error(request_id=None, email_type='notification', subject=None, re
             conn.close()
 
 
+def send_email_via_resend(subject, html_body, text_body, recipients, settings, attachments=None, reply_to=None, error_context=None, request_id=None, extra_error_payload=None):
+    """Send email using Resend API."""
+    context_key = sanitize_text(error_context or 'notification', 64) or 'notification'
+    subject_summary = sanitize_text(subject, 150) if subject else '(none)'
+
+    if not resend:
+        app.logger.error('Resend package not installed. Cannot send email via Resend API.')
+        log_email_error(
+            request_id=request_id,
+            email_type=context_key,
+            subject=subject_summary,
+            recipients=recipients,
+            error_message='Resend package not installed.',
+            error_payload={'reason': 'resend_not_installed'}
+        )
+        return False
+
+    api_key = (settings.get('resend_api_key') or '').strip()
+    if not api_key:
+        app.logger.warning('Resend API key not configured. Email not sent.')
+        payload = dict(extra_error_payload or {})
+        payload['reason'] = 'missing_resend_api_key'
+        log_email_error(
+            request_id=request_id,
+            email_type=context_key,
+            subject=subject_summary,
+            recipients=recipients,
+            error_message='Resend API key not configured.',
+            error_payload=payload
+        )
+        send_telegram_notification(
+            'notify_email_error',
+            [
+                '[Email] Delivery failed',
+                f'Context: {context_key}',
+                f'Subject: {subject_summary}',
+                'Reason: Resend API key not configured.'
+            ]
+        )
+        return False
+
+    sender_email = sanitize_email(settings.get('sender_email')) or 'no-reply@example.com'
+    sender_name = sanitize_text(settings.get('sender_name') or 'Notifications', 150)
+    from_address = f"{sender_name} <{sender_email}>"
+
+    # Configure Resend API key
+    resend.api_key = api_key
+
+    # Prepare attachments for Resend
+    resend_attachments = []
+    attachment_manifest = []
+    MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024
+    MAX_SINGLE_FILE_SIZE = 10 * 1024 * 1024
+    total_attachment_size = 0
+
+    for attachment in attachments or []:
+        filename = attachment.get('filename') or 'attachment'
+        path = attachment.get('absolute_path')
+        remote_url = attachment.get('remote_url')
+        payload = None
+        file_size = None
+
+        if path and os.path.isfile(path):
+            try:
+                file_size = os.path.getsize(path)
+                with open(path, 'rb') as file_handle:
+                    payload = file_handle.read()
+            except OSError:
+                app.logger.warning('Unable to read attachment from %s', path)
+                payload = None
+        elif remote_url:
+            try:
+                response = requests.get(remote_url, timeout=20)
+                response.raise_for_status()
+                payload = response.content
+                file_size = len(payload)
+            except RequestException:
+                app.logger.warning('Unable to download remote attachment %s', remote_url)
+                payload = None
+
+        if not payload:
+            continue
+
+        file_size = file_size or len(payload)
+
+        if file_size > MAX_SINGLE_FILE_SIZE:
+            app.logger.warning('Skipping attachment %s (%.2f MB) - exceeds single file limit.', filename, file_size / (1024 * 1024))
+            continue
+
+        if total_attachment_size + file_size > MAX_ATTACHMENT_SIZE:
+            app.logger.warning('Skipping attachment %s - would exceed total attachment limit.', filename)
+            continue
+
+        resend_attachments.append({
+            'filename': filename,
+            'content': list(payload)  # Resend expects bytes as list of integers
+        })
+        attachment_manifest.append({'filename': filename, 'size': file_size, 'remote': bool(remote_url)})
+        total_attachment_size += file_size
+
+    try:
+        email_params = {
+            'from': from_address,
+            'to': recipients,
+            'subject': subject,
+            'html': html_body or '',
+            'text': text_body or 'Please view this email in an HTML compatible client.'
+        }
+
+        if reply_to and sanitize_email(reply_to):
+            email_params['reply_to'] = sanitize_email(reply_to)
+
+        if resend_attachments:
+            email_params['attachments'] = resend_attachments
+
+        result = resend.Emails.send(email_params)
+
+        success_lines = [
+            '[Email] Delivery succeeded (Resend)',
+            f'Context: {context_key}',
+            f'Subject: {subject_summary}',
+            f'Recipients: {", ".join(recipients)}',
+            f'Attachments: {len(attachment_manifest)}'
+        ]
+        if request_id:
+            success_lines.append(f'Reference ID: {request_id}')
+        send_telegram_notification('notify_email_success', success_lines)
+        return True
+
+    except Exception as exc:
+        app.logger.exception('Failed to send email via Resend API with subject %s', subject)
+        payload = dict(extra_error_payload or {})
+        payload.update({
+            'provider': 'resend',
+            'attachment_count': len(attachment_manifest)
+        })
+        raw_error = ''.join(traceback.format_exception_only(type(exc), exc)).strip() or str(exc)
+        error_details = sanitize_text(raw_error, 180)
+        log_email_error(
+            request_id=request_id,
+            email_type=context_key,
+            subject=subject_summary,
+            recipients=recipients,
+            error_message=error_details,
+            error_payload=payload
+        )
+        error_lines = [
+            '[Email] Delivery failed (Resend)',
+            f'Context: {context_key}',
+            f'Subject: {subject_summary}',
+            f'Error: {error_details}',
+            f'Recipients: {", ".join(recipients) if recipients else "(none)"}'
+        ]
+        if request_id:
+            error_lines.append(f'Reference ID: {request_id}')
+        send_telegram_notification('notify_email_error', error_lines)
+        return False
+
+
 def send_email_via_settings(subject, html_body, text_body, recipients, settings, attachments=None, reply_to=None, error_context=None, request_id=None, extra_error_payload=None):
     recipients = [sanitize_email(addr) for addr in (recipients or []) if sanitize_email(addr)]
     context_key = sanitize_text(error_context or 'notification', 64) or 'notification'
@@ -401,6 +570,24 @@ def send_email_via_settings(subject, html_body, text_body, recipients, settings,
         )
         return False
 
+    # Check which email provider to use
+    email_provider = (settings.get('email_provider') or 'smtp').strip().lower()
+
+    if email_provider == 'resend':
+        return send_email_via_resend(
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            recipients=recipients,
+            settings=settings,
+            attachments=attachments,
+            reply_to=reply_to,
+            error_context=error_context,
+            request_id=request_id,
+            extra_error_payload=extra_error_payload
+        )
+
+    # Default to SMTP
     sender_email = sanitize_email(settings.get('sender_email')) or 'no-reply@example.com'
     sender_name = sanitize_text(settings.get('sender_name') or 'Notifications', 150)
     message = EmailMessage()
@@ -587,14 +774,23 @@ def update_email_settings(payload):
         raise ValueError('At least one admin recipient email is required.')
 
     reply_to = sanitize_email(payload.get('reply_to'))
+    
+    # Email provider selection (smtp or resend)
+    email_provider = (payload.get('email_provider') or 'smtp').strip().lower()
+    if email_provider not in ('smtp', 'resend'):
+        email_provider = 'smtp'
+
+    # SMTP settings
     smtp_host = sanitize_text(payload.get('smtp_host'), 150)
     smtp_port_value = payload.get('smtp_port') or 0
     try:
         smtp_port = int(smtp_port_value)
     except (TypeError, ValueError):
-        raise ValueError('SMTP port must be a number.')
-    if smtp_port <= 0:
-        raise ValueError('SMTP port must be greater than zero.')
+        smtp_port = 0
+    
+    # Only require SMTP port if using SMTP provider
+    if email_provider == 'smtp' and smtp_port <= 0:
+        raise ValueError('SMTP port must be greater than zero when using SMTP.')
 
     smtp_username = sanitize_text(payload.get('smtp_username'), 150)
     smtp_password_raw = payload.get('smtp_password')
@@ -602,10 +798,17 @@ def update_email_settings(payload):
     use_ssl = 1 if str(payload.get('use_ssl')).strip().lower() in {'1', 'true', 'yes', 'on'} else 0
     is_active = 1 if str(payload.get('is_active')).strip().lower() in {'1', 'true', 'yes', 'on'} else 0
 
+    # Resend API key
+    resend_api_key_raw = payload.get('resend_api_key')
+
     existing = fetch_email_settings()
     encrypted_password = existing.get('smtp_password_encrypted')
     if smtp_password_raw:
         encrypted_password = encrypt_secret(smtp_password_raw)
+
+    encrypted_resend_key = existing.get('resend_api_key_encrypted')
+    if resend_api_key_raw:
+        encrypted_resend_key = encrypt_secret(resend_api_key_raw)
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -616,13 +819,15 @@ def update_email_settings(payload):
             sender_email=%s,
             admin_recipients=%s,
             reply_to=%s,
+            email_provider=%s,
             smtp_host=%s,
             smtp_port=%s,
             smtp_username=%s,
             smtp_password_encrypted=%s,
             use_tls=%s,
             use_ssl=%s,
-            is_active=%s
+            is_active=%s,
+            resend_api_key_encrypted=%s
         WHERE id = 1
         """,
         (
@@ -630,13 +835,15 @@ def update_email_settings(payload):
             sender_email,
             ','.join(recipient_list),
             reply_to or None,
+            email_provider,
             smtp_host,
-            smtp_port,
+            smtp_port or 0,
             smtp_username or None,
             encrypted_password,
             use_tls,
             use_ssl,
-            is_active
+            is_active,
+            encrypted_resend_key
         )
     )
     conn.commit()
@@ -645,7 +852,9 @@ def update_email_settings(payload):
 
     updated = fetch_email_settings()
     updated['smtp_password'] = ''  # never echo password back to client
+    updated['resend_api_key'] = ''  # never echo API key back to client
     updated.pop('smtp_password_encrypted', None)
+    updated.pop('resend_api_key_encrypted', None)
     return updated
 
 
@@ -5435,7 +5644,9 @@ def admin_download_request_file(request_id, file_id):
     if not stored_path:
         return jsonify({'error': 'File path invalid.'}), 400
 
-    as_attachment = request.path.endswith('/download') or request.args.get('download', '1') != '0'
+    is_download_route = request.path.endswith('/download')
+    download_param = request.args.get('download')
+    as_attachment = is_download_route if download_param is None else str_to_bool(download_param)
     download_name = file_row.get('original_filename') or 'attachment'
 
     if stored_path.startswith(('http://', 'https://')):
@@ -5449,12 +5660,16 @@ def admin_download_request_file(request_id, file_id):
         content = remote_resp.content or b''
         file_stream = BytesIO(content)
         file_stream.seek(0)
-        return send_file(
+        response = send_file(
             file_stream,
             mimetype=mimetype,
             as_attachment=as_attachment,
-            download_name=download_name
+            download_name=download_name if as_attachment else None
         )
+        if not as_attachment:
+            safe_name = secure_filename(download_name) or download_name
+            response.headers['Content-Disposition'] = f'inline; filename="{safe_name}"'
+        return response
 
     normalized_path = os.path.normpath(stored_path).replace('\\', '/')
     normalized_path = normalized_path.lstrip('/')
@@ -5466,12 +5681,19 @@ def admin_download_request_file(request_id, file_id):
 
     directory, filename = os.path.split(absolute_path)
 
-    return send_from_directory(
-        directory,
-        os.path.basename(filename),
+    guessed_type = file_row.get('mime_type') or mimetypes.guess_type(download_name)[0] or mimetypes.guess_type(filename)[0]
+    mimetype = guessed_type or 'application/octet-stream'
+
+    response = send_file(
+        absolute_path,
+        mimetype=mimetype,
         as_attachment=as_attachment,
-        download_name=download_name or os.path.basename(filename)
+        download_name=(download_name or os.path.basename(filename)) if as_attachment else None
     )
+    if not as_attachment:
+        safe_name = secure_filename(download_name or os.path.basename(filename)) or (download_name or os.path.basename(filename))
+        response.headers['Content-Disposition'] = f'inline; filename="{safe_name}"'
+    return response
 
 
 @app.route('/admin/api/email-settings', methods=['GET', 'POST'])
@@ -5480,7 +5702,9 @@ def admin_email_settings():
     if request.method == 'GET':
         settings = fetch_email_settings()
         settings['smtp_password'] = ''
+        settings['resend_api_key'] = ''
         settings.pop('smtp_password_encrypted', None)
+        settings.pop('resend_api_key_encrypted', None)
         return jsonify(settings)
 
     payload = request.get_json(silent=True) or {}
@@ -6429,8 +6653,8 @@ def ai_settings():
     api_key = data.get('api_key', '').strip()
     model = data.get('model', 'openai/gpt-oss-20b')
     reasoning_effort = data.get('reasoning_effort', 'medium')
-    is_enabled = bool(data.get('is_enabled'))
-    telegram_ai_enabled = bool(data.get('telegram_ai_enabled'))
+    is_enabled = 1 if data.get('is_enabled') else 0  # Use int for Postgres smallint compatibility
+    telegram_ai_enabled = 1 if data.get('telegram_ai_enabled') else 0  # Use int for Postgres smallint compatibility
     allowed_chat_ids = data.get('allowed_chat_ids', '')
     daily_limit = int(data.get('daily_limit', 100))
     

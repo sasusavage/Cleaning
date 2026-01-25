@@ -194,6 +194,107 @@ class AIAssistant:
                         "required": []
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "send_customer_email",
+                    "description": "Send an email to a customer about their request",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "ref_id": {
+                                "type": "string",
+                                "description": "The request reference ID"
+                            },
+                            "subject": {
+                                "type": "string",
+                                "description": "Email subject line"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Email message body (plain text)"
+                            }
+                        },
+                        "required": ["ref_id", "subject", "message"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_analytics_summary",
+                    "description": "Get website analytics and conversion metrics",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "days": {
+                                "type": "integer",
+                                "description": "Number of days to analyze (default 7)"
+                            }
+                        },
+                        "required": []
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "toggle_service",
+                    "description": "Enable or disable a service",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "service_id": {
+                                "type": "integer",
+                                "description": "The service ID"
+                            },
+                            "active": {
+                                "type": "boolean",
+                                "description": "True to enable, False to disable"
+                            }
+                        },
+                        "required": ["service_id", "active"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "list_services",
+                    "description": "List all services with their status and pricing",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "active_only": {
+                                "type": "boolean",
+                                "description": "If true, only show active services"
+                            }
+                        },
+                        "required": []
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_customer_history",
+                    "description": "Get all requests from a specific customer by email or phone",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "email": {
+                                "type": "string",
+                                "description": "Customer email address"
+                            },
+                            "phone": {
+                                "type": "string",
+                                "description": "Customer phone number"
+                            }
+                        },
+                        "required": []
+                    }
+                }
             }
         ]
     
@@ -326,59 +427,69 @@ class AIAssistant:
         conn.close()
         
         # Format context
-        context = f"""You are an AI assistant for a cleaning service business called "Done-Well Cleaners".
-You help the admin manage requests, services, and get insights about the business.
+        context = f"""You are the AI assistant for Done-Well Cleaners, a professional cleaning service business.
+You're chatting with the business owner/admin via Telegram. Be friendly, conversational, and proactive.
 
-CURRENT DATE: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+🕐 CURRENT TIME: {datetime.now().strftime('%A, %d %B %Y at %H:%M')}
 
-REQUEST STATUS SUMMARY:
-- Pending: {request_stats.get('pending', 0)}
-- In Progress: {request_stats.get('in_progress', 0)}
-- Completed: {request_stats.get('completed', 0)}
-- Cancelled: {request_stats.get('cancelled', 0)}
-- Survey Needed: {request_stats.get('survey_needed', 0)}
+📊 LIVE BUSINESS SNAPSHOT:
+┌─ REQUESTS STATUS
+│  🟡 Pending: {request_stats.get('pending', 0)} {"⚠️ NEEDS ATTENTION" if request_stats.get('pending', 0) > 5 else ""}
+│  🔵 In Progress: {request_stats.get('in_progress', 0)}
+│  🟢 Completed: {request_stats.get('completed', 0)}
+│  🟠 Survey Needed: {request_stats.get('survey_needed', 0)}
+│  ⚪ Cancelled: {request_stats.get('cancelled', 0)}
+│
+└─ TODAY'S ACTIVITY
+   • Service Requests: {today_stats.get('service', 0)}
+   • Job Applications: {today_stats.get('job', 0)}
+   • General Inquiries: {today_stats.get('general', 0)}
+   • Total Today: {sum(today_stats.values())}
 
-TODAY'S ACTIVITY:
-- Service Requests: {today_stats.get('service', 0)}
-- Job Applications: {today_stats.get('job', 0)}
-- General Inquiries: {today_stats.get('general', 0)}
-
-SERVICES AVAILABLE ({len(services)} total):
+🧹 SERVICES ({len([s for s in services if s['is_active']])} active / {len(services)} total):
 """
         for svc in services[:10]:
-            status = "Active" if svc['is_active'] else "Inactive"
-            price = f"£{svc['price']}" if svc['price'] else "Variable"
-            context += f"- [{svc['id']}] {svc['name'] or svc['title']} ({status}, {price})\n"
+            emoji = "✅" if svc['is_active'] else "⏸️"
+            price = f"£{svc['price']}" if svc['price'] else "Quote"
+            context += f"  {emoji} [{svc['id']}] {svc['name'] or svc['title']} - {price}\n"
         
-        context += f"\nRECENT REQUESTS (last 10):\n"
-        for req in recent_requests:
-            created = req['created_at'].strftime('%Y-%m-%d %H:%M') if req['created_at'] else 'N/A'
-            context += f"- [{req['ref_id']}] {req['name']} - {req['request_type']} - {req['status']} ({created})\n"
+        if recent_requests:
+            context += f"\n📋 RECENT REQUESTS:\n"
+            for req in recent_requests[:5]:
+                created = req['created_at'].strftime('%d/%m %H:%M') if req['created_at'] else ''
+                status_emoji = {'pending': '🟡', 'in_progress': '🔵', 'completed': '🟢', 'survey_needed': '🟠', 'cancelled': '⚪'}.get(req['status'], '⚪')
+                context += f"  {status_emoji} {req['ref_id']} - {req['name']} ({req['request_type']}) - {created}\n"
         
         context += """
-CAPABILITIES:
-1. Get statistics and summaries
-2. Search for specific requests by name, email, ref_id, or status
-3. Update request status (pending, in_progress, completed, cancelled, survey_needed)
-4. Add admin notes to requests
-5. Get service information
-6. Provide business insights
+🛠️ WHAT I CAN DO FOR YOU:
 
-When asked to perform an action, respond with a JSON block if an action is needed:
-```action
-{"action": "action_name", "params": {...}}
-```
+📖 INFORMATION & REPORTS:
+• "How are we doing today?" - Get daily summary
+• "Show pending requests" - List items needing attention
+• "Search for [name/email/phone]" - Find specific customers
+• "Get details for [REF-ID]" - Full request information
+• "Revenue report for last 30 days" - Financial insights
+• "Top services this month" - Popular services analysis
+• "Analytics summary" - Website traffic & conversions
 
-Available actions:
-- search_requests: {"query": "search term", "status": "optional status filter"}
-- update_request_status: {"ref_id": "REQ-XXX", "status": "new_status"}
-- add_request_note: {"ref_id": "REQ-XXX", "note": "note text"}
-- get_request_details: {"ref_id": "REQ-XXX"}
-- get_service_info: {"service_id": 1}
-- get_daily_report: {}
-- get_pending_requests: {}
+✏️ TAKE ACTIONS:
+• "Mark [REF-ID] as completed" - Update request status
+• "Add note to [REF-ID]: [your note]" - Add admin notes
+• "Email customer [REF-ID] about [topic]" - Send customer email
+• "Disable [service name]" - Toggle services on/off
+• "Show customer history for [email]" - See all requests from a customer
 
-Always be helpful, concise, and professional. If you can't perform an action, explain why.
+💡 TIPS:
+• I remember our conversation, so you can follow up naturally
+• I'll proactively suggest actions when relevant
+• Just ask naturally - I understand context!
+
+RESPONSE STYLE:
+- Be conversational and friendly, like a helpful colleague
+- Use emojis sparingly to make messages scannable
+- Provide actionable insights, not just data
+- If something needs attention, proactively mention it
+- Keep responses concise but complete
 """
         return context
     
@@ -458,25 +569,6 @@ Always be helpful, concise, and professional. If you can't perform an action, ex
         
         return completion.choices[0].message.content
     
-    
-    
-        # Extract system message
-        system_msg = ""
-        chat_messages = []
-        for msg in messages:
-            if msg['role'] == 'system':
-                system_msg = msg['content']
-            else:
-                chat_messages.append(msg)
-        
-        response = client.messages.create(
-            model=self.model or "claude-3-haiku-20240307",
-            max_tokens=1500,
-            system=system_msg,
-            messages=chat_messages
-        )
-        return response.content[0].text
-    
     def process_message(self, user_message: str, chat_id: str = None) -> Dict[str, Any]:
         """Process a user message and return response with any actions"""
         ready, error = self.is_ready()
@@ -515,24 +607,9 @@ Always be helpful, concise, and professional. If you can't perform an action, ex
                         # Execute the tool
                         action_result = self._execute_tool(func_name, func_args)
                         
-                        # Append result to response
-                        if action_result.get('success'):
-                            result_data = action_result.get('data', action_result.get('message', 'Done'))
-                            response += f"\n\n✅ {action_result.get('message', 'Action completed')}"
-                            if isinstance(result_data, list):
-                                for item in result_data[:5]:  # Limit to 5 items
-                                    if isinstance(item, dict):
-                                        response += f"\n• {item.get('ref_id', item.get('name', str(item)))}"
-                                        if 'name' in item and 'ref_id' in item:
-                                            response += f" - {item['name']}"
-                                        if 'status' in item:
-                                            response += f" ({item['status']})"
-                            elif isinstance(result_data, dict):
-                                for key, val in result_data.items():
-                                    if not key.startswith('_'):
-                                        response += f"\n• {key}: {val}"
-                        else:
-                            response += f"\n\n❌ {action_result.get('message', 'Action failed')}"
+                        # Format and append result
+                        formatted = self._format_tool_result(func_name, action_result)
+                        response += formatted
                 
             elif self.ai_provider == 'anthropic':
                 response = self._call_anthropic(messages)
@@ -590,6 +667,16 @@ Always be helpful, concise, and professional. If you can't perform an action, ex
                 return self._action_get_revenue_report(params)
             elif tool_name == 'get_top_services':
                 return self._action_get_top_services(params)
+            elif tool_name == 'send_customer_email':
+                return self._action_send_customer_email(params)
+            elif tool_name == 'get_analytics_summary':
+                return self._action_get_analytics_summary(params)
+            elif tool_name == 'toggle_service':
+                return self._action_toggle_service(params)
+            elif tool_name == 'list_services':
+                return self._action_list_services(params)
+            elif tool_name == 'get_customer_history':
+                return self._action_get_customer_history(params)
             else:
                 return {"success": False, "message": f"Unknown tool: {tool_name}"}
         except Exception as e:
@@ -607,6 +694,297 @@ Always be helpful, concise, and professional. If you can't perform an action, ex
                 return None
         return None
     
+    def _format_tool_result(self, tool_name: str, result: Dict) -> str:
+        """Format tool results for nice Telegram display"""
+        if not result:
+            return f"\n\n❌ Tool returned no result"
+        
+        if not result.get('success'):
+            return f"\n\n❌ {result.get('message', 'Action failed')}"
+        
+        data = result.get('data')
+        msg = result.get('message', 'Done')
+        
+        # Format based on tool type
+        try:
+            if tool_name == 'get_pending_requests' or tool_name == 'search_requests':
+                return self._format_request_list(data, msg)
+            elif tool_name == 'get_request_details':
+                return self._format_request_details(data)
+            elif tool_name == 'get_daily_report':
+                return self._format_daily_report(data)
+            elif tool_name == 'get_revenue_report':
+                return self._format_revenue_report(data)
+            elif tool_name == 'get_top_services':
+                return self._format_top_services(data)
+            elif tool_name == 'list_services':
+                return self._format_services_list(data)
+            elif tool_name == 'get_customer_history':
+                return self._format_request_list(data, msg)
+            elif tool_name == 'get_analytics_summary':
+                return self._format_analytics(data)
+            else:
+                # Generic formatting for other tools
+                return f"\n\n✅ {msg}"
+        except Exception as e:
+            # Fallback if formatting fails
+            return f"\n\n✅ {msg}\n(Data: {str(data)[:200]}...)" if data else f"\n\n✅ {msg}"
+    
+    def _to_dict(self, row):
+        """Convert database row to regular dict (handles RealDictRow, etc)"""
+        if row is None:
+            return {}
+        if isinstance(row, dict):
+            return dict(row)
+        # Try to convert row-like objects
+        try:
+            return dict(row)
+        except:
+            return {}
+    
+    def _format_request_list(self, requests: list, title: str) -> str:
+        """Format a list of requests nicely"""
+        if not requests:
+            return "\n\n📋 No requests found"
+        
+        output = f"\n\n📋 *{title}*\n"
+        output += "━" * 25 + "\n"
+        
+        for i, row in enumerate(requests, 1):
+            req = self._to_dict(row)
+            ref = str(req.get('ref_id', 'N/A'))[:10]
+            name = str(req.get('name', 'Unknown'))[:20]
+            req_type = req.get('request_type', '')
+            
+            # Get service or job position
+            service = ''
+            if req.get('service_name'):
+                service = str(req.get('service_name'))[:25]
+            elif req.get('job_position'):
+                service = str(req.get('job_position'))[:25]
+            
+            created = req.get('created_at')
+            
+            # Format date
+            date_str = ""
+            if created:
+                if hasattr(created, 'strftime'):
+                    date_str = created.strftime('%d/%m')
+                else:
+                    date_str = str(created)[:10]
+            
+            # Type emoji
+            type_emoji = {'service': '🧹', 'job': '💼', 'general': '📩', 'quote': '💰'}.get(req_type, '📌')
+            
+            output += f"{i}. {type_emoji} `{ref}`\n"
+            output += f"   👤 {name}"
+            if date_str:
+                output += f" • 📅 {date_str}"
+            output += "\n"
+            if service:
+                output += f"   📦 {service}\n"
+        
+        output += "━" * 25 + "\n"
+        output += f"💡 _Reply with a number to see details_"
+        return output
+    
+    def _format_request_details(self, row) -> str:
+        """Format single request details nicely"""
+        if not row:
+            return "\n\n❌ Request not found"
+        
+        req = self._to_dict(row)
+        ref = req.get('ref_id', 'N/A')
+        status = req.get('status', 'unknown')
+        status_emoji = {'pending': '🟡', 'in_progress': '🔵', 'completed': '🟢', 'survey_needed': '🟠', 'cancelled': '⚪'}.get(status, '⚪')
+        
+        output = f"\n\n📄 *Request Details*\n"
+        output += "━" * 25 + "\n\n"
+        
+        # Header
+        output += f"🔖 *Ref:* `{ref}`\n"
+        output += f"📊 *Status:* {status_emoji} {status.replace('_', ' ').title()}\n\n"
+        
+        # Customer Info
+        output += "👤 *CUSTOMER*\n"
+        output += f"   Name: {req.get('name', 'N/A')}\n"
+        if req.get('email'):
+            output += f"   Email: {req.get('email')}\n"
+        if req.get('phone'):
+            output += f"   Phone: {req.get('phone')}\n"
+        
+        # Request Type & Service
+        req_type = req.get('request_type', 'general')
+        type_emoji = {'service': '🧹', 'job': '💼', 'general': '📩', 'quote': '💰'}.get(req_type, '📌')
+        output += f"\n{type_emoji} *TYPE:* {req_type.title()}\n"
+        
+        if req.get('service_name'):
+            output += f"   Service: {req.get('service_name')}\n"
+        if req.get('job_position'):
+            output += f"   Position: {req.get('job_position')}\n"
+        
+        # Parse message for booking details
+        message = req.get('message', '')
+        if message:
+            output += "\n📝 *BOOKING DETAILS*\n"
+            
+            # Extract key info from message
+            lines = message.split('\n')
+            selections = []
+            for line in lines:
+                line = line.strip()
+                if line.startswith('- ') and '£' in line:
+                    # Service selection line
+                    selections.append(line[2:])
+                elif 'Preferred date:' in line:
+                    output += f"   📅 Date: {line.split(':')[1].strip()}\n"
+                elif 'Preferred time:' in line:
+                    output += f"   🕐 Time: {line.split(':')[1].strip()}\n"
+                elif 'Address:' in line:
+                    addr = line.replace('Address:', '').strip()
+                    output += f"   📍 Address: {addr}\n"
+                elif 'Estimated total:' in line:
+                    total = line.split(':')[1].strip()
+                    output += f"   💰 *Total: {total}*\n"
+                elif 'Notes:' in line:
+                    notes = line.replace('Notes:', '').strip()
+                    if notes:
+                        output += f"   📋 Notes: {notes}\n"
+            
+            if selections:
+                output += "\n   *Selected Services:*\n"
+                for sel in selections[:5]:  # Limit to 5 for readability
+                    # Clean up the selection text
+                    sel_short = sel[:60] + "..." if len(sel) > 60 else sel
+                    output += f"   • {sel_short}\n"
+                if len(selections) > 5:
+                    output += f"   _...and {len(selections) - 5} more_\n"
+        
+        # Dates
+        output += "\n📅 *TIMELINE*\n"
+        created = req.get('created_at')
+        if created:
+            if hasattr(created, 'strftime'):
+                output += f"   Created: {created.strftime('%d %b %Y, %H:%M')}\n"
+            else:
+                output += f"   Created: {str(created)[:16]}\n"
+        
+        # Admin notes
+        if req.get('admin_notes'):
+            output += f"\n📌 *ADMIN NOTES*\n   {req.get('admin_notes')[:200]}\n"
+        
+        output += "\n" + "━" * 25
+        output += f"\n💡 _Quick actions: Mark completed, Add note, Email customer_"
+        
+        return output
+    
+    def _format_daily_report(self, data) -> str:
+        """Format daily report"""
+        if not data:
+            return "\n\n📊 No report data available"
+        
+        data = self._to_dict(data) if not isinstance(data, dict) else data
+        output = "\n\n📊 *Daily Business Report*\n"
+        output += "━" * 25 + "\n\n"
+        
+        output += f"📅 Date: {data.get('date', 'Today')}\n\n"
+        
+        # Today's breakdown
+        breakdown = data.get('today_breakdown', [])
+        if breakdown:
+            output += "📈 *Today's Activity*\n"
+            for item in breakdown:
+                item = self._to_dict(item)
+                output += f"   • {item.get('request_type', 'Unknown').title()}: {item.get('count', 0)} ({item.get('status', '')})\n"
+        
+        output += f"\n🔔 *Pending:* {data.get('pending_total', 0)} requests need attention\n"
+        output += f"📆 *This Week:* {data.get('weekly_requests', 0)} total requests\n"
+        
+        return output
+    
+    def _format_revenue_report(self, data) -> str:
+        """Format revenue report"""
+        if not data:
+            return "\n\n💰 No revenue data available"
+        
+        data = self._to_dict(data) if not isinstance(data, dict) else data
+        output = "\n\n💰 *Revenue Report*\n"
+        output += "━" * 25 + "\n\n"
+        
+        output += f"📅 Period: Last {data.get('period_days', 30)} days\n\n"
+        output += f"💵 *Total Revenue:* £{data.get('total_revenue', 0):,.2f}\n"
+        output += f"✅ *Completed Jobs:* {data.get('completed_jobs', 0)}\n"
+        output += f"📊 *Avg Job Value:* £{data.get('average_job_value', 0):,.2f}\n"
+        output += f"📈 *Today:* £{data.get('today_revenue', 0):,.2f}\n"
+        
+        top = data.get('top_services', [])
+        if top:
+            output += "\n🏆 *Top Services*\n"
+            for i, row in enumerate(top, 1):
+                svc = self._to_dict(row)
+                output += f"   {i}. {svc.get('name', 'Unknown')[:25]}\n"
+                output += f"      £{svc.get('revenue', 0):,.2f} • {svc.get('jobs', 0)} jobs\n"
+        
+        return output
+    
+    def _format_top_services(self, services: list) -> str:
+        """Format top services list"""
+        if not services:
+            return "\n\n📊 No service data available"
+        
+        output = "\n\n🏆 *Top Performing Services*\n"
+        output += "━" * 25 + "\n\n"
+        
+        for i, row in enumerate(services, 1):
+            svc = self._to_dict(row)
+            medal = {1: '🥇', 2: '🥈', 3: '🥉'}.get(i, f'{i}.')
+            output += f"{medal} *{svc.get('name', 'Unknown')}*\n"
+            output += f"   📋 Requests: {svc.get('requests', 0)}\n"
+            output += f"   ✅ Completed: {svc.get('completed', 0)} ({svc.get('completion_rate', 0)}%)\n"
+            output += f"   💰 Revenue: £{svc.get('revenue', 0):,.2f}\n\n"
+        
+        return output
+    
+    def _format_services_list(self, services: list) -> str:
+        """Format services list"""
+        if not services:
+            return "\n\n🧹 No services configured"
+        
+        output = "\n\n🧹 *Services List*\n"
+        output += "━" * 25 + "\n\n"
+        
+        for row in services:
+            svc = self._to_dict(row)
+            status = "✅" if svc.get('is_active') else "⏸️"
+            price = f"£{svc.get('price')}" if svc.get('price') else "Quote"
+            output += f"{status} *{svc.get('name', svc.get('title', 'Unknown'))}*\n"
+            output += f"   ID: {svc.get('id')} • Price: {price}\n\n"
+        
+        return output
+    
+    def _format_analytics(self, data) -> str:
+        """Format analytics summary"""
+        if not data:
+            return "\n\n📈 No analytics data available"
+        
+        data = self._to_dict(data) if not isinstance(data, dict) else data
+        output = "\n\n📈 *Analytics Summary*\n"
+        output += "━" * 25 + "\n\n"
+        
+        output += f"📅 Period: Last {data.get('period_days', 7)} days\n\n"
+        output += f"👁️ *Website Visits:* {data.get('visits', 0):,}\n"
+        output += f"🔍 *Service Views:* {data.get('service_views', 0):,}\n"
+        output += f"📝 *Total Requests:* {data.get('total_requests', 0)}\n"
+        output += f"📊 *Conversion Rate:* {data.get('conversion_rate', 0)}%\n\n"
+        
+        output += "*Request Breakdown*\n"
+        output += f"   🟡 Pending: {data.get('pending', 0)}\n"
+        output += f"   🔵 In Progress: {data.get('in_progress', 0)}\n"
+        output += f"   🟢 Completed: {data.get('completed', 0)}\n"
+        output += f"   ⚪ Cancelled: {data.get('cancelled', 0)}\n"
+        
+        return output
+
     def _execute_action(self, action: Dict) -> Dict[str, Any]:
         """Execute an action and return result"""
         action_name = action.get('action')
@@ -653,7 +1031,7 @@ Always be helpful, concise, and professional. If you can't perform an action, ex
             sql += " AND status = %s"
             params_list.append(status)
         
-        sql += " ORDER BY created_at DESC LIMIT 10"
+        sql += " ORDER BY created_at DESC LIMIT 50"  # Increased limit for complete lists
         
         cursor.execute(sql, params_list)
         results = cursor.fetchall()
@@ -1009,6 +1387,173 @@ Always be helpful, concise, and professional. If you can't perform an action, ex
                 "revenue": float(s['revenue'] or 0),
                 "completion_rate": round((s['completed'] / s['total_requests'] * 100) if s['total_requests'] > 0 else 0, 1)
             } for s in services]
+        }
+    
+    def _action_send_customer_email(self, params: Dict) -> Dict:
+        """Send email to customer about their request"""
+        ref_id = params.get('ref_id')
+        subject = params.get('subject', '')
+        message = params.get('message', '')
+        
+        if not ref_id or not subject or not message:
+            return {"success": False, "message": "ref_id, subject, and message are required"}
+        
+        conn = self._get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM requests WHERE ref_id = %s", (ref_id,))
+        request_row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if not request_row:
+            return {"success": False, "message": f"Request {ref_id} not found"}
+        
+        customer_email = request_row.get('email')
+        if not customer_email:
+            return {"success": False, "message": "No email address on file for this customer"}
+        
+        try:
+            from app import fetch_email_settings, send_email_via_settings, app as flask_app
+            
+            with flask_app.app_context():
+                settings = fetch_email_settings()
+                
+                # Build HTML email
+                html_body = f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #333;">Done-Well Cleaners</h2>
+                    <p>Dear {request_row.get('name', 'Customer')},</p>
+                    <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        {message.replace(chr(10), '<br>')}
+                    </div>
+                    <p>Reference: <strong>{ref_id}</strong></p>
+                    <hr style="border: none; border-top: 1px solid #eee;">
+                    <p style="color: #666; font-size: 12px;">Done-Well Cleaners Team</p>
+                </div>
+                """
+                
+                success = send_email_via_settings(
+                    subject=subject,
+                    html_body=html_body,
+                    text_body=message,
+                    recipients=[customer_email],
+                    settings=settings,
+                    reply_to=settings.get('reply_to'),
+                    error_context='ai_customer_email',
+                    request_id=request_row.get('id')
+                )
+                
+                if success:
+                    return {"success": True, "message": f"Email sent to {customer_email}"}
+                return {"success": False, "message": "Email failed to send - check email settings"}
+                
+        except Exception as e:
+            return {"success": False, "message": f"Email error: {str(e)}"}
+    
+    def _action_toggle_service(self, params: Dict) -> Dict:
+        """Enable or disable a service"""
+        service_id = params.get('service_id')
+        active = params.get('active', True)
+        
+        if not service_id:
+            return {"success": False, "message": "service_id is required"}
+        
+        conn = self._get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Check if service exists
+        cursor.execute("SELECT id, name FROM services WHERE id = %s", (service_id,))
+        service = cursor.fetchone()
+        
+        if not service:
+            cursor.close()
+            conn.close()
+            return {"success": False, "message": f"Service {service_id} not found"}
+        
+        # Update status
+        cursor.execute(
+            "UPDATE services SET is_active = %s WHERE id = %s",
+            (1 if active else 0, service_id)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        status = "enabled" if active else "disabled"
+        return {
+            "success": True,
+            "message": f"Service '{service['name']}' has been {status}",
+            "data": {"service_id": service_id, "name": service['name'], "active": active}
+        }
+    
+    def _action_list_services(self, params: Dict = None) -> Dict:
+        """List all services"""
+        active_only = params.get('active_only', False) if params else False
+        
+        conn = self._get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        sql = "SELECT id, name, title, price, is_active FROM services"
+        if active_only:
+            sql += " WHERE is_active = 1"
+        sql += " ORDER BY name"
+        
+        cursor.execute(sql)
+        services = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "message": f"Found {len(services)} services",
+            "data": [{
+                "id": s['id'],
+                "name": s['name'] or s['title'],
+                "price": float(s['price']) if s['price'] else None,
+                "active": bool(s['is_active'])
+            } for s in services]
+        }
+    
+    def _action_get_customer_history(self, params: Dict) -> Dict:
+        """Get all requests from a customer"""
+        email = params.get('email', '').strip()
+        phone = params.get('phone', '').strip()
+        
+        if not email and not phone:
+            return {"success": False, "message": "Either email or phone is required"}
+        
+        conn = self._get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        conditions = []
+        values = []
+        if email:
+            conditions.append("email = %s")
+            values.append(email)
+        if phone:
+            conditions.append("phone = %s")
+            values.append(phone)
+        
+        where_clause = " OR ".join(conditions)
+        
+        cursor.execute(f"""
+            SELECT ref_id, name, email, phone, request_type, status, service_name, created_at
+            FROM requests
+            WHERE {where_clause}
+            ORDER BY created_at DESC
+            LIMIT 20
+        """, values)
+        requests = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        if not requests:
+            return {"success": False, "message": "No requests found for this customer"}
+        
+        return {
+            "success": True,
+            "message": f"Found {len(requests)} requests for this customer",
+            "data": requests
         }
     
     def _get_conversation_history(self, chat_id: str, limit: int = 5) -> List[Dict]:
