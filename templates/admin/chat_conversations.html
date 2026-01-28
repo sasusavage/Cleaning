@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Clean Co.' %}
+    <title>Chat Conversations - {{ company_name }} Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --bg: #f3f4f6;
+            --surface: #ffffff;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --border: #e5e7eb;
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 240px;
+            background: #111827;
+            color: #f9fafb;
+            padding: 2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 120;
+        }
+
+        .sidebar__header { display: flex; align-items: center; justify-content: space-between; }
+        .sidebar__toggle { display: none; padding: 0.45rem 0.7rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); color: #f9fafb; font-weight: 600; cursor: pointer; }
+        .sidebar__nav { display: flex; flex-direction: column; gap: 0.25rem; }
+        .sidebar--menu-open .sidebar__nav { display: flex; }
+        .sidebar__logout-form { margin-top: 0.75rem; }
+        .sidebar__logout-button { width: 100%; padding: 0.75rem 1rem; border-radius: 0.5rem; border: 1px solid rgba(248,113,113,0.25); background: rgba(248,113,113,0.12); color: #fca5a5; font-weight: 600; font-size: 0.9rem; font-family: inherit; cursor: pointer; }
+        .logo { font-size: 1.1rem; font-weight: 700; }
+        .nav-link { display: block; padding: 0.65rem 0.9rem; color: #9ca3af; text-decoration: none; border-radius: 0.5rem; font-size: 0.9rem; transition: background 0.2s, color 0.2s; }
+        .nav-link:hover { background: rgba(255,255,255,0.08); color: #f9fafb; }
+        .nav-link.active { background: rgba(99,102,241,0.25); color: #a5b4fc; }
+
+        .main-content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .page-header h1 {
+            font-size: 1.5rem;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.25rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .stat-card__value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-card__label {
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        .tab {
+            padding: 0.6rem 1.25rem;
+            border: none;
+            background: none;
+            color: var(--muted);
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .tab:hover { background: #f3f4f6; color: var(--text); }
+        .tab.active { background: var(--primary); color: white; }
+
+        .card {
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .card__header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card__title {
+            font-weight: 600;
+            font-size: 1rem;
+            margin: 0;
+        }
+
+        .conversation-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .conversation-item {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+
+        .conversation-item:hover { background: #f9fafb; }
+        .conversation-item.selected { background: #ede9fe; }
+
+        .conversation-item__avatar {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .conversation-item__content { flex: 1; min-width: 0; }
+        .conversation-item__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; }
+        .conversation-item__id { font-weight: 600; font-size: 0.9rem; }
+        .conversation-item__time { font-size: 0.75rem; color: var(--muted); }
+        .conversation-item__preview { color: var(--muted); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .conversation-item__meta { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .badge--success { background: #d1fae5; color: #065f46; }
+        .badge--warning { background: #fef3c7; color: #92400e; }
+        .badge--info { background: #dbeafe; color: #1e40af; }
+
+        .chat-viewer {
+            display: none;
+            flex-direction: column;
+            height: 600px;
+        }
+
+        .chat-viewer.active { display: flex; }
+
+        .chat-viewer__header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-viewer__messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            background: #f9fafb;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .chat-msg {
+            display: flex;
+            gap: 0.75rem;
+            max-width: 75%;
+        }
+
+        .chat-msg--user { flex-direction: row-reverse; margin-left: auto; }
+
+        .chat-msg__avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 0.7rem;
+        }
+
+        .chat-msg--assistant .chat-msg__avatar { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; }
+        .chat-msg--user .chat-msg__avatar { background: #e5e7eb; color: #6b7280; }
+        .chat-msg--admin .chat-msg__avatar { background: #111827; color: #f9fafb; }
+
+        .chat-msg__bubble {
+            padding: 0.75rem 1rem;
+            border-radius: 1rem;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .chat-msg--assistant .chat-msg__bubble { background: white; border-bottom-left-radius: 0.25rem; }
+        .chat-msg--user .chat-msg__bubble { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border-bottom-right-radius: 0.25rem; }
+        .chat-msg--admin .chat-msg__bubble { background: #111827; color: #f9fafb; border-bottom-left-radius: 0.25rem; }
+
+        .chat-msg__time {
+            font-size: 0.7rem;
+            color: var(--muted);
+            margin-top: 0.25rem;
+        }
+
+        .chat-viewer__footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .chat-reply textarea {
+            width: 100%;
+            min-height: 80px;
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            font-family: inherit;
+            resize: vertical;
+        }
+
+        .chat-reply textarea:disabled {
+            background: #f3f4f6;
+        }
+
+        .chat-reply__actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .chat-reply__hint {
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .chat-viewer__actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.6rem 1.25rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--border);
+            background: white;
+            font-family: inherit;
+        }
+
+        .btn:hover { background: #f3f4f6; }
+        .btn--primary { background: var(--primary); color: white; border-color: var(--primary); }
+        .btn--primary:hover { background: var(--primary-dark); }
+        .btn--danger { background: var(--error); color: white; border-color: var(--error); }
+        .btn--danger:hover { background: #dc2626; }
+        .btn--success { background: var(--success); color: white; border-color: var(--success); }
+
+        /* Persona Settings Tab */
+        .persona-section { padding: 1.5rem; }
+        .form-group { margin-bottom: 1.25rem; }
+        .form-group label { display: block; font-weight: 500; margin-bottom: 0.5rem; font-size: 0.9rem; }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 0.65rem 0.85rem;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+        .form-group textarea { min-height: 100px; resize: vertical; }
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+        }
+        .form-hint { font-size: 0.8rem; color: var(--muted); margin-top: 0.35rem; }
+
+        /* Knowledge Base Tab */
+        .kb-list { padding: 0; }
+        .kb-item {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+        .kb-item__content { flex: 1; }
+        .kb-item__title { font-weight: 600; margin-bottom: 0.25rem; }
+        .kb-item__text { font-size: 0.85rem; color: var(--muted); }
+        .kb-item__actions { display: flex; gap: 0.5rem; }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: var(--muted);
+        }
+        .empty-state svg { margin-bottom: 1rem; opacity: 0.5; }
+
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            padding: 1rem 1.5rem;
+            background: #1f2937;
+            color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+        .toast--success { background: var(--success); }
+        .toast--error { background: var(--error); }
+        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        @media (max-width: 1024px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; padding: 1rem 1.25rem; }
+            .sidebar__toggle { display: inline-flex; }
+            .sidebar__nav { display: none; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 0.75rem; }
+            .sidebar--menu-open .sidebar__nav { display: flex; }
+            .main-content { padding: 1.5rem; }
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .page-header { flex-direction: column; align-items: flex-start; }
+            .tabs { overflow-x: auto; }
+        }
+    </style>
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar__header">
+            <div class="logo">{{ company_name }} Admin</div>
+            <button class="sidebar__toggle" type="button" id="sidebarToggle" aria-expanded="false">Menu</button>
+        </div>
+        <nav class="sidebar__nav">
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#analytics">Analytics</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">Requests</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">Services</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">Travel Pricing</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">Job Positions</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">Testimonials</a>
+            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">Hero Content</a>
+            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
+            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">Quote &amp; Contact</a>
+            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
+            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
+            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">FAQs</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">Email Settings</a>
+            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">📱 Telegram</a>
+            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">🤖 AI Settings</a>
+            <a class="nav-link active" href="{{ url_for('admin_chat_conversations_page') }}" style="background: rgba(124, 58, 237, 0.25); color: #c4b5fd;">💬 Chat Conversations</a>
+            <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
+                <button type="submit" class="sidebar__logout-button">Log Out</button>
+            </form>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <div class="page-header">
+            <h1>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                Chat Conversations
+            </h1>
+            <a href="{{ url_for('admin_dashboard') }}" class="btn">← Back to Dashboard</a>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="stat-card__value" id="statTotal">--</div>
+                <div class="stat-card__label">Total Conversations</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card__value" id="statToday">--</div>
+                <div class="stat-card__label">Today</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card__value" id="statUnresolved">--</div>
+                <div class="stat-card__label">Unresolved</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card__value" id="statMessages">--</div>
+                <div class="stat-card__label">Total Messages</div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="conversations">Conversations</button>
+            <button class="tab" data-tab="persona">AI Persona</button>
+            <button class="tab" data-tab="knowledge">Knowledge Base</button>
+        </div>
+
+        <!-- Conversations Tab -->
+        <div class="tab-content" id="tab-conversations">
+            <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 1.5rem;">
+                <div class="card">
+                    <div class="card__header">
+                        <h2 class="card__title">Recent Conversations</h2>
+                    </div>
+                    <div class="conversation-list" id="conversationList">
+                        <div class="empty-state">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                            </svg>
+                            <p>No conversations yet</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="chat-viewer" id="chatViewer">
+                        <div class="chat-viewer__header">
+                            <div>
+                                <strong id="viewerSessionId">Session</strong>
+                                <span id="viewerMeta" style="display: block; font-size: 0.8rem; color: var(--muted);"></span>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <span class="badge" id="viewerStatus"></span>
+                            </div>
+                        </div>
+                        <div class="chat-viewer__messages" id="chatViewerMessages"></div>
+                        <div class="chat-viewer__footer">
+                            <div class="chat-reply">
+                                <textarea id="adminReplyInput" placeholder="Type a reply to this visitor..." disabled></textarea>
+                                <div class="chat-reply__actions">
+                                    <span class="chat-reply__hint">Press Enter to send • Shift + Enter for a new line</span>
+                                    <button class="btn btn--primary" id="btnSendReply" data-default-label="Send Reply" disabled>Send Reply</button>
+                                </div>
+                            </div>
+                            <div class="chat-viewer__actions">
+                                <button class="btn btn--success" id="btnResolve">✓ Mark Resolved</button>
+                                <button class="btn btn--danger" id="btnDelete">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="empty-state" id="chatViewerEmpty">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        <p>Select a conversation to view</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Persona Tab -->
+        <div class="tab-content" id="tab-persona" style="display: none;">
+            <div class="card">
+                <div class="persona-section">
+                    <h2 style="margin: 0 0 1.5rem; font-size: 1.1rem;">AI Persona Settings</h2>
+                    <form id="personaForm">
+                        <div class="form-group">
+                            <label for="personaName">Persona Name</label>
+                            <input type="text" id="personaName" placeholder="e.g., Sparkle, Alex">
+                            <p class="form-hint">The name visitors will see when chatting</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="greetingMessage">Greeting Message</label>
+                            <textarea id="greetingMessage" placeholder="Hi there! 👋 How can I help you today?"></textarea>
+                            <p class="form-hint">First message shown when chat opens</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="personaDescription">Persona Description</label>
+                            <textarea id="personaDescription" placeholder="A friendly cleaning service assistant who helps visitors..."></textarea>
+                            <p class="form-hint">Describes who the AI is (used in system prompt)</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="personalityTraits">Personality Traits</label>
+                            <input type="text" id="personalityTraits" placeholder="Friendly, Professional, Helpful">
+                            <p class="form-hint">Comma-separated traits that define how the AI responds</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="responseStyle">Response Style</label>
+                            <select id="responseStyle">
+                                <option value="friendly">Friendly & Casual</option>
+                                <option value="professional">Professional & Formal</option>
+                                <option value="enthusiastic">Enthusiastic & Energetic</option>
+                                <option value="concise">Concise & Direct</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="avatarUrl">Avatar URL (optional)</label>
+                            <input type="url" id="avatarUrl" placeholder="https://example.com/avatar.png">
+                        </div>
+                        <div class="form-group">
+                            <label for="contactEmail">Contact Email</label>
+                            <input type="email" id="contactEmail" placeholder="support@sparkleclean.com">
+                            <p class="form-hint">Email address provided to users who need follow-up</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="contactPhone">Contact Phone</label>
+                            <input type="text" id="contactPhone" placeholder="1-800-SPLK-CLEAN">
+                            <p class="form-hint">Phone number provided to users who need follow-up</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="whatsappNumber">WhatsApp Number</label>
+                            <input type="text" id="whatsappNumber" placeholder="+1-800-SPLK-CLEAN">
+                            <p class="form-hint">WhatsApp number for international contact</p>
+                        </div>
+                        <button type="submit" class="btn btn--primary">Save Persona Settings</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Knowledge Base Tab -->
+        <div class="tab-content" id="tab-knowledge" style="display: none;">
+            <div class="card">
+                <div class="card__header">
+                    <h2 class="card__title">Knowledge Base</h2>
+                    <button class="btn btn--primary" id="btnAddKnowledge">+ Add Entry</button>
+                </div>
+                <div class="kb-list" id="knowledgeList">
+                    <div class="empty-state">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                        </svg>
+                        <p>No knowledge entries yet. Add information to help the AI answer questions.</p>
+                    </div>
+                </div>
+            </div>
+            <p style="margin-top: 1rem; color: var(--muted); font-size: 0.85rem;">
+                💡 The AI also uses your FAQs, services, and company info automatically. Add custom entries here for additional context.
+            </p>
+        </div>
+    </main>
+
+    <!-- Knowledge Entry Modal -->
+    <div class="modal" id="knowledgeModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 1.5rem; border-radius: 0.75rem; width: 90%; max-width: 500px;">
+            <h3 style="margin: 0 0 1rem;" id="kbModalTitle">Add Knowledge Entry</h3>
+            <form id="knowledgeForm">
+                <input type="hidden" id="kbEntryId">
+                <div class="form-group">
+                    <label for="kbTitle">Title</label>
+                    <input type="text" id="kbTitle" required placeholder="e.g., Cancellation Policy">
+                </div>
+                <div class="form-group">
+                    <label for="kbContent">Content</label>
+                    <textarea id="kbContent" required placeholder="Describe this topic in detail..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="kbCategory">Category</label>
+                    <input type="text" id="kbCategory" placeholder="General">
+                </div>
+                <div class="form-group">
+                    <label for="kbKeywords">Keywords (optional)</label>
+                    <input type="text" id="kbKeywords" placeholder="cancel, refund, policy">
+                </div>
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                    <button type="button" class="btn" onclick="closeKnowledgeModal()">Cancel</button>
+                    <button type="submit" class="btn btn--primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="toast" class="toast" style="display: none;"></div>
+
+    <script>
+        // Sidebar toggle
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('sidebar--menu-open');
+            });
+        }
+
+        // Tabs
+        const tabs = document.querySelectorAll('.tab');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+                document.getElementById('tab-' + tab.dataset.tab).style.display = 'block';
+            });
+        });
+
+        // Toast
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast' + (type !== 'info' ? ' toast--' + type : '');
+            toast.style.display = 'block';
+            setTimeout(() => toast.style.display = 'none', 3000);
+        }
+
+        // Load stats
+        function loadStats() {
+            fetch('/admin/api/chat/stats')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('statTotal').textContent = data.total_conversations || 0;
+                    document.getElementById('statToday').textContent = data.conversations_today || 0;
+                    document.getElementById('statUnresolved').textContent = data.unresolved || 0;
+                    document.getElementById('statMessages').textContent = data.total_messages || 0;
+                });
+        }
+
+        // Load conversations
+        let currentSessionId = null;
+        const adminReplyInput = document.getElementById('adminReplyInput');
+        const btnSendReply = document.getElementById('btnSendReply');
+
+        function setReplyEnabled(enabled) {
+            if (adminReplyInput) {
+                adminReplyInput.disabled = !enabled;
+                if (!enabled) {
+                    adminReplyInput.value = '';
+                }
+            }
+            if (btnSendReply) {
+                btnSendReply.disabled = !enabled;
+            }
+        }
+
+        setReplyEnabled(false);
+        function loadConversations() {
+            fetch('/admin/api/chat/conversations')
+                .then(r => r.json())
+                .then(data => {
+                    const list = document.getElementById('conversationList');
+                    if (!data.sessions || data.sessions.length === 0) {
+                        list.innerHTML = '<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><p>No conversations yet</p></div>';
+                        return;
+                    }
+                    list.innerHTML = data.sessions.map(s => `
+                        <div class="conversation-item" data-session="${s.session_id}">
+                            <div class="conversation-item__avatar">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                                </svg>
+                            </div>
+                            <div class="conversation-item__content">
+                                <div class="conversation-item__header">
+                                    <span class="conversation-item__id">${s.visitor_name || 'Visitor'}</span>
+                                    <span class="conversation-item__time">${formatDate(s.last_message_at)}</span>
+                                </div>
+                                <div class="conversation-item__preview">${s.first_message || 'No messages'}</div>
+                                <div class="conversation-item__meta">
+                                    <span class="badge badge--info">${s.message_count || 0} msgs</span>
+                                    ${s.is_resolved ? '<span class="badge badge--success">Resolved</span>' : '<span class="badge badge--warning">Open</span>'}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+
+                    // Click handlers
+                    list.querySelectorAll('.conversation-item').forEach(item => {
+                        item.addEventListener('click', () => {
+                            list.querySelectorAll('.conversation-item').forEach(i => i.classList.remove('selected'));
+                            item.classList.add('selected');
+                            loadConversation(item.dataset.session);
+                        });
+                    });
+                });
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+        }
+
+        // Load single conversation
+        function loadConversation(sessionId) {
+            currentSessionId = sessionId;
+            fetch('/admin/api/chat/conversations/' + sessionId)
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('chatViewerEmpty').style.display = 'none';
+                    const viewer = document.getElementById('chatViewer');
+                    viewer.classList.add('active');
+
+                    document.getElementById('viewerSessionId').textContent = data.session.visitor_name || 'Visitor';
+                    document.getElementById('viewerMeta').textContent = `IP: ${data.session.visitor_ip || 'Unknown'} • Started: ${formatDate(data.session.started_at)}`;
+                    document.getElementById('viewerStatus').textContent = data.session.is_resolved ? 'Resolved' : 'Open';
+                    document.getElementById('viewerStatus').className = 'badge ' + (data.session.is_resolved ? 'badge--success' : 'badge--warning');
+
+                    const msgs = document.getElementById('chatViewerMessages');
+                    msgs.innerHTML = data.messages.map(m => {
+                        const roleClass = m.role === 'user' ? 'user' : (m.role === 'admin' ? 'admin' : 'assistant');
+                        const avatar = roleClass === 'user'
+                            ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+                            : roleClass === 'admin'
+                                ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1l3 5h5l-4 4 1.5 6L12 13l-5.5 3 1.5-6-4-4h5z"/></svg>'
+                                : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/></svg>';
+                        return `
+                            <div class="chat-msg chat-msg--${roleClass}">
+                                <div class="chat-msg__avatar">${avatar}</div>
+                                <div>
+                                    <div class="chat-msg__bubble">${formatMessageContent(m.content)}</div>
+                                    <div class="chat-msg__time">${formatDate(m.created_at)}</div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    msgs.scrollTop = msgs.scrollHeight;
+
+                    document.getElementById('btnResolve').textContent = data.session.is_resolved ? '↩ Reopen' : '✓ Mark Resolved';
+                    setReplyEnabled(true);
+                });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatMessageContent(text) {
+            return escapeHtml(text || '').replace(/\n/g, '<br>');
+        }
+
+        // Resolve/Reopen
+        document.getElementById('btnResolve').addEventListener('click', () => {
+            if (!currentSessionId) return;
+            const btn = document.getElementById('btnResolve');
+            const isResolved = btn.textContent.includes('Reopen');
+            fetch('/admin/api/chat/conversations/' + currentSessionId + '/resolve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_resolved: !isResolved })
+            })
+            .then(r => r.json())
+            .then(() => {
+                showToast(isResolved ? 'Conversation reopened' : 'Conversation marked as resolved', 'success');
+                loadConversations();
+                loadConversation(currentSessionId);
+                loadStats();
+            });
+        });
+
+        // Delete
+        document.getElementById('btnDelete').addEventListener('click', () => {
+            if (!currentSessionId || !confirm('Delete this conversation?')) return;
+            fetch('/admin/api/chat/conversations/' + currentSessionId, { method: 'DELETE' })
+            .then(r => r.json())
+            .then(() => {
+                showToast('Conversation deleted', 'success');
+                document.getElementById('chatViewer').classList.remove('active');
+                document.getElementById('chatViewerEmpty').style.display = 'block';
+                currentSessionId = null;
+                setReplyEnabled(false);
+                loadConversations();
+                loadStats();
+            });
+        });
+
+        function sendAdminReply() {
+            if (!currentSessionId || !adminReplyInput || !btnSendReply) return;
+            const message = adminReplyInput.value.trim();
+            if (!message) {
+                showToast('Enter a reply before sending', 'error');
+                return;
+            }
+
+            const defaultLabel = btnSendReply.getAttribute('data-default-label') || 'Send Reply';
+            btnSendReply.textContent = 'Sending…';
+            btnSendReply.disabled = true;
+            adminReplyInput.disabled = true;
+
+            fetch('/admin/api/chat/conversations/' + currentSessionId + '/message', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message })
+            })
+            .then(r => r.json().then(data => ({ ok: r.ok, data })))
+            .then(result => {
+                if (!result.ok) {
+                    throw new Error(result.data.error || 'Failed to send reply');
+                }
+                adminReplyInput.value = '';
+                showToast('Reply sent to visitor', 'success');
+                loadConversation(currentSessionId);
+                loadConversations();
+                loadStats();
+            })
+            .catch(err => {
+                console.error(err);
+                showToast(err.message || 'Unable to send reply', 'error');
+            })
+            .finally(() => {
+                btnSendReply.textContent = defaultLabel;
+                btnSendReply.disabled = false;
+                adminReplyInput.disabled = false;
+            });
+        }
+
+        if (btnSendReply) {
+            btnSendReply.addEventListener('click', sendAdminReply);
+        }
+
+        if (adminReplyInput) {
+            adminReplyInput.addEventListener('keydown', e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendAdminReply();
+                }
+            });
+        }
+
+        // Load persona
+        function loadPersona() {
+            fetch('/admin/api/chat/persona')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('personaName').value = data.persona_name || '';
+                    document.getElementById('greetingMessage').value = data.greeting_message || '';
+                    document.getElementById('personaDescription').value = data.persona_description || '';
+                    document.getElementById('personalityTraits').value = data.personality_traits || '';
+                    document.getElementById('responseStyle').value = data.response_style || 'friendly';
+                    document.getElementById('avatarUrl').value = data.avatar_url || '';
+                    document.getElementById('contactEmail').value = data.contact_email || '';
+                    document.getElementById('contactPhone').value = data.contact_phone || '';
+                    document.getElementById('whatsappNumber').value = data.whatsapp_number || '';
+                });
+        }
+
+        // Save persona
+        document.getElementById('personaForm').addEventListener('submit', e => {
+            e.preventDefault();
+            fetch('/admin/api/chat/persona', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    persona_name: document.getElementById('personaName').value,
+                    greeting_message: document.getElementById('greetingMessage').value,
+                    persona_description: document.getElementById('personaDescription').value,
+                    personality_traits: document.getElementById('personalityTraits').value,
+                    response_style: document.getElementById('responseStyle').value,
+                    avatar_url: document.getElementById('avatarUrl').value,
+                    contact_email: document.getElementById('contactEmail').value,
+                    contact_phone: document.getElementById('contactPhone').value,
+                    whatsapp_number: document.getElementById('whatsappNumber').value,
+                    is_enabled: true
+                })
+            })
+            .then(r => r.json())
+            .then(() => showToast('Persona settings saved!', 'success'));
+        });
+
+        // Knowledge base
+        function loadKnowledge() {
+            fetch('/admin/api/chat/knowledge')
+                .then(r => r.json())
+                .then(data => {
+                    const list = document.getElementById('knowledgeList');
+                    if (!data || data.length === 0) {
+                        list.innerHTML = '<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg><p>No knowledge entries yet</p></div>';
+                        return;
+                    }
+                    list.innerHTML = data.map(e => `
+                        <div class="kb-item">
+                            <div class="kb-item__content">
+                                <div class="kb-item__title">${escapeHtml(e.title)}</div>
+                                <div class="kb-item__text">${escapeHtml(e.content.substring(0, 150))}...</div>
+                                <span class="badge badge--info" style="margin-top: 0.5rem;">${e.category}</span>
+                            </div>
+                            <div class="kb-item__actions">
+                                <button class="btn" onclick="editKnowledge(${e.id}, '${escapeHtml(e.title)}', '${escapeHtml(e.content)}', '${e.category}', '${e.keywords || ''}')">Edit</button>
+                                <button class="btn btn--danger" onclick="deleteKnowledge(${e.id})">Delete</button>
+                            </div>
+                        </div>
+                    `).join('');
+                });
+        }
+
+        function openKnowledgeModal(id, title, content, category, keywords) {
+            document.getElementById('kbModalTitle').textContent = id ? 'Edit Knowledge Entry' : 'Add Knowledge Entry';
+            document.getElementById('kbEntryId').value = id || '';
+            document.getElementById('kbTitle').value = title || '';
+            document.getElementById('kbContent').value = content || '';
+            document.getElementById('kbCategory').value = category || 'General';
+            document.getElementById('kbKeywords').value = keywords || '';
+            document.getElementById('knowledgeModal').style.display = 'flex';
+        }
+
+        function closeKnowledgeModal() {
+            document.getElementById('knowledgeModal').style.display = 'none';
+        }
+
+        document.getElementById('btnAddKnowledge').addEventListener('click', () => openKnowledgeModal());
+
+        window.editKnowledge = function(id, title, content, category, keywords) {
+            openKnowledgeModal(id, title, content, category, keywords);
+        };
+
+        window.deleteKnowledge = function(id) {
+            if (!confirm('Delete this entry?')) return;
+            fetch('/admin/api/chat/knowledge/' + id, { method: 'DELETE' })
+            .then(r => r.json())
+            .then(() => {
+                showToast('Entry deleted', 'success');
+                loadKnowledge();
+            });
+        };
+
+        document.getElementById('knowledgeForm').addEventListener('submit', e => {
+            e.preventDefault();
+            const id = document.getElementById('kbEntryId').value;
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? '/admin/api/chat/knowledge/' + id : '/admin/api/chat/knowledge';
+            
+            fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: document.getElementById('kbTitle').value,
+                    content: document.getElementById('kbContent').value,
+                    category: document.getElementById('kbCategory').value,
+                    keywords: document.getElementById('kbKeywords').value,
+                    is_active: true
+                })
+            })
+            .then(r => r.json())
+            .then(() => {
+                showToast('Entry saved!', 'success');
+                closeKnowledgeModal();
+                loadKnowledge();
+            });
+        });
+
+        // Initialize
+        loadStats();
+        loadConversations();
+        loadPersona();
+        loadKnowledge();
+    </script>
+</body>
+</html>

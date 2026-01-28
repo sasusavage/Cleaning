@@ -1905,6 +1905,213 @@ def ensure_travel_tables():
     conn.close()
 
 
+def ensure_faq_table():
+    """Create FAQs table if it doesn't exist."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    if engine == 'postgres':
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS faqs (
+                id BIGSERIAL PRIMARY KEY,
+                question TEXT NOT NULL,
+                answer TEXT NOT NULL,
+                category VARCHAR(100) DEFAULT 'General',
+                sort_order INTEGER DEFAULT 0,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+    else:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS faqs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                question TEXT NOT NULL,
+                answer TEXT NOT NULL,
+                category VARCHAR(100) DEFAULT 'General',
+                sort_order INT DEFAULT 0,
+                is_active TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def ensure_chat_tables():
+    """Create tables for public AI chat widget - sessions, messages, and persona settings."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    if engine == 'postgres':
+        # Chat sessions table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_sessions (
+                id BIGSERIAL PRIMARY KEY,
+                session_id VARCHAR(64) UNIQUE NOT NULL,
+                visitor_name VARCHAR(100),
+                visitor_email VARCHAR(255),
+                visitor_ip VARCHAR(45),
+                user_agent TEXT,
+                started_at TIMESTAMPTZ DEFAULT NOW(),
+                last_message_at TIMESTAMPTZ DEFAULT NOW(),
+                is_resolved BOOLEAN DEFAULT FALSE,
+                admin_notes TEXT,
+                message_count INTEGER DEFAULT 0
+            )
+        """)
+        
+        # Chat messages table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id BIGSERIAL PRIMARY KEY,
+                session_id VARCHAR(64) NOT NULL,
+                role VARCHAR(20) NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        
+        # AI persona settings table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_persona (
+                id BIGSERIAL PRIMARY KEY,
+                persona_name VARCHAR(100) DEFAULT 'Assistant',
+                greeting_message TEXT DEFAULT 'Hello! How can I help you today?',
+                persona_description TEXT,
+                personality_traits TEXT,
+                response_style VARCHAR(50) DEFAULT 'friendly',
+                avatar_url TEXT,
+                contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com',
+                contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN',
+                whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN',
+                is_enabled BOOLEAN DEFAULT TRUE,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        
+        # Knowledge base entries (beyond FAQs)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_knowledge_base (
+                id BIGSERIAL PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                content TEXT NOT NULL,
+                category VARCHAR(100) DEFAULT 'General',
+                keywords TEXT,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        
+        # Create index for faster session lookups
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_session 
+            ON chat_messages(session_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_chat_sessions_date 
+            ON chat_sessions(started_at DESC)
+        """)
+        
+    else:
+        # MySQL versions
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                session_id VARCHAR(64) UNIQUE NOT NULL,
+                visitor_name VARCHAR(100),
+                visitor_email VARCHAR(255),
+                visitor_ip VARCHAR(45),
+                user_agent TEXT,
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                is_resolved TINYINT(1) DEFAULT 0,
+                admin_notes TEXT,
+                message_count INT DEFAULT 0,
+                INDEX idx_session_id (session_id),
+                INDEX idx_started_at (started_at)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                session_id VARCHAR(64) NOT NULL,
+                role VARCHAR(20) NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_session_id (session_id)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_persona (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                persona_name VARCHAR(100) DEFAULT 'Assistant',
+                greeting_message TEXT,
+                persona_description TEXT,
+                personality_traits TEXT,
+                response_style VARCHAR(50) DEFAULT 'friendly',
+                avatar_url TEXT,
+                contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com',
+                contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN',
+                whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN',
+                is_enabled TINYINT(1) DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_knowledge_base (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                content TEXT NOT NULL,
+                category VARCHAR(100) DEFAULT 'General',
+                keywords TEXT,
+                is_active TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+    # Add new contact columns to existing ai_persona table
+    if engine == 'postgres':
+        cursor.execute("ALTER TABLE ai_persona ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com'")
+        cursor.execute("ALTER TABLE ai_persona ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN'")
+        cursor.execute("ALTER TABLE ai_persona ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN'")
+    else:
+        cursor.execute("ALTER TABLE ai_persona ADD COLUMN contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com'")
+        cursor.execute("ALTER TABLE ai_persona ADD COLUMN contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN'")
+        cursor.execute("ALTER TABLE ai_persona ADD COLUMN whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN'")
+
+    # Insert default persona if not exists
+    cursor.execute("SELECT COUNT(*) FROM ai_persona")
+    count = cursor.fetchone()[0]
+    if count == 0:
+        cursor.execute("""
+            INSERT INTO ai_persona (persona_name, greeting_message, persona_description, personality_traits, response_style, contact_email, contact_phone, whatsapp_number)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            'Sparkle',
+            "Hi there! 👋 I'm Sparkle, your cleaning assistant. How can I help you today?",
+            "A friendly and knowledgeable cleaning service assistant who helps visitors with questions about services, pricing, and scheduling.",
+            "Friendly, Professional, Helpful, Knowledgeable about cleaning services",
+            "friendly",
+            "support@sparkleclean.com",
+            "1-800-SPLK-CLEAN",
+            "+1-800-SPLK-CLEAN"
+        ))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
 def fetch_travel_settings():
     ensure_travel_tables()
     conn = get_db_connection()
@@ -4641,6 +4848,582 @@ def get_testimonials():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/faqs', methods=['GET'])
+def get_public_faqs():
+    """Public endpoint to get active FAQs."""
+    try:
+        ensure_faq_table()
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+        if engine == 'postgres':
+            cursor.execute("SELECT id, question, answer, category FROM faqs WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC")
+        else:
+            cursor.execute("SELECT id, question, answer, category FROM faqs WHERE is_active = 1 ORDER BY sort_order ASC, id ASC")
+        faqs = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return jsonify(faqs)
+    except Exception as e:
+        app.logger.exception('Error fetching FAQs')
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== PUBLIC AI CHAT WIDGET ====================
+
+def detect_contact_details(message):
+    """Detect if user is providing contact details in their message.
+    Only returns contact info when there's actual email/phone AND an explicit name introduction.
+    """
+    import re
+
+    original_message = message
+    message = message.lower().strip()
+    
+    # Common greetings and short phrases to ignore - these are NOT contact details
+    ignore_phrases = [
+        'hi', 'hello', 'hey', 'hiya', 'howdy', 'sup', 'yo', 'greetings',
+        'good morning', 'good afternoon', 'good evening', 'good day',
+        'thanks', 'thank you', 'ok', 'okay', 'yes', 'no', 'sure', 'bye',
+        'goodbye', 'see you', 'later', 'help', 'please', 'what', 'how',
+        'when', 'where', 'why', 'who', 'can you', 'could you', 'would you'
+    ]
+    
+    # If message is just a greeting or common phrase, skip detection
+    if message in ignore_phrases or len(message) < 4:
+        return None
+    
+    # Check if message starts with common greeting patterns
+    for phrase in ignore_phrases:
+        if message == phrase or message.startswith(phrase + ' ') or message.startswith(phrase + ','):
+            # Only continue if there's substantial content after the greeting
+            if len(message) < 15:
+                return None
+
+    # Look for contact patterns FIRST (email or phone) - these are required
+    contact = None
+
+    # Email pattern - must have valid email format
+    email_match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', original_message)
+    if email_match:
+        contact = email_match.group(0)
+    else:
+        # Phone pattern - must be a valid phone number format
+        phone_match = re.search(r'\b(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b', message)
+        if phone_match:
+            contact = phone_match.group(0)
+
+    # Only look for name if we found actual contact info (email or phone)
+    name = None
+    if contact:
+        # Look for explicit name patterns only
+        name_patterns = [
+            r'(?:my name is|i\'m|i am|this is|call me)\s+([a-zA-Z][a-zA-Z\s]{1,25}?)(?:\s*[,.]|\s+and|\s+my|\s+email|\s+phone|\s+at|\s*$)',
+        ]
+
+        for pattern in name_patterns:
+            match = re.search(pattern, message, re.IGNORECASE)
+            if match:
+                potential_name = match.group(1).strip()
+                # Validate it's a reasonable name (not a greeting or common word)
+                if potential_name.lower() not in ignore_phrases and len(potential_name) > 1:
+                    name = potential_name.title()
+                    break
+
+    # Only return if we found actual contact information (email or phone)
+    if contact:
+        return {'name': name, 'contact': contact}
+    return None
+
+
+@app.route('/api/chat/init', methods=['POST'])
+def init_chat_session():
+    """Initialize a new chat session and return persona info."""
+    try:
+        ensure_chat_tables()
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get AI persona settings
+        cursor.execute("SELECT * FROM ai_persona WHERE id = 1")
+        persona = cursor.fetchone()
+        
+        # Check if AI is enabled
+        cursor.execute("SELECT is_enabled, api_key FROM ai_settings WHERE id = 1")
+        ai_settings = cursor.fetchone()
+        
+        if not ai_settings or not ai_settings.get('is_enabled') or not ai_settings.get('api_key'):
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Chat is currently unavailable'}), 503
+        
+        # Create new session
+        session_id = str(uuid4())
+        visitor_ip = request.remote_addr
+        user_agent = request.headers.get('User-Agent', '')[:500]
+        
+        cursor.execute("""
+            INSERT INTO chat_sessions (session_id, visitor_ip, user_agent)
+            VALUES (%s, %s, %s)
+        """, (session_id, visitor_ip, user_agent))
+        conn.commit()
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'session_id': session_id,
+            'persona': {
+                'name': persona.get('persona_name', 'Assistant') if persona else 'Assistant',
+                'greeting': persona.get('greeting_message', 'Hello! How can I help you today?') if persona else 'Hello! How can I help you today?',
+                'avatar': persona.get('avatar_url') if persona else None
+            }
+        })
+        
+    except Exception as e:
+        app.logger.exception('Error initializing chat')
+        return jsonify({'error': 'Failed to start chat'}), 500
+
+
+@app.route('/api/chat/message', methods=['POST'])
+def send_chat_message():
+    """Send a message and get AI response."""
+    conn = None
+    cursor = None
+    try:
+        ensure_chat_tables()
+        data = request.get_json() or {}
+        session_id = data.get('session_id', '').strip()
+        user_message = data.get('message', '').strip()
+
+        if not session_id or not user_message:
+            return jsonify({'error': 'Missing session_id or message'}), 400
+
+        if len(user_message) > 2000:
+            return jsonify({'error': 'Message too long (max 2000 characters)'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Verify session exists
+        cursor.execute("SELECT id FROM chat_sessions WHERE session_id = %s", (session_id,))
+        session_row = cursor.fetchone()
+        if not session_row:
+            return jsonify({'error': 'Invalid session'}), 400
+
+        # Get AI settings
+        cursor.execute("SELECT * FROM ai_settings WHERE id = 1")
+        ai_settings = cursor.fetchone()
+
+        if not ai_settings or not ai_settings.get('is_enabled') or not ai_settings.get('api_key'):
+            return jsonify({'error': 'Chat is currently unavailable'}), 503
+
+        # Get persona
+        cursor.execute("SELECT * FROM ai_persona WHERE id = 1")
+        persona = cursor.fetchone() or {}
+
+        # Save user message
+        cursor.execute("""
+            INSERT INTO chat_messages (session_id, role, content)
+            VALUES (%s, %s, %s)
+        """, (session_id, 'user', user_message))
+
+        # Update session
+        cursor.execute("""
+            UPDATE chat_sessions
+            SET message_count = message_count + 1, last_message_at = NOW()
+            WHERE session_id = %s
+        """, (session_id,))
+
+        # Build knowledge context (use separate connection to avoid transaction issues)
+        knowledge_context = ""
+        try:
+            knowledge_context = build_chat_knowledge_context_separate()
+        except Exception as e:
+            app.logger.warning(f"Failed to build knowledge context: {e}")
+            knowledge_context = "Knowledge base temporarily unavailable."
+
+        # Get conversation history (last 10 messages for context)
+        cursor.execute("""
+            SELECT role, content FROM chat_messages
+            WHERE session_id = %s
+            ORDER BY created_at DESC LIMIT 10
+        """, (session_id,))
+        history = cursor.fetchall()[::-1]  # Reverse to get chronological order
+
+        # Generate AI response (this can fail, so we handle it separately)
+        ai_response = generate_chat_response(
+            user_message,
+            history,
+            knowledge_context,
+            persona,
+            ai_settings
+        )
+
+        # Check if user is providing contact details (only triggers when actual email/phone is detected)
+        user_providing_details = detect_contact_details(user_message)
+        if user_providing_details and user_providing_details.get('contact'):
+            name = user_providing_details.get('name')
+            contact = user_providing_details.get('contact')
+            if name or contact:
+                # Update session with user details
+                update_fields = []
+                update_values = []
+                if name:
+                    update_fields.append("visitor_name = %s")
+                    update_values.append(name)
+                if contact:
+                    # Determine if it's email or phone
+                    if '@' in contact:
+                        update_fields.append("visitor_email = %s")
+                        update_values.append(contact)
+                    else:
+                        # For now, store in visitor_email field (we can distinguish later)
+                        update_fields.append("visitor_email = %s")
+                        update_values.append(contact)
+                
+                if update_fields:
+                    update_values.append(session_id)
+                    cursor.execute(f"""
+                        UPDATE chat_sessions 
+                        SET {', '.join(update_fields)}
+                        WHERE session_id = %s
+                    """, update_values)
+                    
+                    ai_response = f"Thank you for providing your information{f' {name}' if name else ''}! A representative will contact you within 24 hours. You can also reach us directly:\n\n📧 Email: {persona.get('contact_email', 'support@sparkleclean.com')}\n📱 WhatsApp: {persona.get('whatsapp_number', '+1-800-SPLK-CLEAN')}\n📞 Phone: {persona.get('contact_phone', '1-800-SPLK-CLEAN')}"
+
+        # Check if user seems unsatisfied and we should collect details
+        user_wants_followup = any(keyword in user_message.lower() for keyword in [
+            'contact', 'call me', 'email me', 'reach out', 'representative', 'speak to someone',
+            'not helpful', 'not satisfied', 'frustrated', 'disappointed', 'need help',
+            'talk to person', 'human', 'manager', 'supervisor'
+        ])
+
+        if user_wants_followup and len(history) > 2:  # Only after some conversation
+            # Check if we already have their details
+            cursor.execute("SELECT visitor_name, visitor_email FROM chat_sessions WHERE session_id = %s", (session_id,))
+            session_data = cursor.fetchone()
+            if not session_data or not session_data.get('visitor_name'):
+                # Collect user details
+                ai_response += "\n\nI'd be happy to have one of our representatives follow up with you personally. May I get your name and contact information?"
+
+        # Save AI response
+        cursor.execute("""
+            INSERT INTO chat_messages (session_id, role, content)
+            VALUES (%s, %s, %s)
+        """, (session_id, 'assistant', ai_response))
+
+        cursor.execute("""
+            UPDATE chat_sessions
+            SET message_count = message_count + 1, last_message_at = NOW()
+            WHERE session_id = %s
+        """, (session_id,))
+
+        # Commit all changes
+        conn.commit()
+
+        return jsonify({
+            'response': ai_response,
+            'persona_name': persona.get('persona_name', 'Assistant')
+        })
+
+    except Exception as e:
+        # Rollback on any error
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        app.logger.exception('Error processing chat message')
+        return jsonify({'error': 'Failed to process message'}), 500
+    finally:
+        # Always close cursor and connection
+        if cursor:
+            try:
+                cursor.close()
+            except:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+def build_chat_knowledge_context_separate():
+    """Build knowledge context from FAQs, services, and knowledge base using separate connection."""
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+        if engine == 'postgres':
+            from psycopg2.extras import RealDictCursor
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            cursor = conn.cursor(dictionary=True)
+        return build_chat_knowledge_context(cursor)
+    finally:
+        if cursor:
+            try:
+                cursor.close()
+            except:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+def build_chat_knowledge_context(cursor):
+    """Build knowledge context from FAQs, services, and knowledge base."""
+    context_parts = []
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    
+    # Get FAQs
+    try:
+        if engine == 'postgres':
+            cursor.execute("SELECT question, answer, category FROM faqs WHERE is_active = TRUE ORDER BY sort_order LIMIT 20")
+        else:
+            cursor.execute("SELECT question, answer, category FROM faqs WHERE is_active = 1 ORDER BY sort_order LIMIT 20")
+        faqs = cursor.fetchall()
+        if faqs:
+            faq_text = "\n\nFREQUENTLY ASKED QUESTIONS:\n"
+            for faq in faqs:
+                faq_text += f"Q: {faq['question']}\nA: {faq['answer']}\n\n"
+            context_parts.append(faq_text)
+    except Exception as e:
+        app.logger.warning(f"Failed to load FAQs for chat: {e}")
+    
+    # Get services
+    try:
+        if engine == 'postgres':
+            # services.is_active is smallint in this db, so use = 1
+            cursor.execute("SELECT name, title, description, short_description, price FROM services WHERE is_active = 1 LIMIT 20")
+        else:
+            cursor.execute("SELECT name, title, description, short_description, price FROM services WHERE is_active = 1 LIMIT 20")
+        services = cursor.fetchall()
+        if services:
+            svc_text = "\n\nOUR CLEANING SERVICES:\n"
+            for svc in services:
+                svc_name = svc.get('name') or svc.get('title') or 'Service'
+                svc_desc = svc.get('short_description') or svc.get('description') or 'Professional cleaning service'
+                svc_price = svc.get('price')
+                price_str = f"Starting at ${svc_price}" if svc_price else "Contact for pricing"
+                svc_text += f"- {svc_name}: {svc_desc} ({price_str})\n"
+            context_parts.append(svc_text)
+    except Exception as e:
+        app.logger.warning(f"Failed to load services for chat: {e}")
+    
+    # Get knowledge base entries - use correct boolean for postgres
+    try:
+        if engine == 'postgres':
+            cursor.execute("SELECT title, content FROM ai_knowledge_base WHERE is_active = TRUE LIMIT 10")
+        else:
+            cursor.execute("SELECT title, content FROM ai_knowledge_base WHERE is_active = 1 LIMIT 10")
+        kb_entries = cursor.fetchall()
+        if kb_entries:
+            kb_text = "\n\nADDITIONAL INFORMATION:\n"
+            for entry in kb_entries:
+                kb_text += f"{entry['title']}: {entry['content']}\n\n"
+            context_parts.append(kb_text)
+    except Exception as e:
+        app.logger.warning(f"Failed to load knowledge base for chat: {e}")
+    
+    # Get company and contact info
+    company_name = 'Our Company'
+    phone = 'Contact us'
+    email = 'Contact us'
+    location = ''
+    whatsapp = None
+
+    # Company name from latest site settings entry
+    try:
+        cursor.execute("SELECT company_name FROM site_settings ORDER BY id DESC LIMIT 1")
+        settings = cursor.fetchone()
+        if settings:
+            company_name = settings.get('company_name') or company_name
+    except Exception as e:
+        app.logger.warning(f"Failed to load site settings for chat: {e}")
+
+    # Contact info from footer_info admin settings
+    try:
+        cursor.execute("SELECT phone, email, location FROM footer_info WHERE id = 1")
+        footer = cursor.fetchone()
+        if footer:
+            phone = footer.get('phone') or phone
+            email = footer.get('email') or email
+            location = footer.get('location') or location
+    except Exception as e:
+        app.logger.warning(f"Failed to load footer contact info for chat: {e}")
+
+    whatsapp = whatsapp or phone or 'Contact us'
+
+    info_text = f"""
+
+COMPANY CONTACT INFORMATION:
+Company Name: {company_name}
+Phone: {phone}
+Email: {email}
+WhatsApp: {whatsapp}
+Location: {location}"""
+    context_parts.append(info_text)
+    
+    return "\n".join(context_parts)
+
+
+def generate_chat_response(user_message, history, knowledge_context, persona, ai_settings):
+    """Generate AI response using the configured provider."""
+    try:
+        provider = ai_settings.get('ai_provider', 'groq')
+        api_key = ai_settings.get('api_key', '')
+        model = ai_settings.get('model', 'llama-3.3-70b-versatile')
+        
+        persona_name = persona.get('persona_name', 'Assistant')
+        persona_desc = persona.get('persona_description', 'A helpful assistant')
+        personality = persona.get('personality_traits', 'Friendly, Professional')
+        response_style = persona.get('response_style', 'friendly')
+        
+        # Build system prompt
+        system_prompt = f"""You are {persona_name}, {persona_desc}
+
+Your personality traits: {personality}
+Response style: {response_style}
+
+IMPORTANT GUIDELINES:
+1. ALWAYS use the KNOWLEDGE BASE information below to answer questions - this contains your real services, pricing, FAQs, and company details
+2. When asked about services, list the ACTUAL services from the knowledge base with their real prices
+3. When asked for contact info, use the COMPANY CONTACT INFORMATION from the knowledge base - NOT placeholder data
+4. If a user asks about something that is not covered by the knowledge base or unrelated to the cleaning business, politely explain that you can only discuss the services and information shown on the site
+5. Be helpful, friendly, and professional
+6. Keep responses concise but informative (2-4 sentences usually)
+7. If someone wants to book a service, guide them to the booking form on the website or provide the contact details
+8. Never make up services or prices - only mention what's in the knowledge base
+9. If the user seems unsatisfied or needs more help, offer to collect their contact details for a representative to follow up
+10. When collecting details, ask for: name, email/phone, and their specific question or request
+11. After collecting details, provide the REAL company contact information from the knowledge base
+12. Be conversational and warm, not robotic
+
+FORMATTING RULES (VERY IMPORTANT):
+- NEVER use markdown - no tables, no **bold**, no *italics*, no headers
+- Use PLAIN TEXT only - the chat widget does not render markdown
+- For service lists, use simple bullet points: "• Service Name - $XX"
+- Put descriptions on a new line under the service name if needed
+- Keep formatting simple and chat-friendly
+- Use line breaks between items for readability
+- Emojis are okay sparingly (✨, 🏠, 📞)
+
+KNOWLEDGE BASE (USE THIS DATA FOR ALL ANSWERS):
+{knowledge_context}
+"""
+        
+        # Build messages array
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Add conversation history
+        for msg in history[:-1]:  # Exclude the current message
+            messages.append({
+                "role": msg['role'],
+                "content": msg['content']
+            })
+        
+        # Add current user message
+        messages.append({"role": "user", "content": user_message})
+        
+        # Call appropriate API
+        if provider == 'groq':
+            response = call_groq_api(api_key, model, messages)
+        elif provider == 'openai':
+            response = call_openai_api(api_key, model, messages)
+        elif provider == 'anthropic':
+            response = call_anthropic_api(api_key, model, messages, system_prompt)
+        else:
+            response = "I'm sorry, I'm having trouble connecting right now. Please try again later or contact us directly."
+        
+        return response
+        
+    except Exception as e:
+        app.logger.exception(f"Error generating chat response: {e}")
+        return "I apologize, but I'm having some technical difficulties. Please try again in a moment, or feel free to contact us directly using the information on our website."
+
+
+def call_groq_api(api_key, model, messages):
+    """Call Groq API for chat completion."""
+    try:
+        response = requests.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'model': model,
+                'messages': messages,
+                'max_tokens': 500,
+                'temperature': 0.7
+            },
+            timeout=30
+        )
+        response.raise_for_status()
+        return response.json()['choices'][0]['message']['content']
+    except Exception as e:
+        app.logger.error(f"Groq API error: {e}")
+        raise
+
+
+def call_openai_api(api_key, model, messages):
+    """Call OpenAI API for chat completion."""
+    try:
+        response = requests.post(
+            'https://api.openai.com/v1/chat/completions',
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'model': model,
+                'messages': messages,
+                'max_tokens': 500,
+                'temperature': 0.7
+            },
+            timeout=30
+        )
+        response.raise_for_status()
+        return response.json()['choices'][0]['message']['content']
+    except Exception as e:
+        app.logger.error(f"OpenAI API error: {e}")
+        raise
+
+
+def call_anthropic_api(api_key, model, messages, system_prompt):
+    """Call Anthropic API for chat completion."""
+    try:
+        # Convert messages for Anthropic format (no system in messages)
+        anthropic_messages = [m for m in messages if m['role'] != 'system']
+        
+        response = requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={
+                'x-api-key': api_key,
+                'Content-Type': 'application/json',
+                'anthropic-version': '2023-06-01'
+            },
+            json={
+                'model': model,
+                'system': system_prompt,
+                'messages': anthropic_messages,
+                'max_tokens': 500
+            },
+            timeout=30
+        )
+        response.raise_for_status()
+        return response.json()['content'][0]['text']
+    except Exception as e:
+        app.logger.error(f"Anthropic API error: {e}")
+        raise
+
+
 @app.route('/api/testimonials/submit', methods=['POST'])
 def submit_testimonial():
     """Public endpoint for customers to submit testimonials.
@@ -5879,6 +6662,588 @@ def admin_site_content_page():
     return render_template('admin/site_content.html', site_settings=site_settings, site_content=site_content)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# FAQ Management Routes
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/admin/faqs')
+@admin_login_required
+def admin_faqs_page():
+    """Render the FAQ management admin page."""
+    ensure_faq_table()
+    site_settings = fetch_site_settings()
+    return render_template('admin/faqs.html', site_settings=site_settings)
+
+
+@app.route('/admin/api/faqs', methods=['GET'])
+@admin_login_required
+def admin_get_faqs():
+    """Get all FAQs for admin."""
+    ensure_faq_table()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM faqs ORDER BY sort_order ASC, id ASC")
+    faqs = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    # Convert boolean fields for JSON
+    for faq in faqs:
+        faq['is_active'] = bool(faq.get('is_active'))
+    return jsonify(faqs)
+
+
+@app.route('/admin/api/faqs', methods=['POST'])
+@admin_login_required
+def admin_create_faq():
+    """Create a new FAQ."""
+    ensure_faq_table()
+    payload = request.get_json(silent=True) or {}
+    question = sanitize_text(payload.get('question', ''), 1000)
+    answer = sanitize_text(payload.get('answer', ''), 5000)
+    category = sanitize_text(payload.get('category', 'General'), 100)
+    sort_order = int(payload.get('sort_order', 0))
+    is_active = bool(payload.get('is_active', True))
+
+    if not question or not answer:
+        return jsonify({'error': 'Question and answer are required.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    if engine == 'postgres':
+        cursor.execute(
+            "INSERT INTO faqs (question, answer, category, sort_order, is_active) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+            (question, answer, category, sort_order, is_active)
+        )
+        faq_id = cursor.fetchone()[0]
+    else:
+        cursor.execute(
+            "INSERT INTO faqs (question, answer, category, sort_order, is_active) VALUES (%s, %s, %s, %s, %s)",
+            (question, answer, category, sort_order, 1 if is_active else 0)
+        )
+        faq_id = cursor.lastrowid
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'FAQ created.', 'id': faq_id})
+
+
+@app.route('/admin/api/faqs/<int:faq_id>', methods=['PUT', 'PATCH'])
+@admin_login_required
+def admin_update_faq(faq_id):
+    """Update an existing FAQ."""
+    ensure_faq_table()
+    payload = request.get_json(silent=True) or {}
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM faqs WHERE id = %s", (faq_id,))
+    existing = cursor.fetchone()
+    if not existing:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'FAQ not found.'}), 404
+
+    question = sanitize_text(payload.get('question', existing['question']), 1000)
+    answer = sanitize_text(payload.get('answer', existing['answer']), 5000)
+    category = sanitize_text(payload.get('category', existing.get('category', 'General')), 100)
+    sort_order = int(payload.get('sort_order', existing.get('sort_order', 0)))
+    is_active = payload.get('is_active', existing.get('is_active', True))
+    if isinstance(is_active, str):
+        is_active = is_active.lower() in ('true', '1', 'yes')
+    else:
+        is_active = bool(is_active)
+
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    cursor.execute(
+        "UPDATE faqs SET question=%s, answer=%s, category=%s, sort_order=%s, is_active=%s WHERE id=%s",
+        (question, answer, category, sort_order, is_active if engine == 'postgres' else (1 if is_active else 0), faq_id)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'FAQ updated.'})
+
+
+@app.route('/admin/api/faqs/<int:faq_id>', methods=['DELETE'])
+@admin_login_required
+def admin_delete_faq(faq_id):
+    """Delete an FAQ."""
+    ensure_faq_table()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM faqs WHERE id = %s", (faq_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'FAQ deleted.'})
+
+
+@app.route('/admin/api/faqs/reorder', methods=['POST'])
+@admin_login_required
+def admin_reorder_faqs():
+    """Reorder FAQs by updating sort_order."""
+    ensure_faq_table()
+    payload = request.get_json(silent=True) or {}
+    order = payload.get('order', [])  # List of faq IDs in new order
+
+    if not order:
+        return jsonify({'error': 'No order provided.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    for idx, faq_id in enumerate(order):
+        cursor.execute("UPDATE faqs SET sort_order = %s WHERE id = %s", (idx, faq_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'FAQs reordered.'})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AI Chat Management Routes (Admin)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/admin/chat-conversations')
+@admin_login_required
+def admin_chat_conversations_page():
+    """Render the chat conversations admin page."""
+    ensure_chat_tables()
+    site_settings = fetch_site_settings()
+    return render_template('admin/chat_conversations.html', site_settings=site_settings)
+
+
+@app.route('/admin/api/chat/conversations', methods=['GET'])
+@admin_login_required
+def admin_get_conversations():
+    """Get all chat conversations for admin review."""
+    ensure_chat_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    # Get pagination params
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 20))
+    offset = (page - 1) * per_page
+    
+    # Get total count
+    cursor.execute("SELECT COUNT(*) as total FROM chat_sessions")
+    total = cursor.fetchone()['total']
+    
+    # Get sessions with message preview
+    cursor.execute("""
+        SELECT cs.*, 
+        (SELECT content FROM chat_messages WHERE session_id = cs.session_id AND role = 'user' ORDER BY created_at LIMIT 1) as first_message
+        FROM chat_sessions cs
+        ORDER BY cs.last_message_at DESC
+        LIMIT %s OFFSET %s
+    """, (per_page, offset))
+    sessions = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
+    
+    # Convert datetime and boolean fields
+    for s in sessions:
+        s['is_resolved'] = bool(s.get('is_resolved'))
+        if s.get('started_at'):
+            s['started_at'] = s['started_at'].isoformat() if hasattr(s['started_at'], 'isoformat') else str(s['started_at'])
+        if s.get('last_message_at'):
+            s['last_message_at'] = s['last_message_at'].isoformat() if hasattr(s['last_message_at'], 'isoformat') else str(s['last_message_at'])
+    
+    return jsonify({
+        'sessions': sessions,
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'pages': math.ceil(total / per_page) if total > 0 else 1
+    })
+
+
+@app.route('/admin/api/chat/conversations/<session_id>', methods=['GET'])
+@admin_login_required
+def admin_get_conversation_messages(session_id):
+    """Get all messages for a specific conversation."""
+    ensure_chat_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    # Get session info
+    cursor.execute("SELECT * FROM chat_sessions WHERE session_id = %s", (session_id,))
+    session_info = cursor.fetchone()
+    
+    if not session_info:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Conversation not found'}), 404
+    
+    # Get all messages
+    cursor.execute("""
+        SELECT * FROM chat_messages 
+        WHERE session_id = %s 
+        ORDER BY created_at ASC
+    """, (session_id,))
+    messages = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
+    
+    # Convert datetime fields
+    for m in messages:
+        if m.get('created_at'):
+            m['created_at'] = m['created_at'].isoformat() if hasattr(m['created_at'], 'isoformat') else str(m['created_at'])
+    
+    session_info['is_resolved'] = bool(session_info.get('is_resolved'))
+    if session_info.get('started_at'):
+        session_info['started_at'] = session_info['started_at'].isoformat() if hasattr(session_info['started_at'], 'isoformat') else str(session_info['started_at'])
+    if session_info.get('last_message_at'):
+        session_info['last_message_at'] = session_info['last_message_at'].isoformat() if hasattr(session_info['last_message_at'], 'isoformat') else str(session_info['last_message_at'])
+    
+    return jsonify({
+        'session': session_info,
+        'messages': messages
+    })
+
+
+@app.route('/admin/api/chat/conversations/<session_id>/resolve', methods=['POST'])
+@admin_login_required
+def admin_resolve_conversation(session_id):
+    """Mark a conversation as resolved."""
+    ensure_chat_tables()
+    data = request.get_json() or {}
+    is_resolved = bool(data.get('is_resolved', True))
+    admin_notes = (data.get('admin_notes') or '').strip()[:2000]
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    if engine == 'postgres':
+        cursor.execute("""
+            UPDATE chat_sessions 
+            SET is_resolved = %s, admin_notes = %s 
+            WHERE session_id = %s
+        """, (is_resolved, admin_notes, session_id))
+    else:
+        cursor.execute("""
+            UPDATE chat_sessions 
+            SET is_resolved = %s, admin_notes = %s 
+            WHERE session_id = %s
+        """, (1 if is_resolved else 0, admin_notes, session_id))
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    return jsonify({'message': 'Conversation updated'})
+
+
+@app.route('/admin/api/chat/conversations/<session_id>/message', methods=['POST'])
+@admin_login_required
+def admin_send_conversation_message(session_id):
+    """Allow an admin to send a manual reply within a conversation."""
+    ensure_chat_tables()
+    data = request.get_json() or {}
+    message = (data.get('message') or '').strip()
+
+    if not message:
+        return jsonify({'error': 'Message is required'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("SELECT id FROM chat_sessions WHERE session_id = %s", (session_id,))
+        exists = cursor.fetchone()
+        if not exists:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Conversation not found'}), 404
+
+        cursor.execute(
+            """
+            INSERT INTO chat_messages (session_id, role, content)
+            VALUES (%s, %s, %s)
+            """,
+            (session_id, 'admin', message)
+        )
+
+        cursor.execute(
+            """
+            UPDATE chat_sessions
+            SET message_count = message_count + 1, last_message_at = NOW()
+            WHERE session_id = %s
+            """,
+            (session_id,)
+        )
+
+        conn.commit()
+        return jsonify({'message': 'Reply sent'})
+    except Exception:
+        conn.rollback()
+        app.logger.exception('Failed to save admin reply for chat session %s', session_id)
+        return jsonify({'error': 'Unable to send reply'}), 500
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+@app.route('/admin/api/chat/conversations/<session_id>', methods=['DELETE'])
+@admin_login_required
+def admin_delete_conversation(session_id):
+    """Delete a conversation and its messages."""
+    ensure_chat_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Delete messages first
+    cursor.execute("DELETE FROM chat_messages WHERE session_id = %s", (session_id,))
+    # Delete session
+    cursor.execute("DELETE FROM chat_sessions WHERE session_id = %s", (session_id,))
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    return jsonify({'message': 'Conversation deleted'})
+
+
+@app.route('/admin/api/chat/persona', methods=['GET', 'POST'])
+@admin_login_required
+def admin_chat_persona():
+    """Get or update AI persona settings."""
+    ensure_chat_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    if request.method == 'GET':
+        cursor.execute("SELECT * FROM ai_persona WHERE id = 1")
+        persona = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if persona:
+            persona['is_enabled'] = bool(persona.get('is_enabled'))
+            return jsonify(persona)
+        return jsonify({
+            'persona_name': 'Assistant',
+            'greeting_message': 'Hello! How can I help you today?',
+            'is_enabled': True
+        })
+    
+    # POST - update persona
+    data = request.get_json() or {}
+    
+    persona_name = (data.get('persona_name') or 'Assistant').strip()[:100]
+    greeting_message = (data.get('greeting_message') or 'Hello! How can I help you today?').strip()[:500]
+    persona_description = (data.get('persona_description') or '').strip()[:1000]
+    personality_traits = (data.get('personality_traits') or '').strip()[:500]
+    response_style = (data.get('response_style') or 'friendly').strip()[:50]
+    avatar_url = (data.get('avatar_url') or '').strip()[:500]
+    contact_email = (data.get('contact_email') or 'support@sparkleclean.com').strip()[:255]
+    contact_phone = (data.get('contact_phone') or '1-800-SPLK-CLEAN').strip()[:50]
+    whatsapp_number = (data.get('whatsapp_number') or '+1-800-SPLK-CLEAN').strip()[:50]
+    is_enabled = bool(data.get('is_enabled', True))
+    
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    
+    # Check if exists
+    cursor.execute("SELECT id FROM ai_persona WHERE id = 1")
+    exists = cursor.fetchone()
+    
+    if exists:
+        if engine == 'postgres':
+            cursor.execute("""
+                UPDATE ai_persona 
+                SET persona_name = %s, greeting_message = %s, persona_description = %s,
+                    personality_traits = %s, response_style = %s, avatar_url = %s,
+                    contact_email = %s, contact_phone = %s, whatsapp_number = %s,
+                    is_enabled = %s, updated_at = NOW()
+                WHERE id = 1
+            """, (persona_name, greeting_message, persona_description, personality_traits, 
+                  response_style, avatar_url, contact_email, contact_phone, whatsapp_number, is_enabled))
+        else:
+            cursor.execute("""
+                UPDATE ai_persona 
+                SET persona_name = %s, greeting_message = %s, persona_description = %s,
+                    personality_traits = %s, response_style = %s, avatar_url = %s,
+                    contact_email = %s, contact_phone = %s, whatsapp_number = %s,
+                    is_enabled = %s
+                WHERE id = 1
+            """, (persona_name, greeting_message, persona_description, personality_traits, 
+                  response_style, avatar_url, contact_email, contact_phone, whatsapp_number, 1 if is_enabled else 0))
+    else:
+        if engine == 'postgres':
+            cursor.execute("""
+                INSERT INTO ai_persona (id, persona_name, greeting_message, persona_description, 
+                    personality_traits, response_style, avatar_url, contact_email, contact_phone, 
+                    whatsapp_number, is_enabled)
+                VALUES (1, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (persona_name, greeting_message, persona_description, personality_traits, 
+                  response_style, avatar_url, contact_email, contact_phone, whatsapp_number, is_enabled))
+        else:
+            cursor.execute("""
+                INSERT INTO ai_persona (id, persona_name, greeting_message, persona_description, 
+                    personality_traits, response_style, avatar_url, contact_email, contact_phone, 
+                    whatsapp_number, is_enabled)
+                VALUES (1, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (persona_name, greeting_message, persona_description, personality_traits, 
+                  response_style, avatar_url, contact_email, contact_phone, whatsapp_number, 1 if is_enabled else 0))
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    return jsonify({'message': 'Persona settings updated'})
+
+
+@app.route('/admin/api/chat/knowledge', methods=['GET', 'POST'])
+@admin_login_required
+def admin_knowledge_base():
+    """Manage AI knowledge base entries."""
+    ensure_chat_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    if request.method == 'GET':
+        cursor.execute("SELECT * FROM ai_knowledge_base ORDER BY category, id")
+        entries = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        for e in entries:
+            e['is_active'] = bool(e.get('is_active'))
+        return jsonify(entries)
+    
+    # POST - create new entry
+    data = request.get_json() or {}
+    title = (data.get('title') or '').strip()[:255]
+    content = (data.get('content') or '').strip()[:5000]
+    category = (data.get('category') or 'General').strip()[:100]
+    keywords = (data.get('keywords') or '').strip()[:500]
+    is_active = bool(data.get('is_active', True))
+    
+    if not title or not content:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Title and content are required'}), 400
+    
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    
+    if engine == 'postgres':
+        cursor.execute("""
+            INSERT INTO ai_knowledge_base (title, content, category, keywords, is_active)
+            VALUES (%s, %s, %s, %s, %s) RETURNING id
+        """, (title, content, category, keywords, is_active))
+        entry_id = cursor.fetchone()['id']
+    else:
+        cursor.execute("""
+            INSERT INTO ai_knowledge_base (title, content, category, keywords, is_active)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (title, content, category, keywords, 1 if is_active else 0))
+        entry_id = cursor.lastrowid
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    return jsonify({'message': 'Knowledge entry created', 'id': entry_id})
+
+
+@app.route('/admin/api/chat/knowledge/<int:entry_id>', methods=['PUT', 'DELETE'])
+@admin_login_required
+def admin_knowledge_entry(entry_id):
+    """Update or delete a knowledge base entry."""
+    ensure_chat_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    if request.method == 'DELETE':
+        cursor.execute("DELETE FROM ai_knowledge_base WHERE id = %s", (entry_id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Entry deleted'})
+    
+    # PUT - update
+    data = request.get_json() or {}
+    title = (data.get('title') or '').strip()[:255]
+    content = (data.get('content') or '').strip()[:5000]
+    category = (data.get('category') or 'General').strip()[:100]
+    keywords = (data.get('keywords') or '').strip()[:500]
+    is_active = bool(data.get('is_active', True))
+    
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    
+    if engine == 'postgres':
+        cursor.execute("""
+            UPDATE ai_knowledge_base 
+            SET title = %s, content = %s, category = %s, keywords = %s, is_active = %s
+            WHERE id = %s
+        """, (title, content, category, keywords, is_active, entry_id))
+    else:
+        cursor.execute("""
+            UPDATE ai_knowledge_base 
+            SET title = %s, content = %s, category = %s, keywords = %s, is_active = %s
+            WHERE id = %s
+        """, (title, content, category, keywords, 1 if is_active else 0, entry_id))
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    return jsonify({'message': 'Entry updated'})
+
+
+@app.route('/admin/api/chat/stats', methods=['GET'])
+@admin_login_required
+def admin_chat_stats():
+    """Get chat statistics for admin dashboard."""
+    ensure_chat_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    # Total conversations
+    cursor.execute("SELECT COUNT(*) as total FROM chat_sessions")
+    total = cursor.fetchone()['total']
+    
+    # Conversations today
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    if engine == 'postgres':
+        cursor.execute("SELECT COUNT(*) as today FROM chat_sessions WHERE started_at >= CURRENT_DATE")
+    else:
+        cursor.execute("SELECT COUNT(*) as today FROM chat_sessions WHERE DATE(started_at) = CURDATE()")
+    today = cursor.fetchone()['today']
+    
+    # Unresolved conversations
+    if engine == 'postgres':
+        cursor.execute("SELECT COUNT(*) as unresolved FROM chat_sessions WHERE is_resolved = FALSE")
+    else:
+        cursor.execute("SELECT COUNT(*) as unresolved FROM chat_sessions WHERE is_resolved = 0")
+    unresolved = cursor.fetchone()['unresolved']
+    
+    # Total messages
+    cursor.execute("SELECT COUNT(*) as messages FROM chat_messages")
+    messages = cursor.fetchone()['messages']
+    
+    cursor.close()
+    conn.close()
+    
+    return jsonify({
+        'total_conversations': total,
+        'conversations_today': today,
+        'unresolved': unresolved,
+        'total_messages': messages
+    })
+
+
 @app.route('/admin/api/operating-bases', methods=['GET', 'POST'])
 @admin_login_required
 def admin_operating_bases():
@@ -6517,6 +7882,23 @@ def index():
     travel_settings = fetch_travel_settings()
     site_content = fetch_site_content()
 
+    # Fetch active FAQs
+    ensure_faq_table()
+    faqs = []
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+        if engine == 'postgres':
+            cursor.execute("SELECT id, question, answer, category FROM faqs WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC")
+        else:
+            cursor.execute("SELECT id, question, answer, category FROM faqs WHERE is_active = 1 ORDER BY sort_order ASC, id ASC")
+        faqs = cursor.fetchall()
+        cursor.close()
+        conn.close()
+    except Exception:
+        app.logger.exception('Error fetching FAQs for index page')
+
     hero_small_texts = [
         text for text in (
             hero_content.get('small_text_line1'),
@@ -6559,7 +7941,8 @@ def index():
         footer_info=footer_info,
         site_settings=site_settings,
         travel_settings=travel_settings,
-        site_content=site_content
+        site_content=site_content,
+        faqs=faqs
     )
 
 

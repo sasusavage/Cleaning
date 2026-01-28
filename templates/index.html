@@ -52,6 +52,12 @@
                     <span class="nav__label">Testimonials</span>
                 </a>
 
+                {% if faqs and faqs|length > 0 %}
+                <a class="nav__item" href="#faqs" title="FAQs" data-section="faqs">
+                    <span class="nav__label">FAQs</span>
+                </a>
+                {% endif %}
+
                 <a class="nav__item" href="#careers" title="Careers" data-section="careers">
                     <span class="nav__label">Careers</span>
                 </a>
@@ -395,6 +401,54 @@
             </div>
         </section>
 
+        <!-- FAQ Section -->
+        {% if faqs and faqs|length > 0 %}
+        <section class="panel faqs" id="faqs">
+            <div class="faq-container">
+                <div class="faq-intro" data-animate="fade-in">
+                    <p class="section__eyebrow">Got Questions?</p>
+                    <h2 class="section__title">Frequently Asked<br>Questions</h2>
+                    <p class="faq-intro__desc">Everything you need to know about our cleaning services. Can't find what you're looking for? Feel free to contact us.</p>
+                    <div class="faq-intro__stats">
+                        <div class="faq-stat">
+                            <span class="faq-stat__number">{{ faqs|length }}</span>
+                            <span class="faq-stat__label">Answers</span>
+                        </div>
+                        <div class="faq-stat">
+                            <span class="faq-stat__number">24/7</span>
+                            <span class="faq-stat__label">Support</span>
+                        </div>
+                    </div>
+                    <button type="button" class="faq-cta" id="openChatFromFaq">
+                        <span>Still have questions? Chat with us!</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="faq-accordion" data-animate="reveal">
+                    {% for faq in faqs %}
+                    <div class="faq-item" data-faq>
+                        <button class="faq-item__question" aria-expanded="false" aria-controls="faq-answer-{{ faq.id }}">
+                            <span class="faq-item__number">{{ '%02d'|format(loop.index) }}</span>
+                            <span class="faq-item__text">{{ faq.question }}</span>
+                            <span class="faq-item__toggle">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                            </span>
+                        </button>
+                        <div class="faq-item__answer" id="faq-answer-{{ faq.id }}" hidden>
+                            <p>{{ faq.answer }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
         <section class="panel careers" id="careers">
             <div class="section__header" data-animate="fade-in">
                 <p class="section__eyebrow">Join Our Team</p>
@@ -524,6 +578,9 @@
                 <ul class="footer__links">
                     <li><a href="#services">Our Services</a></li>
                     <li><a href="#testimonials">Testimonials</a></li>
+                    {% if faqs and faqs|length > 0 %}
+                    <li><a href="#faqs">FAQs</a></li>
+                    {% endif %}
                     <li><a href="#careers">Join the Team</a></li>
                     <li><a href="#reviews">Leave a Review</a></li>
                 </ul>
@@ -1022,6 +1079,73 @@
                 <blockquote class="testimonial-modal__message" id="testimonialModalMessage"></blockquote>
                 <cite class="testimonial-modal__author" id="testimonialModalAuthor"></cite>
             </div>
+        </div>
+    </div>
+
+    <!-- AI Chat Widget -->
+    <div id="chatWidget" class="chat-widget" aria-hidden="true">
+        <button class="chat-widget__toggle" id="chatToggle" aria-label="Open chat" title="Chat with us">
+            <svg class="chat-icon-open" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            <svg class="chat-icon-close" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+            <span class="chat-widget__badge" id="chatBadge" hidden>1</span>
+        </button>
+        
+        <div class="chat-widget__window" id="chatWindow">
+            <div class="chat-widget__header">
+                <div class="chat-widget__header-info">
+                    <div class="chat-widget__avatar" id="chatAvatar">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <span class="chat-widget__name" id="chatPersonaName">Assistant</span>
+                        <span class="chat-widget__status">
+                            <span class="chat-widget__status-dot"></span>
+                            Online
+                        </span>
+                    </div>
+                </div>
+                <button class="chat-widget__minimize" id="chatMinimize" aria-label="Minimize chat">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="chat-widget__messages" id="chatMessages">
+                <div class="chat-widget__welcome" id="chatWelcome">
+                    <div class="chat-widget__welcome-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                    </div>
+                    <h3>Hi there! 👋</h3>
+                    <p id="chatGreeting">How can we help you today?</p>
+                </div>
+            </div>
+            
+            <div class="chat-widget__suggestions" id="chatSuggestions">
+                <button class="chat-suggestion" data-message="What services do you offer?">Services</button>
+                <button class="chat-suggestion" data-message="How can I get a quote?">Get Quote</button>
+                <button class="chat-suggestion" data-message="What are your prices?">Pricing</button>
+                <button class="chat-suggestion" data-message="How do I book a cleaning?">Book Now</button>
+            </div>
+            
+            <form class="chat-widget__input" id="chatForm">
+                <input type="text" id="chatInput" placeholder="Type your message..." autocomplete="off" maxlength="2000">
+                <button type="submit" id="chatSend" aria-label="Send message">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </form>
         </div>
     </div>
 

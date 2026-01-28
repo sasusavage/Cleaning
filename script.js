@@ -3614,4 +3614,268 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
     });
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // FAQ Accordion
+    // ─────────────────────────────────────────────────────────────────────────────
+    var faqItems = document.querySelectorAll('[data-faq]');
+    faqItems.forEach(function (item) {
+        var questionBtn = item.querySelector('.faq-item__question');
+        var answerDiv = item.querySelector('.faq-item__answer');
+
+        if (questionBtn && answerDiv) {
+            questionBtn.addEventListener('click', function () {
+                var isExpanded = questionBtn.getAttribute('aria-expanded') === 'true';
+
+                // Close all other FAQ items
+                faqItems.forEach(function (otherItem) {
+                    if (otherItem !== item) {
+                        var otherBtn = otherItem.querySelector('.faq-item__question');
+                        var otherAnswer = otherItem.querySelector('.faq-item__answer');
+                        if (otherBtn && otherAnswer) {
+                            otherBtn.setAttribute('aria-expanded', 'false');
+                            otherAnswer.hidden = true;
+                        }
+                    }
+                });
+
+                // Toggle current item
+                questionBtn.setAttribute('aria-expanded', !isExpanded);
+                answerDiv.hidden = isExpanded;
+            });
+        }
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // AI CHAT WIDGET
+    // ─────────────────────────────────────────────────────────────────────────────
+    var chatWidget = document.getElementById('chatWidget');
+    var chatToggle = document.getElementById('chatToggle');
+    var chatWindow = document.getElementById('chatWindow');
+    var chatMinimize = document.getElementById('chatMinimize');
+    var chatForm = document.getElementById('chatForm');
+    var chatInput = document.getElementById('chatInput');
+    var chatMessages = document.getElementById('chatMessages');
+    var chatSuggestions = document.getElementById('chatSuggestions');
+    var chatPersonaName = document.getElementById('chatPersonaName');
+    var chatGreeting = document.getElementById('chatGreeting');
+    var chatWelcome = document.getElementById('chatWelcome');
+    var openChatFromFaq = document.getElementById('openChatFromFaq');
+
+    var chatSessionId = null;
+    var chatPersona = null;
+    var chatInitialized = false;
+    var isWaitingForResponse = false;
+
+    // Initialize chat when opened
+    function initializeChat() {
+        if (chatInitialized) return Promise.resolve();
+
+        return fetch('/api/chat/init', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(function(response) {
+            if (!response.ok) throw new Error('Chat unavailable');
+            return response.json();
+        })
+        .then(function(data) {
+            chatSessionId = data.session_id;
+            chatPersona = data.persona;
+            chatInitialized = true;
+
+            // Update UI with persona info
+            if (chatPersonaName && chatPersona.name) {
+                chatPersonaName.textContent = chatPersona.name;
+            }
+            if (chatGreeting && chatPersona.greeting) {
+                chatGreeting.textContent = chatPersona.greeting;
+            }
+            if (chatPersona.avatar && document.getElementById('chatAvatar')) {
+                document.getElementById('chatAvatar').innerHTML = '<img src="' + chatPersona.avatar + '" alt="' + chatPersona.name + '">';
+            }
+        })
+        .catch(function(error) {
+            console.error('Chat init error:', error);
+            showChatError('Chat is currently unavailable. Please try again later.');
+            return Promise.reject(error);
+        });
+    }
+
+    // Toggle chat window
+    function toggleChat() {
+        var isOpen = chatWidget.classList.contains('is-open');
+        
+        if (!isOpen) {
+            chatWidget.classList.add('is-open');
+            chatWidget.setAttribute('aria-hidden', 'false');
+            initializeChat().then(function() {
+                if (chatInput) chatInput.focus();
+            }).catch(function() {
+                // Error already handled
+            });
+        } else {
+            chatWidget.classList.remove('is-open');
+            chatWidget.setAttribute('aria-hidden', 'true');
+        }
+    }
+
+    // Add message to chat
+    function addChatMessage(content, isUser) {
+        // Hide welcome message on first message
+        if (chatWelcome && !chatWelcome.hidden) {
+            chatWelcome.hidden = true;
+        }
+
+        var messageDiv = document.createElement('div');
+        messageDiv.className = 'chat-message ' + (isUser ? 'chat-message--user' : 'chat-message--assistant');
+
+        var avatarDiv = document.createElement('div');
+        avatarDiv.className = 'chat-message__avatar';
+        if (isUser) {
+            avatarDiv.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+        } else {
+            avatarDiv.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/></svg>';
+        }
+
+        var contentDiv = document.createElement('div');
+        contentDiv.className = 'chat-message__content';
+        // Convert newlines to <br> for proper formatting, but escape HTML first
+        var escaped = content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        contentDiv.innerHTML = escaped.replace(/\n/g, '<br>');
+
+        messageDiv.appendChild(avatarDiv);
+        messageDiv.appendChild(contentDiv);
+        chatMessages.appendChild(messageDiv);
+
+        // Scroll to bottom
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        return messageDiv;
+    }
+
+    // Show typing indicator
+    function showTypingIndicator() {
+        var typingDiv = document.createElement('div');
+        typingDiv.className = 'chat-message chat-message--assistant';
+        typingDiv.id = 'chatTyping';
+
+        typingDiv.innerHTML = '<div class="chat-message__avatar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/></svg></div><div class="chat-message__content"><div class="chat-message__typing"><span></span><span></span><span></span></div></div>';
+
+        chatMessages.appendChild(typingDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // Hide typing indicator
+    function hideTypingIndicator() {
+        var typing = document.getElementById('chatTyping');
+        if (typing) typing.remove();
+    }
+
+    // Show error in chat
+    function showChatError(message) {
+        var errorDiv = document.createElement('div');
+        errorDiv.className = 'chat-message chat-message--assistant';
+        errorDiv.innerHTML = '<div class="chat-message__avatar" style="background:#ef4444"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div class="chat-message__content" style="background:#fef2f2;color:#991b1b">' + message + '</div>';
+        chatMessages.appendChild(errorDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // Send message
+    function sendMessage(message) {
+        if (!message.trim() || isWaitingForResponse || !chatSessionId) return;
+
+        // Hide suggestions after first message
+        if (chatSuggestions) {
+            chatSuggestions.style.display = 'none';
+        }
+
+        // Add user message
+        addChatMessage(message, true);
+        
+        // Clear input
+        if (chatInput) chatInput.value = '';
+
+        // Show typing indicator
+        isWaitingForResponse = true;
+        showTypingIndicator();
+
+        // Send to API
+        fetch('/api/chat/message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                session_id: chatSessionId,
+                message: message
+            })
+        })
+        .then(function(response) {
+            if (!response.ok) throw new Error('Failed to send message');
+            return response.json();
+        })
+        .then(function(data) {
+            hideTypingIndicator();
+            isWaitingForResponse = false;
+            
+            if (data.response) {
+                addChatMessage(data.response, false);
+            } else {
+                showChatError('Sorry, I couldn\'t process that. Please try again.');
+            }
+        })
+        .catch(function(error) {
+            hideTypingIndicator();
+            isWaitingForResponse = false;
+            console.error('Chat error:', error);
+            showChatError('Something went wrong. Please try again.');
+        });
+    }
+
+    // Event listeners
+    if (chatToggle) {
+        chatToggle.addEventListener('click', toggleChat);
+    }
+
+    if (chatMinimize) {
+        chatMinimize.addEventListener('click', function() {
+            chatWidget.classList.remove('is-open');
+            chatWidget.setAttribute('aria-hidden', 'true');
+        });
+    }
+
+    if (chatForm) {
+        chatForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var message = chatInput ? chatInput.value : '';
+            sendMessage(message);
+        });
+    }
+
+    // Quick suggestion buttons
+    if (chatSuggestions) {
+        chatSuggestions.addEventListener('click', function(e) {
+            var btn = e.target.closest('.chat-suggestion');
+            if (btn) {
+                var message = btn.getAttribute('data-message');
+                if (message) sendMessage(message);
+            }
+        });
+    }
+
+    // Open chat from FAQ section
+    if (openChatFromFaq) {
+        openChatFromFaq.addEventListener('click', function() {
+            if (!chatWidget.classList.contains('is-open')) {
+                toggleChat();
+            }
+        });
+    }
+
+    // Close chat on escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && chatWidget && chatWidget.classList.contains('is-open')) {
+            chatWidget.classList.remove('is-open');
+            chatWidget.setAttribute('aria-hidden', 'true');
+        }
+    });
 });
