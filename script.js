@@ -3702,21 +3702,42 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Toggle chat window
+    // Helpers to manage the widget state
+    function openChat() {
+        if (!chatWidget || chatWidget.classList.contains('is-open')) {
+            return;
+        }
+        chatWidget.classList.add('is-open');
+        chatWidget.setAttribute('aria-hidden', 'false');
+        if (body) {
+            body.classList.add('chat-widget-open');
+        }
+        initializeChat().then(function() {
+            if (chatInput) chatInput.focus();
+        }).catch(function() {
+            // Error already handled during initialization
+        });
+    }
+
+    function closeChat() {
+        if (!chatWidget) {
+            return;
+        }
+        chatWidget.classList.remove('is-open');
+        chatWidget.setAttribute('aria-hidden', 'true');
+        if (body) {
+            body.classList.remove('chat-widget-open');
+        }
+    }
+
     function toggleChat() {
-        var isOpen = chatWidget.classList.contains('is-open');
-        
-        if (!isOpen) {
-            chatWidget.classList.add('is-open');
-            chatWidget.setAttribute('aria-hidden', 'false');
-            initializeChat().then(function() {
-                if (chatInput) chatInput.focus();
-            }).catch(function() {
-                // Error already handled
-            });
+        if (!chatWidget) {
+            return;
+        }
+        if (chatWidget.classList.contains('is-open')) {
+            closeChat();
         } else {
-            chatWidget.classList.remove('is-open');
-            chatWidget.setAttribute('aria-hidden', 'true');
+            openChat();
         }
     }
 
@@ -3837,10 +3858,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (chatMinimize) {
-        chatMinimize.addEventListener('click', function() {
-            chatWidget.classList.remove('is-open');
-            chatWidget.setAttribute('aria-hidden', 'true');
-        });
+        chatMinimize.addEventListener('click', closeChat);
     }
 
     if (chatForm) {
@@ -3864,18 +3882,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Open chat from FAQ section
     if (openChatFromFaq) {
-        openChatFromFaq.addEventListener('click', function() {
-            if (!chatWidget.classList.contains('is-open')) {
-                toggleChat();
-            }
-        });
+        openChatFromFaq.addEventListener('click', openChat);
     }
 
     // Close chat on escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && chatWidget && chatWidget.classList.contains('is-open')) {
-            chatWidget.classList.remove('is-open');
-            chatWidget.setAttribute('aria-hidden', 'true');
+            closeChat();
         }
     });
 });
