@@ -105,6 +105,12 @@
 
 html {
     scroll-behavior: smooth;
+    overflow-x: hidden;
+}
+
+html, body {
+    max-width: 100vw;
+    overscroll-behavior-x: none;
 }
 
 body {
@@ -1276,7 +1282,7 @@ body.is-nav-expanded main {
 .testimonial-slider.is-enhanced {
     display: block;
     position: relative;
-    overflow: visible;
+    overflow: hidden;
     transition: height var(--transition-fast);
     background: transparent;
     border: none;
@@ -1292,6 +1298,13 @@ body.is-nav-expanded main {
     padding: 2rem 1.5rem;
     margin: -2rem -1.5rem;
     transition: height var(--transition-fast);
+}
+
+@media (max-width: 720px) {
+    .testimonial-slider__viewport {
+        padding: 1rem 0.5rem;
+        margin: -1rem -0.5rem;
+    }
 }
 
 .testimonial-slider.is-enhanced:focus-visible {
@@ -1336,17 +1349,24 @@ body.is-nav-expanded main {
 }
 
 @media (max-width: 720px) {
+    .testimonials {
+        overflow-x: hidden;
+    }
+
     .testimonials .panel {
         padding-bottom: 4rem;
+        overflow: hidden;
     }
 
     .testimonial-slider {
         grid-template-columns: minmax(0, 1fr);
         gap: 1.25rem;
+        overflow: hidden;
     }
 
     .testimonial-slider-container {
         padding: 0;
+        overflow: hidden;
     }
 
     /* Hide side navigation on mobile - use swipe instead */
@@ -4108,5 +4128,21 @@ body {
     .chat-widget__input button {
         width: 40px;
         height: 40px;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Global Mobile Overflow Fix
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    html, body {
+        overflow-x: hidden !important;
+        overscroll-behavior-x: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    main, section, .panel {
+        overflow-x: hidden;
+        max-width: 100%;
     }
 }
