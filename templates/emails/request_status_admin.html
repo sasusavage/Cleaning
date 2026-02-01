@@ -1,46 +1,188 @@
 <!DOCTYPE html>
-<html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
     <meta charset="utf-8">
-    <title>Request Status Updated</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <meta name="supported-color-schemes" content="light">
+    <title>Status Updated - Admin Alert</title>
     <style>
-        body { font-family: Arial, sans-serif; color: #111827; }
-        .wrapper { max-width: 600px; margin: 0 auto; padding: 24px; }
-        .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #e0f2fe; color: #1d4ed8; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
-        .meta { margin-top: 18px; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; }
-        .meta dt { font-weight: 600; margin-bottom: 2px; }
-        .meta dd { margin: 0 0 8px; }
-        .footer { margin-top: 24px; color: #6b7280; font-size: 12px; }
+        :root { color-scheme: light; supported-color-schemes: light; }
+        @media (prefers-color-scheme: dark) {
+            .dark-mode-bg { background-color: #ffffff !important; }
+            .dark-mode-text { color: #1f2937 !important; }
+        }
     </style>
 </head>
-<body>
-    <div class="wrapper">
-        <h1 style="font-size:20px; margin:0 0 12px;">Request Status Updated</h1>
-        <p style="margin:0 0 12px;">Request <strong>{{ request.ref_id or request.id }}</strong> has been moved to <span class="pill">{{ request.status_label }}</span>.</p>
-        {% if request.previous_status_label and request.previous_status_label != request.status_label %}
-        <p style="margin:0 0 12px;">Previous status: {{ request.previous_status_label }}.</p>
-        {% endif %}
-        <p style="margin:0 0 12px;">Summary:</p>
-        <div class="meta">
-            <dl style="margin:0;">
-                <dt>Type</dt>
-                <dd>{{ request.request_type|title }}</dd>
-                <dt>Name</dt>
-                <dd>{{ request.name or 'Unknown' }}</dd>
-                {% if request.service_name %}
-                <dt>Service</dt>
-                <dd>{{ request.service_name }}</dd>
-                {% endif %}
-                {% if request.job_position %}
-                <dt>Position</dt>
-                <dd>{{ request.job_position }}</dd>
-                {% endif %}
-                <dt>Updated</dt>
-                <dd>{{ request.updated_at }}</dd>
-            </dl>
-        </div>
-        <p style="margin:18px 0 0;">This email was sent to the admin notification list configured in the dashboard.</p>
-        <p class="footer">Clean Co. Admin • Automated notice</p>
-    </div>
+<body style="margin: 0; padding: 0; background-color: #f0f4f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; -webkit-font-smoothing: antialiased;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f0f4f8; padding: 40px 20px;">
+        <tr>
+            <td align="center">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" class="dark-mode-bg" style="max-width: 650px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td style="background-color: #7c3aed; padding: 24px 40px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                <tr>
+                                    <td style="background-color: #7c3aed;">
+                                        <h1 style="margin: 0; font-size: 22px; font-weight: 700; color: #ffffff; background-color: #7c3aed;">⚙️ Done-Well Admin</h1>
+                                    </td>
+                                    <td align="right" style="background-color: #7c3aed;">
+                                        <span style="display: inline-block; background-color: rgba(255,255,255,0.2); color: #ffffff; font-size: 11px; font-weight: 600; padding: 6px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;">Status Update</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Alert Banner -->
+                    <tr>
+                        <td style="background-color: #6d28d9; padding: 20px 40px; text-align: center;">
+                            <h2 style="margin: 0; font-size: 18px; font-weight: 600; color: #ffffff; background-color: #6d28d9;">📋 Request Status Has Been Updated</h2>
+                        </td>
+                    </tr>
+
+                    <!-- Main Content -->
+                    <tr>
+                        <td class="dark-mode-bg" style="padding: 32px 40px; background-color: #ffffff;">
+                            
+                            <!-- Status Change Summary -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px;">
+                                <tr>
+                                    <td style="background-color: #f3e8ff; border-radius: 12px; padding: 20px; text-align: center;">
+                                        {% if request.previous_status_label %}
+                                        <p style="margin: 0 0 8px; font-size: 14px; color: #7c3aed; background-color: #f3e8ff;">
+                                            <span style="text-decoration: line-through; color: #9ca3af;">{{ request.previous_status_label }}</span>
+                                            <span style="margin: 0 8px;">→</span>
+                                            <strong style="color: #7c3aed;">{{ request.status_label }}</strong>
+                                        </p>
+                                        {% else %}
+                                        <p style="margin: 0; font-size: 18px; font-weight: 700; color: #7c3aed; background-color: #f3e8ff;">{{ request.status_label }}</p>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Reference Number -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px; background-color: #eff6ff; border-radius: 12px; border-left: 4px solid #7c3aed;">
+                                <tr>
+                                    <td style="padding: 16px 20px; background-color: #eff6ff;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                            <tr>
+                                                <td style="background-color: #eff6ff;">
+                                                    <p style="margin: 0; font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; background-color: #eff6ff;">Reference</p>
+                                                    <p style="margin: 4px 0 0; font-size: 18px; font-weight: 700; color: #1e3a5f; background-color: #eff6ff;">{{ request.ref_id or request.id }}</p>
+                                                </td>
+                                                <td align="right" style="background-color: #eff6ff;">
+                                                    <p style="margin: 0; font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; background-color: #eff6ff;">Type</p>
+                                                    <p style="margin: 4px 0 0; font-size: 16px; font-weight: 600; color: #1e3a5f; background-color: #eff6ff;">{{ request.request_type|title }}</p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Request Details Card -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px; background-color: #f9fafb; border-radius: 12px; border: 1px solid #e5e7eb;">
+                                <tr>
+                                    <td style="padding: 20px; background-color: #f9fafb;">
+                                        <h3 style="margin: 0 0 16px; font-size: 14px; font-weight: 700; color: #7c3aed; text-transform: uppercase; letter-spacing: 0.5px; background-color: #f9fafb;">📋 Request Details</h3>
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; background-color: #f9fafb;">
+                                            {% if request.service_name %}
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #6b7280; width: 120px; vertical-align: top; background-color: #f9fafb;">Service</td>
+                                                <td class="dark-mode-text" style="padding: 8px 0; color: #1f2937; font-weight: 500; background-color: #f9fafb;">{{ request.service_name }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if request.job_position %}
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #6b7280; vertical-align: top; background-color: #f9fafb;">Position</td>
+                                                <td class="dark-mode-text" style="padding: 8px 0; color: #1f2937; font-weight: 500; background-color: #f9fafb;">{{ request.job_position }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #6b7280; vertical-align: top; background-color: #f9fafb;">Submitted</td>
+                                                <td class="dark-mode-text" style="padding: 8px 0; color: #1f2937; font-weight: 500; background-color: #f9fafb;">{{ request.created_at }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #6b7280; vertical-align: top; background-color: #f9fafb;">Updated</td>
+                                                <td class="dark-mode-text" style="padding: 8px 0; color: #1f2937; font-weight: 500; background-color: #f9fafb;">{{ request.updated_at or 'Just now' }}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Customer Details -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px; background-color: #f9fafb; border-radius: 12px; border: 1px solid #e5e7eb;">
+                                <tr>
+                                    <td style="padding: 20px; background-color: #f9fafb;">
+                                        <h3 style="margin: 0 0 16px; font-size: 14px; font-weight: 700; color: #7c3aed; text-transform: uppercase; letter-spacing: 0.5px; background-color: #f9fafb;">👤 Customer Info</h3>
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; background-color: #f9fafb;">
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #6b7280; width: 120px; background-color: #f9fafb;">Name</td>
+                                                <td class="dark-mode-text" style="padding: 8px 0; color: #1f2937; font-weight: 500; background-color: #f9fafb;">{{ request.name }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #6b7280; background-color: #f9fafb;">Email</td>
+                                                <td style="padding: 8px 0; background-color: #f9fafb;">
+                                                    <a href="mailto:{{ request.email }}" style="color: #7c3aed; text-decoration: none; font-weight: 500;">{{ request.email }}</a>
+                                                </td>
+                                            </tr>
+                                            {% if request.phone %}
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #6b7280; background-color: #f9fafb;">Phone</td>
+                                                <td style="padding: 8px 0; background-color: #f9fafb;">
+                                                    <a href="tel:{{ request.phone }}" style="color: #7c3aed; text-decoration: none; font-weight: 500;">{{ request.phone }}</a>
+                                                </td>
+                                            </tr>
+                                            {% endif %}
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            {% if request.updated_by %}
+                            <!-- Updated By -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px; background-color: #fef3c7; border-radius: 10px; border-left: 4px solid #f59e0b;">
+                                <tr>
+                                    <td style="padding: 14px 16px; background-color: #fef3c7;">
+                                        <p style="margin: 0; font-size: 13px; color: #92400e; background-color: #fef3c7;">
+                                            <strong>Updated by:</strong> {{ request.updated_by }}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                            {% endif %}
+
+                            <!-- Action Button -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                <tr>
+                                    <td align="center" style="padding: 8px 0;">
+                                        <a href="{{ admin_url or '#' }}" style="display: inline-block; background-color: #7c3aed; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 14px 32px; border-radius: 8px;">
+                                            View in Admin Dashboard
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #1e293b; padding: 24px 40px; text-align: center;">
+                            <p style="margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #ffffff; background-color: #1e293b;">Done-Well Cleaning - Admin Portal</p>
+                            <p style="margin: 0; font-size: 11px; color: #64748b; background-color: #1e293b;">
+                                This is an automated admin notification. © {{ current_year or '2026' }} Done-Well Cleaning Ltd.
+                            </p>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>

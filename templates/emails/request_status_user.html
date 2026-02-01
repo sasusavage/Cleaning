@@ -1,34 +1,149 @@
 <!DOCTYPE html>
-<html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
     <meta charset="utf-8">
-    <title>Your Request Status</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <meta name="supported-color-schemes" content="light">
+    <title>Your Request Status Update</title>
     <style>
-        body { font-family: Arial, sans-serif; color: #1f2937; }
-        .wrapper { max-width: 600px; margin: 0 auto; padding: 24px; }
-        .status { display: inline-block; padding: 6px 14px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
-        .card { margin-top: 20px; padding: 20px; border: 1px solid #e5e7eb; border-radius: 10px; background: #f9fafb; }
-        .footer { margin-top: 24px; font-size: 12px; color: #6b7280; }
+        :root { color-scheme: light; supported-color-schemes: light; }
+        @media (prefers-color-scheme: dark) {
+            .dark-mode-bg { background-color: #ffffff !important; }
+            .dark-mode-text { color: #1f2937 !important; }
+        }
     </style>
 </head>
-<body>
-    <div class="wrapper">
-        <p style="margin:0 0 16px;">Hi {{ request.name or 'there' }},</p>
-        <p style="margin:0 0 16px;">Thanks again for reaching out. We wanted to let you know that the status of your request <strong>{{ request.ref_id or request.id }}</strong> is now:</p>
-        <p style="margin:0 0 18px;"><span class="status">{{ request.status_label }}</span></p>
-        {% if request.previous_status_label and request.previous_status_label != request.status_label %}
-        <p style="margin:0 0 16px;">Previously: {{ request.previous_status_label }}.</p>
-        {% endif %}
-        <div class="card">
-            <p style="margin:0 0 8px;"><strong>Request summary</strong></p>
-            <p style="margin:0 0 8px;">Type: {{ request.request_type|title }}</p>
-            {% if request.service_name %}<p style="margin:0 0 8px;">Service: {{ request.service_name }}</p>{% endif %}
-            {% if request.job_position %}<p style="margin:0 0 8px;">Position: {{ request.job_position }}</p>{% endif %}
-            <p style="margin:0;">Placed on: {{ request.created_at }}</p>
-        </div>
-        <p style="margin:20px 0 0;">We will keep you updated as things progress. If you have any questions, simply reply to this email.</p>
-        <p style="margin:16px 0 0;">Warm regards,<br>Clean Co. Team</p>
-        <p class="footer">This message was sent because you requested services from Clean Co.</p>
-    </div>
+<body style="margin: 0; padding: 0; background-color: #f0f4f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; -webkit-font-smoothing: antialiased;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f0f4f8; padding: 40px 20px;">
+        <tr>
+            <td align="center">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" class="dark-mode-bg" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td style="background-color: #1e3a5f; padding: 32px 40px; text-align: center;">
+                            <h1 style="margin: 0 0 8px; font-size: 28px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px; background-color: #1e3a5f;">Done-Well Cleaning</h1>
+                            <p style="margin: 0; font-size: 14px; color: #ffffff; letter-spacing: 0.5px; opacity: 0.9; background-color: #1e3a5f;">Professional Cleaning Services</p>
+                        </td>
+                    </tr>
+
+                    <!-- Status Banner -->
+                    <tr>
+                        <td style="background-color: #3b82f6; padding: 24px 40px; text-align: center;">
+                            <span style="font-size: 28px;">📋</span>
+                            <h2 style="margin: 8px 0 0; font-size: 20px; font-weight: 600; color: #ffffff; background-color: #3b82f6;">Request Status Update</h2>
+                        </td>
+                    </tr>
+
+                    <!-- Main Content -->
+                    <tr>
+                        <td class="dark-mode-bg" style="padding: 40px; background-color: #ffffff;">
+                            <p class="dark-mode-text" style="margin: 0 0 20px; font-size: 16px; color: #1f2937; line-height: 1.6; background-color: #ffffff;">
+                                Hi <strong style="color: #1e3a5f;">{{ request.name or 'there' }}</strong>,
+                            </p>
+                            <p class="dark-mode-text" style="margin: 0 0 24px; font-size: 15px; color: #4b5563; line-height: 1.7; background-color: #ffffff;">
+                                We wanted to let you know that the status of your request has been updated.
+                            </p>
+
+                            <!-- Status Box -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px;">
+                                <tr>
+                                    <td align="center">
+                                        <table cellpadding="0" cellspacing="0" border="0" style="background-color: #ecfdf5; border-radius: 16px; border: 2px solid #10b981;">
+                                            <tr>
+                                                <td style="padding: 24px 40px; text-align: center; background-color: #ecfdf5;">
+                                                    <p style="margin: 0 0 8px; font-size: 12px; color: #059669; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; background-color: #ecfdf5;">Current Status</p>
+                                                    <p style="margin: 0; font-size: 24px; font-weight: 700; color: #047857; background-color: #ecfdf5;">{{ request.status_label }}</p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            {% if request.previous_status_label and request.previous_status_label != request.status_label %}
+                            <p class="dark-mode-text" style="margin: 0 0 24px; font-size: 14px; color: #6b7280; text-align: center; background-color: #ffffff;">
+                                Previously: <span style="text-decoration: line-through;">{{ request.previous_status_label }}</span>
+                            </p>
+                            {% endif %}
+
+                            <!-- Reference Box -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px; background-color: #eff6ff; border-radius: 12px; border-left: 4px solid #1e3a5f;">
+                                <tr>
+                                    <td style="padding: 20px 24px; background-color: #eff6ff;">
+                                        <p style="margin: 0 0 4px; font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; background-color: #eff6ff;">Reference Number</p>
+                                        <p style="margin: 0; font-size: 20px; font-weight: 700; color: #1e3a5f; letter-spacing: 1px; background-color: #eff6ff;">{{ request.ref_id or request.id }}</p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Request Summary Card -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px; background-color: #f9fafb; border-radius: 12px; border: 1px solid #e5e7eb;">
+                                <tr>
+                                    <td style="padding: 24px; background-color: #f9fafb;">
+                                        <h3 style="margin: 0 0 16px; font-size: 15px; font-weight: 600; color: #1e3a5f; background-color: #f9fafb;">Request Summary</h3>
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; background-color: #f9fafb;">
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #6b7280; width: 120px; background-color: #f9fafb;">Type</td>
+                                                <td class="dark-mode-text" style="padding: 8px 0; color: #1f2937; font-weight: 500; background-color: #f9fafb;">{{ request.request_type|title }}</td>
+                                            </tr>
+                                            {% if request.service_name %}
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #6b7280; background-color: #f9fafb;">Service</td>
+                                                <td class="dark-mode-text" style="padding: 8px 0; color: #1f2937; font-weight: 500; background-color: #f9fafb;">{{ request.service_name }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if request.job_position %}
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #6b7280; background-color: #f9fafb;">Position</td>
+                                                <td class="dark-mode-text" style="padding: 8px 0; color: #1f2937; font-weight: 500; background-color: #f9fafb;">{{ request.job_position }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #6b7280; background-color: #f9fafb;">Submitted</td>
+                                                <td class="dark-mode-text" style="padding: 8px 0; color: #1f2937; font-weight: 500; background-color: #f9fafb;">{{ request.created_at }}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Next Steps -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px; background-color: #fef3c7; border-radius: 10px; border-left: 4px solid #f59e0b;">
+                                <tr>
+                                    <td style="padding: 16px 20px; background-color: #fef3c7;">
+                                        <p style="margin: 0; font-size: 14px; color: #92400e; line-height: 1.6; background-color: #fef3c7;">
+                                            <strong>💡 What's next?</strong> We will keep you updated as things progress. If you have any questions, simply reply to this email.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p class="dark-mode-text" style="margin: 0; font-size: 15px; color: #4b5563; line-height: 1.7; background-color: #ffffff;">
+                                Thank you for choosing Done-Well Cleaning!
+                            </p>
+                            <p class="dark-mode-text" style="margin: 16px 0 0; font-size: 15px; color: #1f2937; background-color: #ffffff;">
+                                Warm regards,<br>
+                                <strong style="color: #1e3a5f;">The Done-Well Team</strong>
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #1e293b; padding: 32px 40px; text-align: center;">
+                            <p style="margin: 0 0 8px; font-size: 16px; font-weight: 600; color: #ffffff; background-color: #1e293b;">Done-Well Cleaning Limited</p>
+                            <p style="margin: 0 0 16px; font-size: 13px; color: #94a3b8; background-color: #1e293b;">Professional Cleaning Services Since 2014</p>
+                            <p style="margin: 0; font-size: 12px; color: #64748b; background-color: #1e293b;">
+                                © {{ current_year or '2026' }} Done-Well Cleaning Ltd. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
