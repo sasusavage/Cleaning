@@ -1336,38 +1336,173 @@ body.is-nav-expanded main {
 }
 
 @media (max-width: 720px) {
+    .testimonials .panel {
+        padding-bottom: 4rem;
+    }
+
     .testimonial-slider {
         grid-template-columns: minmax(0, 1fr);
+        gap: 1.25rem;
     }
 
     .testimonial-slider-container {
-        padding: 0 0.5rem;
+        padding: 0;
     }
 
+    /* Hide side navigation on mobile - use swipe instead */
     .slider-nav {
-        width: 36px;
-        height: 36px;
-    }
-
-    .slider-nav--prev {
-        left: -0.5rem;
-    }
-
-    .slider-nav--next {
-        right: -0.5rem;
+        display: none;
     }
 
     .slider-dots {
-        margin-top: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    .slider-dot {
+        width: 8px;
+        height: 8px;
+    }
+
+    .testimonial-slide {
+        padding: 0 0.75rem;
+    }
+
+    .testimonial-pair {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 1.25rem;
+    }
+
+    /* Enhanced mobile testimonial cards */
+    .testimonial-card {
+        padding: 1.75rem 1.5rem;
+        gap: 1rem;
+        border-radius: 1rem;
+        background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+        border: 1px solid rgba(15, 23, 42, 0.06);
+        box-shadow: 
+            0 4px 20px rgba(0, 0, 0, 0.06),
+            0 1px 3px rgba(0, 0, 0, 0.04);
+        position: relative;
+        overflow: visible;
+    }
+
+    /* Decorative quote accent */
+    .testimonial-card::before {
+        content: '"';
+        position: absolute;
+        top: -0.5rem;
+        left: 1.25rem;
+        font-size: 4rem;
+        font-family: Georgia, serif;
+        color: var(--accent);
+        opacity: 0.15;
+        line-height: 1;
+        pointer-events: none;
+    }
+
+    .testimonial-rating {
+        font-size: 0.9rem;
+        letter-spacing: 3px;
+        margin-bottom: 0.25rem;
+    }
+
+    .testimonial-card p {
+        font-size: 0.95rem;
+        line-height: 1.7;
+        color: var(--text-secondary);
+    }
+
+    .testimonial-card .testimonial-message {
+        -webkit-line-clamp: 5;
+        line-clamp: 5;
+    }
+
+    .testimonial-card cite {
+        font-size: 0.75rem;
+        letter-spacing: 0.1em;
+        padding-top: 0.75rem;
+        border-top: 1px solid rgba(15, 23, 42, 0.06);
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .testimonial-read-more {
+        font-size: 0.8rem;
+        margin-top: 0.25rem;
+    }
+
+    /* Static grid layout for 3 or fewer testimonials */
+    .testimonials__grid.static-testimonials {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+}
+
+/* Extra small mobile */
+@media (max-width: 480px) {
+    .testimonials .panel {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .testimonial-card {
+        padding: 1.5rem 1.25rem;
+        border-radius: 0.875rem;
+    }
+
+    .testimonial-card::before {
+        font-size: 3.5rem;
+        left: 1rem;
+        top: -0.35rem;
+    }
+
+    .testimonial-card p {
+        font-size: 0.9rem;
     }
 
     .testimonial-slide {
         padding: 0 0.5rem;
     }
 
-    .testimonial-pair {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 1.5rem;
+    /* Testimonials section header mobile */
+    .testimonials .section__header {
+        text-align: center;
+        padding: 0 0.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .testimonials .section__eyebrow {
+        font-size: 0.75rem;
+        letter-spacing: 0.25em;
+    }
+
+    .testimonials .section__title {
+        font-size: 1.6rem;
+        line-height: 1.3;
+    }
+
+    /* Swipe hint for mobile */
+    .testimonial-slider-container::after {
+        content: '← Swipe to explore →';
+        display: block;
+        text-align: center;
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        opacity: 0.6;
+        margin-top: 0.5rem;
+        letter-spacing: 0.05em;
+        animation: swipeHintPulse 2s ease-in-out 3;
+    }
+
+    @keyframes swipeHintPulse {
+        0%, 100% { opacity: 0.4; }
+        50% { opacity: 0.8; }
+    }
+
+    /* Hide swipe hint after user interacts */
+    .testimonial-slider-container.has-interacted::after {
+        display: none;
     }
 }
 

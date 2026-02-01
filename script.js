@@ -3290,6 +3290,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
             testimonialSlider.addEventListener("touchstart", function (e) {
                 touchStartX = e.changedTouches[0].screenX;
+                // Hide swipe hint after first interaction
+                if (sliderContainer) {
+                    sliderContainer.classList.add("has-interacted");
+                }
             }, { passive: true });
 
             testimonialSlider.addEventListener("touchend", function (e) {
