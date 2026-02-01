@@ -3502,26 +3502,80 @@ document.addEventListener("DOMContentLoaded", function () {
         setTimeout(initTestimonialReadMore, 300);
     });
 
-    // --- BACK TO TOP BUTTON ---
-    var backToTopBtn = document.getElementById("backToTop");
+    // ─────────────────────────────────────────────────────────────────────────────
+    // UNIFIED FLOATING ACTION BUTTON (FAB)
+    // ─────────────────────────────────────────────────────────────────────────────
+    var fabContainer = document.getElementById('fabContainer');
+    var fabToggle = document.getElementById('fabToggle');
+    var fabActions = document.getElementById('fabActions');
+    var fabBackToTop = document.getElementById('fabBackToTop');
+    var fabWhatsApp = document.getElementById('fabWhatsApp');
+    var fabChat = document.getElementById('fabChat');
 
-    if (backToTopBtn) {
-        window.addEventListener("scroll", function () {
-            if (window.scrollY > 500) {
-                backToTopBtn.classList.add("is-visible");
-            } else {
-                backToTopBtn.classList.remove("is-visible");
-            }
-        }, { passive: true });
+    // Toggle FAB menu
+    function toggleFab() {
+        if (!fabContainer) return;
+        var isOpen = fabContainer.classList.toggle('is-open');
+        if (fabToggle) {
+            fabToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        }
+    }
 
-        backToTopBtn.addEventListener("click", function (e) {
+    function closeFab() {
+        if (!fabContainer) return;
+        fabContainer.classList.remove('is-open');
+        if (fabToggle) {
+            fabToggle.setAttribute('aria-expanded', 'false');
+        }
+    }
+
+    // FAB Toggle click
+    if (fabToggle) {
+        fabToggle.addEventListener('click', toggleFab);
+    }
+
+    // Back to Top action
+    if (fabBackToTop) {
+        fabBackToTop.addEventListener('click', function (e) {
             e.preventDefault();
+            closeFab();
             window.scrollTo({
                 top: 0,
-                behavior: "smooth"
+                behavior: 'smooth'
             });
         });
     }
+
+    // Chat action - opens the chat widget
+    if (fabChat) {
+        fabChat.addEventListener('click', function (e) {
+            e.preventDefault();
+            closeFab();
+            // Hide FAB when chat opens
+            if (fabContainer) {
+                fabContainer.classList.add('chat-active');
+            }
+            openChat();
+        });
+    }
+
+    // Close FAB when clicking outside
+    document.addEventListener('click', function (e) {
+        if (fabContainer && fabContainer.classList.contains('is-open')) {
+            if (!fabContainer.contains(e.target)) {
+                closeFab();
+            }
+        }
+    });
+
+    // Close FAB on scroll (optional, for cleaner UX)
+    var fabScrollTimeout;
+    window.addEventListener('scroll', function () {
+        if (fabContainer && fabContainer.classList.contains('is-open')) {
+            clearTimeout(fabScrollTimeout);
+            fabScrollTimeout = setTimeout(closeFab, 150);
+        }
+    }, { passive: true });
 
     // --- COMPANY PROFILE MODAL ---
     var companyProfileModal = document.getElementById("companyProfileModal");
@@ -3727,6 +3781,11 @@ document.addEventListener("DOMContentLoaded", function () {
         chatWidget.setAttribute('aria-hidden', 'true');
         if (body) {
             body.classList.remove('chat-widget-open');
+        }
+        // Show FAB again when chat closes
+        var fabContainer = document.getElementById('fabContainer');
+        if (fabContainer) {
+            fabContainer.classList.remove('chat-active');
         }
     }
 
