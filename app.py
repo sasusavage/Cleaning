@@ -1943,6 +1943,94 @@ def ensure_faq_table():
     conn.close()
 
 
+def ensure_policy_table():
+    """Create policies table if it doesn't exist."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    if engine == 'postgres':
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS policies (
+                id BIGSERIAL PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                description TEXT NOT NULL,
+                icon VARCHAR(100) DEFAULT 'shield',
+                sort_order INTEGER DEFAULT 0,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+    else:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS policies (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                description TEXT NOT NULL,
+                icon VARCHAR(100) DEFAULT 'shield',
+                sort_order INT DEFAULT 0,
+                is_active TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
+
+    # Seed default policies if empty
+    cursor.execute("SELECT COUNT(*) FROM policies")
+    count = cursor.fetchone()[0]
+    if count == 0:
+        default_policies = [
+            ('Satisfaction Guarantee', "If you're not completely satisfied with our service, let us know within 24 hours and we'll make it right—free of charge.", 'shield-check', 1),
+            ('Cancellation Policy', 'We understand plans change. Cancel or reschedule at least 24 hours before your appointment to avoid any cancellation fees.', 'clock', 2),
+            ('Payment Terms', 'Payment is due upon completion of service. We accept all major credit/debit cards, bank transfers, and cash payments.', 'credit-card', 3),
+            ('Late Arrivals', "If we're running late, we'll notify you immediately. Traffic delays of more than 15 minutes? We'll offer a discount or reschedule at your convenience.", 'clock-alert', 4),
+            ('Insurance & Liability', "We're fully insured. In the rare event of accidental damage during cleaning, we'll handle the claim process and cover repair or replacement costs.", 'shield', 5),
+            ('Privacy Policy', 'Your personal information is safe with us. We never share your data with third parties and comply with all data protection regulations.', 'users', 6),
+        ]
+        for title, description, icon, sort_order in default_policies:
+            if engine == 'postgres':
+                cursor.execute(
+                    "INSERT INTO policies (title, description, icon, sort_order, is_active) VALUES (%s, %s, %s, %s, TRUE)",
+                    (title, description, icon, sort_order)
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO policies (title, description, icon, sort_order, is_active) VALUES (%s, %s, %s, %s, 1)",
+                    (title, description, icon, sort_order)
+                )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def fetch_policies_from_db(include_inactive=False):
+    """Fetch policies from database."""
+    ensure_policy_table()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    
+    if include_inactive:
+        cursor.execute("SELECT * FROM policies ORDER BY sort_order ASC, id ASC")
+    else:
+        if engine == 'postgres':
+            cursor.execute("SELECT * FROM policies WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC")
+        else:
+            cursor.execute("SELECT * FROM policies WHERE is_active = 1 ORDER BY sort_order ASC, id ASC")
+    
+    policies = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    # Convert boolean fields
+    for policy in policies:
+        policy['is_active'] = bool(policy.get('is_active'))
+    
+    return policies
+
+
 def ensure_chat_tables():
     """Create tables for public AI chat widget - sessions, messages, and persona settings."""
     conn = get_db_connection()
@@ -6803,6 +6891,137 @@ def admin_reorder_faqs():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Policy Management Routes (Admin)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/admin/policies')
+@admin_login_required
+def admin_policies_page():
+    """Render the Policy management admin page."""
+    ensure_policy_table()
+    site_settings = fetch_site_settings()
+    return render_template('admin/policies.html', site_settings=site_settings)
+
+
+@app.route('/admin/api/policies', methods=['GET'])
+@admin_login_required
+def admin_get_policies():
+    """Get all policies for admin."""
+    policies = fetch_policies_from_db(include_inactive=True)
+    return jsonify(policies)
+
+
+@app.route('/admin/api/policies', methods=['POST'])
+@admin_login_required
+def admin_create_policy():
+    """Create a new policy."""
+    ensure_policy_table()
+    payload = request.get_json(silent=True) or {}
+    title = sanitize_text(payload.get('title', ''), 255)
+    description = sanitize_text(payload.get('description', ''), 5000)
+    icon = sanitize_text(payload.get('icon', 'shield'), 100)
+    sort_order = int(payload.get('sort_order', 0))
+    is_active = bool(payload.get('is_active', True))
+
+    if not title or not description:
+        return jsonify({'error': 'Title and description are required.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    if engine == 'postgres':
+        cursor.execute(
+            "INSERT INTO policies (title, description, icon, sort_order, is_active) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+            (title, description, icon, sort_order, is_active)
+        )
+        policy_id = cursor.fetchone()[0]
+    else:
+        cursor.execute(
+            "INSERT INTO policies (title, description, icon, sort_order, is_active) VALUES (%s, %s, %s, %s, %s)",
+            (title, description, icon, sort_order, 1 if is_active else 0)
+        )
+        policy_id = cursor.lastrowid
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Policy created.', 'id': policy_id})
+
+
+@app.route('/admin/api/policies/<int:policy_id>', methods=['PUT', 'PATCH'])
+@admin_login_required
+def admin_update_policy(policy_id):
+    """Update an existing policy."""
+    ensure_policy_table()
+    payload = request.get_json(silent=True) or {}
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM policies WHERE id = %s", (policy_id,))
+    existing = cursor.fetchone()
+    if not existing:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Policy not found.'}), 404
+
+    title = sanitize_text(payload.get('title', existing['title']), 255)
+    description = sanitize_text(payload.get('description', existing['description']), 5000)
+    icon = sanitize_text(payload.get('icon', existing.get('icon', 'shield')), 100)
+    sort_order = int(payload.get('sort_order', existing.get('sort_order', 0)))
+    is_active = payload.get('is_active', existing.get('is_active', True))
+    if isinstance(is_active, str):
+        is_active = is_active.lower() in ('true', '1', 'yes')
+    else:
+        is_active = bool(is_active)
+
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    cursor.execute(
+        "UPDATE policies SET title=%s, description=%s, icon=%s, sort_order=%s, is_active=%s WHERE id=%s",
+        (title, description, icon, sort_order, is_active if engine == 'postgres' else (1 if is_active else 0), policy_id)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Policy updated.'})
+
+
+@app.route('/admin/api/policies/<int:policy_id>', methods=['DELETE'])
+@admin_login_required
+def admin_delete_policy(policy_id):
+    """Delete a policy."""
+    ensure_policy_table()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM policies WHERE id = %s", (policy_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Policy deleted.'})
+
+
+@app.route('/admin/api/policies/reorder', methods=['POST'])
+@admin_login_required
+def admin_reorder_policies():
+    """Reorder policies by updating sort_order."""
+    ensure_policy_table()
+    payload = request.get_json(silent=True) or {}
+    order = payload.get('order', [])
+
+    if not order:
+        return jsonify({'error': 'No order provided.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    for idx, policy_id in enumerate(order):
+        cursor.execute("UPDATE policies SET sort_order = %s WHERE id = %s", (idx, policy_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Policies reordered.'})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # AI Chat Management Routes (Admin)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -7899,6 +8118,13 @@ def index():
     except Exception:
         app.logger.exception('Error fetching FAQs for index page')
 
+    # Fetch active policies
+    policies = []
+    try:
+        policies = fetch_policies_from_db(include_inactive=False)
+    except Exception:
+        app.logger.exception('Error fetching policies for index page')
+
     hero_small_texts = [
         text for text in (
             hero_content.get('small_text_line1'),
@@ -7942,7 +8168,8 @@ def index():
         site_settings=site_settings,
         travel_settings=travel_settings,
         site_content=site_content,
-        faqs=faqs
+        faqs=faqs,
+        policies=policies
     )
 
 
