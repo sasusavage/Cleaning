@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Done-Well' %}
+    <title>Domestic Cleaning - {{ company_name }} Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #16a34a;
+            --primary-dark: #15803d;
+            --bg: #f3f4f6;
+            --surface: #ffffff;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --border: #e5e7eb;
+            --success: #10b981;
+            --error: #ef4444;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; min-height: 100vh; }
+        .sidebar { width: 240px; background: #111827; color: #f9fafb; padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; position: sticky; top: 0; height: 100vh; overflow-y: auto; z-index: 120; }
+        .sidebar__header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
+        .logo { font-size: 1.1rem; font-weight: 700; color: #f9fafb; }
+        .sidebar__toggle { display:none; align-items:center; justify-content:center; padding:.45rem .7rem; border-radius:.5rem; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.08); color:#f9fafb; font-weight:600; cursor:pointer; }
+        .sidebar__nav { display:flex; flex-direction:column; gap:.25rem; }
+        .nav-link { display:block; padding:.65rem .9rem; color:#9ca3af; text-decoration:none; border-radius:.5rem; font-size:.9rem; transition: background .2s, color .2s; }
+        .nav-link:hover { background: rgba(255,255,255,.08); color:#f9fafb; }
+        .nav-link.active { background: rgba(22,163,74,.25); color: #bbf7d0; }
+        .sidebar__logout-form { margin-top:.75rem; }
+        .sidebar__logout-button { width:100%; display:block; padding:.75rem 1rem; border-radius:.5rem; border:1px solid rgba(248,113,113,.25); background: rgba(248,113,113,.12); color:#fca5a5; font-weight:600; font-size:.9rem; cursor:pointer; }
+
+        .main-content { flex:1; padding:2rem; overflow-y:auto; }
+        .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem; gap:1rem; }
+        .title { margin:0; font-size:1.6rem; }
+        .subtitle { margin:.25rem 0 0; color: var(--muted); }
+        .grid { display:grid; gap:1rem; }
+        .grid.two { grid-template-columns: repeat(2, minmax(0,1fr)); }
+        .card { background: var(--surface); border:1px solid var(--border); border-radius:.75rem; padding:1rem; }
+        .card h3 { margin:.1rem 0 .6rem; font-size:1.05rem; }
+        .form-group { margin-bottom:.8rem; }
+        .form-group label { display:block; font-weight:600; font-size:.86rem; margin-bottom:.35rem; }
+        .form-group input, .form-group textarea, .form-group select { width:100%; padding:.7rem .75rem; border:1px solid var(--border); border-radius:.5rem; font-size:.92rem; font-family:inherit; }
+        .form-group textarea { min-height:100px; resize:vertical; }
+        .actions { display:flex; gap:.5rem; flex-wrap:wrap; }
+        .btn { border:none; border-radius:.5rem; padding:.62rem .95rem; font-weight:600; cursor:pointer; font-size:.9rem; }
+        .btn-primary { background: var(--primary); color:#fff; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-ghost { background: #f3f4f6; color:#111827; border:1px solid #e5e7eb; }
+        .btn-danger { background:#dc2626; color:#fff; }
+        .table { width:100%; border-collapse: collapse; }
+        .table th, .table td { border-bottom:1px solid var(--border); padding:.55rem .45rem; text-align:left; font-size:.88rem; vertical-align:top; }
+        .pill { display:inline-block; padding:.14rem .5rem; border-radius:999px; font-size:.75rem; }
+        .pill.ok { background:#dcfce7; color:#166534; }
+        .pill.off { background:#fef3c7; color:#92400e; }
+        .thumb { width:64px; height:48px; object-fit:cover; border-radius:.4rem; border:1px solid #e5e7eb; }
+        .muted { color: var(--muted); }
+        .toast { position: fixed; right: 1rem; bottom: 1rem; padding:.75rem 1rem; border-radius:.5rem; color:#fff; background:#111827; display:none; z-index:1000; }
+        .toast.show { display:block; }
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--error); }
+        @media (max-width: 1024px) { .grid.two { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) {
+            .sidebar { position: fixed; left:-240px; transition:left .3s; }
+            .sidebar.sidebar--menu-open { left:0; }
+            .sidebar__toggle { display:flex; position:fixed; top:1rem; left:1rem; z-index:130; }
+            .main-content { padding:4rem 1rem 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar__header">
+            <div class="logo">{{ company_name }} Admin</div>
+            <button type="button" class="sidebar__toggle" id="sidebarToggle">Menu</button>
+        </div>
+        <nav class="sidebar__nav">
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#analytics">Analytics</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">Requests</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">Services</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">Travel Pricing</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">Job Positions</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">Testimonials</a>
+            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">Hero Content</a>
+            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
+            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">Quote &amp; Contact</a>
+            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
+            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
+            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
+            <a class="nav-link active" href="{{ url_for('admin_domestic_cleaning_page') }}">🏠 Domestic Cleaning</a>
+            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">Email Settings</a>
+            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">📱 Telegram</a>
+            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}" style="background: rgba(124, 58, 237, 0.25); color: #c4b5fd;">🤖 AI Assistant</a>
+            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}" style="background: rgba(124, 58, 237, 0.25); color: #c4b5fd;">💬 Chat Conversations</a>
+        </nav>
+        <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
+            <button type="submit" class="sidebar__logout-button">Log Out</button>
+        </form>
+    </aside>
+
+    <main class="main-content">
+        <div class="header">
+            <div>
+                <h1 class="title">Domestic Cleaning Section</h1>
+                <p class="subtitle">Separate homepage section with DB-driven copy, room cards, images, and pricing.</p>
+            </div>
+        </div>
+
+        <div class="grid two">
+            <section class="card">
+                <h3>Section Copy</h3>
+                <form id="contentForm">
+                    <div class="form-group"><label>Section Title</label><input id="section_title"></div>
+                    <div class="form-group"><label>Section Subtitle</label><textarea id="section_subtitle"></textarea></div>
+                    <div class="form-group"><label>Intro Title</label><input id="intro_title"></div>
+                    <div class="form-group"><label>Intro Body</label><textarea id="intro_body"></textarea></div>
+                    <div class="form-group"><label>Trust Body</label><textarea id="trust_body"></textarea></div>
+                    <div class="form-group"><label>Continuity Body</label><textarea id="continuity_body"></textarea></div>
+                    <div class="form-group"><label><input type="checkbox" id="content_active" checked> Active</label></div>
+                    <div class="actions"><button class="btn btn-primary" type="submit">Save Section</button></div>
+                </form>
+            </section>
+
+            <section class="card">
+                <h3>Add / Edit Room Card</h3>
+                <form id="cardForm" enctype="multipart/form-data">
+                    <input type="hidden" id="card_id">
+                    <div class="form-group"><label>Card Key</label><input id="card_key" placeholder="living_room"></div>
+                    <div class="form-group"><label>Room Name</label><input id="room_name" placeholder="Living Room"></div>
+                    <div class="form-group"><label>Lifestyle Copy</label><textarea id="lifestyle_copy"></textarea></div>
+                    <div class="form-group"><label>Sort Order</label><input id="card_sort_order" type="number" value="0"></div>
+                    <div class="form-group"><label>Image</label><input id="card_image" type="file" accept="image/*"></div>
+                    <div class="form-group"><label><input type="checkbox" id="card_active" checked> Active</label></div>
+                    <div class="actions">
+                        <button class="btn btn-primary" type="submit">Save Card</button>
+                        <button class="btn btn-ghost" type="button" id="cardReset">Reset</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+
+        <section class="card">
+            <h3>Room Cards</h3>
+            <table class="table" id="cardsTable">
+                <thead><tr><th>Image</th><th>Room</th><th>Key</th><th>Copy</th><th>Status</th><th>Order</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </section>
+
+        <div class="grid two">
+            <section class="card">
+                <h3>Add / Edit Pricing Plan</h3>
+                <form id="pricingForm">
+                    <input type="hidden" id="pricing_id">
+                    <div class="form-group"><label>Plan Key</label><input id="plan_key" placeholder="weekly"></div>
+                    <div class="form-group"><label>Plan Name</label><input id="plan_name"></div>
+                    <div class="form-group"><label>Price Per Hour (£)</label><input id="price_per_hour" type="number" step="0.01"></div>
+                    <div class="form-group"><label>Per Label</label><input id="per_label" value="per hour per cleaner"></div>
+                    <div class="form-group"><label>Sort Order</label><input id="pricing_sort_order" type="number" value="0"></div>
+                    <div class="form-group"><label><input type="checkbox" id="pricing_active" checked> Active</label></div>
+                    <div class="actions">
+                        <button class="btn btn-primary" type="submit">Save Pricing</button>
+                        <button class="btn btn-ghost" type="button" id="pricingReset">Reset</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="card">
+                <h3>Pricing Plans</h3>
+                <table class="table" id="pricingTable">
+                    <thead><tr><th>Plan</th><th>Key</th><th>Price</th><th>Label</th><th>Status</th><th>Order</th><th>Actions</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </section>
+        </div>
+
+    </main>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        const toastEl = document.getElementById('toast');
+        let cardsState = [];
+        let pricingState = [];
+
+        const showToast = (message, type='success') => {
+            toastEl.textContent = message;
+            toastEl.className = `toast show ${type}`;
+            setTimeout(() => toastEl.classList.remove('show'), 2600);
+        };
+
+        async function api(url, options={}) {
+            const response = await fetch(url, options);
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || 'Request failed');
+            return data;
+        }
+
+        async function loadContent() {
+            const c = await api('/admin/api/domestic-cleaning');
+            document.getElementById('section_title').value = c.section_title || '';
+            document.getElementById('section_subtitle').value = c.section_subtitle || '';
+            document.getElementById('intro_title').value = c.intro_title || '';
+            document.getElementById('intro_body').value = c.intro_body || '';
+            document.getElementById('trust_body').value = c.trust_body || '';
+            document.getElementById('continuity_body').value = c.continuity_body || '';
+            document.getElementById('content_active').checked = !!c.is_active;
+        }
+
+        async function loadCards() {
+            cardsState = await api('/admin/api/domestic-cleaning/cards');
+            const tbody = document.querySelector('#cardsTable tbody');
+            tbody.innerHTML = cardsState.map(card => `
+                <tr>
+                    <td>${card.image_path ? `<img class="thumb" src="${resolveImageUrl(card.image_path)}" alt="${card.room_name}">` : '<span class="muted">No image</span>'}</td>
+                    <td>${card.room_name || ''}</td>
+                    <td>${card.card_key || ''}</td>
+                    <td>${(card.lifestyle_copy || '').slice(0, 120)}${(card.lifestyle_copy || '').length > 120 ? '…' : ''}</td>
+                    <td><span class="pill ${card.is_active ? 'ok' : 'off'}">${card.is_active ? 'Active' : 'Inactive'}</span></td>
+                    <td>${card.sort_order ?? 0}</td>
+                    <td>
+                        <button class="btn btn-ghost" type="button" onclick="editCard(${card.id})">Edit</button>
+                        <button class="btn btn-danger" type="button" onclick="deleteCard(${card.id})">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function resolveImageUrl(value) {
+            if (!value) return '';
+            if (String(value).startsWith('http://') || String(value).startsWith('https://')) return value;
+            if (String(value).startsWith('/')) return value;
+            return `/${value}`;
+        }
+
+        async function loadPricing() {
+            pricingState = await api('/admin/api/domestic-cleaning/pricing');
+            const tbody = document.querySelector('#pricingTable tbody');
+            tbody.innerHTML = pricingState.map(row => `
+                <tr>
+                    <td>${row.plan_name || ''}</td>
+                    <td>${row.plan_key || ''}</td>
+                    <td>£${Number(row.price_per_hour || 0).toFixed(2)}</td>
+                    <td>${row.per_label || ''}</td>
+                    <td><span class="pill ${row.is_active ? 'ok' : 'off'}">${row.is_active ? 'Active' : 'Inactive'}</span></td>
+                    <td>${row.sort_order ?? 0}</td>
+                    <td>
+                        <button class="btn btn-ghost" type="button" onclick="editPricing(${row.id})">Edit</button>
+                        <button class="btn btn-danger" type="button" onclick="deletePricing(${row.id})">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        document.getElementById('contentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await api('/admin/api/domestic-cleaning', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        section_title: document.getElementById('section_title').value,
+                        section_subtitle: document.getElementById('section_subtitle').value,
+                        intro_title: document.getElementById('intro_title').value,
+                        intro_body: document.getElementById('intro_body').value,
+                        trust_body: document.getElementById('trust_body').value,
+                        continuity_body: document.getElementById('continuity_body').value,
+                        is_active: document.getElementById('content_active').checked
+                    })
+                });
+                showToast('Section content saved');
+            } catch (err) { showToast(err.message, 'error'); }
+        });
+
+        document.getElementById('cardForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('card_id').value;
+            const fd = new FormData();
+            fd.append('card_key', document.getElementById('card_key').value);
+            fd.append('room_name', document.getElementById('room_name').value);
+            fd.append('lifestyle_copy', document.getElementById('lifestyle_copy').value);
+            fd.append('sort_order', document.getElementById('card_sort_order').value || 0);
+            fd.append('is_active', document.getElementById('card_active').checked ? '1' : '0');
+            const file = document.getElementById('card_image').files[0];
+            if (file) fd.append('image', file);
+            try {
+                if (id) {
+                    await api(`/admin/api/domestic-cleaning/cards/${id}`, { method: 'PUT', body: fd });
+                    showToast('Card updated');
+                } else {
+                    await api('/admin/api/domestic-cleaning/cards', { method: 'POST', body: fd });
+                    showToast('Card added');
+                }
+                resetCardForm();
+                await loadCards();
+            } catch (err) { showToast(err.message, 'error'); }
+        });
+
+        function editCard(id) {
+            const row = cardsState.find(c => c.id === id);
+            if (!row) return;
+            document.getElementById('card_id').value = row.id;
+            document.getElementById('card_key').value = row.card_key || '';
+            document.getElementById('room_name').value = row.room_name || '';
+            document.getElementById('lifestyle_copy').value = row.lifestyle_copy || '';
+            document.getElementById('card_sort_order').value = row.sort_order || 0;
+            document.getElementById('card_active').checked = !!row.is_active;
+            document.getElementById('card_image').value = '';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        async function deleteCard(id) {
+            if (!confirm('Delete this room card?')) return;
+            try {
+                await api(`/admin/api/domestic-cleaning/cards/${id}`, { method: 'DELETE' });
+                showToast('Card deleted');
+                await loadCards();
+            } catch (err) { showToast(err.message, 'error'); }
+        }
+
+        function resetCardForm() {
+            document.getElementById('card_id').value = '';
+            document.getElementById('card_key').value = '';
+            document.getElementById('room_name').value = '';
+            document.getElementById('lifestyle_copy').value = '';
+            document.getElementById('card_sort_order').value = 0;
+            document.getElementById('card_active').checked = true;
+            document.getElementById('card_image').value = '';
+        }
+
+        document.getElementById('cardReset').addEventListener('click', resetCardForm);
+
+        document.getElementById('pricingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('pricing_id').value;
+            const payload = {
+                plan_key: document.getElementById('plan_key').value,
+                plan_name: document.getElementById('plan_name').value,
+                price_per_hour: document.getElementById('price_per_hour').value,
+                per_label: document.getElementById('per_label').value,
+                sort_order: document.getElementById('pricing_sort_order').value || 0,
+                is_active: document.getElementById('pricing_active').checked
+            };
+            try {
+                if (id) {
+                    await api(`/admin/api/domestic-cleaning/pricing/${id}`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                    });
+                    showToast('Pricing updated');
+                } else {
+                    await api('/admin/api/domestic-cleaning/pricing', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                    });
+                    showToast('Pricing added');
+                }
+                resetPricingForm();
+                await loadPricing();
+            } catch (err) { showToast(err.message, 'error'); }
+        });
+
+        function editPricing(id) {
+            const row = pricingState.find(p => p.id === id);
+            if (!row) return;
+            document.getElementById('pricing_id').value = row.id;
+            document.getElementById('plan_key').value = row.plan_key || '';
+            document.getElementById('plan_name').value = row.plan_name || '';
+            document.getElementById('price_per_hour').value = row.price_per_hour || '';
+            document.getElementById('per_label').value = row.per_label || '';
+            document.getElementById('pricing_sort_order').value = row.sort_order || 0;
+            document.getElementById('pricing_active').checked = !!row.is_active;
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+
+        async function deletePricing(id) {
+            if (!confirm('Delete this pricing plan?')) return;
+            try {
+                await api(`/admin/api/domestic-cleaning/pricing/${id}`, { method: 'DELETE' });
+                showToast('Pricing deleted');
+                await loadPricing();
+            } catch (err) { showToast(err.message, 'error'); }
+        }
+
+        function resetPricingForm() {
+            document.getElementById('pricing_id').value = '';
+            document.getElementById('plan_key').value = '';
+            document.getElementById('plan_name').value = '';
+            document.getElementById('price_per_hour').value = '';
+            document.getElementById('per_label').value = 'per hour per cleaner';
+            document.getElementById('pricing_sort_order').value = 0;
+            document.getElementById('pricing_active').checked = true;
+        }
+
+        document.getElementById('pricingReset').addEventListener('click', resetPricingForm);
+        document.getElementById('sidebarToggle').addEventListener('click', () => {
+            document.getElementById('sidebar').classList.toggle('sidebar--menu-open');
+        });
+
+        Promise.all([loadContent(), loadCards(), loadPricing()]).catch(err => showToast(err.message, 'error'));
+    </script>
+</body>
+</html>

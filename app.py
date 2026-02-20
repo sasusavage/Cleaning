@@ -77,6 +77,7 @@ QUOTE_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'quote')
 REQUEST_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'requests')
 BRAND_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'brand')
 ABOUT_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'about')
+DOMESTIC_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'domestic')
 for folder in (
     UPLOAD_ROOT,
     SERVICE_UPLOAD_FOLDER,
@@ -86,7 +87,8 @@ for folder in (
     QUOTE_UPLOAD_FOLDER,
     REQUEST_UPLOAD_FOLDER,
     BRAND_UPLOAD_FOLDER,
-    ABOUT_UPLOAD_FOLDER
+    ABOUT_UPLOAD_FOLDER,
+    DOMESTIC_UPLOAD_FOLDER
 ):
     os.makedirs(folder, exist_ok=True)
 
@@ -175,6 +177,10 @@ def upload_brand_logo(existing_path=''):
 
 def upload_team_photo(existing_path=''):
     return handle_upload('team_photo', ABOUT_UPLOAD_FOLDER, existing_path)
+
+
+def upload_domestic_card_image(existing_path=''):
+    return handle_upload('image', DOMESTIC_UPLOAD_FOLDER, existing_path)
 
 
 def delete_uploaded_file(relative_path):
@@ -2029,6 +2035,213 @@ def fetch_policies_from_db(include_inactive=False):
         policy['is_active'] = bool(policy.get('is_active'))
     
     return policies
+
+
+def ensure_domestic_cleaning_tables():
+    """Create and seed domestic cleaning section tables."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    if engine == 'postgres':
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS domestic_cleaning_content (
+                id BIGSERIAL PRIMARY KEY,
+                section_title VARCHAR(255) NOT NULL,
+                section_subtitle TEXT NOT NULL,
+                intro_title VARCHAR(255) NOT NULL,
+                intro_body TEXT NOT NULL,
+                trust_body TEXT NOT NULL,
+                continuity_body TEXT NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS domestic_cleaning_cards (
+                id BIGSERIAL PRIMARY KEY,
+                card_key VARCHAR(80) NOT NULL UNIQUE,
+                room_name VARCHAR(120) NOT NULL,
+                lifestyle_copy TEXT NOT NULL,
+                image_path TEXT,
+                sort_order INTEGER DEFAULT 0,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS domestic_cleaning_pricing (
+                id BIGSERIAL PRIMARY KEY,
+                plan_key VARCHAR(40) NOT NULL UNIQUE,
+                plan_name VARCHAR(120) NOT NULL,
+                price_per_hour NUMERIC(10,2) NOT NULL,
+                per_label VARCHAR(120) DEFAULT 'per hour per cleaner',
+                sort_order INTEGER DEFAULT 0,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+    else:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS domestic_cleaning_content (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                section_title VARCHAR(255) NOT NULL,
+                section_subtitle TEXT NOT NULL,
+                intro_title VARCHAR(255) NOT NULL,
+                intro_body TEXT NOT NULL,
+                trust_body TEXT NOT NULL,
+                continuity_body TEXT NOT NULL,
+                is_active TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS domestic_cleaning_cards (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                card_key VARCHAR(80) NOT NULL UNIQUE,
+                room_name VARCHAR(120) NOT NULL,
+                lifestyle_copy TEXT NOT NULL,
+                image_path TEXT,
+                sort_order INT DEFAULT 0,
+                is_active TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS domestic_cleaning_pricing (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                plan_key VARCHAR(40) NOT NULL UNIQUE,
+                plan_name VARCHAR(120) NOT NULL,
+                price_per_hour DECIMAL(10,2) NOT NULL,
+                per_label VARCHAR(120) DEFAULT 'per hour per cleaner',
+                sort_order INT DEFAULT 0,
+                is_active TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
+
+    cursor.execute("SELECT COUNT(*) FROM domestic_cleaning_content")
+    content_count = cursor.fetchone()[0]
+    if content_count == 0:
+        cursor.execute(
+            """
+            INSERT INTO domestic_cleaning_content
+                (section_title, section_subtitle, intro_title, intro_body, trust_body, continuity_body, is_active)
+            VALUES
+                (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                'Domestic Cleaning',
+                'Lifestyle-led home care designed around your routine, with premium consistency and trusted professionals.',
+                'Our Regular Domestic Cleaning Service',
+                'Your home should feel calm, fresh and effortlessly welcoming. Done-Well tailors each visit to your priorities so every room feels restored, reset and ready for living.',
+                'Every cleaner is reference-checked, fully vetted, trained, and legally eligible to work in the UK. Our teams arrive in company uniform with ID for complete peace of mind.',
+                'Where possible, you keep the same cleaner to build trust and familiarity. If your regular cleaner is unavailable, we quickly arrange a suitable replacement to keep your routine uninterrupted.',
+                True if engine == 'postgres' else 1
+            )
+        )
+
+    cursor.execute("SELECT COUNT(*) FROM domestic_cleaning_cards")
+    card_count = cursor.fetchone()[0]
+    if card_count == 0:
+        default_cards = [
+            ('living_room', 'Living Room', 'We restore freshness and order to your sanctuary—lifting dust, polishing glass and mirrors, refreshing surfaces, and leaving your social space visibly calm and welcoming.', 1),
+            ('kitchen', 'Kitchen Areas', 'We bring hygienic shine back to your kitchen with degreased touchpoints, refreshed worktops, polished sinks and taps, and a clean, ready-to-use cooking space.', 2),
+            ('all_rooms', 'All Rooms Finishing', 'We handle the often-missed details—from handles, switches, skirting and ledges to polished mirrors—so your entire home feels consistently finished.', 3),
+            ('bedrooms', 'Bedrooms', 'We create a restful bedroom environment with tidy surfaces, polished mirrors, refreshed floors and beautifully presented bedding for a hotel-like finish.', 4),
+            ('bathrooms', 'Bathrooms / Toilets', 'We deliver a sanitised, sparkling bathroom standard—disinfected essentials, polished chrome, refreshed tiles and neatly arranged finishing touches.', 5),
+        ]
+        for key, name, copy, sort_order in default_cards:
+            cursor.execute(
+                """
+                INSERT INTO domestic_cleaning_cards
+                    (card_key, room_name, lifestyle_copy, sort_order, is_active)
+                VALUES
+                    (%s, %s, %s, %s, %s)
+                """,
+                (key, name, copy, sort_order, True if engine == 'postgres' else 1)
+            )
+
+    cursor.execute("SELECT COUNT(*) FROM domestic_cleaning_pricing")
+    pricing_count = cursor.fetchone()[0]
+    if pricing_count == 0:
+        default_pricing = [
+            ('weekly', 'Weekly Regular Domestic Cleaning', 17.99, 'per hour per cleaner', 1),
+            ('fortnightly', 'Fortnightly Regular Domestic Cleaning', 19.99, 'per hour per cleaner', 2),
+            ('monthly', 'Monthly Regular Domestic Cleaning', 24.99, 'per hour per cleaner', 3),
+        ]
+        for key, name, price, per_label, sort_order in default_pricing:
+            cursor.execute(
+                """
+                INSERT INTO domestic_cleaning_pricing
+                    (plan_key, plan_name, price_per_hour, per_label, sort_order, is_active)
+                VALUES
+                    (%s, %s, %s, %s, %s, %s)
+                """,
+                (key, name, price, per_label, sort_order, True if engine == 'postgres' else 1)
+            )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def fetch_domestic_cleaning_data(include_inactive=False):
+    ensure_domestic_cleaning_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    if include_inactive:
+        cursor.execute("SELECT * FROM domestic_cleaning_content ORDER BY id ASC LIMIT 1")
+    else:
+        if engine == 'postgres':
+            cursor.execute("SELECT * FROM domestic_cleaning_content WHERE is_active = TRUE ORDER BY id ASC LIMIT 1")
+        else:
+            cursor.execute("SELECT * FROM domestic_cleaning_content WHERE is_active = 1 ORDER BY id ASC LIMIT 1")
+    content_row = cursor.fetchone() or {}
+
+    if include_inactive:
+        cursor.execute("SELECT * FROM domestic_cleaning_cards ORDER BY sort_order ASC, id ASC")
+    else:
+        if engine == 'postgres':
+            cursor.execute("SELECT * FROM domestic_cleaning_cards WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC")
+        else:
+            cursor.execute("SELECT * FROM domestic_cleaning_cards WHERE is_active = 1 ORDER BY sort_order ASC, id ASC")
+    cards = cursor.fetchall() or []
+
+    if include_inactive:
+        cursor.execute("SELECT * FROM domestic_cleaning_pricing ORDER BY sort_order ASC, id ASC")
+    else:
+        if engine == 'postgres':
+            cursor.execute("SELECT * FROM domestic_cleaning_pricing WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC")
+        else:
+            cursor.execute("SELECT * FROM domestic_cleaning_pricing WHERE is_active = 1 ORDER BY sort_order ASC, id ASC")
+    pricing = cursor.fetchall() or []
+
+    cursor.close()
+    conn.close()
+
+    for row in cards:
+        row['is_active'] = bool(row.get('is_active'))
+    for row in pricing:
+        row['is_active'] = bool(row.get('is_active'))
+
+    if content_row:
+        content_row['is_active'] = bool(content_row.get('is_active'))
+
+    return {
+        'content': content_row,
+        'cards': cards,
+        'pricing': pricing
+    }
+
 
 
 def ensure_chat_tables():
@@ -7022,6 +7235,343 @@ def admin_reorder_policies():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Domestic Cleaning Management Routes (Admin)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/admin/domestic-cleaning')
+@admin_login_required
+def admin_domestic_cleaning_page():
+    ensure_domestic_cleaning_tables()
+    site_settings = fetch_site_settings()
+    return render_template('admin/domestic_cleaning.html', site_settings=site_settings)
+
+
+@app.route('/admin/api/domestic-cleaning', methods=['GET', 'POST'])
+@admin_login_required
+def admin_domestic_cleaning_content_api():
+    ensure_domestic_cleaning_tables()
+    if request.method == 'GET':
+        return jsonify(fetch_domestic_cleaning_data(include_inactive=True).get('content') or {})
+
+    payload = request.get_json(silent=True) or {}
+    section_title = sanitize_text(payload.get('section_title'), 255) or 'Domestic Cleaning'
+    section_subtitle = sanitize_text(payload.get('section_subtitle'))
+    intro_title = sanitize_text(payload.get('intro_title'), 255) or 'Our Regular Domestic Cleaning Service'
+    intro_body = sanitize_text(payload.get('intro_body'))
+    trust_body = sanitize_text(payload.get('trust_body'))
+    continuity_body = sanitize_text(payload.get('continuity_body'))
+    is_active = str_to_bool(payload.get('is_active', True))
+
+    if not section_subtitle or not intro_body or not trust_body or not continuity_body:
+        return jsonify({'error': 'Please complete all domestic section content fields.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT id FROM domestic_cleaning_content ORDER BY id ASC LIMIT 1")
+    existing = cursor.fetchone()
+    cursor.close()
+
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    active_value = is_active if engine == 'postgres' else (1 if is_active else 0)
+    if existing:
+        cursor.execute(
+            """
+            UPDATE domestic_cleaning_content
+            SET section_title=%s,
+                section_subtitle=%s,
+                intro_title=%s,
+                intro_body=%s,
+                trust_body=%s,
+                continuity_body=%s,
+                is_active=%s
+            WHERE id=%s
+            """,
+            (section_title, section_subtitle, intro_title, intro_body, trust_body, continuity_body, active_value, existing['id'])
+        )
+    else:
+        cursor.execute(
+            """
+            INSERT INTO domestic_cleaning_content
+                (section_title, section_subtitle, intro_title, intro_body, trust_body, continuity_body, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            (section_title, section_subtitle, intro_title, intro_body, trust_body, continuity_body, active_value)
+        )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Domestic cleaning section content saved.'})
+
+
+@app.route('/admin/api/domestic-cleaning/cards', methods=['GET', 'POST'])
+@admin_login_required
+def admin_domestic_cleaning_cards_api():
+    ensure_domestic_cleaning_tables()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    if request.method == 'GET':
+        return jsonify(fetch_domestic_cleaning_data(include_inactive=True).get('cards') or [])
+
+    payload = request.form or request.get_json(silent=True) or {}
+    room_name = sanitize_text(payload.get('room_name'), 120)
+    card_key = sanitize_text(payload.get('card_key'), 80).lower().replace(' ', '_')
+    lifestyle_copy = sanitize_text(payload.get('lifestyle_copy'))
+    sort_order = int(payload.get('sort_order') or 0)
+    is_active = str_to_bool(payload.get('is_active', True))
+    image_path = upload_domestic_card_image('')
+
+    if not room_name or not card_key or not lifestyle_copy:
+        return jsonify({'error': 'room_name, card_key and lifestyle_copy are required.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    active_value = is_active if engine == 'postgres' else (1 if is_active else 0)
+    try:
+        if engine == 'postgres':
+            cursor.execute(
+                """
+                INSERT INTO domestic_cleaning_cards (card_key, room_name, lifestyle_copy, image_path, sort_order, is_active)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
+            )
+            card_id = cursor.fetchone()[0]
+        else:
+            cursor.execute(
+                """
+                INSERT INTO domestic_cleaning_cards (card_key, room_name, lifestyle_copy, image_path, sort_order, is_active)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
+            )
+            card_id = cursor.lastrowid
+    except Exception:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Card key must be unique.'}), 400
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Domestic cleaning card created.', 'id': card_id})
+
+
+@app.route('/admin/api/domestic-cleaning/cards/<int:card_id>', methods=['PUT', 'PATCH', 'DELETE'])
+@admin_login_required
+def admin_domestic_cleaning_card_detail_api(card_id):
+    ensure_domestic_cleaning_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM domestic_cleaning_cards WHERE id=%s", (card_id,))
+    existing = cursor.fetchone()
+    if not existing:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Card not found.'}), 404
+
+    if request.method == 'DELETE':
+        cursor.close()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM domestic_cleaning_cards WHERE id=%s", (card_id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        if existing.get('image_path'):
+            delete_uploaded_file(existing.get('image_path'))
+        return jsonify({'message': 'Card deleted.'})
+
+    payload = request.form or request.get_json(silent=True) or {}
+    room_name = sanitize_text(payload.get('room_name', existing.get('room_name')), 120)
+    card_key = sanitize_text(payload.get('card_key', existing.get('card_key')), 80).lower().replace(' ', '_')
+    lifestyle_copy = sanitize_text(payload.get('lifestyle_copy', existing.get('lifestyle_copy')))
+    sort_order = int(payload.get('sort_order', existing.get('sort_order') or 0))
+    is_active = payload.get('is_active', existing.get('is_active', True))
+    is_active = str_to_bool(is_active)
+    image_path = upload_domestic_card_image(existing.get('image_path') or '')
+
+    if not room_name or not card_key or not lifestyle_copy:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'room_name, card_key and lifestyle_copy are required.'}), 400
+
+    cursor.close()
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    active_value = is_active if engine == 'postgres' else (1 if is_active else 0)
+    try:
+        cursor.execute(
+            """
+            UPDATE domestic_cleaning_cards
+            SET card_key=%s,
+                room_name=%s,
+                lifestyle_copy=%s,
+                image_path=%s,
+                sort_order=%s,
+                is_active=%s
+            WHERE id=%s
+            """,
+            (card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value, card_id)
+        )
+    except Exception:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Card key must be unique.'}), 400
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Card updated.'})
+
+
+@app.route('/admin/api/domestic-cleaning/cards/reorder', methods=['POST'])
+@admin_login_required
+def admin_domestic_cleaning_reorder_cards_api():
+    ensure_domestic_cleaning_tables()
+    payload = request.get_json(silent=True) or {}
+    order = payload.get('order') or []
+    if not isinstance(order, list) or not order:
+        return jsonify({'error': 'No order provided.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    for idx, card_id in enumerate(order):
+        cursor.execute("UPDATE domestic_cleaning_cards SET sort_order=%s WHERE id=%s", (idx, card_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Cards reordered.'})
+
+
+@app.route('/admin/api/domestic-cleaning/pricing', methods=['GET', 'POST'])
+@admin_login_required
+def admin_domestic_cleaning_pricing_api():
+    ensure_domestic_cleaning_tables()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    if request.method == 'GET':
+        return jsonify(fetch_domestic_cleaning_data(include_inactive=True).get('pricing') or [])
+
+    payload = request.get_json(silent=True) or {}
+    plan_key = sanitize_text(payload.get('plan_key'), 40).lower().replace(' ', '_')
+    plan_name = sanitize_text(payload.get('plan_name'), 120)
+    per_label = sanitize_text(payload.get('per_label'), 120) or 'per hour per cleaner'
+    sort_order = int(payload.get('sort_order') or 0)
+    is_active = str_to_bool(payload.get('is_active', True))
+    try:
+        price_per_hour = float(payload.get('price_per_hour'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'A valid price_per_hour is required.'}), 400
+
+    if not plan_key or not plan_name:
+        return jsonify({'error': 'plan_key and plan_name are required.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    active_value = is_active if engine == 'postgres' else (1 if is_active else 0)
+    try:
+        if engine == 'postgres':
+            cursor.execute(
+                """
+                INSERT INTO domestic_cleaning_pricing (plan_key, plan_name, price_per_hour, per_label, sort_order, is_active)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (plan_key, plan_name, price_per_hour, per_label, sort_order, active_value)
+            )
+            pricing_id = cursor.fetchone()[0]
+        else:
+            cursor.execute(
+                """
+                INSERT INTO domestic_cleaning_pricing (plan_key, plan_name, price_per_hour, per_label, sort_order, is_active)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (plan_key, plan_name, price_per_hour, per_label, sort_order, active_value)
+            )
+            pricing_id = cursor.lastrowid
+    except Exception:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Plan key must be unique.'}), 400
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Pricing plan created.', 'id': pricing_id})
+
+
+@app.route('/admin/api/domestic-cleaning/pricing/<int:pricing_id>', methods=['PUT', 'PATCH', 'DELETE'])
+@admin_login_required
+def admin_domestic_cleaning_pricing_detail_api(pricing_id):
+    ensure_domestic_cleaning_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM domestic_cleaning_pricing WHERE id=%s", (pricing_id,))
+    existing = cursor.fetchone()
+    if not existing:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Pricing plan not found.'}), 404
+
+    if request.method == 'DELETE':
+        cursor.close()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM domestic_cleaning_pricing WHERE id=%s", (pricing_id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Pricing plan deleted.'})
+
+    payload = request.get_json(silent=True) or {}
+    plan_key = sanitize_text(payload.get('plan_key', existing.get('plan_key')), 40).lower().replace(' ', '_')
+    plan_name = sanitize_text(payload.get('plan_name', existing.get('plan_name')), 120)
+    per_label = sanitize_text(payload.get('per_label', existing.get('per_label')), 120) or 'per hour per cleaner'
+    sort_order = int(payload.get('sort_order', existing.get('sort_order') or 0))
+    is_active = str_to_bool(payload.get('is_active', existing.get('is_active', True)))
+    try:
+        price_per_hour = float(payload.get('price_per_hour', existing.get('price_per_hour')))
+    except (TypeError, ValueError):
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'A valid price_per_hour is required.'}), 400
+
+    if not plan_key or not plan_name:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'plan_key and plan_name are required.'}), 400
+
+    cursor.close()
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    active_value = is_active if engine == 'postgres' else (1 if is_active else 0)
+    try:
+        cursor.execute(
+            """
+            UPDATE domestic_cleaning_pricing
+            SET plan_key=%s,
+                plan_name=%s,
+                price_per_hour=%s,
+                per_label=%s,
+                sort_order=%s,
+                is_active=%s
+            WHERE id=%s
+            """,
+            (plan_key, plan_name, price_per_hour, per_label, sort_order, active_value, pricing_id)
+        )
+    except Exception:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Plan key must be unique.'}), 400
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Pricing plan updated.'})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # AI Chat Management Routes (Admin)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -8100,6 +8650,7 @@ def index():
     site_settings = fetch_site_settings()
     travel_settings = fetch_travel_settings()
     site_content = fetch_site_content()
+    domestic_cleaning = fetch_domestic_cleaning_data(include_inactive=False)
 
     # Fetch active FAQs
     ensure_faq_table()
@@ -8169,7 +8720,8 @@ def index():
         travel_settings=travel_settings,
         site_content=site_content,
         faqs=faqs,
-        policies=policies
+        policies=policies,
+        domestic_cleaning=domestic_cleaning
     )
 
 

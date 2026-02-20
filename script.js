@@ -629,6 +629,11 @@ document.addEventListener("DOMContentLoaded", function () {
         var flowSurveyButton = null;
         var flowPrevButton = serviceModal.querySelector("[data-flow-prev]");
         var flowSkipButton = serviceModal.querySelector("[data-flow-skip]");
+        var flowChoicePrompt = document.getElementById("flow-choice-prompt");
+        var flowChoiceSelected = document.getElementById("flow-choice-selected");
+        var flowChoiceQuestion = document.getElementById("flow-choice-question");
+        var flowChoiceBrowse = document.getElementById("flow-choice-browse");
+        var flowChoiceContinue = document.getElementById("flow-choice-continue");
         var flowSummaryBackButton = serviceModal.querySelector("[data-flow-summary-back]");
         var flowSummaryNextButton = serviceModal.querySelector("[data-flow-summary-next]");
         var flowScheduleBackButton = serviceModal.querySelector("[data-flow-schedule-back]");
@@ -662,6 +667,7 @@ document.addEventListener("DOMContentLoaded", function () {
         var activeStep = 1;
         var serviceQueue = []; // Reordered service IDs for the flow
         var submissionPending = false; // Lock to prevent duplicate form submissions
+        var pendingDomesticEntry = false; // True when the flow was triggered from a domestic CTA
         var defaultSubmitLabel = flowSubmitButton ? flowSubmitButton.textContent : "Submit Request";
         var surveySubmitLabel = "Submit Enquiry";
 
@@ -689,7 +695,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 notes: "",
                 travelQuote: null,
                 travelPostcodeSnapshot: "",
-                extendedCoverageAccepted: false
+                extendedCoverageAccepted: false,
+                domesticPlan: null,
+                domesticConfig: null   // { plan_id, plan_name, price_per_hour, cleaners, hours, total }
             };
         };
 
@@ -751,15 +759,42 @@ document.addEventListener("DOMContentLoaded", function () {
         };
 
         var getOrderedSelections = function () {
-            return SERVICE_CATALOG.map(function (service) {
+            var results = [];
+
+            // Include configured domestic plan as the first item
+            if (flowState.domesticConfig) {
+                var dc = flowState.domesticConfig;
+                var total = dc.total || 0;
+                results.push({
+                    serviceId: "domestic_" + dc.plan_id,
+                    serviceName: "Domestic Cleaning",
+                    optionLabel: dc.plan_name,
+                    optionDetails: dc.cleaners + " cleaner" + (dc.cleaners > 1 ? "s" : "") + " \xD7 " + dc.hours + " hrs @ " + formatPrice(parseFloat(dc.price_per_hour)) + "/hr",
+                    price: total,
+                    priceDisplay: formatPrice(total),
+                    modelType: "domestic",
+                    payload: {
+                        type: "domestic",
+                        plan_id: dc.plan_id,
+                        plan_name: dc.plan_name,
+                        price_per_hour: dc.price_per_hour,
+                        cleaners: dc.cleaners,
+                        hours: dc.hours,
+                        total: dc.total
+                    },
+                    isDomestic: true
+                });
+            }
+
+            SERVICE_CATALOG.forEach(function (service) {
                 var selection = flowState.selections[service.id];
                 if (!selection) {
-                    return null;
+                    return;
                 }
                 var normalizedPrice = normalizePriceValue(selection.price);
                 var optionLabel = selection.optionLabel || selection.label || "Custom package";
                 var optionDetails = selection.optionDetails || selection.details || "";
-                return Object.assign({
+                results.push(Object.assign({
                     serviceId: service.id,
                     serviceName: service.name,
                     optionLabel: optionLabel,
@@ -768,8 +803,10 @@ document.addEventListener("DOMContentLoaded", function () {
                     priceDisplay: selection.priceDisplay || (normalizedPrice !== null ? formatPrice(normalizedPrice) : "Custom quote"),
                     modelType: selection.modelType || null,
                     payload: selection.payload || null
-                }, selection);
-            }).filter(Boolean);
+                }, selection));
+            });
+
+            return results;
         };
 
         var lastSummaryTotals = { serviceTotal: 0, hasCustom: false, hasSurvey: false };
@@ -1963,9 +2000,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
         var setActiveStep = function (stepNumber) {
             activeStep = stepNumber;
+            // Always hide the domestic configurator when switching to a numbered step
+            var domesticEl = document.getElementById("flow-domestic-step");
+            if (domesticEl) {
+                domesticEl.style.display = "none";
+                domesticEl.classList.remove("is-active");
+            }
             flowSteps.forEach(function (section) {
                 var sectionStep = Number(section.getAttribute("data-flow-step"));
+                if (isNaN(sectionStep)) return; // skip non-numeric steps (domestic)
                 section.classList.toggle("is-active", sectionStep === stepNumber);
+                section.style.display = (sectionStep === stepNumber) ? "" : "none";
             });
             flowIndicators.forEach(function (indicator) {
                 var indicatorStep = Number(indicator.getAttribute("data-flow-step-indicator"));
@@ -1997,6 +2042,7 @@ document.addEventListener("DOMContentLoaded", function () {
         };
 
         var renderServiceStep = function () {
+            hideChoicePrompt();
             var service = getServiceFromQueue(currentServiceIndex);
             if (!service || !flowOptionsContainer) {
                 return;
@@ -2086,7 +2132,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     persistFlowState();
                     setPriceDisplay(current);
                     updateMiniCart();
-                    goToNextService();
+                    showChoicePrompt();
                 };
             }
 
@@ -2124,6 +2170,231 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         };
 
+        var showChoicePrompt = function () {
+            if (!flowChoicePrompt) {
+                // Fallback if HTML not present – use the old auto-advance
+                goToNextService();
+                return;
+            }
+
+            // Build a summary of what the user selected so far
+            var selections = getOrderedSelections();
+            var hasDomestic = Boolean(flowState.domesticPlan);
+            var hasRegularSelections = Object.keys(flowState.selections).length > 0;
+
+            if (flowChoiceSelected) {
+                flowChoiceSelected.innerHTML = "";
+                if (selections.length) {
+                    var heading = document.createElement("p");
+                    heading.className = "flow-choice-prompt__heading";
+                    heading.innerHTML = "<strong>\u2705 Your selections so far:</strong>";
+                    flowChoiceSelected.appendChild(heading);
+                    var ul = document.createElement("ul");
+                    ul.className = "flow-choice-prompt__list";
+                    selections.forEach(function (sel) {
+                        var li = document.createElement("li");
+                        li.innerHTML = "<strong>" + sel.serviceName + "</strong> \u2013 " + sel.optionLabel + " <span style=\"color:var(--primary-color);font-weight:600;\">(" + (sel.priceDisplay || formatPrice(sel.price)) + ")</span>";
+                        ul.appendChild(li);
+                    });
+                    flowChoiceSelected.appendChild(ul);
+                }
+            }
+
+            // Set contextual question text
+            if (flowChoiceQuestion) {
+                flowChoiceQuestion.textContent = "Would you like to add more services or continue to review & schedule?";
+            }
+
+            // If there's no domestic plan and this is the last service, skip prompt
+            if (!hasDomestic && currentServiceIndex >= serviceQueue.length - 1) {
+                setActiveStep(2);
+                renderSummary();
+                return;
+            }
+
+            // Show the prompt, hide step 1 content
+            flowChoicePrompt.style.display = "block";
+            if (flowOptionsContainer) flowOptionsContainer.style.display = "none";
+            if (flowPriceDisplay) flowPriceDisplay.style.display = "none";
+            var step1Actions = serviceModal.querySelector('[data-flow-step="1"] .flow-actions');
+            if (step1Actions) step1Actions.style.display = "none";
+            // Also hide the step header when in prompt mode
+            var step1Header = serviceModal.querySelector('[data-flow-step="1"] .flow-step__header');
+            if (step1Header) step1Header.style.display = "none";
+        };
+
+        var hideChoicePrompt = function () {
+            if (flowChoicePrompt) {
+                flowChoicePrompt.style.display = "none";
+            }
+            // Restore step 1 content visibility
+            if (flowOptionsContainer) flowOptionsContainer.style.display = "";
+            if (flowPriceDisplay) flowPriceDisplay.style.display = "";
+            var step1Actions = serviceModal.querySelector('[data-flow-step="1"] .flow-actions');
+            if (step1Actions) step1Actions.style.display = "";
+            var step1Header = serviceModal.querySelector('[data-flow-step="1"] .flow-step__header');
+            if (step1Header) step1Header.style.display = "";
+        };
+
+        /* ── Domestic Configurator Step ────────────────────────────── */
+        var domesticStepEl = document.getElementById("flow-domestic-step");
+        var domesticCfgPlanName = document.getElementById("domestic-cfg-plan-name");
+        var domesticCfgLabel = document.getElementById("domestic-cfg-label");
+        var domesticCfgRate = document.getElementById("domestic-cfg-rate");
+        var domesticCfgCleaners = document.getElementById("domestic-cfg-cleaners");
+        var domesticCleanersMinus = document.getElementById("domestic-cleaners-minus");
+        var domesticCleanersPlus = document.getElementById("domestic-cleaners-plus");
+        var domesticCfgHours = document.getElementById("domestic-cfg-hours");
+        var domesticHoursMinus = document.getElementById("domestic-hours-minus");
+        var domesticHoursPlus = document.getElementById("domestic-hours-plus");
+        var domesticCfgEstRate = document.getElementById("domestic-cfg-est-rate");
+        var domesticCfgEstHours = document.getElementById("domestic-cfg-est-hours");
+        var domesticCfgEstTotal = document.getElementById("domestic-cfg-est-total");
+        var domesticCfgCancel = document.getElementById("domestic-cfg-cancel");
+        var domesticCfgContinue = document.getElementById("domestic-cfg-continue");
+
+        var recalcDomesticEstimate = function () {
+            if (!flowState.domesticConfig) return;
+            var dc = flowState.domesticConfig;
+            var rate = parseFloat(dc.price_per_hour) || 0;
+            var cleaners = dc.cleaners || 1;
+            var hours = dc.hours || 3;
+            var total = rate * cleaners * hours;
+            dc.total = total;
+
+            if (domesticCfgEstRate) {
+                domesticCfgEstRate.textContent = formatPrice(rate) + "/hr \u00D7 " + cleaners + " cleaner" + (cleaners > 1 ? "s" : "");
+            }
+            if (domesticCfgEstHours) {
+                domesticCfgEstHours.textContent = hours + " hour" + (hours > 1 ? "s" : "");
+            }
+            if (domesticCfgEstTotal) {
+                domesticCfgEstTotal.textContent = formatPrice(total);
+            }
+            if (domesticCfgCleaners) domesticCfgCleaners.value = cleaners;
+            if (domesticCfgHours) domesticCfgHours.value = hours;
+
+            persistFlowState();
+            updateMiniCart();
+        };
+
+        var showDomesticStep = function () {
+            if (!domesticStepEl || !flowState.domesticConfig) return;
+            var dc = flowState.domesticConfig;
+            var rate = parseFloat(dc.price_per_hour) || 0;
+
+            // Populate badge
+            if (domesticCfgPlanName) domesticCfgPlanName.textContent = dc.plan_name || "Domestic Cleaning";
+            if (domesticCfgLabel) domesticCfgLabel.textContent = dc.plan_name || "Plan";
+            if (domesticCfgRate) domesticCfgRate.textContent = formatPrice(rate) + "/hr per cleaner";
+
+            // Set stepper values
+            if (domesticCfgCleaners) domesticCfgCleaners.value = dc.cleaners || 1;
+            if (domesticCfgHours) domesticCfgHours.value = dc.hours || 3;
+
+            // Show domestic step, hide all regular flow steps
+            var allSteps = serviceModal.querySelectorAll(".flow-step");
+            allSteps.forEach(function (step) {
+                step.style.display = "none";
+                step.classList.remove("is-active");
+            });
+            domesticStepEl.style.display = "";
+            domesticStepEl.classList.add("is-active");
+
+            recalcDomesticEstimate();
+        };
+
+        var hideDomesticStep = function () {
+            if (domesticStepEl) {
+                domesticStepEl.style.display = "none";
+                domesticStepEl.classList.remove("is-active");
+            }
+        };
+
+        // Stepper button handlers
+        if (domesticCleanersMinus) {
+            domesticCleanersMinus.addEventListener("click", function () {
+                if (!flowState.domesticConfig) return;
+                var min = 1;
+                if (flowState.domesticConfig.cleaners > min) {
+                    flowState.domesticConfig.cleaners -= 1;
+                    recalcDomesticEstimate();
+                }
+            });
+        }
+        if (domesticCleanersPlus) {
+            domesticCleanersPlus.addEventListener("click", function () {
+                if (!flowState.domesticConfig) return;
+                var max = 10;
+                if (flowState.domesticConfig.cleaners < max) {
+                    flowState.domesticConfig.cleaners += 1;
+                    recalcDomesticEstimate();
+                }
+            });
+        }
+        if (domesticHoursMinus) {
+            domesticHoursMinus.addEventListener("click", function () {
+                if (!flowState.domesticConfig) return;
+                var min = 2;
+                if (flowState.domesticConfig.hours > min) {
+                    flowState.domesticConfig.hours -= 1;
+                    recalcDomesticEstimate();
+                }
+            });
+        }
+        if (domesticHoursPlus) {
+            domesticHoursPlus.addEventListener("click", function () {
+                if (!flowState.domesticConfig) return;
+                var max = 12;
+                if (flowState.domesticConfig.hours < max) {
+                    flowState.domesticConfig.hours += 1;
+                    recalcDomesticEstimate();
+                }
+            });
+        }
+
+        // Browse More Services → show regular service flow from Service 1
+        var domesticCfgBrowse = document.getElementById("domestic-cfg-browse");
+        if (domesticCfgBrowse) {
+            domesticCfgBrowse.addEventListener("click", function () {
+                if (flowState.domesticConfig) {
+                    recalcDomesticEstimate();
+                    persistFlowState();
+                }
+                hideDomesticStep();
+                currentServiceIndex = 0;
+                serviceQueue = buildServiceQueue(null);
+                setActiveStep(1);
+                renderServiceStep();
+            });
+        }
+
+        // Continue → go to summary (Step 2)
+        if (domesticCfgContinue) {
+            domesticCfgContinue.addEventListener("click", function () {
+                if (!flowState.domesticConfig) return;
+                recalcDomesticEstimate();
+                persistFlowState();
+                hideDomesticStep();
+                setActiveStep(2);
+                renderSummary();
+            });
+        }
+
+        // Cancel → close modal
+        if (domesticCfgCancel) {
+            domesticCfgCancel.addEventListener("click", function () {
+                flowState.domesticPlan = null;
+                flowState.domesticConfig = null;
+                window.__domesticPlanContext = null;
+                persistFlowState();
+                updateMiniCart();
+                hideDomesticStep();
+                closeServiceModal();
+            });
+        }
+        /* ── End Domestic Configurator ─────────────────────────────── */
+
         var goToPreviousService = function () {
             if (currentServiceIndex === 0) {
                 return;
@@ -2160,14 +2431,42 @@ document.addEventListener("DOMContentLoaded", function () {
                     price.className = "flow-option__price";
                     price.textContent = selection.priceDisplay || formatPrice(selection.price);
 
-                    var editButton = document.createElement("button");
-                    editButton.type = "button";
-                    editButton.textContent = "Edit";
-                    editButton.setAttribute("data-edit-service", selection.serviceId);
+                    if (selection.isDomestic) {
+                        // Domestic plan: show Edit button to reconfigure
+                        var editDomesticBtn = document.createElement("button");
+                        editDomesticBtn.type = "button";
+                        editDomesticBtn.textContent = "Edit";
+                        editDomesticBtn.className = "button button--outline button--small";
+                        editDomesticBtn.addEventListener("click", function () {
+                            showDomesticStep();
+                        });
+                        var removeDomesticBtn = document.createElement("button");
+                        removeDomesticBtn.type = "button";
+                        removeDomesticBtn.textContent = "Remove";
+                        removeDomesticBtn.className = "button button--outline button--small";
+                        removeDomesticBtn.style.marginLeft = "0.35rem";
+                        removeDomesticBtn.addEventListener("click", function () {
+                            flowState.domesticPlan = null;
+                            flowState.domesticConfig = null;
+                            window.__domesticPlanContext = null;
+                            persistFlowState();
+                            renderSummary();
+                            updateMiniCart();
+                        });
+                        item.appendChild(info);
+                        item.appendChild(price);
+                        item.appendChild(editDomesticBtn);
+                        item.appendChild(removeDomesticBtn);
+                    } else {
+                        var editButton = document.createElement("button");
+                        editButton.type = "button";
+                        editButton.textContent = "Edit";
+                        editButton.setAttribute("data-edit-service", selection.serviceId);
+                        item.appendChild(info);
+                        item.appendChild(price);
+                        item.appendChild(editButton);
+                    }
 
-                    item.appendChild(info);
-                    item.appendChild(price);
-                    item.appendChild(editButton);
                     flowSummaryList.appendChild(item);
                 });
             }
@@ -2231,16 +2530,24 @@ document.addEventListener("DOMContentLoaded", function () {
         var openServiceModal = function (serviceId, autoExpandDetails) {
             // Build reordered queue starting with the selected service
             serviceQueue = buildServiceQueue(serviceId);
-            currentServiceIndex = 0; // Always start at 0 in the queue
+            currentServiceIndex = 0;
             autoExpandDescription = Boolean(autoExpandDetails);
-            setActiveStep(1);
-            renderServiceStep();
             updateMiniCart();
             hydrateContactFields();
             serviceModal.classList.add("is-open");
             serviceModal.setAttribute("aria-hidden", "false");
             document.body.style.overflow = "hidden";
             sendAnalyticsEvent("service_view", { context: "modal", service: serviceId });
+
+            // If entering from a domestic CTA, show the domestic configurator
+            if (pendingDomesticEntry && flowState.domesticPlan) {
+                pendingDomesticEntry = false;
+                showDomesticStep();
+            } else {
+                hideDomesticStep();
+                setActiveStep(1);
+                renderServiceStep();
+            }
         };
 
         var closeServiceModal = function () {
@@ -2423,6 +2730,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
         var resetFlow = function () {
             flowState = createDefaultFlowState();
+            window.__domesticPlanContext = null;
+            pendingDomesticEntry = false;
+            hideDomesticStep();
             setStoredTravelQuote(null);
             updateTravelSnapshot("");
             travelQuotePending = false;
@@ -2464,7 +2774,27 @@ document.addEventListener("DOMContentLoaded", function () {
                     flowPriceDisplay.textContent = "Please select an option or skip this service.";
                     return;
                 }
-                goToNextService();
+                // Show choice prompt instead of auto-advancing
+                showChoicePrompt();
+            });
+        }
+
+        // Choice prompt buttons
+        if (flowChoiceBrowse) {
+            flowChoiceBrowse.addEventListener("click", function () {
+                hideChoicePrompt();
+                // Start from the beginning of the service queue
+                currentServiceIndex = 0;
+                setActiveStep(1);
+                renderServiceStep();
+            });
+        }
+
+        if (flowChoiceContinue) {
+            flowChoiceContinue.addEventListener("click", function () {
+                hideChoicePrompt();
+                setActiveStep(2);
+                renderSummary();
             });
         }
 
@@ -2484,8 +2814,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (flowSummaryBackButton) {
             flowSummaryBackButton.addEventListener("click", function () {
-                setActiveStep(1);
-                renderServiceStep();
+                // If there's only a domestic config and no regular selections, go back to domestic step
+                if (flowState.domesticConfig && Object.keys(flowState.selections).length === 0) {
+                    showDomesticStep();
+                } else {
+                    setActiveStep(1);
+                    renderServiceStep();
+                }
             });
         }
 
@@ -2820,6 +3155,13 @@ document.addEventListener("DOMContentLoaded", function () {
                     })
                 };
 
+                // Attach domestic plan context if the user came from a domestic pricing CTA
+                var domesticCtx = flowState.domesticConfig || flowState.domesticPlan || window.__domesticPlanContext || null;
+                if (domesticCtx) {
+                    payload.domestic_plan = domesticCtx;
+                    window.__domesticPlanContext = null;
+                }
+
                 console.log("Sending request to API...", payload);
                 var response = await fetch(apiBase + "/api/service-requests", {
                     method: "POST",
@@ -2906,6 +3248,28 @@ document.addEventListener("DOMContentLoaded", function () {
         renderServiceStep();
         updateMiniCart();
         hydrateContactFields();
+
+        // Expose flow entry points so domestic pricing CTA handler can reach them
+        window.openPostcodeModal = openPostcodeModal;
+        window.openServiceModal = openServiceModal;
+
+        // Allow external code (domestic CTA) to inject a domestic plan into the flow state
+        window.setDomesticPlanInFlow = function (planData) {
+            flowState.domesticPlan = planData;
+            // Pre-fill domestic config with defaults
+            var rate = parseFloat(planData.price_per_hour) || 0;
+            flowState.domesticConfig = {
+                plan_id: planData.plan_id,
+                plan_name: planData.plan_name,
+                price_per_hour: planData.price_per_hour,
+                cleaners: 1,
+                hours: 3,
+                total: rate * 1 * 3
+            };
+            pendingDomesticEntry = true;
+            persistFlowState();
+            updateMiniCart();
+        };
 
         if (!SERVICE_CATALOG.length) {
             fetchCatalogFromApi();
@@ -3016,6 +3380,49 @@ document.addEventListener("DOMContentLoaded", function () {
 
         jobCloseElements.forEach(function (el) {
             el.addEventListener("click", closeModal);
+        });
+    }
+
+    // Domestic Cleaning "Book This Service" — hook into existing booking flow
+    var domesticBookButtons = document.querySelectorAll("[data-domestic-book]");
+    if (domesticBookButtons.length) {
+        domesticBookButtons.forEach(function (btn) {
+            btn.addEventListener("click", function (e) {
+                e.preventDefault();
+                var planId = btn.getAttribute("data-plan-id") || "";
+                var planName = btn.getAttribute("data-plan-name") || "";
+                var planPrice = btn.getAttribute("data-plan-price") || "";
+
+                var domesticPlanData = {
+                    plan_id: planId,
+                    plan_name: planName,
+                    price_per_hour: planPrice
+                };
+
+                // Store in global backup and also inject into flow state
+                window.__domesticPlanContext = domesticPlanData;
+
+                if (typeof window.setDomesticPlanInFlow === "function") {
+                    window.setDomesticPlanInFlow(domesticPlanData);
+                }
+
+                sendAnalyticsEvent("domestic_booking_open", { plan: planName, plan_id: planId });
+
+                // Trigger existing booking flow (postcode gate → service modal)
+                var firstServiceId = (Array.isArray(window.SERVICE_CATALOG) && window.SERVICE_CATALOG.length)
+                    ? window.SERVICE_CATALOG[0].id
+                    : null;
+
+                if (typeof window.openPostcodeModal === "function") {
+                    window.openPostcodeModal(firstServiceId);
+                } else if (typeof window.openServiceModal === "function") {
+                    window.openServiceModal(firstServiceId);
+                } else {
+                    // Fallback: find and click the first service trigger
+                    var trigger = document.querySelector(".service-request-trigger");
+                    if (trigger) trigger.click();
+                }
+            });
         });
     }
 

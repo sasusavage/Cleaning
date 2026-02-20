@@ -252,6 +252,75 @@
             <p class="text-muted services__empty" id="services-empty" {% if services %}hidden{% endif %}>Services are being configured. Check back soon.</p>
         </section>
 
+        {% set domestic_content = domestic_cleaning.content if domestic_cleaning else {} %}
+        {% set domestic_cards = domestic_cleaning.cards if domestic_cleaning else [] %}
+        {% set domestic_pricing = domestic_cleaning.pricing if domestic_cleaning else [] %}
+        {% if domestic_content and domestic_cards %}
+        <section class="panel domestic-cleaning" id="domestic-cleaning">
+            <div class="section__header" data-animate="fade-in">
+                <p class="section__eyebrow">{{ domestic_content.section_title or 'Domestic Cleaning' }}</p>
+                <h2 class="section__title">{{ domestic_content.section_subtitle }}</h2>
+            </div>
+
+            <div class="domestic-cleaning__intro" data-animate="reveal">
+                <article class="domestic-cleaning__intro-card">
+                    <h3>{{ domestic_content.intro_title or 'Our Regular Domestic Cleaning Service' }}</h3>
+                    <p>{{ domestic_content.intro_body }}</p>
+                </article>
+                <article class="domestic-cleaning__intro-card">
+                    <h3>Vetted &amp; Trusted Team</h3>
+                    <p>{{ domestic_content.trust_body }}</p>
+                </article>
+                <article class="domestic-cleaning__intro-card">
+                    <h3>Consistency You Can Rely On</h3>
+                    <p>{{ domestic_content.continuity_body }}</p>
+                </article>
+            </div>
+
+            <div class="domestic-cleaning__grid" data-animate="reveal">
+                {% for room in domestic_cards %}
+                {% set room_image = room.image_path | media_url if room.image_path else '' %}
+                <article class="domestic-card">
+                    {% if room_image %}
+                    <div class="domestic-card__image-wrap">
+                        <img src="{{ room_image }}" alt="{{ room.room_name }}" class="domestic-card__image" loading="lazy">
+                    </div>
+                    {% endif %}
+                    <div class="domestic-card__body">
+                        <h3>{{ room.room_name }}</h3>
+                        <p>{{ room.lifestyle_copy }}</p>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+
+            {% if domestic_pricing %}
+            <div class="domestic-cleaning__pricing" data-animate="fade-in">
+                <h3>Residential Cleaning Plans</h3>
+                <div class="domestic-pricing__grid">
+                    {% for plan in domestic_pricing %}
+                    <article class="domestic-pricing__card">
+                        <h4>{{ plan.plan_name }}</h4>
+                        <p class="domestic-pricing__value">£{{ '%.2f'|format(plan.price_per_hour or 0) }}</p>
+                        <p class="domestic-pricing__label">{{ plan.per_label or 'per hour per cleaner' }}</p>
+                        <button
+                            type="button"
+                            class="button button--primary domestic-pricing__cta"
+                            data-domestic-book
+                            data-plan-id="{{ plan.id }}"
+                            data-plan-name="{{ plan.plan_name }}"
+                            data-plan-price="{{ '%.2f'|format(plan.price_per_hour or 0) }}"
+                        >
+                            Book This Service
+                        </button>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </section>
+        {% endif %}
+
         <!-- Why Choose Us Section -->
         {% set why_choose_data = site_content.why_choose_us if site_content and site_content.why_choose_us else {} %}
         {% set why_items = why_choose_data.get('items', []) if why_choose_data else [] %}
@@ -870,6 +939,57 @@
                     </div>
                 </aside>
                 <div class="service-flow__content">
+                    <!-- Domestic Cleaning Configurator (separate from regular services) -->
+                    <section class="flow-step" id="flow-domestic-step" data-flow-step="domestic" style="display:none;">
+                        <header class="flow-step__header">
+                            <p class="flow-step__eyebrow">Domestic Cleaning</p>
+                            <h3 id="domestic-cfg-plan-name">Your Cleaning Plan</h3>
+                            <p class="flow-step__description">Configure your domestic cleaning visit below.</p>
+                        </header>
+                        <div class="domestic-configurator">
+                            <div class="domestic-configurator__plan-badge" id="domestic-cfg-badge">
+                                <span class="domestic-configurator__plan-label" id="domestic-cfg-label">Plan</span>
+                                <span class="domestic-configurator__plan-rate" id="domestic-cfg-rate">&pound;0.00/hr per cleaner</span>
+                            </div>
+                            <div class="domestic-configurator__row">
+                                <label for="domestic-cfg-cleaners">Number of Cleaners</label>
+                                <div class="domestic-configurator__stepper">
+                                    <button type="button" class="stepper-btn" id="domestic-cleaners-minus" aria-label="Decrease cleaners">&minus;</button>
+                                    <input type="number" id="domestic-cfg-cleaners" min="1" max="10" value="1" readonly>
+                                    <button type="button" class="stepper-btn" id="domestic-cleaners-plus" aria-label="Increase cleaners">&plus;</button>
+                                </div>
+                            </div>
+                            <div class="domestic-configurator__row">
+                                <label for="domestic-cfg-hours">Hours Required</label>
+                                <div class="domestic-configurator__stepper">
+                                    <button type="button" class="stepper-btn" id="domestic-hours-minus" aria-label="Decrease hours">&minus;</button>
+                                    <input type="number" id="domestic-cfg-hours" min="2" max="12" value="3" readonly>
+                                    <button type="button" class="stepper-btn" id="domestic-hours-plus" aria-label="Increase hours">&plus;</button>
+                                </div>
+                                <small class="form-hint">Minimum 2 hours per visit</small>
+                            </div>
+                            <div class="domestic-configurator__estimate" id="domestic-cfg-estimate">
+                                <div class="domestic-configurator__estimate-line">
+                                    <span>Rate</span>
+                                    <strong id="domestic-cfg-est-rate">&pound;0.00/hr &times; 1 cleaner</strong>
+                                </div>
+                                <div class="domestic-configurator__estimate-line">
+                                    <span>Duration</span>
+                                    <strong id="domestic-cfg-est-hours">3 hours</strong>
+                                </div>
+                                <div class="domestic-configurator__estimate-line domestic-configurator__estimate-total">
+                                    <span>Estimated Visit Total</span>
+                                    <strong id="domestic-cfg-est-total">&pound;0.00</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flow-actions">
+                            <button type="button" class="button button--ghost" id="domestic-cfg-cancel">Cancel</button>
+                            <button type="button" class="button button--ghost" id="domestic-cfg-browse">Browse More Services</button>
+                            <button type="button" class="button button--primary" id="domestic-cfg-continue">Continue to Review &amp; Schedule</button>
+                        </div>
+                    </section>
+
                     <section class="flow-step is-active" data-flow-step="1">
                         <header class="flow-step__header">
                             <p class="flow-step__eyebrow">Service <span id="flow-service-index">1</span> of <span id="flow-service-count">1</span></p>
@@ -882,6 +1002,21 @@
                             <button type="button" class="button button--ghost" data-flow-prev>Back</button>
                             <button type="button" class="button button--ghost" data-flow-skip>Skip This Service</button>
                             <button type="button" class="button button--primary" data-flow-next disabled>Next Service</button>
+                        </div>
+                        <!-- Choice prompt: shown after user picks an option -->
+                        <div class="flow-choice-prompt" id="flow-choice-prompt" style="display:none;" aria-live="polite">
+                            <div class="flow-choice-prompt__selected" id="flow-choice-selected"></div>
+                            <p class="flow-choice-prompt__question" id="flow-choice-question">Would you like to add more services or continue to review &amp; schedule?</p>
+                            <div class="flow-choice-prompt__actions">
+                                <button type="button" class="button button--ghost" id="flow-choice-browse">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                                    Browse More Services
+                                </button>
+                                <button type="button" class="button button--primary" id="flow-choice-continue">
+                                    Continue to Review &amp; Schedule
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                                </button>
+                            </div>
                         </div>
                     </section>
                     <section class="flow-step" data-flow-step="2">
