@@ -670,7 +670,9 @@ body.is-nav-expanded main {
     grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
     gap: 4rem;
     align-items: center;
+    min-height: 100vh;
     padding-top: 10rem;
+    padding-bottom: 5rem;
     position: relative;
     overflow: hidden;
     color: #ffffff;
