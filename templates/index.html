@@ -168,6 +168,75 @@
             </div>
         </header>
 
+        {% set domestic_content = domestic_cleaning.content if domestic_cleaning else {} %}
+        {% set domestic_cards = domestic_cleaning.cards if domestic_cleaning else [] %}
+        {% set domestic_pricing = domestic_cleaning.pricing if domestic_cleaning else [] %}
+        {% if domestic_content and domestic_cards %}
+        <section class="panel domestic-cleaning" id="domestic-cleaning">
+            <div class="section__header" data-animate="fade-in">
+                <p class="section__eyebrow">{{ domestic_content.section_title or 'Domestic Cleaning' }}</p>
+                <h2 class="section__title">{{ domestic_content.section_subtitle }}</h2>
+            </div>
+
+            <div class="domestic-cleaning__intro" data-animate="reveal">
+                <article class="domestic-cleaning__intro-card">
+                    <h3>{{ domestic_content.intro_title or 'Our Regular Domestic Cleaning Service' }}</h3>
+                    <p>{{ domestic_content.intro_body }}</p>
+                </article>
+                <article class="domestic-cleaning__intro-card">
+                    <h3>Vetted &amp; Trusted Team</h3>
+                    <p>{{ domestic_content.trust_body }}</p>
+                </article>
+                <article class="domestic-cleaning__intro-card">
+                    <h3>Consistency You Can Rely On</h3>
+                    <p>{{ domestic_content.continuity_body }}</p>
+                </article>
+            </div>
+
+            <div class="domestic-cleaning__grid" data-animate="reveal">
+                {% for room in domestic_cards %}
+                {% set room_image = room.image_path | media_url if room.image_path else '' %}
+                <article class="domestic-card">
+                    {% if room_image %}
+                    <div class="domestic-card__image-wrap">
+                        <img src="{{ room_image }}" alt="{{ room.room_name }}" class="domestic-card__image" loading="lazy">
+                    </div>
+                    {% endif %}
+                    <div class="domestic-card__body">
+                        <h3>{{ room.room_name }}</h3>
+                        <p>{{ room.lifestyle_copy }}</p>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+
+            {% if domestic_pricing %}
+            <div class="domestic-cleaning__pricing" data-animate="fade-in">
+                <h3>Residential Cleaning Plans</h3>
+                <div class="domestic-pricing__grid">
+                    {% for plan in domestic_pricing %}
+                    <article class="domestic-pricing__card">
+                        <h4>{{ plan.plan_name }}</h4>
+                        <p class="domestic-pricing__value">£{{ '%.2f'|format(plan.price_per_hour or 0) }}</p>
+                        <p class="domestic-pricing__label">{{ plan.per_label or 'per hour per cleaner' }}</p>
+                        <button
+                            type="button"
+                            class="button button--primary domestic-pricing__cta"
+                            data-domestic-book
+                            data-plan-id="{{ plan.id }}"
+                            data-plan-name="{{ plan.plan_name }}"
+                            data-plan-price="{{ '%.2f'|format(plan.price_per_hour or 0) }}"
+                        >
+                            Book This Service
+                        </button>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </section>
+        {% endif %}
+
         <section class="panel services" id="services">
             <div class="section__header" data-animate="fade-in">
                 <p class="section__eyebrow">Our Services</p>
@@ -251,75 +320,6 @@
             {% endif %}
             <p class="text-muted services__empty" id="services-empty" {% if services %}hidden{% endif %}>Services are being configured. Check back soon.</p>
         </section>
-
-        {% set domestic_content = domestic_cleaning.content if domestic_cleaning else {} %}
-        {% set domestic_cards = domestic_cleaning.cards if domestic_cleaning else [] %}
-        {% set domestic_pricing = domestic_cleaning.pricing if domestic_cleaning else [] %}
-        {% if domestic_content and domestic_cards %}
-        <section class="panel domestic-cleaning" id="domestic-cleaning">
-            <div class="section__header" data-animate="fade-in">
-                <p class="section__eyebrow">{{ domestic_content.section_title or 'Domestic Cleaning' }}</p>
-                <h2 class="section__title">{{ domestic_content.section_subtitle }}</h2>
-            </div>
-
-            <div class="domestic-cleaning__intro" data-animate="reveal">
-                <article class="domestic-cleaning__intro-card">
-                    <h3>{{ domestic_content.intro_title or 'Our Regular Domestic Cleaning Service' }}</h3>
-                    <p>{{ domestic_content.intro_body }}</p>
-                </article>
-                <article class="domestic-cleaning__intro-card">
-                    <h3>Vetted &amp; Trusted Team</h3>
-                    <p>{{ domestic_content.trust_body }}</p>
-                </article>
-                <article class="domestic-cleaning__intro-card">
-                    <h3>Consistency You Can Rely On</h3>
-                    <p>{{ domestic_content.continuity_body }}</p>
-                </article>
-            </div>
-
-            <div class="domestic-cleaning__grid" data-animate="reveal">
-                {% for room in domestic_cards %}
-                {% set room_image = room.image_path | media_url if room.image_path else '' %}
-                <article class="domestic-card">
-                    {% if room_image %}
-                    <div class="domestic-card__image-wrap">
-                        <img src="{{ room_image }}" alt="{{ room.room_name }}" class="domestic-card__image" loading="lazy">
-                    </div>
-                    {% endif %}
-                    <div class="domestic-card__body">
-                        <h3>{{ room.room_name }}</h3>
-                        <p>{{ room.lifestyle_copy }}</p>
-                    </div>
-                </article>
-                {% endfor %}
-            </div>
-
-            {% if domestic_pricing %}
-            <div class="domestic-cleaning__pricing" data-animate="fade-in">
-                <h3>Residential Cleaning Plans</h3>
-                <div class="domestic-pricing__grid">
-                    {% for plan in domestic_pricing %}
-                    <article class="domestic-pricing__card">
-                        <h4>{{ plan.plan_name }}</h4>
-                        <p class="domestic-pricing__value">£{{ '%.2f'|format(plan.price_per_hour or 0) }}</p>
-                        <p class="domestic-pricing__label">{{ plan.per_label or 'per hour per cleaner' }}</p>
-                        <button
-                            type="button"
-                            class="button button--primary domestic-pricing__cta"
-                            data-domestic-book
-                            data-plan-id="{{ plan.id }}"
-                            data-plan-name="{{ plan.plan_name }}"
-                            data-plan-price="{{ '%.2f'|format(plan.price_per_hour or 0) }}"
-                        >
-                            Book This Service
-                        </button>
-                    </article>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-        </section>
-        {% endif %}
 
         <!-- Why Choose Us Section -->
         {% set why_choose_data = site_content.why_choose_us if site_content and site_content.why_choose_us else {} %}
