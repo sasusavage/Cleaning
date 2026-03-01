@@ -466,6 +466,82 @@ body.is-nav-expanded main {
     font-weight: 700;
     line-height: 1.1;
     color: var(--brand-green-dark);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.section__title-wrap {
+    flex: 1 1 auto;
+}
+
+/* ── Section share / copy-link buttons ── */
+.section__share-group {
+    display: inline-flex;
+    gap: 0.35rem;
+    flex-shrink: 0;
+    margin-left: 0.25rem;
+}
+
+.section__share-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.06);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, transform 0.2s;
+    padding: 0;
+}
+
+.section__share-btn:hover {
+    background: var(--brand-green);
+    color: #fff;
+    transform: scale(1.1);
+}
+
+.section__share-btn svg {
+    pointer-events: none;
+}
+
+/* Share toast notification */
+.share-toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(1rem);
+    background: var(--brand-green-dark, #0f172a);
+    color: #fff;
+    padding: 0.65rem 1.5rem;
+    border-radius: 2rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 10000;
+}
+
+.share-toast.is-visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* White variant for dark-background sections */
+.contact .section__share-btn {
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.contact .section__share-btn:hover {
+    background: #fff;
+    color: var(--brand-green-dark);
 }
 
 .section__subtitle {
