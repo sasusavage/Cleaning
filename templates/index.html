@@ -203,7 +203,9 @@
                 </div>
 
                 <div class="domestic-cleaning__grid" data-animate="reveal">
-                    {% for room in domestic_cards %}
+                    {% set primary_rooms = domestic_cards[:3] %}
+                    {% set drawer_rooms = domestic_cards[3:] %}
+                    {% for room in primary_rooms %}
                     {% set room_image = room.image_path | media_url if room.image_path else '' %}
                     <article class="domestic-card">
                         {% if room_image %}
@@ -218,6 +220,32 @@
                     </article>
                     {% endfor %}
                 </div>
+                {% if drawer_rooms %}
+                <div class="drawer" id="domestic-cards-drawer" data-drawer aria-hidden="true">
+                    <div class="domestic-cleaning__grid domestic-cleaning__grid--drawer">
+                        {% for room in drawer_rooms %}
+                        {% set room_image = room.image_path | media_url if room.image_path else '' %}
+                        <article class="domestic-card">
+                            {% if room_image %}
+                            <div class="domestic-card__image-wrap">
+                                <img src="{{ room_image }}" alt="{{ room.room_name }}" class="domestic-card__image" loading="lazy">
+                            </div>
+                            {% endif %}
+                            <div class="domestic-card__body">
+                                <h3>{{ room.room_name }}</h3>
+                                <p>{{ room.lifestyle_copy }}</p>
+                            </div>
+                        </article>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="drawer-toggle">
+                    {% set room_drawer_count = drawer_rooms|length %}
+                    <button class="button button--ghost drawer-toggle__button" type="button" data-drawer-toggle="domestic-cards-drawer" data-drawer-expand-label="View {{ room_drawer_count }} more room{{ 's' if room_drawer_count != 1 else '' }}" data-drawer-collapse-label="Show fewer rooms" aria-controls="domestic-cards-drawer" aria-expanded="false">
+                        View {{ room_drawer_count }} more room{{ 's' if room_drawer_count != 1 else '' }}
+                    </button>
+                </div>
+                {% endif %}
 
                 {% if domestic_pricing %}
                 <div class="domestic-cleaning__pricing" data-animate="fade-in">
