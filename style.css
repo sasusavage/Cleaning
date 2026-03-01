@@ -2223,6 +2223,14 @@ body.is-nav-expanded main {
     overflow: hidden;
     max-width: 100%;
     width: 100%;
+    padding: 5rem 2rem;
+}
+
+.contact .section__header,
+.contact .contact__grid {
+    max-width: var(--max-width);
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .contact::before {
@@ -2245,7 +2253,7 @@ body.is-nav-expanded main {
 }
 
 .contact .section__header,
-.contact__grid {
+.contact .contact__grid {
     position: relative;
     z-index: 1;
 }
@@ -2416,15 +2424,15 @@ textarea {
 .footer__content {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 3rem;
+    gap: 2rem;
     max-width: var(--max-width);
     margin: 0 auto;
-    padding: 5rem 3rem 3rem;
+    padding: 2.5rem 3rem 2rem;
 }
 
 .footer__col h3 {
-    font-size: 1.1rem;
-    margin-bottom: 1.5rem;
+    font-size: 1rem;
+    margin-bottom: 1rem;
     color: #ffffff;
     font-weight: 700;
     letter-spacing: 0.02em;
@@ -2441,7 +2449,7 @@ textarea {
 }
 
 .footer__links li {
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.4rem;
 }
 
 .footer__links a {
@@ -2481,7 +2489,7 @@ textarea {
 .footer__areas {
     max-width: var(--max-width);
     margin: 0 auto;
-    padding: 1.5rem 3rem;
+    padding: 1rem 3rem;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -2509,7 +2517,7 @@ textarea {
 
 .footer__bottom {
     text-align: center;
-    padding: 1.75rem 3rem;
+    padding: 1rem 3rem;
     margin-top: 0;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     font-size: 0.85rem;
