@@ -336,11 +336,118 @@ document.addEventListener("DOMContentLoaded", function () {
             if (activeItem) {
                 activeItem.classList.add("is-active");
             }
+            // Update URL hash as user scrolls (without triggering scroll)
+            if (history.replaceState && location.hash !== '#' + currentSection) {
+                history.replaceState(null, '', '#' + currentSection);
+            }
         }
     };
 
     window.addEventListener("scroll", updateActiveNav, { passive: true });
     updateActiveNav();
+
+    // ── Share / Copy-link buttons on section headers ──
+    (function initSectionShareButtons() {
+        var shareSections = document.querySelectorAll('section[id]');
+        var linkSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+        var shareSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+
+        shareSections.forEach(function(section) {
+            var sectionId = section.id;
+            if (!sectionId || sectionId.startsWith('flow-')) return; // skip modal/flow steps
+            var header = section.querySelector('.section__header');
+            if (!header) return;
+            var title = header.querySelector('.section__title');
+            if (!title) return;
+
+            // Wrap title content for flex layout
+            var wrapper = document.createElement('span');
+            wrapper.className = 'section__title-wrap';
+            wrapper.innerHTML = title.innerHTML;
+            title.innerHTML = '';
+            title.appendChild(wrapper);
+
+            // Create share button group
+            var shareGroup = document.createElement('span');
+            shareGroup.className = 'section__share-group';
+
+            // Copy link button
+            var copyBtn = document.createElement('button');
+            copyBtn.type = 'button';
+            copyBtn.className = 'section__share-btn';
+            copyBtn.setAttribute('aria-label', 'Copy link to this section');
+            copyBtn.setAttribute('title', 'Copy link');
+            copyBtn.innerHTML = linkSvg;
+            copyBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                var url = location.origin + location.pathname + '#' + sectionId;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url).then(function() {
+                        showShareToast('Link copied!');
+                    });
+                } else {
+                    // Fallback
+                    var ta = document.createElement('textarea');
+                    ta.value = url;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    showShareToast('Link copied!');
+                }
+            });
+            shareGroup.appendChild(copyBtn);
+
+            // Native share button (mobile / supported browsers)
+            if (navigator.share) {
+                var shareBtn = document.createElement('button');
+                shareBtn.type = 'button';
+                shareBtn.className = 'section__share-btn';
+                shareBtn.setAttribute('aria-label', 'Share this section');
+                shareBtn.setAttribute('title', 'Share');
+                shareBtn.innerHTML = shareSvg;
+                shareBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    navigator.share({
+                        title: document.title,
+                        url: location.origin + location.pathname + '#' + sectionId
+                    }).catch(function() {});
+                });
+                shareGroup.appendChild(shareBtn);
+            }
+
+            title.appendChild(shareGroup);
+        });
+
+        // Toast notification
+        function showShareToast(msg) {
+            var existing = document.querySelector('.share-toast');
+            if (existing) existing.remove();
+            var toast = document.createElement('div');
+            toast.className = 'share-toast';
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            requestAnimationFrame(function() {
+                toast.classList.add('is-visible');
+            });
+            setTimeout(function() {
+                toast.classList.remove('is-visible');
+                setTimeout(function() { toast.remove(); }, 300);
+            }, 2000);
+        }
+    })();
+
+    // ── On page load: scroll to hash section ──
+    if (location.hash) {
+        var hashTarget = document.querySelector(location.hash);
+        if (hashTarget) {
+            setTimeout(function() {
+                hashTarget.scrollIntoView({ behavior: 'smooth' });
+            }, 400);
+        }
+    }
 
     // Mobile nav toggle
     if (navToggle && nav) {

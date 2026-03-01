@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Optional
 
 try:
@@ -6,6 +7,37 @@ try:
     import cloudinary.uploader
 except ImportError:  # pragma: no cover - Cloudinary optional in some environments
     cloudinary = None
+
+
+def extract_cloudinary_public_id(url: str) -> Optional[str]:
+    """Extract the Cloudinary public_id from a secure_url.
+
+    Example URL: https://res.cloudinary.com/xxx/image/upload/v123/cleaning_service/services/abc.jpg
+    Returns: cleaning_service/services/abc
+    """
+    if not url or 'cloudinary' not in url:
+        return None
+    # Match everything after /upload/vNNN/ and strip extension
+    m = re.search(r'/upload/(?:v\d+/)?(.+?)(?:\.\w+)?$', url)
+    return m.group(1) if m else None
+
+
+def delete_cloudinary_image(url: str) -> bool:
+    """Delete an image from Cloudinary by its secure_url. Returns True on success."""
+    if not cloudinary:
+        return False
+    public_id = extract_cloudinary_public_id(url)
+    if not public_id:
+        return False
+    try:
+        result = cloudinary.uploader.destroy(public_id)
+        ok = result.get('result') == 'ok'
+        if not ok:
+            logging.warning("Cloudinary destroy for %s returned: %s", public_id, result)
+        return ok
+    except Exception:
+        logging.exception("Cloudinary destroy failed for public_id %s", public_id)
+        return False
 
 
 def upload_file_to_cloudinary(file_object, folder_name: str, resource_type: str = 'image', return_result: bool = False):

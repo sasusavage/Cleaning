@@ -206,7 +206,7 @@
                     {% set primary_rooms = domestic_cards[:3] %}
                     {% set drawer_rooms = domestic_cards[3:] %}
                     {% for room in primary_rooms %}
-                    {% set room_image = room.image_path | media_url if room.image_path else '' %}
+                    {% set room_image = room.image_path | optimized_card_url if room.image_path else '' %}
                     <article class="domestic-card">
                         {% if room_image %}
                         <div class="domestic-card__image-wrap">
@@ -224,7 +224,7 @@
                 <div class="drawer" id="domestic-cards-drawer" data-drawer aria-hidden="true">
                     <div class="domestic-cleaning__grid domestic-cleaning__grid--drawer">
                         {% for room in drawer_rooms %}
-                        {% set room_image = room.image_path | media_url if room.image_path else '' %}
+                        {% set room_image = room.image_path | optimized_card_url if room.image_path else '' %}
                         <article class="domestic-card">
                             {% if room_image %}
                             <div class="domestic-card__image-wrap">
@@ -321,7 +321,7 @@
             <div class="drawer" id="services-drawer" data-drawer aria-hidden="true">
                 <div class="services__grid services__grid--drawer" id="services-drawer-grid">
                     {% for service in drawer_services %}
-                    {% set image_url = service.image_path | media_url if service.image_path else '' %}
+                    {% set image_url = service.image_path | optimized_card_url if service.image_path else '' %}
                     {% set price_state = namespace(min_price=None) %}
                     {% for option in service.options or [] %}
                         {% if option.price is not none %}
@@ -662,7 +662,7 @@
             <div class="services__grid">
                 {% for job in primary_jobs %}
                 <article class="service-card" data-animate="reveal">
-                    {% set job_image_url = job.image_path | media_url if job.image_path else '' %}
+                    {% set job_image_url = job.image_path | optimized_card_url if job.image_path else '' %}
                     {% if job_image_url %}
                     <div class="card-image-container">
                         <img src="{{ job_image_url }}" class="card-image" alt="{{ job.title }} image" loading="lazy">
@@ -681,7 +681,7 @@
                 <div class="services__grid services__grid--drawer">
                     {% for job in drawer_jobs %}
                     <article class="service-card" data-animate="reveal">
-                        {% set job_image_url = job.image_path | media_url if job.image_path else '' %}
+                        {% set job_image_url = job.image_path | optimized_card_url if job.image_path else '' %}
                         {% if job_image_url %}
                         <div class="card-image-container">
                             <img src="{{ job_image_url }}" class="card-image" alt="{{ job.title }} image" loading="lazy">

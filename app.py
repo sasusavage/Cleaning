@@ -7,7 +7,7 @@ from werkzeug.utils import secure_filename, safe_join
 from werkzeug.security import check_password_hash
 from functools import wraps
 from config import Config
-from utils import upload_file_to_cloudinary
+from utils import upload_file_to_cloudinary, delete_cloudinary_image
 import random
 import json
 import re
@@ -184,8 +184,13 @@ def upload_domestic_card_image(existing_path=''):
 
 
 def delete_uploaded_file(relative_path):
+    """Delete an image from Cloudinary (if URL) and/or local filesystem."""
     if not relative_path:
         return
+    # If it's a Cloudinary URL, destroy it remotely
+    if 'cloudinary' in (relative_path or ''):
+        delete_cloudinary_image(relative_path)
+    # Also try local file removal (for legacy local uploads)
     absolute_path = os.path.join(app.static_folder, relative_path.replace('/', os.sep))
     if os.path.isfile(absolute_path):
         try:
@@ -196,13 +201,27 @@ def delete_uploaded_file(relative_path):
 
 @app.template_filter('media_url')
 def media_url_filter(value):
-    """Convert stored media paths to usable URLs (handles absolute + static paths)."""
+    """Convert stored media paths to usable URLs (handles absolute + static paths).
+    For Cloudinary URLs, inject auto-format + auto-quality transforms for faster loading."""
     if not value:
         return ''
     value = str(value).strip()
     if value.startswith(('http://', 'https://')):
+        # Inject Cloudinary optimisation transforms if not already present
+        if 'res.cloudinary.com' in value and '/upload/' in value and 'f_auto' not in value:
+            value = value.replace('/upload/', '/upload/f_auto,q_auto/', 1)
         return value
     return url_for('static', filename=value.lstrip('/'))
+
+
+@app.template_filter('optimized_card_url')
+def optimized_card_url_filter(value):
+    """Like media_url but also limits width to 600px for card thumbnails."""
+    url = media_url_filter(value)
+    if url and 'res.cloudinary.com' in url and '/upload/' in url:
+        # Add width limit after existing transforms
+        url = url.replace('f_auto,q_auto', 'f_auto,q_auto,w_600,c_limit', 1)
+    return url
 
 
 def str_to_bool(value):
@@ -4531,6 +4550,10 @@ def edit_service(service_id):
         except ValueError as exc:
             return jsonify({'error': str(exc)}), 400
 
+        # If image changed, delete the old one from Cloudinary / disk
+        if image_path and existing_image and image_path != existing_image:
+            delete_uploaded_file(existing_image)
+
         conn = get_db_connection()
         cursor = conn.cursor()
         if image_path:
@@ -4575,11 +4598,18 @@ def edit_service(service_id):
 def delete_service(service_id):
     try:
         conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT image_path FROM services WHERE id=%s", (service_id,))
+        row = cursor.fetchone()
+        old_image = row.get('image_path', '') if row else ''
+        cursor.close()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM services WHERE id=%s", (service_id,))
         conn.commit()
         cursor.close()
         conn.close()
+        if old_image:
+            delete_uploaded_file(old_image)
         return jsonify({'message': 'Service deleted!'})
     except Exception as e:
         app.logger.exception('Failed to delete service')
@@ -5104,6 +5134,11 @@ def edit_job_position(id):
             image_path = upload_job_image(existing_image)
         except ValueError as exc:
             return jsonify({'error': str(exc)}), 400
+
+        # If image changed, delete the old one from Cloudinary / disk
+        if image_path and existing_image and image_path != existing_image:
+            delete_uploaded_file(existing_image)
+
         conn = get_db_connection()
         cursor = conn.cursor()
         if image_path:
@@ -5128,11 +5163,18 @@ def edit_job_position(id):
 def delete_job_position(id):
     try:
         conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT image_path FROM job_positions WHERE id=%s", (id,))
+        row = cursor.fetchone()
+        old_image = row.get('image_path', '') if row else ''
+        cursor.close()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM job_positions WHERE id=%s", (id,))
         conn.commit()
         cursor.close()
         conn.close()
+        if old_image:
+            delete_uploaded_file(old_image)
         return jsonify({'message': 'Job position deleted!'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -7390,7 +7432,12 @@ def admin_domestic_cleaning_card_detail_api(card_id):
     sort_order = int(payload.get('sort_order', existing.get('sort_order') or 0))
     is_active = payload.get('is_active', existing.get('is_active', True))
     is_active = str_to_bool(is_active)
-    image_path = upload_domestic_card_image(existing.get('image_path') or '')
+    old_image = existing.get('image_path') or ''
+    image_path = upload_domestic_card_image(old_image)
+
+    # If image changed, delete the old one from Cloudinary / disk
+    if image_path and old_image and image_path != old_image:
+        delete_uploaded_file(old_image)
 
     if not room_name or not card_key or not lifestyle_copy:
         cursor.close()
