@@ -181,7 +181,7 @@ button {
 
 .card-image-container {
     width: 100%;
-    height: 200px;
+    height: 220px;
     overflow: hidden;
     display: flex;
     align-items: center;
@@ -194,13 +194,12 @@ button {
 .card-image {
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: cover;
     object-position: center;
     display: block;
     max-width: 100%;
     pointer-events: none;
     transition: transform 0.3s ease;
-    padding: 0.75rem;
 }
 
 .service-card:hover .card-image,
@@ -1061,7 +1060,7 @@ body.is-nav-expanded main {
 
 .service-card .card-image-container {
     width: 100%;
-    height: 200px;
+    height: 220px;
     border-radius: 0;
 }
 
