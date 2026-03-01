@@ -3694,6 +3694,10 @@ body {
 /* ====================================
    WHY CHOOSE US SECTION
    ==================================== */
+.services + .why-choose {
+    margin-top: -4rem;
+}
+
 .why-choose {
     background: #f7f9fc;
     padding: 4rem 2rem;
