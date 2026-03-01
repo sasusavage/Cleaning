@@ -2466,6 +2466,31 @@ textarea {
     color: var(--accent);
 }
 
+/* ── Footer Areas Banner ── */
+.footer__areas {
+    margin-top: 3rem;
+    padding: 1.25rem 0;
+    border-top: 1px solid rgba(15, 23, 42, 0.08);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.footer__areas-inner {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    justify-content: center;
+    text-align: center;
+    font-size: 0.95rem;
+    color: var(--brand-green-dark);
+    line-height: 1.5;
+    flex-wrap: wrap;
+}
+
+.footer__areas-icon {
+    flex-shrink: 0;
+    color: var(--brand-green);
+}
+
 .footer__bottom {
     text-align: center;
     margin-top: 4rem;
