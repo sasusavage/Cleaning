@@ -2221,6 +2221,8 @@ body.is-nav-expanded main {
 .contact {
     position: relative;
     overflow: hidden;
+    max-width: 100%;
+    width: 100%;
 }
 
 .contact::before {
