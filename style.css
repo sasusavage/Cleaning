@@ -949,6 +949,37 @@ body.is-nav-expanded main {
     opacity: 0.6;
 }
 
+/* ── Unified Services Sub-sections ── */
+.services__subsection {
+    margin-bottom: 1rem;
+}
+
+.services__subsection-header {
+    margin-bottom: 2.5rem;
+}
+
+.services__subsection-title {
+    font-size: clamp(1.5rem, 2.2vw, 2rem);
+    font-weight: 700;
+    color: var(--brand-green-dark);
+    margin-bottom: 0.5rem;
+}
+
+.services__subsection-desc {
+    font-size: 1.05rem;
+    color: #4b5563;
+    max-width: 620px;
+    line-height: 1.6;
+}
+
+.services__divider {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--brand-green), transparent);
+    margin: 4rem 0;
+    opacity: 0.35;
+}
+
 .services__grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
