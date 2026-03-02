@@ -2187,6 +2187,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
             var updateActionButtons = function (selection) {
                 ensureSurveyButton();
+                // In read-only mode, keep all action buttons hidden
+                if (flowReadOnlyMode) {
+                    if (flowNextButton) flowNextButton.style.display = "none";
+                    if (flowSurveyButton) flowSurveyButton.style.display = "none";
+                    return;
+                }
                 var isBlocker = selection && selection.payload && selection.payload.is_blocker;
                 var showSurvey = isBlocker === true;
                 if (flowNextButton) {
