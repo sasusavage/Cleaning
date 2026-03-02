@@ -3618,6 +3618,11 @@ body {
         gap: 2rem;
     }
 
+    .hero::before {
+        background-position: center top;
+        background-size: cover;
+    }
+
     .hero__title {
         font-size: clamp(2.2rem, 8vw, 3rem);
     }
@@ -3638,6 +3643,17 @@ body {
 
     .hero__visual {
         display: none;
+    }
+
+    /* Quote/Contact section mobile background */
+    .contact {
+        padding: 3rem 1rem;
+    }
+
+    .contact::before {
+        background-position: center top;
+        background-size: cover;
+        transform: scale(1);
     }
 
     .nav__items {
