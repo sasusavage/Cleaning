@@ -51,6 +51,11 @@ except ImportError:  # cryptography is optional; fallback handlers will be used
 app = Flask(__name__, static_folder='.', static_url_path='')
 
 
+@app.route('/healthz')
+def healthz():
+    return 'ok', 200
+
+
 @app.route('/favicon.ico')
 def favicon():
     return send_from_directory(
