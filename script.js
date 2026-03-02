@@ -722,6 +722,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var pendingServiceId = null;
     var pendingAutoExpand = false;
     var autoExpandDescription = false;
+    var flowReadOnlyMode = false;
 
     if (serviceModal && serviceFlowForm) {
         var flowSteps = Array.from(serviceModal.querySelectorAll("[data-flow-step]"));
@@ -2256,14 +2257,48 @@ document.addEventListener("DOMContentLoaded", function () {
 
             setPriceDisplay(flowState.selections[service.id]);
 
-            if (flowPrevButton) {
-                flowPrevButton.disabled = currentServiceIndex === 0;
-            }
+            // Handle read-only mode (from "Read More" button without postcode)
+            var readOnlyBanner = document.getElementById("flow-readonly-banner");
+            if (flowReadOnlyMode) {
+                // Show read-only banner if not exists
+                if (!readOnlyBanner) {
+                    readOnlyBanner = document.createElement("div");
+                    readOnlyBanner.id = "flow-readonly-banner";
+                    readOnlyBanner.className = "flow-readonly-banner";
+                    readOnlyBanner.innerHTML = '<p>📍 <strong>Want to book this service?</strong> Enter your postcode to check availability and proceed with booking.</p><button type="button" class="button button--primary" id="flow-readonly-book-btn">Enter Postcode to Book</button>';
+                    var stepContent = serviceModal.querySelector("[data-flow-step='1']");
+                    if (stepContent) {
+                        stepContent.insertBefore(readOnlyBanner, stepContent.firstChild);
+                    }
+                    // Bind the book button
+                    var bookBtn = document.getElementById("flow-readonly-book-btn");
+                    if (bookBtn) {
+                        bookBtn.addEventListener("click", function () {
+                            closeServiceModal();
+                            var currentService = getServiceFromQueue(currentServiceIndex);
+                            openPostcodeModal(currentService ? currentService.id : null, true);
+                        });
+                    }
+                }
+                readOnlyBanner.style.display = "block";
+                // Hide action buttons in read-only mode
+                if (flowNextButton) flowNextButton.style.display = "none";
+                if (flowPrevButton) flowPrevButton.style.display = "none";
+                if (flowSkipButton) flowSkipButton.style.display = "none";
+                if (flowSurveyButton) flowSurveyButton.style.display = "none";
+            } else {
+                if (readOnlyBanner) readOnlyBanner.style.display = "none";
+                if (flowPrevButton) {
+                    flowPrevButton.style.display = "";
+                    flowPrevButton.disabled = currentServiceIndex === 0;
+                }
 
-            if (flowNextButton) {
-                var isLast = currentServiceIndex === serviceQueue.length - 1;
-                flowNextButton.textContent = isLast ? "Review Summary" : "Next Service";
-                updateActionButtons(flowState.selections[service.id]);
+                if (flowNextButton) {
+                    flowNextButton.style.display = "";
+                    var isLast = currentServiceIndex === serviceQueue.length - 1;
+                    flowNextButton.textContent = isLast ? "Review Summary" : "Next Service";
+                    updateActionButtons(flowState.selections[service.id]);
+                }
             }
         };
 
@@ -2634,11 +2669,12 @@ document.addEventListener("DOMContentLoaded", function () {
             return SERVICE_CATALOG.find(function (s) { return String(s.id) === String(serviceId); });
         };
 
-        var openServiceModal = function (serviceId, autoExpandDetails) {
+        var openServiceModal = function (serviceId, autoExpandDetails, readOnly) {
             // Build reordered queue starting with the selected service
             serviceQueue = buildServiceQueue(serviceId);
             currentServiceIndex = 0;
             autoExpandDescription = Boolean(autoExpandDetails);
+            flowReadOnlyMode = Boolean(readOnly);
             updateMiniCart();
             hydrateContactFields();
             serviceModal.classList.add("is-open");
@@ -2661,6 +2697,7 @@ document.addEventListener("DOMContentLoaded", function () {
             serviceModal.classList.remove("is-open");
             serviceModal.setAttribute("aria-hidden", "true");
             document.body.style.overflow = "";
+            flowReadOnlyMode = false; // Reset read-only mode when closing
         };
 
         var openPostcodeModal = function (serviceId, autoExpandDetails) {
@@ -3314,7 +3351,12 @@ document.addEventListener("DOMContentLoaded", function () {
                     event.preventDefault();
                     var targetServiceId = button.getAttribute("data-service-id");
                     var autoExpand = button.getAttribute("data-auto-expand") === "true";
-                    if (askForPostcode) {
+                    var isReadMore = button.classList.contains("service-read-more");
+                    
+                    // Read More should always show content without requiring postcode
+                    if (isReadMore) {
+                        openServiceModal(targetServiceId, autoExpand, true); // true = readOnly mode
+                    } else if (askForPostcode) {
                         openPostcodeModal(targetServiceId, autoExpand);
                     } else {
                         openServiceModal(targetServiceId, autoExpand);

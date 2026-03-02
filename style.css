@@ -3109,6 +3109,26 @@ body {
     line-height: 1.5;
 }
 
+/* Read-only mode banner (when viewing via "Read More" without postcode) */
+.flow-readonly-banner {
+    background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+    border: 1px solid var(--brand-green);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+    text-align: center;
+}
+
+.flow-readonly-banner p {
+    margin: 0 0 1rem;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+}
+
+.flow-readonly-banner .button {
+    margin: 0 auto;
+}
+
 .flow-options {
     display: grid;
     gap: 0.85rem;
