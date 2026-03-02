@@ -868,13 +868,15 @@ body.is-nav-expanded main {
     letter-spacing: 0.35em;
     text-transform: uppercase;
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.7);
+    color: rgba(255, 255, 255, 0.9);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
 }
 
 .hero__title {
     font-size: clamp(3rem, 5vw, 5.2rem);
-    font-weight: 500;
+    font-weight: 600;
     line-height: 1.05;
+    text-shadow: 0 3px 12px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 .hero__title--accent {
@@ -887,8 +889,9 @@ body.is-nav-expanded main {
 
 .hero__subtitle {
     font-size: 1.1rem;
-    color: rgba(255, 255, 255, 0.78);
+    color: rgba(255, 255, 255, 0.95);
     max-width: 520px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
 }
 
 .hero__meta {
@@ -901,11 +904,12 @@ body.is-nav-expanded main {
 .hero__meta-item {
     padding: 1rem 1.25rem;
     border-radius: var(--radius-medium);
-    background: rgba(255, 255, 255, 0.16);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    color: rgba(255, 255, 255, 0.88);
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.95);
     font-size: 0.9rem;
-    backdrop-filter: blur(18px);
+    backdrop-filter: blur(12px);
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 
 .hero__cta {
