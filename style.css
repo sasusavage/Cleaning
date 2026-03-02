@@ -2338,11 +2338,13 @@ body.is-nav-expanded main {
 }
 
 .contact .section__eyebrow {
-    color: rgba(255, 255, 255, 0.7);
+    color: rgba(255, 255, 255, 0.9);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
 }
 
 .contact .section__title {
     color: #ffffff;
+    text-shadow: 0 3px 12px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 .contact__grid {
