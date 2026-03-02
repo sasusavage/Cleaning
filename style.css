@@ -4116,6 +4116,13 @@ body {
         overflow-x: hidden;
     }
 
+    /* Fix background image scaling on mobile */
+    .contact::before {
+        background-size: cover;
+        background-position: center center;
+        transform: none;
+    }
+
     /* 2. Stack the Grid Columns */
     .contact__grid {
         display: flex;
