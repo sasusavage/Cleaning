@@ -2315,8 +2315,8 @@ body.is-nav-expanded main {
     background: var(--quote-image);
     background-size: cover;
     background-position: center;
+    background-repeat: no-repeat;
     z-index: -2;
-    transform: scale(1.05);
 }
 
 .contact::after {
@@ -3668,12 +3668,13 @@ body {
     /* Quote/Contact section mobile background */
     .contact {
         padding: 3rem 1rem;
+        min-height: 100vh;
     }
 
     .contact::before {
-        background-position: center top;
+        background-position: center center;
         background-size: cover;
-        transform: scale(1);
+        background-repeat: no-repeat;
     }
 
     .nav__items {
@@ -4134,12 +4135,14 @@ body {
     .contact {
         padding: 40px 15px !important;
         overflow-x: hidden;
+        min-height: 100vh;
     }
 
-    /* Fix background image scaling on mobile */
+    /* Fix background image scaling on mobile - match hero section */
     .contact::before {
         background-size: cover;
         background-position: center center;
+        background-attachment: scroll;
         transform: none;
     }
 
