@@ -1242,8 +1242,28 @@ document.addEventListener("DOMContentLoaded", function () {
             } else {
                 selections.forEach(function (selection) {
                     var item = document.createElement("li");
+                    item.className = "flow-mini-cart__item";
                     var detail = selection.optionDetails ? " • " + selection.optionDetails : "";
-                    item.textContent = selection.serviceName + " – " + selection.optionLabel + detail + " (" + (selection.priceDisplay || formatPrice(selection.price)) + ")";
+                    var textSpan = document.createElement("span");
+                    textSpan.className = "flow-mini-cart__item-text";
+                    textSpan.textContent = selection.serviceName + " – " + selection.optionLabel + detail + " (" + (selection.priceDisplay || formatPrice(selection.price)) + ")";
+                    item.appendChild(textSpan);
+                    
+                    // Add remove button
+                    var removeBtn = document.createElement("button");
+                    removeBtn.type = "button";
+                    removeBtn.className = "flow-mini-cart__remove";
+                    removeBtn.setAttribute("aria-label", "Remove " + selection.serviceName);
+                    removeBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+                    removeBtn.addEventListener("click", function (e) {
+                        e.stopPropagation();
+                        delete flowState.selections[selection.serviceId];
+                        persistFlowState();
+                        updateMiniCart();
+                        renderServiceStep();
+                    });
+                    item.appendChild(removeBtn);
+                    
                     flowMiniCartList.appendChild(item);
                 });
             }

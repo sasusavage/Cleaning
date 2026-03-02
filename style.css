@@ -3044,6 +3044,39 @@ body {
     color: var(--text-secondary);
 }
 
+.flow-mini-cart__item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.flow-mini-cart__item-text {
+    flex: 1;
+    line-height: 1.4;
+}
+
+.flow-mini-cart__remove {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.flow-mini-cart__remove:hover {
+    background: rgba(239, 68, 68, 0.2);
+    transform: scale(1.1);
+}
+
 .flow-mini-cart__total {
     font-size: 0.95rem;
     color: var(--text-primary);
