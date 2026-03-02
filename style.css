@@ -447,6 +447,14 @@ body.is-nav-expanded main {
     padding: 8rem 3rem;
 }
 
+.services.panel {
+    padding-top: 3rem;
+}
+
+.testimonials .panel {
+    padding-top: 3rem;
+}
+
 .section__header {
     margin-bottom: 3.5rem;
     max-width: 680px;
@@ -2594,12 +2602,12 @@ textarea {
 }
 
 .footer__areas-inner strong {
-    color: var(--brand-green);
+    color: var(--brand-blue);
 }
 
 .footer__areas-icon {
     flex-shrink: 0;
-    color: var(--brand-green);
+    color: var(--brand-blue);
 }
 
 .footer__bottom {
@@ -3860,7 +3868,7 @@ body {
    WHO WE ARE SECTION
    ==================================== */
 .who-we-are {
-    padding: 4rem 2rem;
+    padding: 4rem 2rem 2rem;
 }
 
 .who-we-are__grid {
