@@ -2585,11 +2585,11 @@ textarea {
 
 /* ── Footer Areas Banner ── */
 .footer__areas {
-    max-width: var(--max-width);
-    margin: 0 auto;
-    padding: 1rem 3rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    max-width: 100%;
+    margin: 0;
+    padding: 1.25rem 3rem;
+    background: var(--brand-blue);
+    border: none;
 }
 
 .footer__areas-inner {
@@ -2599,18 +2599,20 @@ textarea {
     justify-content: center;
     text-align: center;
     font-size: 0.9rem;
-    color: var(--brand-blue);
+    color: #ffffff;
     line-height: 1.5;
     flex-wrap: wrap;
+    max-width: var(--max-width);
+    margin: 0 auto;
 }
 
 .footer__areas-inner strong {
-    color: var(--brand-blue);
+    color: #ffffff;
 }
 
 .footer__areas-icon {
     flex-shrink: 0;
-    color: var(--brand-blue);
+    color: #ffffff;
 }
 
 .footer__bottom {
