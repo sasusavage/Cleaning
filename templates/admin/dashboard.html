@@ -2144,6 +2144,7 @@
                         <option value="options">Options (Multiple Choices)</option>
                         <option value="tenancy">Tenancy (Property Size Table)</option>
                         <option value="deep">Deep Cleaning (Tiers &amp; Staff)</option>
+                        <option value="airbnb">Airbnb (List + Hours + Staff)</option>
                         <option value="itemized">Itemized (List of Items)</option>
                     </select>
                     <p style="margin: 0.35rem 0 0; font-size: 0.85rem; color: #6b7280;">Determines which pricing configurator appears after saving. Select "Simple" for a single fixed price.</p>
@@ -4717,6 +4718,7 @@
                 'options': 'Options',
                 'tenancy': 'Tenancy',
                 'deep': 'Deep Cleaning',
+                'airbnb': 'Airbnb',
                 'itemized': 'Itemized'
             };
             const typeLabel = TYPE_LABELS[type] || (type.charAt(0).toUpperCase() + type.slice(1));
@@ -4746,7 +4748,7 @@
                 return;
             }
 
-            if (type === 'deep') {
+            if (type === 'deep' || type === 'airbnb') {
                 panel.innerHTML = header + renderDeepTierUI(service);
                 wireDeepTierHandlers(panel, service.id);
                 return;

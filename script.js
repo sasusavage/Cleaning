@@ -1993,6 +1993,172 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         };
 
+        var renderAirbnbConfigurator = function (service, previousSelection, onChange) {
+            var tiers = Array.isArray(service.pricing_tiers) ? service.pricing_tiers : [];
+            if (!tiers.length) {
+                flowOptionsContainer.innerHTML = "<p>No Airbnb packages configured.</p>";
+                onChange(null);
+                return;
+            }
+
+            var selectedId = (previousSelection && previousSelection.payload && previousSelection.payload.tier_id) || tiers[0].id;
+            var previousStaff = previousSelection && previousSelection.payload ? previousSelection.payload.staff : null;
+            var previousHours = previousSelection && previousSelection.payload ? previousSelection.payload.hours : null;
+
+            var listWrap = document.createElement("div");
+            listWrap.style.display = "grid";
+            listWrap.style.gap = "0.6rem";
+
+            tiers.forEach(function (tier) {
+                var label = document.createElement("label");
+                label.className = "flow-option";
+                label.setAttribute("data-tier-id", tier.id);
+
+                var meta = document.createElement("div");
+                meta.className = "flow-option__meta";
+
+                var radio = document.createElement("input");
+                radio.type = "radio";
+                radio.name = "airbnb-tier";
+                radio.value = tier.id;
+                radio.checked = String(selectedId) === String(tier.id);
+
+                var details = document.createElement("div");
+                details.className = "flow-option__details";
+
+                var strong = document.createElement("strong");
+                strong.textContent = tier.tier_name || "Airbnb package";
+                details.appendChild(strong);
+
+                var sub = document.createElement("span");
+                var minStaff = Number(tier.min_staff) || 1;
+                sub.textContent = "Min " + minStaff + " staff";
+                details.appendChild(sub);
+
+                meta.appendChild(radio);
+                meta.appendChild(details);
+
+                var price = document.createElement("div");
+                price.className = "flow-option__price";
+                var rate = normalizePriceValue(tier.hourly_rate);
+                price.textContent = typeof rate === "number" ? formatPrice(rate) + " /hr per cleaner" : "Custom quote";
+
+                label.appendChild(meta);
+                label.appendChild(price);
+
+                radio.addEventListener("change", function () {
+                    selectedId = tier.id;
+                    emit();
+                });
+
+                label.addEventListener("click", function (event) {
+                    if (event.target && event.target.tagName === "INPUT") {
+                        return;
+                    }
+                    radio.checked = true;
+                    selectedId = tier.id;
+                    emit();
+                });
+
+                listWrap.appendChild(label);
+            });
+
+            var controls = document.createElement("div");
+            controls.style.display = "grid";
+            controls.style.gap = "0.75rem";
+            controls.style.gridTemplateColumns = "repeat(auto-fit, minmax(180px, 1fr))";
+            controls.style.marginTop = "1rem";
+
+            var staffLabel = document.createElement("label");
+            staffLabel.style.display = "flex";
+            staffLabel.style.flexDirection = "column";
+            staffLabel.style.gap = "0.35rem";
+            staffLabel.textContent = "Number of Staff";
+            var staffInput = document.createElement("input");
+            staffInput.type = "number";
+            staffInput.min = 1;
+            staffInput.step = 1;
+            staffInput.value = previousStaff || 1;
+            staffLabel.appendChild(staffInput);
+
+            var hoursLabel = document.createElement("label");
+            hoursLabel.style.display = "flex";
+            hoursLabel.style.flexDirection = "column";
+            hoursLabel.style.gap = "0.35rem";
+            hoursLabel.textContent = "Hours Required";
+            var hoursInput = document.createElement("input");
+            hoursInput.type = "number";
+            hoursInput.min = 1;
+            hoursInput.step = 0.5;
+            hoursInput.value = previousHours || 2;
+            hoursLabel.appendChild(hoursInput);
+
+            controls.appendChild(staffLabel);
+            controls.appendChild(hoursLabel);
+
+            var summary = document.createElement("div");
+            summary.className = "price-summary-box";
+            summary.style.marginTop = "0.85rem";
+
+            flowOptionsContainer.appendChild(listWrap);
+            flowOptionsContainer.appendChild(controls);
+            flowOptionsContainer.appendChild(summary);
+
+            function emit() {
+                Array.from(listWrap.querySelectorAll('.flow-option')).forEach(function (row) {
+                    var rowId = row.getAttribute('data-tier-id');
+                    row.classList.toggle('is-selected', String(rowId) === String(selectedId));
+                });
+
+                var tier = tiers.find(function (t) { return String(t.id) === String(selectedId); }) || tiers[0];
+                var minStaff = Math.max(Number(tier.min_staff) || 1, 1);
+                var staff = Number(staffInput.value);
+                if (!Number.isFinite(staff) || staff < minStaff) {
+                    staff = minStaff;
+                    staffInput.value = minStaff;
+                }
+                var hours = Number(hoursInput.value);
+                if (!Number.isFinite(hours) || hours <= 0) {
+                    hours = 1;
+                    hoursInput.value = 1;
+                }
+
+                var rate = normalizePriceValue(tier.hourly_rate);
+                var equipment = normalizePriceValue(tier.equipment_fee) || 0;
+                var detergent = normalizePriceValue(tier.detergent_fee) || 0;
+                var total = rate !== null ? Math.round(((rate * staff * hours) + equipment + detergent) * 100) / 100 : null;
+
+                summary.innerHTML = rate !== null ? [
+                    '<div class="row"><span>Package:</span><span>' + escapeHtml(tier.tier_name || 'Airbnb package') + '</span></div>',
+                    '<div class="row"><span>Rate:</span><span>' + formatPrice(rate) + ' /hr per cleaner</span></div>',
+                    '<div class="row"><span>Staff:</span><span>' + staff + '</span></div>',
+                    '<div class="row"><span>Hours:</span><span>' + hours + '</span></div>',
+                    '<div class="total-row"><span>ESTIMATED TOTAL:</span><span>' + formatPrice(total) + '</span></div>'
+                ].join('') : 'Custom quote';
+
+                onChange({
+                    optionId: tier ? tier.id : null,
+                    optionLabel: tier ? (tier.tier_name || 'Airbnb package') : 'Airbnb package',
+                    optionDetails: 'Staff: ' + staff + ' • Hours: ' + hours,
+                    price: total,
+                    priceDisplay: typeof total === 'number' ? formatPrice(total) : 'Custom quote',
+                    modelType: 'airbnb',
+                    payload: {
+                        type: 'airbnb',
+                        tier_id: tier ? tier.id : null,
+                        staff: staff,
+                        hours: hours,
+                        equipment_fee: equipment,
+                        detergent_fee: detergent
+                    }
+                });
+            }
+
+            staffInput.addEventListener('input', emit);
+            hoursInput.addEventListener('input', emit);
+            emit();
+        };
+
         var renderItemizedConfigurator = function (service, schema, previousSelection, onChange) {
             var items = Array.isArray(schema.items) ? schema.items : [];
             if (!items.length) {
@@ -2273,6 +2439,8 @@ document.addEventListener("DOMContentLoaded", function () {
             var pricingType = service.pricing_type || (service.tenancy_rates && service.tenancy_rates.length ? "tenancy" : service.pricing_tiers && service.pricing_tiers.length ? "deep" : service.pricing_items && service.pricing_items.length ? "itemized" : "options");
             if (pricingType === "tenancy") {
                 renderTenancyConfigurator(service, previousSelection, handleSelectionChange);
+            } else if (pricingType === "airbnb") {
+                renderAirbnbConfigurator(service, previousSelection, handleSelectionChange);
             } else if (pricingType === "deep") {
                 renderDeepTierConfigurator(service, previousSelection, handleSelectionChange);
             } else if (pricingType === "itemized") {

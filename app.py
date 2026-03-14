@@ -3302,7 +3302,7 @@ def resolve_service_selections(raw_selections):
                 'price': price_value
             }
 
-        elif pricing_model in ('deep', 'deep_tiers'):
+        elif pricing_model in ('deep', 'deep_tiers', 'airbnb'):
             tier_id = payload.get('tier_id') or payload.get('selection') or payload.get('option_id')
             tier = next((t for t in service.get('pricing_tiers', []) if int(t['id']) == int(tier_id)), None)
             if not tier:
@@ -3330,7 +3330,7 @@ def resolve_service_selections(raw_selections):
                 'price': price_value
             })
             detail = {
-                'model': 'deep',
+                'model': 'airbnb' if pricing_model == 'airbnb' else 'deep',
                 'tier_id': tier.get('id'),
                 'tier_name': tier.get('tier_name'),
                 'staff': staff,
@@ -4442,7 +4442,7 @@ def add_service():
             return jsonify({'error': 'Description is required.'}), 400
 
         # Validate pricing_model
-        valid_pricing_models = ('simple', 'options', 'tenancy', 'deep', 'itemized')
+        valid_pricing_models = ('simple', 'options', 'tenancy', 'deep', 'airbnb', 'itemized')
         if pricing_model not in valid_pricing_models:
             pricing_model = 'simple'
 
@@ -4528,7 +4528,7 @@ def edit_service(service_id):
             return jsonify({'error': 'Description is required.'}), 400
 
         # Validate pricing_model
-        valid_pricing_models = ('simple', 'options', 'tenancy', 'deep', 'itemized')
+        valid_pricing_models = ('simple', 'options', 'tenancy', 'deep', 'airbnb', 'itemized')
         if pricing_model and pricing_model not in valid_pricing_models:
             pricing_model = None  # Don't update if invalid
 
