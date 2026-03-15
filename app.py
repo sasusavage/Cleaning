@@ -9216,20 +9216,78 @@ def admin_applications():
 
 @app.route('/')
 def index():
-    services = fetch_services_from_db()
-    job_positions = fetch_job_positions_from_db()
-    testimonials = fetch_testimonials_from_db(shuffle=True)
-    hero_content = fetch_hero_content()
-    hero_badges = fetch_hero_badges()
-    contact_info = fetch_contact_info()
-    footer_info = fetch_footer_info()
-    site_settings = fetch_site_settings()
-    travel_settings = fetch_travel_settings()
-    site_content = fetch_site_content()
-    domestic_cleaning = fetch_domestic_cleaning_data(include_inactive=False)
+    services = []
+    job_positions = []
+    testimonials = []
+    hero_content = {}
+    hero_badges = []
+    contact_info = {}
+    footer_info = {}
+    site_settings = {}
+    travel_settings = {}
+    site_content = {}
+    domestic_cleaning = {}
+
+    try:
+        services = fetch_services_from_db()
+    except Exception:
+        app.logger.exception('Error fetching services for index page')
+
+    try:
+        job_positions = fetch_job_positions_from_db()
+    except Exception:
+        app.logger.exception('Error fetching job positions for index page')
+
+    try:
+        testimonials = fetch_testimonials_from_db(shuffle=True)
+    except Exception:
+        app.logger.exception('Error fetching testimonials for index page')
+
+    try:
+        hero_content = fetch_hero_content()
+    except Exception:
+        app.logger.exception('Error fetching hero content for index page')
+
+    try:
+        hero_badges = fetch_hero_badges()
+    except Exception:
+        app.logger.exception('Error fetching hero badges for index page')
+
+    try:
+        contact_info = fetch_contact_info()
+    except Exception:
+        app.logger.exception('Error fetching contact info for index page')
+
+    try:
+        footer_info = fetch_footer_info()
+    except Exception:
+        app.logger.exception('Error fetching footer info for index page')
+
+    try:
+        site_settings = fetch_site_settings()
+    except Exception:
+        app.logger.exception('Error fetching site settings for index page')
+
+    try:
+        travel_settings = fetch_travel_settings()
+    except Exception:
+        app.logger.exception('Error fetching travel settings for index page')
+
+    try:
+        site_content = fetch_site_content()
+    except Exception:
+        app.logger.exception('Error fetching site content for index page')
+
+    try:
+        domestic_cleaning = fetch_domestic_cleaning_data(include_inactive=False)
+    except Exception:
+        app.logger.exception('Error fetching domestic cleaning content for index page')
 
     # Fetch active FAQs
-    ensure_faq_table()
+    try:
+        ensure_faq_table()
+    except Exception:
+        app.logger.exception('Error ensuring FAQ table for index page')
     faqs = []
     try:
         conn = get_db_connection()
@@ -9278,9 +9336,12 @@ def index():
             'raw': raw_stat.strip()
         })
 
-    log_analytics_event('homepage_visit', {
-        'ip': request.remote_addr
-    })
+    try:
+        log_analytics_event('homepage_visit', {
+            'ip': request.remote_addr
+        })
+    except Exception:
+        app.logger.exception('Error logging homepage analytics event')
     return render_template(
         'index.html',
         services=services,
