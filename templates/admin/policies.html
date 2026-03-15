@@ -131,8 +131,8 @@
         }
 
         .nav-link.active {
-            background: rgba(34, 197, 94, 0.25);
-            color: #86efac;
+            background: rgba(37, 99, 235, 0.25);
+            color: #93c5fd;
         }
 
         .main-content {
@@ -648,20 +648,25 @@
             <span class="logo">{{ company_name }}</span>
         </div>
         <nav class="sidebar__nav">
-            <a href="/admin/dashboard" class="nav-link">Dashboard</a>
-            <a href="/admin/bookings" class="nav-link">Bookings</a>
-            <a href="/admin/applications" class="nav-link">Applications</a>
-            <a href="/admin/hero-content" class="nav-link">Hero Content</a>
-            <a href="/admin/site-content" class="nav-link">Site Content</a>
-            <a href="/admin/quote-section" class="nav-link">Quote Section</a>
-            <a href="/admin/faqs" class="nav-link">FAQs</a>
-            <a href="/admin/policies" class="nav-link active">Policies</a>
+            <a href="{{ url_for('admin_dashboard') }}#analytics" class="nav-link">Analytics</a>
+            <a href="{{ url_for('admin_dashboard') }}#requests" class="nav-link">Requests</a>
+            <a href="{{ url_for('admin_dashboard') }}#services" class="nav-link">Services</a>
+            <a href="{{ url_for('admin_dashboard') }}#travel" class="nav-link">Travel Pricing</a>
+            <a href="{{ url_for('admin_dashboard') }}#positions" class="nav-link">Job Positions</a>
+            <a href="{{ url_for('admin_dashboard') }}#testimonials" class="nav-link">Testimonials</a>
+            <a href="{{ url_for('admin_hero_content_page') }}" class="nav-link">Hero Content</a>
+            <a href="{{ url_for('admin_brand_settings') }}" class="nav-link">Brand &amp; Logo</a>
+            <a href="{{ url_for('admin_quote_section') }}" class="nav-link">Quote &amp; Contact</a>
+            <a href="{{ url_for('admin_site_content_page') }}" class="nav-link">Site Content</a>
+            <a href="{{ url_for('admin_faqs_page') }}" class="nav-link">FAQs</a>
+            <a href="{{ url_for('admin_policies_page') }}" class="nav-link active">Policies</a>
             <a href="{{ url_for('admin_domestic_cleaning_page') }}" class="nav-link">Domestic Cleaning</a>
-            <a href="/admin/branding" class="nav-link">Branding</a>
-            <a href="/admin/footer-settings" class="nav-link">Footer</a>
-            <a href="/admin/telegram" class="nav-link">Telegram</a>
-            <a href="/admin/ai-settings" class="nav-link">AI Settings</a>
-            <a href="/admin/chat-conversations" class="nav-link">Chat History</a>
+            <a href="{{ url_for('admin_footer_settings') }}" class="nav-link">Footer Settings</a>
+            <a href="{{ url_for('admin_dashboard') }}#email" class="nav-link">Email Settings</a>
+            <a href="{{ url_for('admin_dashboard') }}#payments" class="nav-link">Payments</a>
+            <a href="{{ url_for('admin_telegram_settings') }}" class="nav-link">Telegram</a>
+            <a href="{{ url_for('admin_ai_settings_page') }}" class="nav-link">AI Assistant</a>
+            <a href="{{ url_for('admin_chat_conversations_page') }}" class="nav-link">Chat Conversations</a>
         </nav>
         <form action="/admin/logout" method="POST" class="sidebar__logout-form">
             <button type="submit" class="sidebar__logout-button">Logout</button>

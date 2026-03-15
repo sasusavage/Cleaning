@@ -27,7 +27,7 @@
         .sidebar__nav { display:flex; flex-direction:column; gap:.25rem; }
         .nav-link { display:block; padding:.65rem .9rem; color:#9ca3af; text-decoration:none; border-radius:.5rem; font-size:.9rem; transition: background .2s, color .2s; }
         .nav-link:hover { background: rgba(255,255,255,.08); color:#f9fafb; }
-        .nav-link.active { background: rgba(22,163,74,.25); color: #bbf7d0; }
+        .nav-link.active { background: rgba(37, 99, 235, 0.25); color: #93c5fd; }
         .sidebar__logout-form { margin-top:.75rem; }
         .sidebar__logout-button { width:100%; display:block; padding:.75rem 1rem; border-radius:.5rem; border:1px solid rgba(248,113,113,.25); background: rgba(248,113,113,.12); color:#fca5a5; font-weight:600; font-size:.9rem; cursor:pointer; }
 
@@ -86,14 +86,15 @@
             <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
             <a class="nav-link" href="{{ url_for('admin_quote_section') }}">Quote &amp; Contact</a>
             <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
-            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
-            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
-            <a class="nav-link active" href="{{ url_for('admin_domestic_cleaning_page') }}">🏠 Domestic Cleaning</a>
+            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">FAQs</a>
+            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">Policies</a>
+            <a class="nav-link active" href="{{ url_for('admin_domestic_cleaning_page') }}">Domestic Cleaning</a>
             <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
             <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">Email Settings</a>
-            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">📱 Telegram</a>
-            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}" style="background: rgba(124, 58, 237, 0.25); color: #c4b5fd;">🤖 AI Assistant</a>
-            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}" style="background: rgba(124, 58, 237, 0.25); color: #c4b5fd;">💬 Chat Conversations</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">Payments</a>
+            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">Telegram</a>
+            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">AI Assistant</a>
+            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">Chat Conversations</a>
         </nav>
         <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
             <button type="submit" class="sidebar__logout-button">Log Out</button>

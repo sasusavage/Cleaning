@@ -55,7 +55,7 @@
         .logo { font-size: 1.1rem; font-weight: 700; }
         .nav-link { display: block; padding: 0.65rem 0.9rem; color: #9ca3af; text-decoration: none; border-radius: 0.5rem; font-size: 0.9rem; transition: background 0.2s, color 0.2s; }
         .nav-link:hover { background: rgba(255,255,255,0.08); color: #f9fafb; }
-        .nav-link.active { background: rgba(99,102,241,0.25); color: #a5b4fc; }
+        .nav-link.active { background: rgba(37, 99, 235, 0.25); color: #93c5fd; }
 
         .main-content {
             flex: 1;
@@ -422,9 +422,10 @@
             <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">Domestic Cleaning</a>
             <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
             <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">Email Settings</a>
-            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">📱 Telegram</a>
-            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">🤖 AI Settings</a>
-            <a class="nav-link active" href="{{ url_for('admin_chat_conversations_page') }}" style="background: rgba(124, 58, 237, 0.25); color: #c4b5fd;">💬 Chat Conversations</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">Payments</a>
+            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">Telegram</a>
+            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">AI Assistant</a>
+            <a class="nav-link active" href="{{ url_for('admin_chat_conversations_page') }}">Chat Conversations</a>
             <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
                 <button type="submit" class="sidebar__logout-button">Log Out</button>
             </form>

@@ -390,14 +390,15 @@
             <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
             <a class="nav-link" href="{{ url_for('admin_quote_section') }}">Quote &amp; Contact</a>
             <a class="nav-link active" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
-            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
-            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
-            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">🏠 Domestic Cleaning</a>
+            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">FAQs</a>
+            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">Policies</a>
+            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">Domestic Cleaning</a>
             <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
             <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">Email Settings</a>
-            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">📱 Telegram</a>
-            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}" style="background: rgba(124, 58, 237, 0.25); color: #c4b5fd;">🤖 AI Assistant</a>
-            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}" style="background: rgba(124, 58, 237, 0.25); color: #c4b5fd;">💬 Chat Conversations</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">Payments</a>
+            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">Telegram</a>
+            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">AI Assistant</a>
+            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">Chat Conversations</a>
             <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
                 <button type="submit" class="sidebar__logout-button">Log Out</button>
             </form>
