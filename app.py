@@ -35,6 +35,11 @@ except ImportError:
     resend = None
 
 try:
+    import stripe
+except ImportError:
+    stripe = None
+
+try:
     import psycopg2
     from psycopg2.extras import Json as PGJson, RealDictCursor
 except ImportError:
@@ -2518,6 +2523,287 @@ def upsert_travel_settings(payload):
     return fetch_travel_settings()
 
 
+def _get_app_base_url():
+    configured = (os.getenv('APP_BASE_URL') or '').strip().rstrip('/')
+    if configured:
+        return configured
+    try:
+        host = (request.host_url or '').strip().rstrip('/')
+        if host:
+            return host
+    except RuntimeError:
+        pass
+    return 'http://127.0.0.1:5000'
+
+
+def stripe_secret_key():
+    return (os.getenv('STRIPE_SECRET_KEY') or '').strip()
+
+
+def stripe_webhook_secret():
+    return (os.getenv('STRIPE_WEBHOOK_SECRET') or '').strip()
+
+
+def stripe_publishable_key():
+    return (os.getenv('STRIPE_PUBLISHABLE_KEY') or '').strip()
+
+
+def stripe_ready():
+    return bool(stripe and stripe_secret_key())
+
+
+def ensure_payment_tables():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS payment_settings (
+                id BIGINT PRIMARY KEY,
+                require_payment BOOLEAN DEFAULT FALSE,
+                currency VARCHAR(10) DEFAULT 'gbp',
+                success_url VARCHAR(600),
+                cancel_url VARCHAR(600),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS payment_transactions (
+                id BIGSERIAL PRIMARY KEY,
+                provider VARCHAR(30) DEFAULT 'stripe',
+                checkout_session_id VARCHAR(255),
+                payment_intent_id VARCHAR(255),
+                status VARCHAR(50) DEFAULT 'initiated',
+                currency VARCHAR(10) DEFAULT 'gbp',
+                amount_total NUMERIC(10,2),
+                customer_name VARCHAR(255),
+                customer_email VARCHAR(255),
+                service_summary TEXT,
+                request_payload TEXT,
+                prepared_payload TEXT,
+                request_id BIGINT,
+                service_request_id BIGINT,
+                error_message TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+            """
+        )
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_tx_session ON payment_transactions(checkout_session_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_tx_status ON payment_transactions(status)")
+        cursor.execute("SELECT COUNT(*) FROM payment_settings")
+        if (cursor.fetchone() or [0])[0] == 0:
+            cursor.execute(
+                """
+                INSERT INTO payment_settings (id, require_payment, currency, success_url, cancel_url)
+                VALUES (1, FALSE, 'gbp', NULL, NULL)
+                """
+            )
+    else:
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS payment_settings (
+                id INT PRIMARY KEY,
+                require_payment TINYINT(1) DEFAULT 0,
+                currency VARCHAR(10) DEFAULT 'gbp',
+                success_url VARCHAR(600),
+                cancel_url VARCHAR(600),
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS payment_transactions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                provider VARCHAR(30) DEFAULT 'stripe',
+                checkout_session_id VARCHAR(255),
+                payment_intent_id VARCHAR(255),
+                status VARCHAR(50) DEFAULT 'initiated',
+                currency VARCHAR(10) DEFAULT 'gbp',
+                amount_total DECIMAL(10,2),
+                customer_name VARCHAR(255),
+                customer_email VARCHAR(255),
+                service_summary TEXT,
+                request_payload LONGTEXT,
+                prepared_payload LONGTEXT,
+                request_id BIGINT,
+                service_request_id BIGINT,
+                error_message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_payment_tx_session (checkout_session_id),
+                INDEX idx_payment_tx_status (status)
+            )
+            """
+        )
+        cursor.execute("SELECT COUNT(*) FROM payment_settings")
+        if (cursor.fetchone() or [0])[0] == 0:
+            cursor.execute(
+                """
+                INSERT INTO payment_settings (id, require_payment, currency, success_url, cancel_url)
+                VALUES (1, 0, 'gbp', NULL, NULL)
+                """
+            )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def fetch_payment_settings():
+    ensure_payment_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM payment_settings WHERE id = 1")
+    row = cursor.fetchone() or {}
+    cursor.close()
+    conn.close()
+
+    success_url = (row.get('success_url') or '').strip() if row else ''
+    cancel_url = (row.get('cancel_url') or '').strip() if row else ''
+    base = _get_app_base_url()
+
+    return {
+        'id': 1,
+        'require_payment': bool(row.get('require_payment')),
+        'currency': (row.get('currency') or 'gbp').lower(),
+        'success_url': success_url or f"{base}/payment/callback/success?session_id={{CHECKOUT_SESSION_ID}}",
+        'cancel_url': cancel_url or f"{base}/payment/callback/cancel",
+        'stripe_enabled': stripe_ready(),
+        'webhook_configured': bool(stripe_webhook_secret()),
+        'publishable_key': stripe_publishable_key()
+    }
+
+
+def upsert_payment_settings(payload):
+    ensure_payment_tables()
+    require_payment = bool(str_to_bool(payload.get('require_payment')))
+    currency = (payload.get('currency') or 'gbp').strip().lower()[:10] or 'gbp'
+    success_url = (payload.get('success_url') or '').strip()[:600]
+    cancel_url = (payload.get('cancel_url') or '').strip()[:600]
+
+    if not success_url:
+        success_url = f"{_get_app_base_url()}/payment/callback/success?session_id={{CHECKOUT_SESSION_ID}}"
+    if not cancel_url:
+        cancel_url = f"{_get_app_base_url()}/payment/callback/cancel"
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE payment_settings
+        SET require_payment=%s, currency=%s, success_url=%s, cancel_url=%s, updated_at=CURRENT_TIMESTAMP
+        WHERE id = 1
+        """,
+        (1 if require_payment else 0, currency, success_url, cancel_url)
+    )
+    if cursor.rowcount == 0:
+        cursor.execute(
+            """
+            INSERT INTO payment_settings (id, require_payment, currency, success_url, cancel_url)
+            VALUES (1, %s, %s, %s, %s)
+            """,
+            (1 if require_payment else 0, currency, success_url, cancel_url)
+        )
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return fetch_payment_settings()
+
+
+def create_payment_transaction(amount_total, currency, customer_name, customer_email, service_summary, request_payload, prepared_payload):
+    ensure_payment_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO payment_transactions
+        (provider, status, currency, amount_total, customer_name, customer_email, service_summary, request_payload, prepared_payload)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        ('stripe', 'initiated', currency, amount_total, customer_name, customer_email, service_summary, request_payload, prepared_payload)
+    )
+    tx_id = cursor.lastrowid
+    if not tx_id:
+        cursor.execute("SELECT LASTVAL()")
+        fetched = cursor.fetchone()
+        tx_id = fetched[0] if fetched else None
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return tx_id
+
+
+def update_payment_transaction(tx_id, **fields):
+    if not tx_id or not fields:
+        return
+    set_parts = []
+    values = []
+    for key, value in fields.items():
+        set_parts.append(f"{key} = %s")
+        values.append(value)
+    set_parts.append("updated_at = CURRENT_TIMESTAMP")
+    values.append(tx_id)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"UPDATE payment_transactions SET {', '.join(set_parts)} WHERE id = %s",
+        values
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def fetch_payment_transaction_by_session(session_id):
+    if not session_id:
+        return None
+    ensure_payment_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT * FROM payment_transactions WHERE checkout_session_id = %s ORDER BY id DESC LIMIT 1",
+        (session_id,)
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
+def fetch_payment_transactions(limit=200):
+    ensure_payment_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        """
+        SELECT id, provider, checkout_session_id, payment_intent_id, status, currency, amount_total,
+               customer_name, customer_email, service_summary, request_id, service_request_id, error_message,
+               created_at, updated_at
+        FROM payment_transactions
+        ORDER BY id DESC
+        LIMIT %s
+        """,
+        (max(1, min(int(limit or 200), 1000)),)
+    )
+    rows = cursor.fetchall() or []
+    cursor.close()
+    conn.close()
+    for row in rows:
+        amount = normalize_price_value(row.get('amount_total'))
+        row['amount_total'] = amount if amount is not None else None
+        for key in ('created_at', 'updated_at'):
+            dt_val = row.get(key)
+            if isinstance(dt_val, datetime):
+                row[key] = dt_val.isoformat()
+    return rows
+
+
 def fetch_operating_bases(include_inactive=False):
     ensure_travel_tables()
     conn = get_db_connection()
@@ -3216,8 +3502,11 @@ def resolve_service_selections(raw_selections):
     service_ids = []
     for entry in raw_selections:
         if isinstance(entry, dict) and entry.get('service_id'):
+            service_id_raw = entry.get('service_id')
+            if isinstance(service_id_raw, str) and service_id_raw.startswith('domestic_'):
+                continue
             try:
-                service_ids.append(int(entry.get('service_id')))
+                service_ids.append(int(service_id_raw))
             except (TypeError, ValueError):
                 continue
     service_ids = list({sid for sid in service_ids if sid})
@@ -3235,7 +3524,11 @@ def resolve_service_selections(raw_selections):
         if not isinstance(entry, dict):
             continue
 
-        service_id = entry.get('service_id')
+        service_id_raw = entry.get('service_id')
+        if isinstance(service_id_raw, str) and service_id_raw.startswith('domestic_'):
+            continue
+
+        service_id = service_id_raw
         try:
             service_id = int(service_id)
         except (TypeError, ValueError):
@@ -3290,7 +3583,7 @@ def resolve_service_selections(raw_selections):
             clean_type = 'Deep Clean' if variant == 'deep' else 'Standard Clean'
             detailed_label = f"{property_label} • {clean_type}"
             resolved_item.update({
-                'service_option_id': rate.get('id'),
+                'service_option_id': None,
                 'option_label': detailed_label,
                 'price': price_value
             })
@@ -3325,7 +3618,7 @@ def resolve_service_selections(raw_selections):
             detail_parts = [tier_name, f"Staff: {staff}", f"Hours: {hours}"]
             detailed_label = ' • '.join(detail_parts)
             resolved_item.update({
-                'service_option_id': tier.get('id'),
+                'service_option_id': None,
                 'option_label': detailed_label,
                 'price': price_value
             })
@@ -4245,167 +4538,369 @@ def travel_quote():
         return jsonify({'error': 'Unable to calculate travel cost right now.'}), 500
 
 
+def prepare_service_booking(payload):
+    payload = payload or {}
+    selections_raw = payload.get('selections') or payload.get('cart')
+    selections, subtotal, has_custom, pricing_details = resolve_service_selections(selections_raw)
+    has_survey_request = any(item.get('is_survey_request') for item in selections)
+
+    user_postcode = sanitize_text(payload.get('postcode'), 255)
+    if user_postcode:
+        travel_quote = _get_session_travel_quote(user_postcode)
+        if not travel_quote:
+            travel_quote = calculate_travel_cost(user_postcode)
+    else:
+        travel_quote = {
+            'travel_fee': 0,
+            'distance_miles': None,
+            'travel_time_minutes': None,
+            'pricing_method': 'disabled'
+        }
+
+    customer_data = payload.get('customer') or {}
+    schedule_data = payload.get('schedule') or {}
+
+    customer_name = sanitize_text(customer_data.get('name'), 150)
+    if not customer_name:
+        raise ValueError('Please provide your full name.')
+    customer_email = sanitize_email(customer_data.get('email'))
+    customer_phone = sanitize_phone(customer_data.get('phone'))
+    if not customer_phone:
+        raise ValueError('Please enter a phone number so we can reach you.')
+    customer_address = sanitize_text(customer_data.get('address') or payload.get('address'), 255)
+
+    preferred_date_raw = schedule_data.get('preferred_date') or payload.get('preferred_date')
+    preferred_time = sanitize_text(schedule_data.get('preferred_time') or payload.get('preferred_time'), 32)
+    parsed_date = parse_preferred_date(preferred_date_raw)
+    if preferred_date_raw and not parsed_date:
+        raise ValueError('Please choose a valid preferred date.')
+
+    notes = sanitize_text(payload.get('notes') or schedule_data.get('notes'), 1000)
+
+    travel_fee_value = travel_quote.get('travel_fee') if travel_quote else None
+    services_subtotal_display = 'To be confirmed (survey required)' if has_survey_request else (format_currency_label(subtotal) if not has_custom else 'Custom quote')
+    total_with_travel = None
+    if not has_custom and not has_survey_request and subtotal is not None:
+        total_with_travel = subtotal
+        if travel_fee_value is not None:
+            total_with_travel = round(subtotal + travel_fee_value, 2)
+
+    summary_lines = ['Selections:']
+    for item in selections:
+        summary_lines.append(
+            f"- {item['service_name']} · {item['option_label']} ({format_currency_label(item.get('price'))})"
+        )
+    summary_lines.append('')
+    summary_lines.append(f"Services subtotal: {services_subtotal_display}")
+    if travel_fee_value is not None and not has_survey_request:
+        summary_lines.append(f"Logistics & Area Fee: {format_currency_label(travel_fee_value)}")
+    if has_survey_request:
+        summary_lines.append('Pricing: Survey required before confirming total. No payment taken.')
+    elif total_with_travel is not None:
+        summary_lines.append(f"Estimated total: {format_currency_label(total_with_travel)}")
+    summary_lines.append('')
+    summary_lines.append(f"Preferred date: {preferred_date_raw or 'Flexible'}")
+    summary_lines.append(f"Preferred time: {preferred_time or 'Flexible'}")
+    if customer_address:
+        summary_lines.append(f"Address: {customer_address}")
+    if notes:
+        summary_lines.append('')
+        summary_lines.append(f"Notes: {notes}")
+    if travel_quote:
+        summary_lines.append('')
+        if travel_quote.get('distance_miles') is not None:
+            summary_lines.append(f"Distance: {travel_quote.get('distance_miles')} miles")
+        if travel_quote.get('base_name'):
+            summary_lines.append(f"Assigned base: {travel_quote.get('base_name')}")
+
+    service_metadata = {
+        'customer': {
+            'name': customer_name,
+            'email': customer_email,
+            'phone': customer_phone,
+            'address': customer_address
+        },
+        'schedule': {
+            'preferred_date': preferred_date_raw,
+            'preferred_time': preferred_time
+        },
+        'notes': notes,
+        'selections': selections,
+        'pricing_details': pricing_details,
+        'totals': {
+            'amount': subtotal if (not has_custom and not has_survey_request) else None,
+            'has_custom_pricing': has_custom,
+            'is_survey_request': has_survey_request,
+            'display': services_subtotal_display,
+            'travel_fee': travel_fee_value,
+            'total_with_travel': total_with_travel
+        },
+        'travel': travel_quote
+    }
+
+    primary_service_name = selections[0]['service_name'] if selections else 'Cleaning package'
+    public_payload = {
+        'request_type': 'service',
+        'name': customer_name,
+        'email': customer_email,
+        'phone': customer_phone,
+        'service_name': primary_service_name,
+        'message': '\n'.join(summary_lines),
+        'context_page': payload.get('context_page') or '/#services',
+        'source': payload.get('source') or 'service-flow'
+    }
+
+    customer_bundle = {
+        'name': customer_name,
+        'email': customer_email,
+        'phone': customer_phone,
+        'address': customer_address
+    }
+    schedule_bundle = {
+        'preferred_date': parsed_date,
+        'preferred_time': preferred_time
+    }
+    stored_total_for_db = total_with_travel if not has_custom and not has_survey_request else None
+
+    return {
+        'incoming_payload': payload,
+        'selections': selections,
+        'subtotal': subtotal,
+        'has_custom': has_custom,
+        'pricing_details': pricing_details,
+        'has_survey_request': has_survey_request,
+        'travel_quote': travel_quote,
+        'total_with_travel': total_with_travel,
+        'public_payload': public_payload,
+        'service_metadata': service_metadata,
+        'customer_bundle': customer_bundle,
+        'schedule_bundle': schedule_bundle,
+        'stored_total_for_db': stored_total_for_db,
+        'notes': notes,
+        'primary_service_name': primary_service_name,
+        'customer_name': customer_name,
+        'customer_email': customer_email
+    }
+
+
+def finalize_prepared_service_booking(prepared, remote_addr=None):
+    prepared = prepared or {}
+    submission = process_request_submission(
+        prepared.get('public_payload') or {},
+        uploaded_files=None,
+        remote_addr=remote_addr,
+        extra_metadata={'service_flow': prepared.get('service_metadata') or {}},
+        status_override='survey_needed' if prepared.get('has_survey_request') else None
+    )
+
+    service_request_id = persist_service_request_bundle(
+        prepared.get('customer_bundle') or {},
+        prepared.get('schedule_bundle') or {},
+        prepared.get('notes'),
+        prepared.get('selections') or [],
+        prepared.get('stored_total_for_db') if prepared.get('stored_total_for_db') is not None else prepared.get('subtotal'),
+        bool(prepared.get('has_custom')),
+        submission.get('request_id'),
+        prepared.get('travel_quote') or {},
+        prepared.get('pricing_details') or [],
+        status_value='survey_needed' if prepared.get('has_survey_request') else 'pending'
+    )
+    attach_service_request_reference(submission.get('request_id'), service_request_id)
+
+    submission['service_request_id'] = service_request_id
+    submission['travel'] = prepared.get('travel_quote') or {}
+    if prepared.get('total_with_travel') is not None:
+        submission['total_with_travel'] = prepared.get('total_with_travel')
+    submission['message'] = 'Thanks! Your survey request has been received. We will call to arrange a visit.' if prepared.get('has_survey_request') else 'Thanks! Your booking request has been received.'
+    return submission
+
+
 @app.route('/api/service-requests', methods=['POST'])
 def create_service_request():
     payload = request.get_json(silent=True) or {}
 
     try:
-        selections_raw = payload.get('selections') or payload.get('cart')
-        selections, subtotal, has_custom, pricing_details = resolve_service_selections(selections_raw)
-        has_survey_request = any(item.get('is_survey_request') for item in selections)
+        payment_settings = fetch_payment_settings()
+        if payment_settings.get('require_payment'):
+            return jsonify({'error': 'Payment is required before booking. Please proceed via checkout.'}), 402
 
-        user_postcode = sanitize_text(payload.get('postcode'), 255)
-        travel_quote = None
-        if user_postcode:
-            travel_quote = _get_session_travel_quote(user_postcode)
-            if not travel_quote:
-                travel_quote = calculate_travel_cost(user_postcode)
-        else:
-            travel_quote = {
-                'travel_fee': 0,
-                'distance_miles': None,
-                'travel_time_minutes': None,
-                'pricing_method': 'disabled'
-            }
-
-        customer_data = payload.get('customer') or {}
-        schedule_data = payload.get('schedule') or {}
-
-        customer_name = sanitize_text(customer_data.get('name'), 150)
-        if not customer_name:
-            raise ValueError('Please provide your full name.')
-        customer_email = sanitize_email(customer_data.get('email'))
-        customer_phone = sanitize_phone(customer_data.get('phone'))
-        if not customer_phone:
-            raise ValueError('Please enter a phone number so we can reach you.')
-        customer_address = sanitize_text(customer_data.get('address') or payload.get('address'), 255)
-
-        preferred_date_raw = schedule_data.get('preferred_date') or payload.get('preferred_date')
-        preferred_time = sanitize_text(schedule_data.get('preferred_time') or payload.get('preferred_time'), 32)
-        parsed_date = parse_preferred_date(preferred_date_raw)
-        if preferred_date_raw and not parsed_date:
-            raise ValueError('Please choose a valid preferred date.')
-
-        notes = sanitize_text(payload.get('notes') or schedule_data.get('notes'), 1000)
-
-        travel_fee_value = travel_quote.get('travel_fee') if travel_quote else None
-        services_subtotal_display = 'To be confirmed (survey required)' if has_survey_request else (format_currency_label(subtotal) if not has_custom else 'Custom quote')
-        total_with_travel = None
-        if not has_custom and not has_survey_request and subtotal is not None:
-            total_with_travel = subtotal
-            if travel_fee_value is not None:
-                total_with_travel = round(subtotal + travel_fee_value, 2)
-
-        summary_lines = ['Selections:']
-        for item in selections:
-            summary_lines.append(
-                f"- {item['service_name']} · {item['option_label']} ({format_currency_label(item.get('price'))})"
-            )
-        summary_lines.append('')
-        summary_lines.append(f"Services subtotal: {services_subtotal_display}")
-        if travel_fee_value is not None and not has_survey_request:
-            summary_lines.append(f"Logistics & Area Fee: {format_currency_label(travel_fee_value)}")
-        if has_survey_request:
-            summary_lines.append('Pricing: Survey required before confirming total. No payment taken.')
-        elif total_with_travel is not None:
-            summary_lines.append(f"Estimated total: {format_currency_label(total_with_travel)}")
-        summary_lines.append('')
-        summary_lines.append(f"Preferred date: {preferred_date_raw or 'Flexible'}")
-        summary_lines.append(f"Preferred time: {preferred_time or 'Flexible'}")
-        if customer_address:
-            summary_lines.append(f"Address: {customer_address}")
-        if notes:
-            summary_lines.append('')
-            summary_lines.append(f"Notes: {notes}")
-        if travel_quote:
-            summary_lines.append('')
-            if travel_quote.get('distance_miles') is not None:
-                summary_lines.append(f"Distance: {travel_quote.get('distance_miles')} miles")
-            if travel_quote.get('base_name'):
-                summary_lines.append(f"Assigned base: {travel_quote.get('base_name')}")
-
-        service_metadata = {
-            'customer': {
-                'name': customer_name,
-                'email': customer_email,
-                'phone': customer_phone,
-                'address': customer_address
-            },
-            'schedule': {
-                'preferred_date': preferred_date_raw,
-                'preferred_time': preferred_time
-            },
-            'notes': notes,
-            'selections': selections,
-            'pricing_details': pricing_details,
-            'totals': {
-                'amount': subtotal if (not has_custom and not has_survey_request) else None,
-                'has_custom_pricing': has_custom,
-                'is_survey_request': has_survey_request,
-                'display': services_subtotal_display,
-                'travel_fee': travel_fee_value,
-                'total_with_travel': total_with_travel
-            },
-            'travel': travel_quote
-        }
-
-        primary_service_name = selections[0]['service_name'] if selections else 'Cleaning package'
-        public_payload = {
-            'request_type': 'service',
-            'name': customer_name,
-            'email': customer_email,
-            'phone': customer_phone,
-            'service_name': primary_service_name,
-            'message': '\n'.join(summary_lines),
-            'context_page': payload.get('context_page') or '/#services',
-            'source': 'service-flow'
-        }
-
-        submission = process_request_submission(
-            public_payload,
-            uploaded_files=None,
-            remote_addr=request.remote_addr,
-            extra_metadata={'service_flow': service_metadata},
-            status_override='survey_needed' if has_survey_request else None
-        )
-
-        customer_bundle = {
-            'name': customer_name,
-            'email': customer_email,
-            'phone': customer_phone,
-            'address': customer_address
-        }
-        schedule_bundle = {
-            'preferred_date': parsed_date,
-            'preferred_time': preferred_time
-        }
-        stored_total_for_db = total_with_travel if not has_custom and not has_survey_request else None
-
-        service_request_id = persist_service_request_bundle(
-            customer_bundle,
-            schedule_bundle,
-            notes,
-            selections,
-            stored_total_for_db if stored_total_for_db is not None else subtotal,
-            has_custom,
-            submission.get('request_id'),
-            travel_quote,
-            pricing_details,
-            status_value='survey_needed' if has_survey_request else 'pending'
-        )
-        attach_service_request_reference(submission.get('request_id'), service_request_id)
-
-        submission['service_request_id'] = service_request_id
-        submission['travel'] = travel_quote
-        if total_with_travel is not None:
-            submission['total_with_travel'] = total_with_travel
-        submission['message'] = 'Thanks! Your survey request has been received. We will call to arrange a visit.' if has_survey_request else 'Thanks! Your booking request has been received.'
+        prepared = prepare_service_booking(payload)
+        submission = finalize_prepared_service_booking(prepared, remote_addr=request.remote_addr)
         return jsonify(submission), 201
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:
         app.logger.exception('Failed to process service flow request')
         return jsonify({'error': 'Unable to submit request at this time.'}), 500
+
+
+@app.route('/api/payments/start-checkout', methods=['POST'])
+def start_stripe_checkout():
+    payload = request.get_json(silent=True) or {}
+    try:
+        prepared = prepare_service_booking(payload)
+        payment_settings = fetch_payment_settings()
+
+        # If payment is not required, keep existing direct processing behavior.
+        if not payment_settings.get('require_payment'):
+            submission = finalize_prepared_service_booking(prepared, remote_addr=request.remote_addr)
+            submission['mode'] = 'direct'
+            return jsonify(submission), 201
+
+        if prepared.get('has_survey_request'):
+            return jsonify({'error': 'This request requires a survey first, so payment cannot be taken yet.'}), 400
+        if prepared.get('has_custom'):
+            return jsonify({'error': 'This selection needs a custom quote before payment.'}), 400
+        total_with_travel = normalize_price_value(prepared.get('total_with_travel'))
+        if total_with_travel is None or total_with_travel <= 0:
+            return jsonify({'error': 'Unable to calculate a payable total for this booking.'}), 400
+
+        if not stripe_ready():
+            return jsonify({'error': 'Stripe is not configured. Set STRIPE_SECRET_KEY in environment variables.'}), 500
+
+        stripe.api_key = stripe_secret_key()
+        currency = (payment_settings.get('currency') or 'gbp').lower()
+        amount_minor = int(round(total_with_travel * 100))
+        service_label = prepared.get('primary_service_name') or 'Cleaning service'
+
+        tx_id = create_payment_transaction(
+            amount_total=total_with_travel,
+            currency=currency,
+            customer_name=prepared.get('customer_name') or '',
+            customer_email=prepared.get('customer_email') or '',
+            service_summary=service_label,
+            request_payload=json.dumps(payload),
+            prepared_payload=json.dumps(prepared, default=str)
+        )
+
+        session_data = stripe.checkout.Session.create(
+            mode='payment',
+            payment_method_types=['card'],
+            customer_email=prepared.get('customer_email') or None,
+            success_url=payment_settings.get('success_url'),
+            cancel_url=payment_settings.get('cancel_url'),
+            line_items=[
+                {
+                    'price_data': {
+                        'currency': currency,
+                        'product_data': {
+                            'name': f"{service_label} booking",
+                            'description': 'Booking is confirmed after successful payment.'
+                        },
+                        'unit_amount': amount_minor
+                    },
+                    'quantity': 1
+                }
+            ],
+            metadata={
+                'transaction_id': str(tx_id)
+            }
+        )
+
+        update_payment_transaction(
+            tx_id,
+            checkout_session_id=session_data.get('id'),
+            status='checkout_created'
+        )
+
+        return jsonify({
+            'mode': 'checkout',
+            'checkout_url': session_data.get('url'),
+            'session_id': session_data.get('id'),
+            'transaction_id': tx_id,
+            'amount_total': total_with_travel,
+            'currency': currency
+        }), 200
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        app.logger.exception('Failed to start Stripe checkout.')
+        return jsonify({'error': 'Unable to start payment right now.'}), 500
+
+
+def process_completed_payment_session(session_obj):
+    session_id = session_obj.get('id')
+    tx = fetch_payment_transaction_by_session(session_id)
+    if not tx:
+        app.logger.warning('Stripe webhook session %s has no matching local transaction.', session_id)
+        return
+
+    if tx.get('request_id') and tx.get('service_request_id'):
+        update_payment_transaction(
+            tx.get('id'),
+            status='processed',
+            payment_intent_id=session_obj.get('payment_intent')
+        )
+        return
+
+    update_payment_transaction(
+        tx.get('id'),
+        status='paid',
+        payment_intent_id=session_obj.get('payment_intent')
+    )
+
+    try:
+        prepared_payload = tx.get('prepared_payload') or '{}'
+        prepared = json.loads(prepared_payload)
+        submission = finalize_prepared_service_booking(prepared, remote_addr='stripe-webhook')
+        update_payment_transaction(
+            tx.get('id'),
+            status='processed',
+            request_id=submission.get('request_id'),
+            service_request_id=submission.get('service_request_id')
+        )
+    except Exception as exc:
+        app.logger.exception('Failed to finalize paid booking for transaction %s', tx.get('id'))
+        update_payment_transaction(
+            tx.get('id'),
+            status='processing_failed',
+            error_message=str(exc)[:1500]
+        )
+
+
+@app.route('/api/payments/stripe/webhook', methods=['POST'])
+def stripe_webhook_endpoint():
+    if not stripe_ready():
+        return jsonify({'error': 'Stripe is not configured.'}), 500
+    signing_secret = stripe_webhook_secret()
+    if not signing_secret:
+        return jsonify({'error': 'Stripe webhook secret missing.'}), 500
+
+    payload = request.get_data()
+    signature = request.headers.get('Stripe-Signature', '')
+    try:
+        event = stripe.Webhook.construct_event(payload, signature, signing_secret)
+    except Exception:
+        app.logger.exception('Invalid Stripe webhook signature.')
+        return jsonify({'error': 'Invalid signature'}), 400
+
+    event_type = event.get('type')
+    event_data = (event.get('data') or {}).get('object') or {}
+
+    if event_type == 'checkout.session.completed':
+        process_completed_payment_session(event_data)
+    elif event_type in ('checkout.session.expired', 'payment_intent.payment_failed'):
+        session_id = event_data.get('id') or event_data.get('checkout_session')
+        tx = fetch_payment_transaction_by_session(session_id)
+        if tx:
+            update_payment_transaction(tx.get('id'), status='failed')
+
+    return jsonify({'received': True})
+
+
+@app.route('/payment/callback/success', methods=['GET'])
+def payment_callback_success():
+    session_id = sanitize_text(request.args.get('session_id'), 255)
+    target = url_for('index')
+    if session_id:
+        return redirect(f"{target}?payment=success&session_id={urllib.parse.quote(session_id)}")
+    return redirect(f"{target}?payment=success")
+
+
+@app.route('/payment/callback/cancel', methods=['GET'])
+def payment_callback_cancel():
+    target = url_for('index')
+    return redirect(f"{target}?payment=cancelled")
 
 
 @app.route('/api/job-positions', methods=['GET'])
@@ -6847,6 +7342,35 @@ def admin_email_settings():
     except Exception:
         app.logger.exception('Failed to update email settings.')
         return jsonify({'error': 'Unable to update email settings at this time.'}), 500
+
+
+@app.route('/admin/api/payment-settings', methods=['GET', 'POST'])
+@admin_login_required
+def admin_payment_settings_api():
+    if request.method == 'GET':
+        return jsonify(fetch_payment_settings())
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        updated = upsert_payment_settings(payload)
+        return jsonify({'message': 'Payment settings saved.', 'settings': updated})
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        app.logger.exception('Failed to update payment settings.')
+        return jsonify({'error': 'Unable to save payment settings right now.'}), 500
+
+
+@app.route('/admin/api/payment-transactions', methods=['GET'])
+@admin_login_required
+def admin_payment_transactions_api():
+    try:
+        limit = request.args.get('limit', 200)
+        rows = fetch_payment_transactions(limit=limit)
+        return jsonify(rows)
+    except Exception:
+        app.logger.exception('Failed to load payment transactions.')
+        return jsonify({'error': 'Unable to load transactions right now.'}), 500
 
 
 @app.route('/admin/api/travel-settings', methods=['GET', 'POST'])

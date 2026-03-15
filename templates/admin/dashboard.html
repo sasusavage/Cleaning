@@ -1467,6 +1467,7 @@
             <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">🏠 Domestic Cleaning</a>
             <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
             <a id="nav-email" class="nav-link" onclick="showSection('email')">Email Settings</a>
+            <a id="nav-payments" class="nav-link" onclick="showSection('payments')">Payments</a>
             <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">📱 Telegram</a>
             <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}" style="background: rgba(124, 58, 237, 0.25); color: #c4b5fd;">🤖 AI Assistant</a>
             <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}" style="background: rgba(124, 58, 237, 0.25); color: #c4b5fd;">💬 Chat Conversations</a>
@@ -1864,6 +1865,76 @@
                         <button class="btn btn-primary" type="submit">Save Settings</button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Payments Section -->
+        <div id="payments" class="section">
+            <div class="header" style="gap: 1rem; flex-wrap: wrap; align-items: flex-start;">
+                <div>
+                    <h1 class="title" style="margin-bottom: 0.25rem;">Payments</h1>
+                    <p style="margin: 0; color: #6b7280; max-width: 760px;">Configure Stripe checkout behavior and monitor transaction status. API keys are read from environment variables (not stored in the dashboard).</p>
+                </div>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button class="btn btn-primary" type="button" onclick="loadPaymentSettings(true); loadPaymentTransactions(true);">Refresh</button>
+                </div>
+            </div>
+
+            <div class="card section-card">
+                <form id="payment-settings-form" style="display:grid; gap: 1rem;">
+                    <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+                        <label style="display:flex; flex-direction:column; gap:0.35rem;">
+                            Currency
+                            <input id="payment-currency" name="currency" type="text" maxlength="10" placeholder="gbp">
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:0.35rem;">
+                            Success URL
+                            <input id="payment-success-url" name="success_url" type="text" placeholder="https://.../payment/callback/success?session_id={CHECKOUT_SESSION_ID}">
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:0.35rem;">
+                            Cancel URL
+                            <input id="payment-cancel-url" name="cancel_url" type="text" placeholder="https://.../payment/callback/cancel">
+                        </label>
+                    </div>
+
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+                        <label style="display:inline-flex; align-items:center; gap:0.5rem; font-weight:600;">
+                            <input id="payment-require-payment" name="require_payment" type="checkbox">
+                            Require successful payment before processing booking
+                        </label>
+                    </div>
+
+                    <div id="payment-env-status" style="font-size: 0.88rem; color: #6b7280;"></div>
+
+                    <div style="display:flex; justify-content:flex-end; gap:0.75rem;">
+                        <button class="btn" type="button" onclick="loadPaymentSettings()">Reset</button>
+                        <button class="btn btn-primary" type="submit">Save Payment Settings</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card" style="padding: 1rem 1.25rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; gap:0.75rem; flex-wrap:wrap;">
+                    <h3 style="margin:0;">Transactions</h3>
+                    <button class="btn btn-ghost" type="button" onclick="loadPaymentTransactions(true)">Reload</button>
+                </div>
+                <div style="overflow:auto;">
+                    <table id="payment-transactions-table" class="table-compact" style="width:100%; min-width: 960px;">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Status</th>
+                                <th>Amount</th>
+                                <th>Customer</th>
+                                <th>Service</th>
+                                <th>Checkout Session</th>
+                                <th>Request IDs</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -2392,6 +2463,13 @@
         const travelMaxRadiusInput = document.getElementById('travel-max-radius');
         const travelEnablePricing = document.getElementById('travel-enable-pricing');
         const travelAskPostcode = document.getElementById('travel-ask-postcode');
+        const paymentSettingsForm = document.getElementById('payment-settings-form');
+        const paymentRequirePaymentInput = document.getElementById('payment-require-payment');
+        const paymentCurrencyInput = document.getElementById('payment-currency');
+        const paymentSuccessUrlInput = document.getElementById('payment-success-url');
+        const paymentCancelUrlInput = document.getElementById('payment-cancel-url');
+        const paymentEnvStatus = document.getElementById('payment-env-status');
+        const paymentTransactionsTable = document.getElementById('payment-transactions-table');
         const operatingBaseForm = document.getElementById('operating-base-form');
         const baseIdInput = document.getElementById('base-id');
         const baseNameInput = document.getElementById('base-name');
@@ -4032,6 +4110,121 @@
             }
         }
 
+        function applyPaymentSettingsToForm(settings = {}) {
+            if (!paymentSettingsForm) {
+                return;
+            }
+            if (paymentRequirePaymentInput) paymentRequirePaymentInput.checked = Boolean(settings.require_payment);
+            if (paymentCurrencyInput) paymentCurrencyInput.value = settings.currency || 'gbp';
+            if (paymentSuccessUrlInput) paymentSuccessUrlInput.value = settings.success_url || '';
+            if (paymentCancelUrlInput) paymentCancelUrlInput.value = settings.cancel_url || '';
+            if (paymentEnvStatus) {
+                const stripeStatus = settings.stripe_enabled ? 'Stripe key detected ✅' : 'Stripe key missing ❌';
+                const webhookStatus = settings.webhook_configured ? 'Webhook secret detected ✅' : 'Webhook secret missing ❌';
+                paymentEnvStatus.textContent = `${stripeStatus} • ${webhookStatus}. Set STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, and STRIPE_PUBLISHABLE_KEY in environment variables.`;
+            }
+        }
+
+        async function loadPaymentSettings(showToastOnSuccess = false) {
+            if (!paymentSettingsForm) {
+                return;
+            }
+            try {
+                const res = await fetch('/admin/api/payment-settings');
+                if (!res.ok) {
+                    throw new Error('Unable to load payment settings.');
+                }
+                const data = await res.json();
+                applyPaymentSettingsToForm(data || {});
+                if (showToastOnSuccess) {
+                    showToast('Payment settings refreshed.', 'success', 1800);
+                }
+            } catch (error) {
+                console.error(error);
+                showToast(error.message || 'Failed to load payment settings.', 'error');
+            }
+        }
+
+        function renderPaymentTransactions(rows = []) {
+            const tbody = paymentTransactionsTable ? paymentTransactionsTable.querySelector('tbody') : null;
+            if (!tbody) {
+                return;
+            }
+            const list = Array.isArray(rows) ? rows : [];
+            if (!list.length) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#6b7280;">No transactions yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = list.map(tx => {
+                const amount = (typeof tx.amount_total === 'number') ? `£${tx.amount_total.toFixed(2)} ${String(tx.currency || 'gbp').toUpperCase()}` : '—';
+                const customer = tx.customer_name || tx.customer_email || '—';
+                const reqPair = `${tx.request_id || '—'} / ${tx.service_request_id || '—'}`;
+                const created = tx.created_at ? formatDateTime(tx.created_at) : '—';
+                return `
+                    <tr>
+                        <td>${tx.id ?? '—'}</td>
+                        <td>${escapeHtml(tx.status || '—')}</td>
+                        <td>${escapeHtml(amount)}</td>
+                        <td>${escapeHtml(customer)}</td>
+                        <td>${escapeHtml(tx.service_summary || '—')}</td>
+                        <td style="font-size:0.82rem; color:#6b7280;">${escapeHtml(tx.checkout_session_id || '—')}</td>
+                        <td>${escapeHtml(reqPair)}</td>
+                        <td style="white-space:nowrap;">${escapeHtml(created)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function loadPaymentTransactions(showToastOnSuccess = false) {
+            if (!paymentTransactionsTable) {
+                return;
+            }
+            try {
+                const res = await fetch('/admin/api/payment-transactions?limit=300');
+                if (!res.ok) {
+                    throw new Error('Unable to load transactions.');
+                }
+                const data = await res.json();
+                renderPaymentTransactions(data || []);
+                if (showToastOnSuccess) {
+                    showToast('Transactions refreshed.', 'success', 1800);
+                }
+            } catch (error) {
+                console.error(error);
+                showToast(error.message || 'Failed to load transactions.', 'error');
+            }
+        }
+
+        if (paymentSettingsForm) {
+            paymentSettingsForm.addEventListener('submit', async event => {
+                event.preventDefault();
+                const payload = {
+                    require_payment: Boolean(paymentRequirePaymentInput && paymentRequirePaymentInput.checked),
+                    currency: (paymentCurrencyInput?.value || 'gbp').trim(),
+                    success_url: (paymentSuccessUrlInput?.value || '').trim(),
+                    cancel_url: (paymentCancelUrlInput?.value || '').trim()
+                };
+
+                try {
+                    const res = await fetch('/admin/api/payment-settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const body = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        throw new Error(body.error || 'Unable to save payment settings.');
+                    }
+                    applyPaymentSettingsToForm((body && body.settings) || payload);
+                    showToast('Payment settings saved.', 'success', 2200);
+                } catch (error) {
+                    console.error(error);
+                    showToast(error.message || 'Failed to save payment settings.', 'error');
+                }
+            });
+        }
+
         if (requestTypeFilter) {
             requestTypeFilter.addEventListener('change', () => loadRequests());
         }
@@ -4385,6 +4578,10 @@
             if (section === 'testimonials') loadTestimonials();
             if (section === 'analytics') refreshAnalytics(false);
             if (section === 'email') loadEmailSettings();
+            if (section === 'payments') {
+                loadPaymentSettings();
+                loadPaymentTransactions();
+            }
             if (section === 'travel') {
                 loadTravelSettings();
             }

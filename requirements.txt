@@ -8,3 +8,4 @@ python-dotenv>=1.0.0
 gunicorn>=21.2.0
 cloudinary>=1.39.0
 resend>=0.7.0
+stripe>=10.10.0

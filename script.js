@@ -3448,7 +3448,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
 
                 var selections = getOrderedSelections();
-                if (!selections.length) {
+                var bookableSelections = selections.filter(function (selection) {
+                    return !selection.isDomestic;
+                });
+                if (!bookableSelections.length) {
                     flowFeedback.textContent = "Please select at least one service option.";
                     flowFeedback.classList.add("is-error");
                     if (flowSubmitButton) {
@@ -3459,7 +3462,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     return;
                 }
 
-                var serviceSummary = selections.map(function (selection) {
+                var serviceSummary = bookableSelections.map(function (selection) {
                     return selection.serviceName + " – " + selection.optionLabel;
                 }).join(", ") || "Custom package";
 
@@ -3480,7 +3483,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         preferred_time: flowState.schedule.preferred_time
                     },
                     postcode: flowState.customer.postcode,
-                    selections: selections.map(function (selection) {
+                    selections: bookableSelections.map(function (selection) {
                         return {
                             service_id: selection.serviceId,
                             service_option_id: selection.optionId,
@@ -3500,8 +3503,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     window.__domesticPlanContext = null;
                 }
 
-                console.log("Sending request to API...", payload);
-                var response = await fetch(apiBase + "/api/service-requests", {
+                console.log("Starting checkout/direct processing...", payload);
+                var response = await fetch(apiBase + "/api/payments/start-checkout", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json"
@@ -3511,11 +3514,17 @@ document.addEventListener("DOMContentLoaded", function () {
                 var data = await response.json().catch(function () { return {}; });
 
                 if (response.ok) {
+                    if (data.mode === "checkout" && data.checkout_url) {
+                        flowFeedback.textContent = "Redirecting to secure payment...";
+                        flowFeedback.classList.add("is-success");
+                        window.location.href = data.checkout_url;
+                        return;
+                    }
+
                     flowFeedback.textContent = data.message || "Request received! We will confirm shortly.";
                     flowFeedback.classList.add("is-success");
                     sendAnalyticsEvent("request_submission", { form: "service-flow", request_id: data.request_id });
                     resetFlow();
-                    // Release lock after successful submission (resetFlow will clear state)
                     submissionPending = false;
                     window.setTimeout(closeServiceModal, 1500);
                 } else {
