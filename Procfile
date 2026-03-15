@@ -1,1 +1,1 @@
-web: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 2 --threads 2 --worker-class gthread --worker-tmp-dir /dev/shm --preload --access-logfile - --error-logfile -
+web: gunicorn app:app --bind 0.0.0.0:${PORT:-10000} --timeout 120 --workers 1 --threads 4 --worker-class gthread --graceful-timeout 30 --keep-alive 5 --access-logfile - --error-logfile -
