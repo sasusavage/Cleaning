@@ -259,6 +259,23 @@ def sanitize_text(value, max_length=None):
     return cleaned
 
 
+def sanitize_int_range(value, default=0, min_value=-10000, max_value=10000):
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError):
+        return default
+    return max(min_value, min(max_value, parsed))
+
+
+def sanitize_css_color(value, default='#ffffff', allow_empty=False):
+    cleaned = sanitize_text(value, 20)
+    if allow_empty and not cleaned:
+        return ''
+    if re.fullmatch(r'#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?', cleaned):
+        return cleaned
+    return default
+
+
 def sanitize_email(value, max_length=150):
     if not value:
         return ''
@@ -2776,6 +2793,38 @@ def fetch_payment_transaction_by_session(session_id):
     return row
 
 
+def fetch_payment_transaction_by_payment_intent(payment_intent_id):
+    if not payment_intent_id:
+        return None
+    ensure_payment_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT * FROM payment_transactions WHERE payment_intent_id = %s ORDER BY id DESC LIMIT 1",
+        (payment_intent_id,)
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
+def fetch_payment_transaction_by_id(transaction_id):
+    if not transaction_id:
+        return None
+    ensure_payment_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT * FROM payment_transactions WHERE id = %s LIMIT 1",
+        (transaction_id,)
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row
+
+
 def fetch_payment_transactions(limit=200):
     ensure_payment_tables()
     conn = get_db_connection()
@@ -4044,7 +4093,34 @@ DEFAULT_HERO_CONTENT = {
     'stat1_text': '98% · Client satisfaction score',
     'stat2_text': '24h · Response time for every request',
     'stat3_text': 'Emergency · Cleanups available when you need them',
-    'hero_background_image': None
+    'hero_background_image': None,
+    'content_offset_x': 0,
+    'content_offset_y': 0,
+    'tagline_offset_x': 0,
+    'tagline_offset_y': 0,
+    'title_offset_x': 0,
+    'title_offset_y': 0,
+    'subtitle_offset_x': 0,
+    'subtitle_offset_y': 0,
+    'meta_offset_x': 0,
+    'meta_offset_y': 0,
+    'card1_offset_x': 0,
+    'card1_offset_y': 0,
+    'card2_offset_x': 0,
+    'card2_offset_y': 0,
+    'card3_offset_x': 0,
+    'card3_offset_y': 0,
+    'tagline_bg_color': '#16a34a',
+    'tagline_text_color': '#ffffff',
+    'title_color': '#2563eb',
+    'title_size_px': 72,
+    'title_weight': 800,
+    'subtitle_color': '#ffffff',
+    'subtitle_size_px': 18,
+    'subtitle_weight': 600,
+    'content_bg_color': '',
+    'meta_text_color': '#ffffff',
+    'meta_bg_color': '#0f172a'
 }
 
 
@@ -4069,17 +4145,77 @@ DEFAULT_TELEGRAM_SETTINGS = {
 
 
 def fetch_hero_content():
+    ensure_hero_content_schema()
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
-        "SELECT id, title, subtitle, tagline, small_text_line1, small_text_line2, small_text_line3, stat1_text, stat2_text, stat3_text, hero_background_image FROM hero_content WHERE id = 1"
+        """
+        SELECT
+            id, title, subtitle, tagline,
+            small_text_line1, small_text_line2, small_text_line3,
+            stat1_text, stat2_text, stat3_text,
+            hero_background_image,
+            content_offset_x, content_offset_y,
+            tagline_offset_x, tagline_offset_y,
+            title_offset_x, title_offset_y,
+            subtitle_offset_x, subtitle_offset_y,
+            meta_offset_x, meta_offset_y,
+            card1_offset_x, card1_offset_y,
+            card2_offset_x, card2_offset_y,
+            card3_offset_x, card3_offset_y,
+            tagline_bg_color, tagline_text_color,
+            title_color, title_size_px, title_weight,
+            subtitle_color, subtitle_size_px, subtitle_weight,
+            content_bg_color,
+            meta_text_color, meta_bg_color
+        FROM hero_content
+        WHERE id = 1
+        """
     )
     hero = cursor.fetchone()
     if not hero:
         cursor.close()
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO hero_content (id, title, subtitle, tagline, small_text_line1, small_text_line2, small_text_line3, stat1_text, stat2_text, stat3_text, hero_background_image) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            """
+            INSERT INTO hero_content (
+                id, title, subtitle, tagline,
+                small_text_line1, small_text_line2, small_text_line3,
+                stat1_text, stat2_text, stat3_text,
+                hero_background_image,
+                content_offset_x, content_offset_y,
+                tagline_offset_x, tagline_offset_y,
+                title_offset_x, title_offset_y,
+                subtitle_offset_x, subtitle_offset_y,
+                meta_offset_x, meta_offset_y,
+                card1_offset_x, card1_offset_y,
+                card2_offset_x, card2_offset_y,
+                card3_offset_x, card3_offset_y,
+                tagline_bg_color, tagline_text_color,
+                title_color, title_size_px, title_weight,
+                subtitle_color, subtitle_size_px, subtitle_weight,
+                content_bg_color,
+                meta_text_color, meta_bg_color
+            ) VALUES (
+                %s, %s, %s, %s,
+                %s, %s, %s,
+                %s, %s, %s,
+                %s,
+                %s, %s,
+                %s, %s,
+                %s, %s,
+                %s, %s,
+                %s, %s,
+                %s, %s,
+                %s, %s,
+                %s, %s,
+                %s, %s,
+                %s, %s, %s,
+                %s, %s, %s,
+                %s,
+                %s, %s
+            )
+            """,
             (
                 DEFAULT_HERO_CONTENT['id'],
                 DEFAULT_HERO_CONTENT['title'],
@@ -4091,19 +4227,237 @@ def fetch_hero_content():
                 DEFAULT_HERO_CONTENT['stat1_text'],
                 DEFAULT_HERO_CONTENT['stat2_text'],
                 DEFAULT_HERO_CONTENT['stat3_text'],
-                DEFAULT_HERO_CONTENT['hero_background_image']
+                DEFAULT_HERO_CONTENT['hero_background_image'],
+                DEFAULT_HERO_CONTENT['content_offset_x'],
+                DEFAULT_HERO_CONTENT['content_offset_y'],
+                DEFAULT_HERO_CONTENT['tagline_offset_x'],
+                DEFAULT_HERO_CONTENT['tagline_offset_y'],
+                DEFAULT_HERO_CONTENT['title_offset_x'],
+                DEFAULT_HERO_CONTENT['title_offset_y'],
+                DEFAULT_HERO_CONTENT['subtitle_offset_x'],
+                DEFAULT_HERO_CONTENT['subtitle_offset_y'],
+                DEFAULT_HERO_CONTENT['meta_offset_x'],
+                DEFAULT_HERO_CONTENT['meta_offset_y'],
+                DEFAULT_HERO_CONTENT['card1_offset_x'],
+                DEFAULT_HERO_CONTENT['card1_offset_y'],
+                DEFAULT_HERO_CONTENT['card2_offset_x'],
+                DEFAULT_HERO_CONTENT['card2_offset_y'],
+                DEFAULT_HERO_CONTENT['card3_offset_x'],
+                DEFAULT_HERO_CONTENT['card3_offset_y'],
+                DEFAULT_HERO_CONTENT['tagline_bg_color'],
+                DEFAULT_HERO_CONTENT['tagline_text_color'],
+                DEFAULT_HERO_CONTENT['title_color'],
+                DEFAULT_HERO_CONTENT['title_size_px'],
+                DEFAULT_HERO_CONTENT['title_weight'],
+                DEFAULT_HERO_CONTENT['subtitle_color'],
+                DEFAULT_HERO_CONTENT['subtitle_size_px'],
+                DEFAULT_HERO_CONTENT['subtitle_weight'],
+                DEFAULT_HERO_CONTENT['content_bg_color'],
+                DEFAULT_HERO_CONTENT['meta_text_color'],
+                DEFAULT_HERO_CONTENT['meta_bg_color']
             )
         )
         conn.commit()
         cursor.close()
         cursor = conn.cursor(dictionary=True)
         cursor.execute(
-            "SELECT id, title, subtitle, tagline, small_text_line1, small_text_line2, small_text_line3, stat1_text, stat2_text, stat3_text, hero_background_image FROM hero_content WHERE id = 1"
+            """
+            SELECT
+                id, title, subtitle, tagline,
+                small_text_line1, small_text_line2, small_text_line3,
+                stat1_text, stat2_text, stat3_text,
+                hero_background_image,
+                content_offset_x, content_offset_y,
+                tagline_offset_x, tagline_offset_y,
+                title_offset_x, title_offset_y,
+                subtitle_offset_x, subtitle_offset_y,
+                meta_offset_x, meta_offset_y,
+                card1_offset_x, card1_offset_y,
+                card2_offset_x, card2_offset_y,
+                card3_offset_x, card3_offset_y,
+                tagline_bg_color, tagline_text_color,
+                title_color, title_size_px, title_weight,
+                subtitle_color, subtitle_size_px, subtitle_weight,
+                content_bg_color,
+                meta_text_color, meta_bg_color
+            FROM hero_content
+            WHERE id = 1
+            """
         )
         hero = cursor.fetchone()
     cursor.close()
     conn.close()
-    return hero or DEFAULT_HERO_CONTENT.copy()
+
+    merged = DEFAULT_HERO_CONTENT.copy()
+    if hero:
+        merged.update({key: value for key, value in hero.items() if value is not None})
+    return merged
+
+
+def ensure_hero_content_schema():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS hero_content (
+                id BIGINT PRIMARY KEY,
+                title VARCHAR(255),
+                subtitle TEXT,
+                tagline VARCHAR(255),
+                small_text_line1 VARCHAR(255),
+                small_text_line2 VARCHAR(255),
+                small_text_line3 VARCHAR(255),
+                stat1_text VARCHAR(255),
+                stat2_text VARCHAR(255),
+                stat3_text VARCHAR(255),
+                hero_background_image TEXT,
+                content_offset_x INTEGER DEFAULT 0,
+                content_offset_y INTEGER DEFAULT 0,
+                tagline_offset_x INTEGER DEFAULT 0,
+                tagline_offset_y INTEGER DEFAULT 0,
+                title_offset_x INTEGER DEFAULT 0,
+                title_offset_y INTEGER DEFAULT 0,
+                subtitle_offset_x INTEGER DEFAULT 0,
+                subtitle_offset_y INTEGER DEFAULT 0,
+                meta_offset_x INTEGER DEFAULT 0,
+                meta_offset_y INTEGER DEFAULT 0,
+                card1_offset_x INTEGER DEFAULT 0,
+                card1_offset_y INTEGER DEFAULT 0,
+                card2_offset_x INTEGER DEFAULT 0,
+                card2_offset_y INTEGER DEFAULT 0,
+                card3_offset_x INTEGER DEFAULT 0,
+                card3_offset_y INTEGER DEFAULT 0,
+                tagline_bg_color VARCHAR(20) DEFAULT '#16a34a',
+                tagline_text_color VARCHAR(20) DEFAULT '#ffffff',
+                title_color VARCHAR(20) DEFAULT '#2563eb',
+                title_size_px INTEGER DEFAULT 72,
+                title_weight INTEGER DEFAULT 800,
+                subtitle_color VARCHAR(20) DEFAULT '#ffffff',
+                subtitle_size_px INTEGER DEFAULT 18,
+                subtitle_weight INTEGER DEFAULT 600,
+                content_bg_color VARCHAR(20),
+                meta_text_color VARCHAR(20) DEFAULT '#ffffff',
+                meta_bg_color VARCHAR(20) DEFAULT '#0f172a'
+            )
+            """
+        )
+
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_background_image TEXT")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_offset_x INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_offset_y INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS tagline_offset_x INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS tagline_offset_y INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_offset_x INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_offset_y INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_offset_x INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_offset_y INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_offset_x INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_offset_y INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS card1_offset_x INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS card1_offset_y INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS card2_offset_x INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS card2_offset_y INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS card3_offset_x INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS card3_offset_y INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS tagline_bg_color VARCHAR(20) DEFAULT '#16a34a'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS tagline_text_color VARCHAR(20) DEFAULT '#ffffff'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_color VARCHAR(20) DEFAULT '#2563eb'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_size_px INTEGER DEFAULT 72")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_weight INTEGER DEFAULT 800")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_color VARCHAR(20) DEFAULT '#ffffff'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_size_px INTEGER DEFAULT 18")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_weight INTEGER DEFAULT 600")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_color VARCHAR(20)")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_text_color VARCHAR(20) DEFAULT '#ffffff'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_bg_color VARCHAR(20) DEFAULT '#0f172a'")
+    else:
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS hero_content (
+                id INT PRIMARY KEY,
+                title VARCHAR(255),
+                subtitle TEXT,
+                tagline VARCHAR(255),
+                small_text_line1 VARCHAR(255),
+                small_text_line2 VARCHAR(255),
+                small_text_line3 VARCHAR(255),
+                stat1_text VARCHAR(255),
+                stat2_text VARCHAR(255),
+                stat3_text VARCHAR(255),
+                hero_background_image TEXT,
+                content_offset_x INT DEFAULT 0,
+                content_offset_y INT DEFAULT 0,
+                tagline_offset_x INT DEFAULT 0,
+                tagline_offset_y INT DEFAULT 0,
+                title_offset_x INT DEFAULT 0,
+                title_offset_y INT DEFAULT 0,
+                subtitle_offset_x INT DEFAULT 0,
+                subtitle_offset_y INT DEFAULT 0,
+                meta_offset_x INT DEFAULT 0,
+                meta_offset_y INT DEFAULT 0,
+                card1_offset_x INT DEFAULT 0,
+                card1_offset_y INT DEFAULT 0,
+                card2_offset_x INT DEFAULT 0,
+                card2_offset_y INT DEFAULT 0,
+                card3_offset_x INT DEFAULT 0,
+                card3_offset_y INT DEFAULT 0,
+                tagline_bg_color VARCHAR(20) DEFAULT '#16a34a',
+                tagline_text_color VARCHAR(20) DEFAULT '#ffffff',
+                title_color VARCHAR(20) DEFAULT '#2563eb',
+                title_size_px INT DEFAULT 72,
+                title_weight INT DEFAULT 800,
+                subtitle_color VARCHAR(20) DEFAULT '#ffffff',
+                subtitle_size_px INT DEFAULT 18,
+                subtitle_weight INT DEFAULT 600,
+                content_bg_color VARCHAR(20) NULL,
+                meta_text_color VARCHAR(20) DEFAULT '#ffffff',
+                meta_bg_color VARCHAR(20) DEFAULT '#0f172a'
+            )
+            """
+        )
+
+        mysql_columns = {
+            'hero_background_image': "TEXT NULL",
+            'content_offset_x': "INT DEFAULT 0",
+            'content_offset_y': "INT DEFAULT 0",
+            'tagline_offset_x': "INT DEFAULT 0",
+            'tagline_offset_y': "INT DEFAULT 0",
+            'title_offset_x': "INT DEFAULT 0",
+            'title_offset_y': "INT DEFAULT 0",
+            'subtitle_offset_x': "INT DEFAULT 0",
+            'subtitle_offset_y': "INT DEFAULT 0",
+            'meta_offset_x': "INT DEFAULT 0",
+            'meta_offset_y': "INT DEFAULT 0",
+            'card1_offset_x': "INT DEFAULT 0",
+            'card1_offset_y': "INT DEFAULT 0",
+            'card2_offset_x': "INT DEFAULT 0",
+            'card2_offset_y': "INT DEFAULT 0",
+            'card3_offset_x': "INT DEFAULT 0",
+            'card3_offset_y': "INT DEFAULT 0",
+            'tagline_bg_color': "VARCHAR(20) DEFAULT '#16a34a'",
+            'tagline_text_color': "VARCHAR(20) DEFAULT '#ffffff'",
+            'title_color': "VARCHAR(20) DEFAULT '#2563eb'",
+            'title_size_px': "INT DEFAULT 72",
+            'title_weight': "INT DEFAULT 800",
+            'subtitle_color': "VARCHAR(20) DEFAULT '#ffffff'",
+            'subtitle_size_px': "INT DEFAULT 18",
+            'subtitle_weight': "INT DEFAULT 600",
+            'content_bg_color': "VARCHAR(20) NULL",
+            'meta_text_color': "VARCHAR(20) DEFAULT '#ffffff'",
+            'meta_bg_color': "VARCHAR(20) DEFAULT '#0f172a'"
+        }
+
+        for column_name, column_sql in mysql_columns.items():
+            cursor.execute("SHOW COLUMNS FROM hero_content LIKE %s", (column_name,))
+            if not cursor.fetchone():
+                cursor.execute(f"ALTER TABLE hero_content ADD COLUMN {column_name} {column_sql}")
+
+    conn.commit()
+    cursor.close()
+    conn.close()
 
 
 def fetch_hero_badges(include_inactive=False):
@@ -4779,6 +5133,11 @@ def start_stripe_checkout():
             customer_email=prepared.get('customer_email') or None,
             success_url=payment_settings.get('success_url'),
             cancel_url=payment_settings.get('cancel_url'),
+            payment_intent_data={
+                'metadata': {
+                    'transaction_id': str(tx_id)
+                }
+            },
             line_items=[
                 {
                     'price_data': {
@@ -4858,6 +5217,36 @@ def process_completed_payment_session(session_obj):
         )
 
 
+def resolve_stripe_event_object(event, event_type):
+    raw_data_object = (event.get('data') or {}).get('object')
+    if isinstance(raw_data_object, dict) and raw_data_object.get('id'):
+        return raw_data_object
+
+    related = event.get('related_object') or {}
+    related_id = ''
+    if isinstance(related, dict):
+        related_id = sanitize_text(related.get('id'), 255)
+
+    if not related_id and isinstance(raw_data_object, str):
+        related_id = sanitize_text(raw_data_object, 255)
+
+    if not related_id:
+        return raw_data_object if isinstance(raw_data_object, dict) else {}
+
+    try:
+        stripe.api_key = stripe_secret_key()
+        if event_type.startswith('checkout.session.'):
+            session = stripe.checkout.Session.retrieve(related_id)
+            return dict(session) if session else {}
+        if event_type == 'payment_intent.payment_failed':
+            payment_intent = stripe.PaymentIntent.retrieve(related_id)
+            return dict(payment_intent) if payment_intent else {}
+    except Exception:
+        app.logger.exception('Failed to expand Stripe thin event object for %s', event_type)
+
+    return raw_data_object if isinstance(raw_data_object, dict) else {}
+
+
 @app.route('/api/payments/stripe/webhook', methods=['POST'])
 def stripe_webhook_endpoint():
     if not stripe_ready():
@@ -4875,15 +5264,47 @@ def stripe_webhook_endpoint():
         return jsonify({'error': 'Invalid signature'}), 400
 
     event_type = event.get('type')
-    event_data = (event.get('data') or {}).get('object') or {}
+    event_data = resolve_stripe_event_object(event, event_type)
 
     if event_type == 'checkout.session.completed':
         process_completed_payment_session(event_data)
     elif event_type in ('checkout.session.expired', 'payment_intent.payment_failed'):
-        session_id = event_data.get('id') or event_data.get('checkout_session')
-        tx = fetch_payment_transaction_by_session(session_id)
+        tx = None
+        session_id = sanitize_text(event_data.get('id') or event_data.get('checkout_session'), 255)
+        payment_intent_id = ''
+
+        if event_type == 'checkout.session.expired':
+            tx = fetch_payment_transaction_by_session(session_id)
+        else:
+            payment_intent_id = sanitize_text(event_data.get('id') or event_data.get('payment_intent'), 255)
+            if payment_intent_id:
+                tx = fetch_payment_transaction_by_payment_intent(payment_intent_id)
+
+            metadata = event_data.get('metadata') or {}
+            tx_id_raw = metadata.get('transaction_id') if isinstance(metadata, dict) else None
+            if not tx and tx_id_raw:
+                try:
+                    tx_id = int(str(tx_id_raw).strip())
+                    tx = fetch_payment_transaction_by_id(tx_id)
+                except (TypeError, ValueError):
+                    tx = None
+
+            if not tx and session_id:
+                tx = fetch_payment_transaction_by_session(session_id)
+
         if tx:
-            update_payment_transaction(tx.get('id'), status='failed')
+            error_message = ''
+            if event_type == 'payment_intent.payment_failed':
+                last_error = event_data.get('last_payment_error') or {}
+                if isinstance(last_error, dict):
+                    error_message = sanitize_text(last_error.get('message'), 1500)
+
+            update_payment_transaction(
+                tx.get('id'),
+                status='failed',
+                payment_intent_id=payment_intent_id or tx.get('payment_intent_id'),
+                error_message=error_message or tx.get('error_message')
+            )
 
     return jsonify({'received': True})
 
@@ -8651,9 +9072,6 @@ def admin_hero():
     tagline = sanitize_text(request.form.get('tagline') or current.get('tagline'), 255)
     existing_background = request.form.get('existing_background', '').strip()
 
-    if not title or not subtitle or not tagline:
-        return jsonify({'error': 'Hero title, subtitle, and tagline are required.'}), 400
-
     try:
         background_image = upload_hero_background(existing_background)
     except ValueError as exc:
@@ -8738,6 +9156,7 @@ def admin_hero_content_page():
         redirect_params = {}
         try:
             if form_id == 'hero':
+                ensure_hero_content_schema()
                 title = sanitize_text(request.form.get('title'), 255)
                 subtitle = sanitize_text(request.form.get('subtitle'), 255)
                 tagline = sanitize_text(request.form.get('tagline'), 255)
@@ -8747,11 +9166,35 @@ def admin_hero_content_page():
                 stat1_text = sanitize_text(request.form.get('stat1_text'), 255)
                 stat2_text = sanitize_text(request.form.get('stat2_text'), 255)
                 stat3_text = sanitize_text(request.form.get('stat3_text'), 255)
+                content_offset_x = sanitize_int_range(request.form.get('content_offset_x'), 0, -420, 420)
+                content_offset_y = sanitize_int_range(request.form.get('content_offset_y'), 0, -220, 220)
+                tagline_offset_x = sanitize_int_range(request.form.get('tagline_offset_x'), 0, -320, 320)
+                tagline_offset_y = sanitize_int_range(request.form.get('tagline_offset_y'), 0, -220, 220)
+                title_offset_x = sanitize_int_range(request.form.get('title_offset_x'), 0, -320, 320)
+                title_offset_y = sanitize_int_range(request.form.get('title_offset_y'), 0, -220, 220)
+                subtitle_offset_x = sanitize_int_range(request.form.get('subtitle_offset_x'), 0, -320, 320)
+                subtitle_offset_y = sanitize_int_range(request.form.get('subtitle_offset_y'), 0, -220, 220)
+                meta_offset_x = sanitize_int_range(request.form.get('meta_offset_x'), 0, -320, 320)
+                meta_offset_y = sanitize_int_range(request.form.get('meta_offset_y'), 0, -220, 220)
+                card1_offset_x = sanitize_int_range(request.form.get('card1_offset_x'), 0, -220, 220)
+                card1_offset_y = sanitize_int_range(request.form.get('card1_offset_y'), 0, -220, 220)
+                card2_offset_x = sanitize_int_range(request.form.get('card2_offset_x'), 0, -220, 220)
+                card2_offset_y = sanitize_int_range(request.form.get('card2_offset_y'), 0, -220, 220)
+                card3_offset_x = sanitize_int_range(request.form.get('card3_offset_x'), 0, -220, 220)
+                card3_offset_y = sanitize_int_range(request.form.get('card3_offset_y'), 0, -220, 220)
+                tagline_bg_color = sanitize_css_color(request.form.get('tagline_bg_color'), '#16a34a')
+                tagline_text_color = sanitize_css_color(request.form.get('tagline_text_color'), '#ffffff')
+                title_color = sanitize_css_color(request.form.get('title_color'), '#2563eb')
+                title_size_px = sanitize_int_range(request.form.get('title_size_px'), 72, 34, 110)
+                title_weight = sanitize_int_range(request.form.get('title_weight'), 800, 400, 900)
+                subtitle_color = sanitize_css_color(request.form.get('subtitle_color'), '#ffffff')
+                subtitle_size_px = sanitize_int_range(request.form.get('subtitle_size_px'), 18, 14, 38)
+                subtitle_weight = sanitize_int_range(request.form.get('subtitle_weight'), 600, 300, 900)
+                content_bg_color = sanitize_css_color(request.form.get('content_bg_color'), '', allow_empty=True)
+                meta_text_color = sanitize_css_color(request.form.get('meta_text_color'), '#ffffff')
+                meta_bg_color = sanitize_css_color(request.form.get('meta_bg_color'), '#0f172a')
                 existing_background = request.form.get('existing_background', '').strip()
                 remove_background = str_to_bool(request.form.get('remove_background', 'false'))
-
-                if not title or not subtitle:
-                    raise ValueError('Hero title and subtitle are required.')
 
                 background_file = request.files.get('background_image')
                 has_new_background = bool(background_file and background_file.filename)
@@ -8767,7 +9210,47 @@ def admin_hero_content_page():
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute(
-                    "UPDATE hero_content SET title=%s, subtitle=%s, tagline=%s, small_text_line1=%s, small_text_line2=%s, small_text_line3=%s, stat1_text=%s, stat2_text=%s, stat3_text=%s, hero_background_image=%s WHERE id = 1",
+                    """
+                    UPDATE hero_content SET
+                        title=%s,
+                        subtitle=%s,
+                        tagline=%s,
+                        small_text_line1=%s,
+                        small_text_line2=%s,
+                        small_text_line3=%s,
+                        stat1_text=%s,
+                        stat2_text=%s,
+                        stat3_text=%s,
+                        hero_background_image=%s,
+                        content_offset_x=%s,
+                        content_offset_y=%s,
+                        tagline_offset_x=%s,
+                        tagline_offset_y=%s,
+                        title_offset_x=%s,
+                        title_offset_y=%s,
+                        subtitle_offset_x=%s,
+                        subtitle_offset_y=%s,
+                        meta_offset_x=%s,
+                        meta_offset_y=%s,
+                        card1_offset_x=%s,
+                        card1_offset_y=%s,
+                        card2_offset_x=%s,
+                        card2_offset_y=%s,
+                        card3_offset_x=%s,
+                        card3_offset_y=%s,
+                        tagline_bg_color=%s,
+                        tagline_text_color=%s,
+                        title_color=%s,
+                        title_size_px=%s,
+                        title_weight=%s,
+                        subtitle_color=%s,
+                        subtitle_size_px=%s,
+                        subtitle_weight=%s,
+                        content_bg_color=%s,
+                        meta_text_color=%s,
+                        meta_bg_color=%s
+                    WHERE id = 1
+                    """,
                     (
                         title,
                         subtitle,
@@ -8778,7 +9261,34 @@ def admin_hero_content_page():
                         stat1_text,
                         stat2_text,
                         stat3_text,
-                        background_image or None
+                        background_image or None,
+                        content_offset_x,
+                        content_offset_y,
+                        tagline_offset_x,
+                        tagline_offset_y,
+                        title_offset_x,
+                        title_offset_y,
+                        subtitle_offset_x,
+                        subtitle_offset_y,
+                        meta_offset_x,
+                        meta_offset_y,
+                        card1_offset_x,
+                        card1_offset_y,
+                        card2_offset_x,
+                        card2_offset_y,
+                        card3_offset_x,
+                        card3_offset_y,
+                        tagline_bg_color,
+                        tagline_text_color,
+                        title_color,
+                        title_size_px,
+                        title_weight,
+                        subtitle_color,
+                        subtitle_size_px,
+                        subtitle_weight,
+                        content_bg_color or None,
+                        meta_text_color,
+                        meta_bg_color
                     )
                 )
                 conn.commit()

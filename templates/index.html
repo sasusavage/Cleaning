@@ -97,7 +97,40 @@
         {% set footer_instagram = footer_info.instagram if footer_info and footer_info.instagram else '' %}
         {% set footer_twitter = footer_info.twitter if footer_info and footer_info.twitter else '' %}
         {% set footer_phone_href = footer_phone | replace(' ', '') | replace('-', '') | replace('(', '') | replace(')', '') %}
-        <header class="panel hero{% if hero_background_url %} hero--has-background{% endif %}" id="top" {% if hero_background_url %}style="--hero-background:url('{{ hero_background_url }}');"{% endif %}>
+        {% set hero_inline_style = '' %}
+        {% if hero_background_url %}
+            {% set hero_inline_style = hero_inline_style ~ "--hero-background:url('" ~ hero_background_url ~ "');" %}
+        {% endif %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-content-x:' ~ (hero.content_offset_x or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-content-y:' ~ (hero.content_offset_y or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-tagline-x:' ~ (hero.tagline_offset_x or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-tagline-y:' ~ (hero.tagline_offset_y or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-title-x:' ~ (hero.title_offset_x or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-title-y:' ~ (hero.title_offset_y or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-subtitle-x:' ~ (hero.subtitle_offset_x or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-subtitle-y:' ~ (hero.subtitle_offset_y or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-meta-x:' ~ (hero.meta_offset_x or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-meta-y:' ~ (hero.meta_offset_y or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-card1-x:' ~ (hero.card1_offset_x or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-card1-y:' ~ (hero.card1_offset_y or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-card2-x:' ~ (hero.card2_offset_x or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-card2-y:' ~ (hero.card2_offset_y or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-card3-x:' ~ (hero.card3_offset_x or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-card3-y:' ~ (hero.card3_offset_y or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-tagline-bg:' ~ (hero.tagline_bg_color or '#16a34a') ~ ';' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-tagline-text:' ~ (hero.tagline_text_color or '#ffffff') ~ ';' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-title-color:' ~ (hero.title_color or '#2563eb') ~ ';' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-title-size:' ~ (hero.title_size_px or 72) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-title-weight:' ~ (hero.title_weight or 800) ~ ';' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-subtitle-color:' ~ (hero.subtitle_color or '#ffffff') ~ ';' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-subtitle-size:' ~ (hero.subtitle_size_px or 18) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-subtitle-weight:' ~ (hero.subtitle_weight or 600) ~ ';' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-meta-text:' ~ (hero.meta_text_color or '#ffffff') ~ ';' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-meta-bg:' ~ (hero.meta_bg_color or '#0f172a') ~ ';' %}
+        {% if hero.content_bg_color %}
+            {% set hero_inline_style = hero_inline_style ~ '--hero-content-bg:' ~ hero.content_bg_color ~ ';--hero-content-padding:1rem;' %}
+        {% endif %}
+        <header class="panel hero{% if hero_background_url %} hero--has-background{% endif %}" id="top" style="{{ hero_inline_style }}">
             {% if hero_badges %}
             <div class="badge-marquee" aria-label="Certifications and partners">
                 <div class="badge-marquee__track">

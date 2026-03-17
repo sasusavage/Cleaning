@@ -30,6 +30,10 @@
             color: var(--text);
         }
 
+        body.is-preview-dragging {
+            overflow: hidden;
+        }
+
         .sidebar {
             width: 240px;
             background: #111827;
@@ -321,6 +325,192 @@
             gap: 0.75rem;
         }
 
+        .hero-editor {
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            background: #f8fafc;
+            display: grid;
+            gap: 1rem;
+        }
+
+        .hero-editor__stage {
+            position: relative;
+            min-height: 360px;
+            border-radius: 0.75rem;
+            border: 1px solid rgba(15, 23, 42, 0.12);
+            overflow: hidden;
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+        }
+
+        .hero-editor__stage::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image: var(--preview-bg-image);
+            background-size: cover;
+            background-position: center;
+            opacity: 0.9;
+        }
+
+        .hero-editor__item {
+            position: absolute;
+            user-select: none;
+            touch-action: none;
+            z-index: 3;
+        }
+
+        .hero-editor__item * {
+            user-select: none;
+            touch-action: none;
+        }
+
+        .hero-editor__item--tagline {
+            left: 1rem;
+            top: 1.2rem;
+            z-index: 5;
+        }
+
+        .hero-editor__item--title {
+            left: 1rem;
+            top: 4.35rem;
+            width: min(62%, 460px);
+            z-index: 5;
+        }
+
+        .hero-editor__item--subtitle {
+            left: 1rem;
+            top: 10.25rem;
+            width: min(62%, 460px);
+            z-index: 5;
+        }
+
+        .hero-editor__item--meta {
+            left: 1rem;
+            bottom: 1rem;
+            width: min(70%, 560px);
+            z-index: 5;
+        }
+
+        .hero-editor__drag-handle {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            margin-bottom: 0.55rem;
+            padding: 0.22rem 0.55rem;
+            border-radius: 0.45rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            color: #e2e8f0;
+            background: rgba(15, 23, 42, 0.78);
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            cursor: grab;
+            width: fit-content;
+        }
+
+        .hero-editor__drag-handle:active {
+            cursor: grabbing;
+        }
+
+        .hero-editor__tagline {
+            display: inline-block;
+            padding: 0.3rem 0.75rem;
+            border-radius: 0.45rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.72rem;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            font-weight: 600;
+            background: #16a34a;
+            color: #fff;
+        }
+
+        .hero-editor__title {
+            margin: 0.2rem 0;
+            color: #2563eb;
+            font-size: 2.15rem;
+            line-height: 1.08;
+            font-weight: 800;
+        }
+
+        .hero-editor__subtitle {
+            margin: 0.5rem 0 0;
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            line-height: 1.45;
+        }
+
+        .hero-editor__meta {
+            margin-top: 0.7rem;
+            display: grid;
+            gap: 0.45rem;
+        }
+
+        .hero-editor__meta-item {
+            color: #fff;
+            background: #0f172a;
+            border-radius: 0.45rem;
+            padding: 0.35rem 0.55rem;
+            font-size: 0.78rem;
+        }
+
+        .hero-editor__item--card {
+            width: min(230px, 58%);
+            border-radius: 0.95rem;
+            background: rgba(255, 255, 255, 0.86);
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            color: #334155;
+            padding: 0.9rem;
+            box-shadow: 0 10px 24px rgba(2, 6, 23, 0.2);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-size: 0.62rem;
+            line-height: 1.45;
+            z-index: 4;
+        }
+
+        .hero-editor__item--card .hero-editor__drag-handle {
+            color: #1e293b;
+            background: rgba(255, 255, 255, 0.8);
+            border-color: rgba(15, 23, 42, 0.18);
+        }
+
+        .hero-editor__item--card strong {
+            display: block;
+            font-size: 1.3rem;
+            letter-spacing: 0.04em;
+            color: #0f172a;
+            margin-bottom: 0.25rem;
+        }
+
+        .hero-editor__item--card1 {
+            top: 0.8rem;
+            right: 0.8rem;
+        }
+
+        .hero-editor__item--card2 {
+            bottom: 1rem;
+            right: 1rem;
+        }
+
+        .hero-editor__item--card3 {
+            top: 40%;
+            left: 54%;
+        }
+
+        .hero-editor__hint {
+            font-size: 0.86rem;
+            color: var(--muted);
+        }
+
+        .position-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 0.75rem;
+        }
+
         @media (max-width: 1024px) {
             body {
                 flex-direction: column;
@@ -472,15 +662,15 @@
                 <div class="grid grid--two">
                     <div class="form-group">
                         <label for="tagline">Tagline</label>
-                        <input type="text" id="tagline" name="tagline" value="{{ hero.tagline or '' }}" required>
+                        <input type="text" id="tagline" name="tagline" value="{{ hero.tagline or '' }}">
                     </div>
                     <div class="form-group">
                         <label for="title">Title</label>
-                        <input type="text" id="title" name="title" value="{{ hero.title or '' }}" required>
+                        <input type="text" id="title" name="title" value="{{ hero.title or '' }}">
                     </div>
                     <div class="form-group">
                         <label for="subtitle">Subtitle</label>
-                        <textarea id="subtitle" name="subtitle" rows="3" required>{{ hero.subtitle or '' }}</textarea>
+                        <textarea id="subtitle" name="subtitle" rows="3">{{ hero.subtitle or '' }}</textarea>
                     </div>
                 </div>
             </section>
@@ -539,6 +729,171 @@
                     <div class="form-group">
                         <label for="stat3_text">Stat 3</label>
                         <input type="text" id="stat3_text" name="stat3_text" value="{{ hero.stat3_text or '' }}">
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="section-title">Layout &amp; Style Controls</h2>
+                <p class="hero-editor__hint">Drag items in the preview to reposition them. You can also fine-tune exact X/Y values and typography colors/weight below.</p>
+
+                <div class="hero-editor">
+                    <div
+                        class="hero-editor__stage"
+                        id="heroEditorStage"
+                        {% if hero.hero_background_image %}
+                        style="--preview-bg-image: url('{{ hero.hero_background_image | media_url }}');"
+                        {% else %}
+                        style="--preview-bg-image: linear-gradient(135deg, #0f172a, #1e293b);"
+                        {% endif %}
+                    >
+                        <div class="hero-editor__item hero-editor__item--tagline" id="previewTaglineItem" data-x-input="tagline_offset_x" data-y-input="tagline_offset_y">
+                            <span class="hero-editor__drag-handle" data-drag-handle>Move Tagline</span>
+                            <span class="hero-editor__tagline" id="previewTagline">{{ hero.tagline or 'Trusted Cleaning Experts' }}</span>
+                        </div>
+
+                        <div class="hero-editor__item hero-editor__item--title" id="previewTitleItem" data-x-input="title_offset_x" data-y-input="title_offset_y">
+                            <span class="hero-editor__drag-handle" data-drag-handle>Move Title</span>
+                            <h3 class="hero-editor__title" id="previewTitle">{{ hero.title or 'Professional Cleaning Services' }}</h3>
+                        </div>
+
+                        <div class="hero-editor__item hero-editor__item--subtitle" id="previewSubtitleItem" data-x-input="subtitle_offset_x" data-y-input="subtitle_offset_y">
+                            <span class="hero-editor__drag-handle" data-drag-handle>Move Subtitle</span>
+                            <p class="hero-editor__subtitle" id="previewSubtitle">{{ hero.subtitle or 'Reliable, affordable cleaning for your home or office.' }}</p>
+                        </div>
+
+                        <div class="hero-editor__item hero-editor__item--meta" id="previewMetaItem" data-x-input="meta_offset_x" data-y-input="meta_offset_y">
+                            <span class="hero-editor__drag-handle" data-drag-handle>Move Details</span>
+                            <div class="hero-editor__meta">
+                                <div class="hero-editor__meta-item" id="previewMeta1">{{ hero.small_text_line1 or 'Over 150 satisfied clients nationwide' }}</div>
+                                <div class="hero-editor__meta-item" id="previewMeta2">{{ hero.small_text_line2 or 'Eco-friendly products and flexible scheduling' }}</div>
+                                <div class="hero-editor__meta-item" id="previewMeta3">{{ hero.small_text_line3 or 'Fully vetted, professional cleaning teams' }}</div>
+                            </div>
+                        </div>
+
+                        <div class="hero-editor__item hero-editor__item--card hero-editor__item--card1" id="previewCard1" data-x-input="card1_offset_x" data-y-input="card1_offset_y">
+                            <span class="hero-editor__drag-handle" data-drag-handle>Move Card 1</span>
+                            <strong>{{ (hero.stat1_text or '98% · Client satisfaction score').split('·')[0] | trim }}</strong>
+                            {{ (hero.stat1_text or '98% · Client satisfaction score').split('·')[1] | trim if '·' in (hero.stat1_text or '') else 'Client satisfaction score' }}
+                        </div>
+
+                        <div class="hero-editor__item hero-editor__item--card hero-editor__item--card2" id="previewCard2" data-x-input="card2_offset_x" data-y-input="card2_offset_y">
+                            <span class="hero-editor__drag-handle" data-drag-handle>Move Card 2</span>
+                            <strong>{{ (hero.stat2_text or '24h · Response time for every request').split('·')[0] | trim }}</strong>
+                            {{ (hero.stat2_text or '24h · Response time for every request').split('·')[1] | trim if '·' in (hero.stat2_text or '') else 'Response time for every request' }}
+                        </div>
+
+                        <div class="hero-editor__item hero-editor__item--card hero-editor__item--card3" id="previewCard3" data-x-input="card3_offset_x" data-y-input="card3_offset_y">
+                            <span class="hero-editor__drag-handle" data-drag-handle>Move Card 3</span>
+                            <strong>{{ (hero.stat3_text or 'Emergency · Cleanups available when you need them').split('·')[0] | trim }}</strong>
+                            {{ (hero.stat3_text or 'Emergency · Cleanups available when you need them').split('·')[1] | trim if '·' in (hero.stat3_text or '') else 'Cleanups available when you need them' }}
+                        </div>
+                    </div>
+
+                    <div class="position-grid">
+                        <div class="form-group">
+                            <label for="tagline_offset_x">Tagline X (px)</label>
+                            <input type="number" id="tagline_offset_x" name="tagline_offset_x" min="-320" max="320" value="{{ hero.tagline_offset_x or 0 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="tagline_offset_y">Tagline Y (px)</label>
+                            <input type="number" id="tagline_offset_y" name="tagline_offset_y" min="-220" max="220" value="{{ hero.tagline_offset_y or 0 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="title_offset_x">Title X (px)</label>
+                            <input type="number" id="title_offset_x" name="title_offset_x" min="-320" max="320" value="{{ hero.title_offset_x or 0 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="title_offset_y">Title Y (px)</label>
+                            <input type="number" id="title_offset_y" name="title_offset_y" min="-220" max="220" value="{{ hero.title_offset_y or 0 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="subtitle_offset_x">Subtitle X (px)</label>
+                            <input type="number" id="subtitle_offset_x" name="subtitle_offset_x" min="-320" max="320" value="{{ hero.subtitle_offset_x or 0 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="subtitle_offset_y">Subtitle Y (px)</label>
+                            <input type="number" id="subtitle_offset_y" name="subtitle_offset_y" min="-220" max="220" value="{{ hero.subtitle_offset_y or 0 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="meta_offset_x">Details X (px)</label>
+                            <input type="number" id="meta_offset_x" name="meta_offset_x" min="-320" max="320" value="{{ hero.meta_offset_x or 0 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="meta_offset_y">Details Y (px)</label>
+                            <input type="number" id="meta_offset_y" name="meta_offset_y" min="-220" max="220" value="{{ hero.meta_offset_y or 0 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="card1_offset_x">Card 1 X (px)</label>
+                            <input type="number" id="card1_offset_x" name="card1_offset_x" min="-220" max="220" value="{{ hero.card1_offset_x or 0 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="card1_offset_y">Card 1 Y (px)</label>
+                            <input type="number" id="card1_offset_y" name="card1_offset_y" min="-220" max="220" value="{{ hero.card1_offset_y or 0 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="card2_offset_x">Card 2 X (px)</label>
+                            <input type="number" id="card2_offset_x" name="card2_offset_x" min="-220" max="220" value="{{ hero.card2_offset_x or 0 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="card2_offset_y">Card 2 Y (px)</label>
+                            <input type="number" id="card2_offset_y" name="card2_offset_y" min="-220" max="220" value="{{ hero.card2_offset_y or 0 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="card3_offset_x">Card 3 X (px)</label>
+                            <input type="number" id="card3_offset_x" name="card3_offset_x" min="-220" max="220" value="{{ hero.card3_offset_x or 0 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="card3_offset_y">Card 3 Y (px)</label>
+                            <input type="number" id="card3_offset_y" name="card3_offset_y" min="-220" max="220" value="{{ hero.card3_offset_y or 0 }}">
+                        </div>
+                    </div>
+
+                    <div class="grid grid--two">
+                        <div class="form-group">
+                            <label for="tagline_bg_color">Tagline Background</label>
+                            <input type="color" id="tagline_bg_color" name="tagline_bg_color" value="{{ hero.tagline_bg_color or '#16a34a' }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="tagline_text_color">Tagline Text</label>
+                            <input type="color" id="tagline_text_color" name="tagline_text_color" value="{{ hero.tagline_text_color or '#ffffff' }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="title_color">Title Color</label>
+                            <input type="color" id="title_color" name="title_color" value="{{ hero.title_color or '#2563eb' }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="title_size_px">Title Size (px)</label>
+                            <input type="number" id="title_size_px" name="title_size_px" min="34" max="110" value="{{ hero.title_size_px or 72 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="title_weight">Title Boldness</label>
+                            <input type="number" id="title_weight" name="title_weight" min="400" max="900" step="100" value="{{ hero.title_weight or 800 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="subtitle_color">Paragraph Color</label>
+                            <input type="color" id="subtitle_color" name="subtitle_color" value="{{ hero.subtitle_color or '#ffffff' }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="subtitle_size_px">Paragraph Size (px)</label>
+                            <input type="number" id="subtitle_size_px" name="subtitle_size_px" min="14" max="38" value="{{ hero.subtitle_size_px or 18 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="subtitle_weight">Paragraph Boldness</label>
+                            <input type="number" id="subtitle_weight" name="subtitle_weight" min="300" max="900" step="100" value="{{ hero.subtitle_weight or 600 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="content_bg_color">Content Panel Background</label>
+                            <input type="text" id="content_bg_color" name="content_bg_color" value="{{ hero.content_bg_color or '' }}" placeholder="#0f172a (leave empty for none)">
+                        </div>
+                        <div class="form-group">
+                            <label for="meta_text_color">Detail Text Color</label>
+                            <input type="color" id="meta_text_color" name="meta_text_color" value="{{ hero.meta_text_color or '#ffffff' }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="meta_bg_color">Detail Background Color</label>
+                            <input type="color" id="meta_bg_color" name="meta_bg_color" value="{{ hero.meta_bg_color or '#0f172a' }}">
+                        </div>
                     </div>
                 </div>
             </section>
@@ -608,6 +963,183 @@
                     sidebarToggle.setAttribute('aria-expanded', 'false');
                 }
             });
+        }
+
+        const previewStage = document.getElementById('heroEditorStage');
+        const draggableItems = previewStage ? previewStage.querySelectorAll('[data-x-input][data-y-input]') : [];
+
+        function clamp(value, min, max) {
+            const parsed = Number(value);
+            if (!Number.isFinite(parsed)) {
+                return min;
+            }
+            return Math.min(max, Math.max(min, parsed));
+        }
+
+        function applyItemTransform(item) {
+            const xInput = document.getElementById(item.dataset.xInput);
+            const yInput = document.getElementById(item.dataset.yInput);
+            if (!xInput || !yInput) {
+                return;
+            }
+
+            const x = Number(xInput.value) || 0;
+            const y = Number(yInput.value) || 0;
+            item.style.transform = `translate(${x}px, ${y}px)`;
+        }
+
+        function wireDraggableItem(item) {
+            const xInput = document.getElementById(item.dataset.xInput);
+            const yInput = document.getElementById(item.dataset.yInput);
+            const dragHandle = item.querySelector('[data-drag-handle]') || item;
+            if (!xInput || !yInput) {
+                return;
+            }
+
+            const xMin = Number(xInput.min || -400);
+            const xMax = Number(xInput.max || 400);
+            const yMin = Number(yInput.min || -220);
+            const yMax = Number(yInput.max || 220);
+
+            applyItemTransform(item);
+
+            xInput.addEventListener('input', () => {
+                xInput.value = String(clamp(xInput.value, xMin, xMax));
+                applyItemTransform(item);
+            });
+
+            yInput.addEventListener('input', () => {
+                yInput.value = String(clamp(yInput.value, yMin, yMax));
+                applyItemTransform(item);
+            });
+
+            let isDragging = false;
+            let startX = 0;
+            let startY = 0;
+            let startOffsetX = 0;
+            let startOffsetY = 0;
+
+            dragHandle.addEventListener('pointerdown', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                isDragging = true;
+                startX = event.clientX;
+                startY = event.clientY;
+                startOffsetX = Number(xInput.value) || 0;
+                startOffsetY = Number(yInput.value) || 0;
+                item.setPointerCapture(event.pointerId);
+                document.body.classList.add('is-preview-dragging');
+            });
+
+            item.addEventListener('pointermove', (event) => {
+                if (!isDragging) {
+                    return;
+                }
+
+                event.preventDefault();
+
+                const nextX = clamp(startOffsetX + (event.clientX - startX), xMin, xMax);
+                const nextY = clamp(startOffsetY + (event.clientY - startY), yMin, yMax);
+                xInput.value = String(Math.round(nextX));
+                yInput.value = String(Math.round(nextY));
+                applyItemTransform(item);
+            });
+
+            item.addEventListener('pointerup', (event) => {
+                isDragging = false;
+                item.releasePointerCapture(event.pointerId);
+                document.body.classList.remove('is-preview-dragging');
+            });
+
+            item.addEventListener('pointercancel', () => {
+                isDragging = false;
+                document.body.classList.remove('is-preview-dragging');
+            });
+        }
+
+        function applyPreviewStyleControls() {
+            const tagline = document.getElementById('previewTagline');
+            const title = document.getElementById('previewTitle');
+            const subtitle = document.getElementById('previewSubtitle');
+            const previewMeta = document.getElementById('previewMetaItem');
+
+            const taglineBg = document.getElementById('tagline_bg_color');
+            const taglineText = document.getElementById('tagline_text_color');
+            const titleColor = document.getElementById('title_color');
+            const titleSize = document.getElementById('title_size_px');
+            const titleWeight = document.getElementById('title_weight');
+            const subtitleColor = document.getElementById('subtitle_color');
+            const subtitleSize = document.getElementById('subtitle_size_px');
+            const subtitleWeight = document.getElementById('subtitle_weight');
+            const contentBgColor = document.getElementById('content_bg_color');
+            const metaTextColor = document.getElementById('meta_text_color');
+            const metaBgColor = document.getElementById('meta_bg_color');
+
+            if (tagline && taglineBg) {
+                tagline.style.background = taglineBg.value;
+            }
+            if (tagline && taglineText) {
+                tagline.style.color = taglineText.value;
+            }
+            if (title && titleColor) {
+                title.style.color = titleColor.value;
+            }
+            if (title && titleSize) {
+                title.style.fontSize = `${clamp(titleSize.value, 34, 110)}px`;
+            }
+            if (title && titleWeight) {
+                title.style.fontWeight = String(clamp(titleWeight.value, 400, 900));
+            }
+            if (subtitle && subtitleColor) {
+                subtitle.style.color = subtitleColor.value;
+            }
+            if (subtitle && subtitleSize) {
+                subtitle.style.fontSize = `${clamp(subtitleSize.value, 14, 38)}px`;
+            }
+            if (subtitle && subtitleWeight) {
+                subtitle.style.fontWeight = String(clamp(subtitleWeight.value, 300, 900));
+            }
+            if (previewMeta && contentBgColor) {
+                previewMeta.style.background = contentBgColor.value ? contentBgColor.value : 'transparent';
+                previewMeta.style.borderRadius = contentBgColor.value ? '0.75rem' : '0';
+                previewMeta.style.padding = contentBgColor.value ? '0.6rem' : '0';
+            }
+
+            if (metaTextColor || metaBgColor) {
+                document.querySelectorAll('.hero-editor__meta-item').forEach((meta) => {
+                    if (metaTextColor) {
+                        meta.style.color = metaTextColor.value;
+                    }
+                    if (metaBgColor) {
+                        meta.style.background = metaBgColor.value;
+                    }
+                });
+            }
+        }
+
+        if (previewStage) {
+            draggableItems.forEach((item) => wireDraggableItem(item));
+
+            [
+                'tagline_bg_color',
+                'tagline_text_color',
+                'title_color',
+                'title_size_px',
+                'title_weight',
+                'subtitle_color',
+                'subtitle_size_px',
+                'subtitle_weight',
+                'content_bg_color',
+                'meta_text_color',
+                'meta_bg_color'
+            ].forEach((id) => {
+                const input = document.getElementById(id);
+                if (input) {
+                    input.addEventListener('input', applyPreviewStyleControls);
+                }
+            });
+
+            applyPreviewStyleControls();
         }
     </script>
 </body>
