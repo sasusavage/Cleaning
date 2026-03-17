@@ -2722,11 +2722,14 @@ def upsert_payment_settings(payload):
     currency = (payload.get('currency') or 'gbp').strip().lower()[:10] or 'gbp'
     success_url = (payload.get('success_url') or '').strip()[:600]
     cancel_url = (payload.get('cancel_url') or '').strip()[:600]
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
 
     if not success_url:
         success_url = f"{_get_app_base_url()}/payment/callback/success?session_id={{CHECKOUT_SESSION_ID}}"
     if not cancel_url:
         cancel_url = f"{_get_app_base_url()}/payment/callback/cancel"
+
+    require_payment_value = require_payment if engine == 'postgres' else (1 if require_payment else 0)
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -2736,7 +2739,7 @@ def upsert_payment_settings(payload):
         SET require_payment=%s, currency=%s, success_url=%s, cancel_url=%s, updated_at=CURRENT_TIMESTAMP
         WHERE id = 1
         """,
-        (1 if require_payment else 0, currency, success_url, cancel_url)
+        (require_payment_value, currency, success_url, cancel_url)
     )
     if cursor.rowcount == 0:
         cursor.execute(
@@ -2744,7 +2747,7 @@ def upsert_payment_settings(payload):
             INSERT INTO payment_settings (id, require_payment, currency, success_url, cancel_url)
             VALUES (1, %s, %s, %s, %s)
             """,
-            (1 if require_payment else 0, currency, success_url, cancel_url)
+            (require_payment_value, currency, success_url, cancel_url)
         )
     conn.commit()
     cursor.close()
