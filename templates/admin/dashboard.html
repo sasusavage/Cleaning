@@ -4119,9 +4119,23 @@
             if (paymentSuccessUrlInput) paymentSuccessUrlInput.value = settings.success_url || '';
             if (paymentCancelUrlInput) paymentCancelUrlInput.value = settings.cancel_url || '';
             if (paymentEnvStatus) {
-                const stripeStatus = settings.stripe_enabled ? 'Stripe key detected ✅' : 'Stripe key missing ❌';
-                const webhookStatus = settings.webhook_configured ? 'Webhook secret detected ✅' : 'Webhook secret missing ❌';
-                paymentEnvStatus.textContent = `${stripeStatus} • ${webhookStatus}. Set STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, and STRIPE_PUBLISHABLE_KEY in environment variables.`;
+                const stripeDetected = Boolean(settings.stripe_key_detected);
+                const stripeValid = Boolean(settings.stripe_secret_key_valid);
+                const webhookDetected = Boolean(settings.webhook_secret_detected);
+                const webhookValid = Boolean(settings.webhook_configured);
+                const publishableValid = Boolean(settings.publishable_key_configured);
+
+                const stripeStatus = !stripeDetected
+                    ? 'Stripe secret key missing ❌'
+                    : (stripeValid ? 'Stripe secret key valid ✅' : 'Stripe secret key invalid format ❌ (must start with sk_)');
+                const webhookStatus = !webhookDetected
+                    ? 'Webhook secret missing ❌'
+                    : (webhookValid ? 'Webhook secret valid ✅' : 'Webhook secret invalid format ❌ (must start with whsec_)');
+                const publishableStatus = publishableValid
+                    ? 'Publishable key valid ✅'
+                    : 'Publishable key missing/invalid ❌ (must start with pk_)';
+
+                paymentEnvStatus.textContent = `${stripeStatus} • ${webhookStatus} • ${publishableStatus}. Keys are managed in environment variables.`;
             }
         }
 

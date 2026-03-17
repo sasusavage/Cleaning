@@ -2557,16 +2557,31 @@ def stripe_secret_key():
     return (os.getenv('STRIPE_SECRET_KEY') or '').strip()
 
 
+def stripe_secret_key_valid():
+    key = stripe_secret_key()
+    return bool(key and key.startswith('sk_'))
+
+
 def stripe_webhook_secret():
     return (os.getenv('STRIPE_WEBHOOK_SECRET') or '').strip()
+
+
+def stripe_webhook_secret_valid():
+    secret = stripe_webhook_secret()
+    return bool(secret and secret.startswith('whsec_'))
 
 
 def stripe_publishable_key():
     return (os.getenv('STRIPE_PUBLISHABLE_KEY') or '').strip()
 
 
+def stripe_publishable_key_valid():
+    key = stripe_publishable_key()
+    return bool(key and key.startswith('pk_'))
+
+
 def stripe_ready():
-    return bool(stripe and stripe_secret_key())
+    return bool(stripe and stripe_secret_key_valid())
 
 
 def ensure_payment_tables():
@@ -2692,8 +2707,12 @@ def fetch_payment_settings():
         'success_url': success_url or f"{base}/payment/callback/success?session_id={{CHECKOUT_SESSION_ID}}",
         'cancel_url': cancel_url or f"{base}/payment/callback/cancel",
         'stripe_enabled': stripe_ready(),
-        'webhook_configured': bool(stripe_webhook_secret()),
-        'publishable_key': stripe_publishable_key()
+        'stripe_key_detected': bool(stripe_secret_key()),
+        'stripe_secret_key_valid': stripe_secret_key_valid(),
+        'webhook_configured': stripe_webhook_secret_valid(),
+        'webhook_secret_detected': bool(stripe_webhook_secret()),
+        'publishable_key': stripe_publishable_key(),
+        'publishable_key_configured': stripe_publishable_key_valid()
     }
 
 
@@ -5250,10 +5269,10 @@ def resolve_stripe_event_object(event, event_type):
 @app.route('/api/payments/stripe/webhook', methods=['POST'])
 def stripe_webhook_endpoint():
     if not stripe_ready():
-        return jsonify({'error': 'Stripe is not configured.'}), 500
+        return jsonify({'error': 'Stripe is not configured. STRIPE_SECRET_KEY must start with sk_.'}), 500
     signing_secret = stripe_webhook_secret()
-    if not signing_secret:
-        return jsonify({'error': 'Stripe webhook secret missing.'}), 500
+    if not stripe_webhook_secret_valid():
+        return jsonify({'error': 'Stripe webhook secret is missing or invalid. Expected prefix: whsec_.'}), 500
 
     payload = request.get_data()
     signature = request.headers.get('Stripe-Signature', '')
