@@ -6,7 +6,8 @@
     {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Clean Co.' %}
     {% set company_logo = site_settings.logo_path if site_settings and site_settings.logo_path else '' %}
     {% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
-    <title>{{ hero.title or 'Professional Cleaning Services' }} | {{ company_name }}</title>
+    {% set page_title_text = hero.title if hero else 'Professional Cleaning Services' %}
+    <title>{{ page_title_text or 'Professional Cleaning Services' }} | {{ company_name }}</title>
     <meta name="description" content="Reliable, affordable residential and commercial cleaning services. {{ company_name }} delivers spotless spaces with flexible scheduling and tailored packages.">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('favicon_asset', filename='apple-touch-icon.png') }}">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('favicon_asset', filename='favicon-32x32.png') }}">
@@ -130,6 +131,9 @@
         {% if hero.content_bg_color %}
             {% set hero_inline_style = hero_inline_style ~ '--hero-content-bg:' ~ hero.content_bg_color ~ ';--hero-content-padding:1rem;' %}
         {% endif %}
+        {% set hero_tagline_text = hero.tagline if hero else 'Trusted Cleaning Experts' %}
+        {% set hero_title_text = hero.title if hero else 'Professional Cleaning Services' %}
+        {% set hero_subtitle_text = hero.subtitle if hero else 'Reliable, affordable cleaning for your home or office. Get your free, no-obligation quote today!' %}
         <header class="panel hero{% if hero_background_url %} hero--has-background{% endif %}" id="top" style="{{ hero_inline_style }}">
             {% if hero_badges %}
             <div class="badge-marquee" aria-label="Certifications and partners">
@@ -148,9 +152,15 @@
             </div>
             {% endif %}
             <div class="hero__content" data-animate="grow">
-                <p class="hero__eyebrow">{{ hero.tagline or 'Trusted Cleaning Experts' }}</p>
-                <h1 class="hero__title">{{ hero.title or 'Professional Cleaning Services' }}</h1>
-                <p class="hero__subtitle">{{ hero.subtitle or 'Reliable, affordable cleaning for your home or office. Get your free, no-obligation quote today!' }}</p>
+                {% if hero_tagline_text %}
+                <p class="hero__eyebrow">{{ hero_tagline_text }}</p>
+                {% endif %}
+                {% if hero_title_text %}
+                <h1 class="hero__title">{{ hero_title_text }}</h1>
+                {% endif %}
+                {% if hero_subtitle_text %}
+                <p class="hero__subtitle">{{ hero_subtitle_text }}</p>
+                {% endif %}
                 <div class="hero__cta button-group">
                     <a class="button button--primary" href="{{ hero.button_link or '#services' }}">{{ hero.button_text or 'Book a Service' }}</a>
                     <a class="button button--ghost" href="#testimonials">See Reviews</a>
@@ -160,12 +170,6 @@
                     {% for detail in hero_small_texts %}
                     <div class="hero__meta-item">{{ detail }}</div>
                     {% endfor %}
-                </div>
-                {% else %}
-                <div class="hero__meta" data-animate="fade-in">
-                    <div class="hero__meta-item">Over 150 satisfied clients nationwide</div>
-                    <div class="hero__meta-item">Eco-friendly products and flexible scheduling</div>
-                    <div class="hero__meta-item">Fully vetted, professional cleaning teams</div>
                 </div>
                 {% endif %}
             </div>
@@ -184,19 +188,6 @@
                         {% if stat.tertiary %}{{ stat.tertiary }}{% endif %}
                     </div>
                     {% endfor %}
-                {% else %}
-                    <div class="hero__card hero__card--primary" data-depth="0.18">
-                        <strong>98%</strong>
-                        Client satisfaction score
-                        <span class="hero__card-line"></span>
-                        Weekly quality checks
-                    </div>
-                    <div class="hero__card hero__card--secondary" data-depth="0.12">
-                        <strong>24h</strong>
-                        Response time for every request
-                        <span class="hero__card-line"></span>
-                        Emergency cleanups available
-                    </div>
                 {% endif %}
             </div>
         </header>

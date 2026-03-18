@@ -809,17 +809,17 @@
                     >
                         <div class="hero-editor__item hero-editor__item--tagline" id="previewTaglineItem" data-x-input="tagline_offset_x" data-y-input="tagline_offset_y">
                             <span class="hero-editor__drag-handle" data-drag-handle>Move Tagline</span>
-                            <span class="hero-editor__tagline" id="previewTagline">{{ hero.tagline or 'Trusted Cleaning Experts' }}</span>
+                            <span class="hero-editor__tagline" id="previewTagline">{{ hero.tagline if hero else 'Trusted Cleaning Experts' }}</span>
                         </div>
 
                         <div class="hero-editor__item hero-editor__item--title" id="previewTitleItem" data-x-input="title_offset_x" data-y-input="title_offset_y">
                             <span class="hero-editor__drag-handle" data-drag-handle>Move Title</span>
-                            <h3 class="hero-editor__title" id="previewTitle">{{ hero.title or 'Professional Cleaning Services' }}</h3>
+                            <h3 class="hero-editor__title" id="previewTitle">{{ hero.title if hero else 'Professional Cleaning Services' }}</h3>
                         </div>
 
                         <div class="hero-editor__item hero-editor__item--subtitle" id="previewSubtitleItem" data-x-input="subtitle_offset_x" data-y-input="subtitle_offset_y">
                             <span class="hero-editor__drag-handle" data-drag-handle>Move Subtitle</span>
-                            <p class="hero-editor__subtitle" id="previewSubtitle">{{ hero.subtitle or 'Reliable, affordable cleaning for your home or office.' }}</p>
+                            <p class="hero-editor__subtitle" id="previewSubtitle">{{ hero.subtitle if hero else 'Reliable, affordable cleaning for your home or office.' }}</p>
                         </div>
 
                         <div class="hero-editor__static-cta" aria-hidden="true">
@@ -830,30 +830,33 @@
                         <div class="hero-editor__item hero-editor__item--meta" id="previewMetaItem" data-x-input="meta_offset_x" data-y-input="meta_offset_y">
                             <span class="hero-editor__drag-handle" data-drag-handle>Move Details</span>
                             <div class="hero-editor__meta">
-                                <div class="hero-editor__meta-item" id="previewMeta1">{{ hero.small_text_line1 or 'Over 150 satisfied clients nationwide' }}</div>
-                                <div class="hero-editor__meta-item" id="previewMeta2">{{ hero.small_text_line2 or 'Eco-friendly products and flexible scheduling' }}</div>
-                                <div class="hero-editor__meta-item" id="previewMeta3">{{ hero.small_text_line3 or 'Fully vetted, professional cleaning teams' }}</div>
+                                <div class="hero-editor__meta-item" id="previewMeta1">{{ hero.small_text_line1 if hero else 'Over 150 satisfied clients nationwide' }}</div>
+                                <div class="hero-editor__meta-item" id="previewMeta2">{{ hero.small_text_line2 if hero else 'Eco-friendly products and flexible scheduling' }}</div>
+                                <div class="hero-editor__meta-item" id="previewMeta3">{{ hero.small_text_line3 if hero else 'Fully vetted, professional cleaning teams' }}</div>
                             </div>
                         </div>
 
                         <div class="hero-editor__item hero-editor__item--card hero-editor__item--card1" id="previewCard1" data-x-input="card1_offset_x" data-y-input="card1_offset_y">
                             <span class="hero-editor__drag-handle" data-drag-handle>Move Card 1</span>
-                            <strong>{{ (hero.stat1_text or '98% · Client satisfaction score').split('·')[0] | trim }}</strong>
-                            {{ (hero.stat1_text or '98% · Client satisfaction score').split('·')[1] | trim if '·' in (hero.stat1_text or '') else 'Client satisfaction score' }}
+                            {% set stat1_preview = hero.stat1_text if hero else '98% · Client satisfaction score' %}
+                            <strong>{{ stat1_preview.split('·')[0] | trim if stat1_preview else '' }}</strong>
+                            {{ stat1_preview.split('·')[1] | trim if stat1_preview and '·' in stat1_preview else '' }}
                             <span class="hero-editor__card-line"></span>
                         </div>
 
                         <div class="hero-editor__item hero-editor__item--card hero-editor__item--card2" id="previewCard2" data-x-input="card2_offset_x" data-y-input="card2_offset_y">
                             <span class="hero-editor__drag-handle" data-drag-handle>Move Card 2</span>
-                            <strong>{{ (hero.stat2_text or '24h · Response time for every request').split('·')[0] | trim }}</strong>
-                            {{ (hero.stat2_text or '24h · Response time for every request').split('·')[1] | trim if '·' in (hero.stat2_text or '') else 'Response time for every request' }}
+                            {% set stat2_preview = hero.stat2_text if hero else '24h · Response time for every request' %}
+                            <strong>{{ stat2_preview.split('·')[0] | trim if stat2_preview else '' }}</strong>
+                            {{ stat2_preview.split('·')[1] | trim if stat2_preview and '·' in stat2_preview else '' }}
                             <span class="hero-editor__card-line"></span>
                         </div>
 
                         <div class="hero-editor__item hero-editor__item--card hero-editor__item--card3" id="previewCard3" data-x-input="card3_offset_x" data-y-input="card3_offset_y">
                             <span class="hero-editor__drag-handle" data-drag-handle>Move Card 3</span>
-                            <strong>{{ (hero.stat3_text or 'Emergency · Cleanups available when you need them').split('·')[0] | trim }}</strong>
-                            {{ (hero.stat3_text or 'Emergency · Cleanups available when you need them').split('·')[1] | trim if '·' in (hero.stat3_text or '') else 'Cleanups available when you need them' }}
+                            {% set stat3_preview = hero.stat3_text if hero else 'Emergency · Cleanups available when you need them' %}
+                            <strong>{{ stat3_preview.split('·')[0] | trim if stat3_preview else '' }}</strong>
+                            {{ stat3_preview.split('·')[1] | trim if stat3_preview and '·' in stat3_preview else '' }}
                             <span class="hero-editor__card-line"></span>
                         </div>
                     </div>
