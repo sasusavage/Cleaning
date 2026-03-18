@@ -1174,8 +1174,20 @@
                                     <label class="flow-payment-choice__option">
                                         <input type="radio" name="flow_payment_option" value="prebook_save">
                                         <span>
-                                            <strong>Pre-book &amp; Save (10% off)</strong>
-                                            <small>Pay securely via Stripe now and lock in your discount.</small>
+                                            <strong>
+                                                {% if prebook_discount_enabled and prebook_discount_percent > 0 %}
+                                                Pre-book &amp; Save ({{ '%.2f'|format(prebook_discount_percent)|replace('.00','') }}% off)
+                                                {% else %}
+                                                Pre-book &amp; Pay Now
+                                                {% endif %}
+                                            </strong>
+                                            <small>
+                                                {% if prebook_discount_enabled and prebook_discount_percent > 0 %}
+                                                Pay securely via Stripe now and lock in your discount.
+                                                {% else %}
+                                                Pay securely via Stripe now. Discount is currently disabled.
+                                                {% endif %}
+                                            </small>
                                         </span>
                                     </label>
                                     <label class="flow-payment-choice__option">

@@ -1928,6 +1928,17 @@
                         </label>
                     </div>
 
+                    <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+                        <label style="display:inline-flex; align-items:center; gap:0.5rem; font-weight:600;">
+                            <input id="payment-prebook-discount-enabled" name="prebook_discount_enabled" type="checkbox">
+                            Enable Pre-book discount
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:0.35rem;">
+                            Pre-book Discount (%)
+                            <input id="payment-prebook-discount-percent" name="prebook_discount_percent" type="number" min="0" max="100" step="0.01" placeholder="10">
+                        </label>
+                    </div>
+
                     <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
                         <label style="display:inline-flex; align-items:center; gap:0.5rem; font-weight:600;">
                             <input id="payment-require-payment" name="require_payment" type="checkbox">
@@ -2501,6 +2512,8 @@
         const paymentCurrencyInput = document.getElementById('payment-currency');
         const paymentSuccessUrlInput = document.getElementById('payment-success-url');
         const paymentCancelUrlInput = document.getElementById('payment-cancel-url');
+        const paymentPrebookDiscountEnabledInput = document.getElementById('payment-prebook-discount-enabled');
+        const paymentPrebookDiscountPercentInput = document.getElementById('payment-prebook-discount-percent');
         const paymentEnvStatus = document.getElementById('payment-env-status');
         const paymentTransactionsTable = document.getElementById('payment-transactions-table');
         const operatingBaseForm = document.getElementById('operating-base-form');
@@ -4171,6 +4184,11 @@
             if (paymentCurrencyInput) paymentCurrencyInput.value = settings.currency || 'gbp';
             if (paymentSuccessUrlInput) paymentSuccessUrlInput.value = settings.success_url || '';
             if (paymentCancelUrlInput) paymentCancelUrlInput.value = settings.cancel_url || '';
+            if (paymentPrebookDiscountEnabledInput) paymentPrebookDiscountEnabledInput.checked = settings.prebook_discount_enabled !== false;
+            if (paymentPrebookDiscountPercentInput) {
+                const value = Number(settings.prebook_discount_percent);
+                paymentPrebookDiscountPercentInput.value = Number.isFinite(value) ? value : 10;
+            }
             if (paymentEnvStatus) {
                 const stripeDetected = Boolean(settings.stripe_key_detected);
                 const stripeValid = Boolean(settings.stripe_secret_key_valid);
@@ -4269,6 +4287,8 @@
                 const payload = {
                     require_payment: Boolean(paymentRequirePaymentInput && paymentRequirePaymentInput.checked),
                     currency: (paymentCurrencyInput?.value || 'gbp').trim(),
+                    prebook_discount_enabled: Boolean(paymentPrebookDiscountEnabledInput && paymentPrebookDiscountEnabledInput.checked),
+                    prebook_discount_percent: Number(paymentPrebookDiscountPercentInput?.value || 0),
                     success_url: (paymentSuccessUrlInput?.value || '').trim(),
                     cancel_url: (paymentCancelUrlInput?.value || '').trim()
                 };

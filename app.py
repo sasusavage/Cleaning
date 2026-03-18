@@ -1780,6 +1780,26 @@ def calculate_prebook_discount(original_total):
     return float(discounted_decimal), float(discount_amount_decimal)
 
 
+def calculate_prebook_discount_with_percent(original_total, discount_percent):
+    if original_total is None:
+        return None, None
+    try:
+        percent_value = Decimal(str(discount_percent)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    except Exception:
+        percent_value = Decimal(str(PREBOOK_DISCOUNT_PERCENT)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    if percent_value < Decimal('0'):
+        percent_value = Decimal('0')
+    if percent_value > Decimal('100'):
+        percent_value = Decimal('100')
+
+    original_decimal = Decimal(str(original_total)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    discount_multiplier = Decimal('1') - (percent_value / Decimal('100'))
+    discounted_decimal = (original_decimal * discount_multiplier).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    discount_amount_decimal = (original_decimal - discounted_decimal).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    return float(discounted_decimal), float(discount_amount_decimal)
+
+
 def haversine_distance_miles(lat1, lon1, lat2, lon2):
     # Calculate great-circle distance between two lat/lng pairs
     radius_miles = 3958.8
@@ -2677,12 +2697,16 @@ def ensure_payment_tables():
                 id BIGINT PRIMARY KEY,
                 require_payment BOOLEAN DEFAULT FALSE,
                 currency VARCHAR(10) DEFAULT 'gbp',
+                prebook_discount_enabled BOOLEAN DEFAULT TRUE,
+                prebook_discount_percent NUMERIC(5,2) DEFAULT 10.00,
                 success_url VARCHAR(600),
                 cancel_url VARCHAR(600),
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             )
             """
         )
+        cursor.execute("ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS prebook_discount_enabled BOOLEAN DEFAULT TRUE")
+        cursor.execute("ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS prebook_discount_percent NUMERIC(5,2) DEFAULT 10.00")
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS payment_transactions (
@@ -2712,8 +2736,8 @@ def ensure_payment_tables():
         if (cursor.fetchone() or [0])[0] == 0:
             cursor.execute(
                 """
-                INSERT INTO payment_settings (id, require_payment, currency, success_url, cancel_url)
-                VALUES (1, FALSE, 'gbp', NULL, NULL)
+                INSERT INTO payment_settings (id, require_payment, currency, prebook_discount_enabled, prebook_discount_percent, success_url, cancel_url)
+                VALUES (1, FALSE, 'gbp', TRUE, 10.00, NULL, NULL)
                 """
             )
     else:
@@ -2723,12 +2747,20 @@ def ensure_payment_tables():
                 id INT PRIMARY KEY,
                 require_payment TINYINT(1) DEFAULT 0,
                 currency VARCHAR(10) DEFAULT 'gbp',
+                prebook_discount_enabled TINYINT(1) DEFAULT 1,
+                prebook_discount_percent DECIMAL(5,2) DEFAULT 10.00,
                 success_url VARCHAR(600),
                 cancel_url VARCHAR(600),
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
             """
         )
+        cursor.execute("SHOW COLUMNS FROM payment_settings LIKE 'prebook_discount_enabled'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE payment_settings ADD COLUMN prebook_discount_enabled TINYINT(1) DEFAULT 1 AFTER currency")
+        cursor.execute("SHOW COLUMNS FROM payment_settings LIKE 'prebook_discount_percent'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE payment_settings ADD COLUMN prebook_discount_percent DECIMAL(5,2) DEFAULT 10.00 AFTER prebook_discount_enabled")
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS payment_transactions (
@@ -2758,8 +2790,8 @@ def ensure_payment_tables():
         if (cursor.fetchone() or [0])[0] == 0:
             cursor.execute(
                 """
-                INSERT INTO payment_settings (id, require_payment, currency, success_url, cancel_url)
-                VALUES (1, 0, 'gbp', NULL, NULL)
+                INSERT INTO payment_settings (id, require_payment, currency, prebook_discount_enabled, prebook_discount_percent, success_url, cancel_url)
+                VALUES (1, 0, 'gbp', 1, 10.00, NULL, NULL)
                 """
             )
 
@@ -2785,6 +2817,8 @@ def fetch_payment_settings():
         'id': 1,
         'require_payment': bool(row.get('require_payment')),
         'currency': (row.get('currency') or 'gbp').lower(),
+        'prebook_discount_enabled': bool(row.get('prebook_discount_enabled')) if row.get('prebook_discount_enabled') is not None else True,
+        'prebook_discount_percent': float(row.get('prebook_discount_percent')) if row.get('prebook_discount_percent') is not None else float(PREBOOK_DISCOUNT_PERCENT),
         'success_url': success_url or f"{base}/payment/callback/success?session_id={{CHECKOUT_SESSION_ID}}",
         'cancel_url': cancel_url or f"{base}/payment/callback/cancel",
         'stripe_enabled': stripe_ready(),
@@ -2801,6 +2835,15 @@ def upsert_payment_settings(payload):
     ensure_payment_tables()
     require_payment = bool(str_to_bool(payload.get('require_payment')))
     currency = (payload.get('currency') or 'gbp').strip().lower()[:10] or 'gbp'
+    prebook_discount_enabled = bool(str_to_bool(payload.get('prebook_discount_enabled', True)))
+    raw_discount_percent = payload.get('prebook_discount_percent', PREBOOK_DISCOUNT_PERCENT)
+    try:
+        prebook_discount_percent = round(float(raw_discount_percent), 2)
+    except (TypeError, ValueError):
+        raise ValueError('Pre-book discount percent must be a valid number.')
+    if prebook_discount_percent < 0 or prebook_discount_percent > 100:
+        raise ValueError('Pre-book discount percent must be between 0 and 100.')
+
     success_url = (payload.get('success_url') or '').strip()[:600]
     cancel_url = (payload.get('cancel_url') or '').strip()[:600]
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -2811,24 +2854,31 @@ def upsert_payment_settings(payload):
         cancel_url = f"{_get_app_base_url()}/payment/callback/cancel"
 
     require_payment_value = require_payment if engine == 'postgres' else (1 if require_payment else 0)
+    discount_enabled_value = prebook_discount_enabled if engine == 'postgres' else (1 if prebook_discount_enabled else 0)
 
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
         """
         UPDATE payment_settings
-        SET require_payment=%s, currency=%s, success_url=%s, cancel_url=%s, updated_at=CURRENT_TIMESTAMP
+        SET require_payment=%s,
+            currency=%s,
+            prebook_discount_enabled=%s,
+            prebook_discount_percent=%s,
+            success_url=%s,
+            cancel_url=%s,
+            updated_at=CURRENT_TIMESTAMP
         WHERE id = 1
         """,
-        (require_payment_value, currency, success_url, cancel_url)
+        (require_payment_value, currency, discount_enabled_value, prebook_discount_percent, success_url, cancel_url)
     )
     if cursor.rowcount == 0:
         cursor.execute(
             """
-            INSERT INTO payment_settings (id, require_payment, currency, success_url, cancel_url)
-            VALUES (1, %s, %s, %s, %s)
+            INSERT INTO payment_settings (id, require_payment, currency, prebook_discount_enabled, prebook_discount_percent, success_url, cancel_url)
+            VALUES (1, %s, %s, %s, %s, %s, %s)
             """,
-            (require_payment_value, currency, success_url, cancel_url)
+            (require_payment_value, currency, discount_enabled_value, prebook_discount_percent, success_url, cancel_url)
         )
     conn.commit()
     cursor.close()
@@ -5060,12 +5110,21 @@ def prepare_service_booking(payload):
     app.logger.info(f"prepare_service_booking - Normalized payment_option: {payment_option}")
     app.logger.info(f"prepare_service_booking - has_custom: {has_custom}, has_survey_request: {has_survey_request}")
     
+    payment_settings = fetch_payment_settings()
+    configured_discount_enabled = bool(payment_settings.get('prebook_discount_enabled', True))
+    try:
+        configured_discount_percent = float(payment_settings.get('prebook_discount_percent', PREBOOK_DISCOUNT_PERCENT))
+    except (TypeError, ValueError):
+        configured_discount_percent = float(PREBOOK_DISCOUNT_PERCENT)
+    configured_discount_percent = max(0.0, min(100.0, configured_discount_percent))
+
     is_prebook_payment = payment_option == PAYMENT_OPTION_PREBOOK
 
     discounted_total = None
     prebook_discount_amount = None
+    effective_prebook_discount_percent = configured_discount_percent if configured_discount_enabled else 0.0
     if is_prebook_payment and total_with_travel is not None:
-        discounted_total, prebook_discount_amount = calculate_prebook_discount(total_with_travel)
+        discounted_total, prebook_discount_amount = calculate_prebook_discount_with_percent(total_with_travel, effective_prebook_discount_percent)
 
     payable_total = discounted_total if (is_prebook_payment and discounted_total is not None) else total_with_travel
     payment_type_for_db = 'stripe' if is_prebook_payment else 'in_person'
@@ -5084,7 +5143,10 @@ def prepare_service_booking(payload):
     elif total_with_travel is not None:
         summary_lines.append(f"Estimated total: {format_currency_label(total_with_travel)}")
         if is_prebook_payment and discounted_total is not None and prebook_discount_amount is not None:
-            summary_lines.append(f"Pre-book & Save ({PREBOOK_DISCOUNT_PERCENT}% off): -{format_currency_label(prebook_discount_amount)}")
+            if effective_prebook_discount_percent > 0 and prebook_discount_amount > 0:
+                summary_lines.append(f"Pre-book & Save ({effective_prebook_discount_percent}% off): -{format_currency_label(prebook_discount_amount)}")
+            else:
+                summary_lines.append("Pre-book payment selected (discount currently disabled)")
             summary_lines.append(f"Pay now total: {format_currency_label(discounted_total)}")
         else:
             summary_lines.append('Payment choice: Pay in Person (no online payment required)')
@@ -5124,7 +5186,7 @@ def prepare_service_booking(payload):
             'display': services_subtotal_display,
             'travel_fee': travel_fee_value,
             'total_with_travel': total_with_travel,
-            'prebook_discount_percent': PREBOOK_DISCOUNT_PERCENT if is_prebook_payment else 0,
+            'prebook_discount_percent': effective_prebook_discount_percent if is_prebook_payment else 0,
             'prebook_discount_amount': prebook_discount_amount,
             'payable_total': payable_total
         },
@@ -10106,6 +10168,15 @@ def index():
         })
     except Exception:
         app.logger.exception('Error logging homepage analytics event')
+
+    payment_settings = fetch_payment_settings()
+    prebook_discount_enabled = bool(payment_settings.get('prebook_discount_enabled', True))
+    try:
+        prebook_discount_percent = float(payment_settings.get('prebook_discount_percent', PREBOOK_DISCOUNT_PERCENT))
+    except (TypeError, ValueError):
+        prebook_discount_percent = float(PREBOOK_DISCOUNT_PERCENT)
+    prebook_discount_percent = max(0.0, min(100.0, prebook_discount_percent))
+
     return render_template(
         'index.html',
         services=services,
@@ -10122,7 +10193,9 @@ def index():
         site_content=site_content,
         faqs=faqs,
         policies=policies,
-        domestic_cleaning=domestic_cleaning
+        domestic_cleaning=domestic_cleaning,
+        prebook_discount_enabled=prebook_discount_enabled,
+        prebook_discount_percent=prebook_discount_percent
     )
 
 
