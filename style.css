@@ -3572,6 +3572,40 @@ body {
     grid-column: 1 / -1;
 }
 
+.flow-payment-choice__options {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 0.35rem;
+}
+
+.flow-payment-choice__option {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.75rem;
+    align-items: start;
+    border: 1px solid rgba(15, 23, 42, 0.14);
+    border-radius: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    background: #fff;
+}
+
+.flow-payment-choice__option input[type="radio"] {
+    margin-top: 0.2rem;
+}
+
+.flow-payment-choice__option strong {
+    display: block;
+    font-size: 0.94rem;
+    color: var(--text);
+}
+
+.flow-payment-choice__option small {
+    display: block;
+    margin-top: 0.18rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+}
+
 .form-hint {
     font-size: 0.8rem;
     color: var(--text-muted);

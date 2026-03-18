@@ -1172,6 +1172,25 @@
                                 <label for="flow-notes">Additional Notes</label>
                                 <textarea id="flow-notes" name="flow_notes" rows="3" placeholder="Pets on-site, gate code, or anything we should know."></textarea>
                             </div>
+                            <div class="form-row form-row--full flow-payment-choice">
+                                <label>Payment Option</label>
+                                <div class="flow-payment-choice__options" role="radiogroup" aria-label="Choose payment option">
+                                    <label class="flow-payment-choice__option">
+                                        <input type="radio" name="flow_payment_option" value="prebook_save">
+                                        <span>
+                                            <strong>Pre-book &amp; Save (10% off)</strong>
+                                            <small>Pay securely via Stripe now and lock in your discount.</small>
+                                        </span>
+                                    </label>
+                                    <label class="flow-payment-choice__option">
+                                        <input type="radio" name="flow_payment_option" value="pay_in_person" checked>
+                                        <span>
+                                            <strong>Pay after Service</strong>
+                                            <small>No online payment now. You can pay in person after completion.</small>
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                         <div class="flow-actions">
                             <button type="button" class="button button--ghost" data-flow-schedule-back>Back to Summary</button>

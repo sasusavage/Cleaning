@@ -72,6 +72,14 @@ document.addEventListener("DOMContentLoaded", function () {
         return Number.isNaN(numeric) ? null : numeric;
     };
 
+    var normalizePaymentOptionValue = function (value) {
+        var normalized = String(value || "").trim().toLowerCase().replace(/[-\s]+/g, "_");
+        if (["prebook_save", "prebook", "pay_now", "stripe", "card"].indexOf(normalized) !== -1) {
+            return "prebook_save";
+        }
+        return "pay_in_person";
+    };
+
     var escapeHtml = function (text) {
         if (!text) return "";
         var div = document.createElement("div");
@@ -770,6 +778,7 @@ document.addEventListener("DOMContentLoaded", function () {
         var flowDateInput = document.getElementById("flow-date");
         var flowTimeInput = document.getElementById("flow-time");
         var flowNotesInput = document.getElementById("flow-notes");
+        var flowPaymentOptionInputs = serviceFlowForm ? serviceFlowForm.querySelectorAll('input[name="flow_payment_option"]') : [];
         var FLOW_STATE_KEY = "serviceFlowWizard";
         var currentServiceIndex = 0;
         var activeStep = 1;
@@ -783,7 +792,12 @@ document.addEventListener("DOMContentLoaded", function () {
             if (!flowSubmitButton) {
                 return;
             }
-            flowSubmitButton.textContent = hasSurvey ? surveySubmitLabel : defaultSubmitLabel;
+            if (hasSurvey) {
+                flowSubmitButton.textContent = surveySubmitLabel;
+                return;
+            }
+            var selectedPaymentOption = normalizePaymentOptionValue(flowState && flowState.payment_option);
+            flowSubmitButton.textContent = selectedPaymentOption === "prebook_save" ? "Proceed to Secure Payment" : defaultSubmitLabel;
         };
 
         var createDefaultFlowState = function () {
@@ -801,6 +815,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     preferred_time: ""
                 },
                 notes: "",
+                payment_option: "pay_in_person",
                 travelQuote: null,
                 travelPostcodeSnapshot: "",
                 extendedCoverageAccepted: false,
@@ -825,6 +840,29 @@ document.addEventListener("DOMContentLoaded", function () {
         if (flowState.travelPostcodeSnapshot === undefined) {
             flowState.travelPostcodeSnapshot = "";
         }
+        flowState.payment_option = normalizePaymentOptionValue(flowState.payment_option);
+
+        var syncPaymentOptionInputs = function () {
+            if (!flowPaymentOptionInputs || !flowPaymentOptionInputs.length) {
+                return;
+            }
+            Array.prototype.forEach.call(flowPaymentOptionInputs, function (input) {
+                input.checked = normalizePaymentOptionValue(input.value) === flowState.payment_option;
+            });
+        };
+
+        if (flowPaymentOptionInputs && flowPaymentOptionInputs.length) {
+            Array.prototype.forEach.call(flowPaymentOptionInputs, function (input) {
+                input.addEventListener("change", function () {
+                    flowState.payment_option = normalizePaymentOptionValue(input.value);
+                    persistFlowState();
+                    var hasSurvey = Boolean(lastSummaryTotals && lastSummaryTotals.hasSurvey);
+                    setSubmitButtonLabel(hasSurvey);
+                });
+            });
+        }
+        syncPaymentOptionInputs();
+        setSubmitButtonLabel(Boolean(lastSummaryTotals && lastSummaryTotals.hasSurvey));
 
         var updateTravelSnapshot = function (value) {
             flowState.travelPostcodeSnapshot = normalizePostcodeValue(value || "");
@@ -3087,6 +3125,7 @@ document.addEventListener("DOMContentLoaded", function () {
             renderServiceStep();
             updateMiniCart();
             hydrateContactFields();
+            syncPaymentOptionInputs();
             setSubmitButtonLabel(false);
             updateSummaryNextState();
             if (flowFeedback) {
@@ -3398,6 +3437,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (flowEmailInput) flowState.customer.email = (flowEmailInput.value || "").trim();
                 if (flowPhoneInput) flowState.customer.phone = (flowPhoneInput.value || "").trim();
                 if (flowNotesInput) flowState.notes = (flowNotesInput.value || "").trim();
+                if (flowPaymentOptionInputs && flowPaymentOptionInputs.length) {
+                    var selectedPaymentInput = Array.prototype.find.call(flowPaymentOptionInputs, function (input) { return input.checked; });
+                    flowState.payment_option = normalizePaymentOptionValue(selectedPaymentInput ? selectedPaymentInput.value : flowState.payment_option);
+                }
                 persistFlowState();
 
                 // If postcode changed and we haven't already calculated for this postcode, refresh travel pricing
@@ -3471,6 +3514,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     source: "service-flow",
                     context_page: window.location.pathname,
                     notes: flowState.notes,
+                    payment_option: normalizePaymentOptionValue(flowState.payment_option),
                     customer: {
                         name: flowState.customer.name,
                         email: flowState.customer.email,

@@ -891,6 +891,35 @@
             color: #991b1b;
         }
 
+        .requests-table .payment-badge {
+            display: inline-flex;
+            padding: 0.25rem 0.65rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .requests-table .payment-badge--stripe {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .requests-table .payment-badge--in_person {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .requests-table .payment-badge--in_person_paid {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .requests-table .payment-badge--na {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
         .requests-table .action-btn {
             padding: 0.35rem 0.75rem;
             border-radius: 0.375rem;
@@ -1769,6 +1798,8 @@
                                     <th>Type</th>
                                     <th>Service / Position</th>
                                     <th>Status</th>
+                                    <th>Payment Status</th>
+                                    <th style="text-align: right;">Amount Due</th>
                                     <th style="text-align: right;">Action</th>
                                 </tr>
                             </thead>
@@ -2352,6 +2383,8 @@
                     <div><strong>Updated:</strong> <span id="request-detail-updated">—</span></div>
                     <div><strong>Admin Email:</strong> <span id="request-detail-email-admin">—</span></div>
                     <div><strong>User Email:</strong> <span id="request-detail-email-user">—</span></div>
+                    <div><strong>Payment Status:</strong> <span id="request-detail-payment-status">—</span></div>
+                    <div><strong>Amount Due:</strong> <span id="request-detail-amount-due">—</span></div>
                     <div><strong>Travel Fee:</strong> <span id="request-detail-travel-fee">—</span></div>
                     <div><strong>Travel Distance:</strong> <span id="request-detail-distance">—</span></div>
                     <div><strong>Travel Time:</strong> <span id="request-detail-travel-time">—</span></div>
@@ -3522,6 +3555,19 @@
             return `status-badge status-badge--${normalizedStatus}`;
         }
 
+        function getPaymentBadgeClass(paymentBadge) {
+            const normalized = (paymentBadge || 'na').toLowerCase();
+            return `payment-badge payment-badge--${normalized}`;
+        }
+
+        function formatAmountDue(value) {
+            const amount = Number(value);
+            if (!Number.isFinite(amount)) {
+                return '—';
+            }
+            return `£${amount.toFixed(2)}`;
+        }
+
         function createRequestTableRow(entry) {
             const status = (entry.status || 'pending').toLowerCase();
             const statusLabel = REQUEST_STATUS_LABELS[status] || status;
@@ -3529,6 +3575,9 @@
             const name = entry.name ? escapeHtml(entry.name) : '—';
             const serviceOrPosition = entry.service_name || entry.job_position || '—';
             const dateDisplay = formatDateShort(entry.created_at);
+            const paymentStatus = entry.payment_status_label || '—';
+            const paymentBadge = entry.payment_badge || 'na';
+            const amountDue = formatAmountDue(entry.amount_due);
 
             return `
                 <tr data-request-id="${entry.id}">
@@ -3537,6 +3586,8 @@
                     <td class="text-muted">${escapeHtml(typeLabel)}</td>
                     <td class="text-muted">${escapeHtml(serviceOrPosition)}</td>
                     <td><span class="${getStatusBadgeClass(status)}">${escapeHtml(statusLabel)}</span></td>
+                    <td><span class="${getPaymentBadgeClass(paymentBadge)}">${escapeHtml(paymentStatus)}</span></td>
+                    <td class="text-muted" style="text-align:right; font-weight:600;">${escapeHtml(amountDue)}</td>
                     <td style="text-align: right;"><button class="action-btn" type="button" data-view-request="${entry.id}">Manage</button></td>
                 </tr>
             `;
@@ -3587,7 +3638,7 @@
             if (allRequests.length === 0) {
                 requestTableBody.innerHTML = `
                     <tr>
-                        <td colspan="6" style="text-align: center; padding: 2rem; color: #6b7280;">No requests found.</td>
+                        <td colspan="8" style="text-align: center; padding: 2rem; color: #6b7280;">No requests found.</td>
                     </tr>
                 `;
             } else {
@@ -3821,6 +3872,8 @@
             const userEmailStatus = detail.email ? (detail.email_sent_user ? 'Sent' : 'Pending') : 'No recipient';
             (getEl('request-detail-email-admin') || {}).textContent = adminEmailStatus;
             (getEl('request-detail-email-user') || {}).textContent = userEmailStatus;
+            (getEl('request-detail-payment-status') || {}).textContent = detail.payment_status_label || '—';
+            (getEl('request-detail-amount-due') || {}).textContent = formatAmountDue(detail.amount_due);
 
             const travel = detail.travel || {};
             const travelFee = typeof travel.travel_fee === 'number' ? `£${Number(travel.travel_fee).toFixed(2)}` : '—';

@@ -28,6 +28,7 @@ import calendar
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from decimal import Decimal, ROUND_HALF_UP
 
 try:
     import resend
@@ -115,6 +116,9 @@ REQUEST_STATUS_LABELS = {
     'cancelled': 'Cancelled',
     'survey_needed': 'Survey Needed'
 }
+PREBOOK_DISCOUNT_PERCENT = 10
+PAYMENT_OPTION_PREBOOK = 'prebook_save'
+PAYMENT_OPTION_IN_PERSON = 'pay_in_person'
 
 TRAVEL_CACHE_TTL_SECONDS = 15 * 60
 SESSION_TRAVEL_CACHE_TTL_SECONDS = 10 * 60
@@ -1707,6 +1711,52 @@ def normalize_price_value(value):
         return None
 
 
+def normalize_payment_option(value):
+    normalized = (value or '').strip().lower().replace('-', '_').replace(' ', '_')
+    if normalized in {'prebook_save', 'prebook', 'pay_now', 'stripe', 'card'}:
+        return PAYMENT_OPTION_PREBOOK
+    if normalized in {'pay_in_person', 'in_person', 'cash', 'pay_after_service'}:
+        return PAYMENT_OPTION_IN_PERSON
+    return PAYMENT_OPTION_IN_PERSON
+
+
+def normalize_stored_payment_type(value):
+    normalized = (value or '').strip().lower().replace('-', '_').replace(' ', '_')
+    if normalized in {'stripe', 'prebook_save', 'prebook', 'pay_now', 'card'}:
+        return 'stripe'
+    return 'in_person'
+
+
+def resolve_payment_status_label(payment_type, is_paid):
+    normalized_type = normalize_stored_payment_type(payment_type)
+    paid = bool(is_paid)
+    if normalized_type == 'stripe':
+        return 'Paid via Stripe' if paid else 'Stripe payment pending'
+    return 'Paid in Person' if paid else 'Unpaid / Cash'
+
+
+def resolve_payment_badge(payment_type, is_paid):
+    normalized_type = normalize_stored_payment_type(payment_type)
+    paid = bool(is_paid)
+    if normalized_type == 'stripe':
+        return 'stripe'
+    return 'in_person_paid' if paid else 'in_person'
+
+
+def money_to_minor_units(amount):
+    decimal_amount = Decimal(str(amount)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    return int((decimal_amount * Decimal('100')).to_integral_value(rounding=ROUND_HALF_UP))
+
+
+def calculate_prebook_discount(original_total):
+    if original_total is None:
+        return None, None
+    original_decimal = Decimal(str(original_total)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    discounted_decimal = (original_decimal * Decimal('0.90')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    discount_amount_decimal = (original_decimal - discounted_decimal).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    return float(discounted_decimal), float(discount_amount_decimal)
+
+
 def haversine_distance_miles(lat1, lon1, lat2, lon2):
     # Calculate great-circle distance between two lat/lng pairs
     radius_miles = 3958.8
@@ -1773,6 +1823,8 @@ def ensure_travel_tables():
         cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS pricing_method VARCHAR(50)")
         cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS assigned_base_id INTEGER")
         cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS assigned_base_name VARCHAR(150)")
+        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS payment_type VARCHAR(30) DEFAULT 'in_person'")
+        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE")
     else:
         cursor.execute(
             """
@@ -1850,6 +1902,12 @@ def ensure_travel_tables():
         cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'assigned_base_name'")
         if not cursor.fetchone():
             cursor.execute("ALTER TABLE service_requests ADD COLUMN assigned_base_name VARCHAR(150) NULL")
+        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'payment_type'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE service_requests ADD COLUMN payment_type VARCHAR(30) DEFAULT 'in_person'")
+        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'is_paid'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE service_requests ADD COLUMN is_paid TINYINT(1) DEFAULT 0")
 
     # Seed default settings row
     cursor.execute("SELECT COUNT(*) FROM settings")
@@ -3873,7 +3931,7 @@ def resolve_service_selections(raw_selections):
     return resolved, subtotal, has_custom_price, pricing_details
 
 
-def persist_service_request_bundle(customer, schedule, notes, selections, total_price, has_custom, legacy_request_id=None, travel=None, pricing_details=None, status_value='pending'):
+def persist_service_request_bundle(customer, schedule, notes, selections, total_price, has_custom, legacy_request_id=None, travel=None, pricing_details=None, status_value='pending', payment_type='in_person', is_paid=False):
     conn = get_db_connection()
     cursor = conn.cursor()
     db_engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -3886,11 +3944,14 @@ def persist_service_request_bundle(customer, schedule, notes, selections, total_
                 preferred_date, preferred_time, notes,
                 total_price, pricing_details, status, legacy_request_id,
                 travel_fee, distance_miles, travel_time_minutes, pricing_method,
-                assigned_base_id, assigned_base_name
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                assigned_base_id, assigned_base_name,
+                payment_type, is_paid
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         if pg_mode:
             insert_request_sql += " RETURNING id"
+
+        normalized_payment_type = normalize_stored_payment_type(payment_type)
 
         cursor.execute(
             insert_request_sql,
@@ -3911,7 +3972,9 @@ def persist_service_request_bundle(customer, schedule, notes, selections, total_
                 (travel or {}).get('travel_time_minutes'),
                 (travel or {}).get('pricing_method'),
                 (travel or {}).get('base_id'),
-                (travel or {}).get('base_name')
+                (travel or {}).get('base_name'),
+                normalized_payment_type,
+                bool(is_paid)
             )
         )
         if pg_mode:
@@ -4001,6 +4064,10 @@ def fetch_service_request_detail(legacy_request_id):
     if isinstance(updated_at, datetime):
         service_request['updated_at'] = updated_at.isoformat()
     service_request['total_price'] = normalize_price_value(service_request.get('total_price'))
+    service_request['payment_type'] = normalize_stored_payment_type(service_request.get('payment_type'))
+    service_request['is_paid'] = bool(service_request.get('is_paid'))
+    service_request['payment_status_label'] = resolve_payment_status_label(service_request.get('payment_type'), service_request.get('is_paid'))
+    service_request['payment_badge'] = resolve_payment_badge(service_request.get('payment_type'), service_request.get('is_paid'))
     for item in items:
         item['price'] = normalize_price_value(item.get('price'))
     service_request['items'] = items
@@ -4961,6 +5028,19 @@ def prepare_service_booking(payload):
         if travel_fee_value is not None:
             total_with_travel = round(subtotal + travel_fee_value, 2)
 
+    payment_option = normalize_payment_option(payload.get('payment_option') or payload.get('payment_type'))
+    if has_custom or has_survey_request:
+        payment_option = PAYMENT_OPTION_IN_PERSON
+    is_prebook_payment = payment_option == PAYMENT_OPTION_PREBOOK
+
+    discounted_total = None
+    prebook_discount_amount = None
+    if is_prebook_payment and total_with_travel is not None:
+        discounted_total, prebook_discount_amount = calculate_prebook_discount(total_with_travel)
+
+    payable_total = discounted_total if (is_prebook_payment and discounted_total is not None) else total_with_travel
+    payment_type_for_db = 'stripe' if is_prebook_payment else 'in_person'
+
     summary_lines = ['Selections:']
     for item in selections:
         summary_lines.append(
@@ -4974,6 +5054,11 @@ def prepare_service_booking(payload):
         summary_lines.append('Pricing: Survey required before confirming total. No payment taken.')
     elif total_with_travel is not None:
         summary_lines.append(f"Estimated total: {format_currency_label(total_with_travel)}")
+        if is_prebook_payment and discounted_total is not None and prebook_discount_amount is not None:
+            summary_lines.append(f"Pre-book & Save ({PREBOOK_DISCOUNT_PERCENT}% off): -{format_currency_label(prebook_discount_amount)}")
+            summary_lines.append(f"Pay now total: {format_currency_label(discounted_total)}")
+        else:
+            summary_lines.append('Payment choice: Pay in Person (no online payment required)')
     summary_lines.append('')
     summary_lines.append(f"Preferred date: {preferred_date_raw or 'Flexible'}")
     summary_lines.append(f"Preferred time: {preferred_time or 'Flexible'}")
@@ -5009,7 +5094,16 @@ def prepare_service_booking(payload):
             'is_survey_request': has_survey_request,
             'display': services_subtotal_display,
             'travel_fee': travel_fee_value,
-            'total_with_travel': total_with_travel
+            'total_with_travel': total_with_travel,
+            'prebook_discount_percent': PREBOOK_DISCOUNT_PERCENT if is_prebook_payment else 0,
+            'prebook_discount_amount': prebook_discount_amount,
+            'payable_total': payable_total
+        },
+        'payment': {
+            'option': payment_option,
+            'payment_type': payment_type_for_db,
+            'is_paid': False,
+            'status_label': resolve_payment_status_label(payment_type_for_db, False)
         },
         'travel': travel_quote
     }
@@ -5036,7 +5130,7 @@ def prepare_service_booking(payload):
         'preferred_date': parsed_date,
         'preferred_time': preferred_time
     }
-    stored_total_for_db = total_with_travel if not has_custom and not has_survey_request else None
+    stored_total_for_db = payable_total if not has_custom and not has_survey_request else None
 
     return {
         'incoming_payload': payload,
@@ -5047,6 +5141,10 @@ def prepare_service_booking(payload):
         'has_survey_request': has_survey_request,
         'travel_quote': travel_quote,
         'total_with_travel': total_with_travel,
+        'payable_total': payable_total,
+        'prebook_discount_amount': prebook_discount_amount,
+        'payment_option': payment_option,
+        'payment_type_for_db': payment_type_for_db,
         'public_payload': public_payload,
         'service_metadata': service_metadata,
         'customer_bundle': customer_bundle,
@@ -5059,7 +5157,7 @@ def prepare_service_booking(payload):
     }
 
 
-def finalize_prepared_service_booking(prepared, remote_addr=None):
+def finalize_prepared_service_booking(prepared, remote_addr=None, mark_paid=False):
     prepared = prepared or {}
     submission = process_request_submission(
         prepared.get('public_payload') or {},
@@ -5079,7 +5177,9 @@ def finalize_prepared_service_booking(prepared, remote_addr=None):
         submission.get('request_id'),
         prepared.get('travel_quote') or {},
         prepared.get('pricing_details') or [],
-        status_value='survey_needed' if prepared.get('has_survey_request') else 'pending'
+        status_value='survey_needed' if prepared.get('has_survey_request') else 'pending',
+        payment_type=prepared.get('payment_type_for_db') or 'in_person',
+        is_paid=bool(mark_paid)
     )
     attach_service_request_reference(submission.get('request_id'), service_request_id)
 
@@ -5087,6 +5187,11 @@ def finalize_prepared_service_booking(prepared, remote_addr=None):
     submission['travel'] = prepared.get('travel_quote') or {}
     if prepared.get('total_with_travel') is not None:
         submission['total_with_travel'] = prepared.get('total_with_travel')
+    if prepared.get('payable_total') is not None:
+        submission['payable_total'] = prepared.get('payable_total')
+    submission['payment_type'] = prepared.get('payment_type_for_db') or 'in_person'
+    submission['is_paid'] = bool(mark_paid)
+    submission['payment_status_label'] = resolve_payment_status_label(submission.get('payment_type'), submission.get('is_paid'))
     submission['message'] = 'Thanks! Your survey request has been received. We will call to arrange a visit.' if prepared.get('has_survey_request') else 'Thanks! Your booking request has been received.'
     return submission
 
@@ -5116,10 +5221,10 @@ def start_stripe_checkout():
     try:
         prepared = prepare_service_booking(payload)
         payment_settings = fetch_payment_settings()
+        payment_option = prepared.get('payment_option') or PAYMENT_OPTION_IN_PERSON
 
-        # If payment is not required, keep existing direct processing behavior.
-        if not payment_settings.get('require_payment'):
-            submission = finalize_prepared_service_booking(prepared, remote_addr=request.remote_addr)
+        if payment_option != PAYMENT_OPTION_PREBOOK:
+            submission = finalize_prepared_service_booking(prepared, remote_addr=request.remote_addr, mark_paid=False)
             submission['mode'] = 'direct'
             return jsonify(submission), 201
 
@@ -5127,8 +5232,8 @@ def start_stripe_checkout():
             return jsonify({'error': 'This request requires a survey first, so payment cannot be taken yet.'}), 400
         if prepared.get('has_custom'):
             return jsonify({'error': 'This selection needs a custom quote before payment.'}), 400
-        total_with_travel = normalize_price_value(prepared.get('total_with_travel'))
-        if total_with_travel is None or total_with_travel <= 0:
+        payable_total = normalize_price_value(prepared.get('payable_total'))
+        if payable_total is None or payable_total <= 0:
             return jsonify({'error': 'Unable to calculate a payable total for this booking.'}), 400
 
         if not stripe_ready():
@@ -5136,11 +5241,11 @@ def start_stripe_checkout():
 
         stripe.api_key = stripe_secret_key()
         currency = (payment_settings.get('currency') or 'gbp').lower()
-        amount_minor = int(round(total_with_travel * 100))
+        amount_minor = money_to_minor_units(payable_total)
         service_label = prepared.get('primary_service_name') or 'Cleaning service'
 
         tx_id = create_payment_transaction(
-            amount_total=total_with_travel,
+            amount_total=payable_total,
             currency=currency,
             customer_name=prepared.get('customer_name') or '',
             customer_email=prepared.get('customer_email') or '',
@@ -5189,7 +5294,9 @@ def start_stripe_checkout():
             'checkout_url': session_data.get('url'),
             'session_id': session_data.get('id'),
             'transaction_id': tx_id,
-            'amount_total': total_with_travel,
+            'amount_total': payable_total,
+            'original_amount': prepared.get('total_with_travel'),
+            'discount_amount': prepared.get('prebook_discount_amount'),
             'currency': currency
         }), 200
     except ValueError as exc:
@@ -5223,7 +5330,9 @@ def process_completed_payment_session(session_obj):
     try:
         prepared_payload = tx.get('prepared_payload') or '{}'
         prepared = json.loads(prepared_payload)
-        submission = finalize_prepared_service_booking(prepared, remote_addr='stripe-webhook')
+        if not prepared.get('payment_type_for_db'):
+            prepared['payment_type_for_db'] = 'stripe'
+        submission = finalize_prepared_service_booking(prepared, remote_addr='stripe-webhook', mark_paid=True)
         update_payment_transaction(
             tx.get('id'),
             status='processed',
@@ -7385,10 +7494,10 @@ def admin_list_requests():
     filters = []
     params = []
     if status_filter and status_filter in REQUEST_STATUSES:
-        filters.append('status = %s')
+        filters.append('r.status = %s')
         params.append(status_filter)
     if request_type_filter in {'service', 'job', 'general'}:
-        filters.append('request_type = %s')
+        filters.append('r.request_type = %s')
         params.append(request_type_filter)
 
     where_clause = f"WHERE {' AND '.join(filters)}" if filters else ''
@@ -7397,11 +7506,13 @@ def admin_list_requests():
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
         f"""
-        SELECT id, request_type, name, email, phone, subject, service_name, job_position,
-             ref_id, status, source, created_at, email_sent_admin, email_sent_user
-        FROM requests
+           SELECT r.id, r.request_type, r.name, r.email, r.phone, r.subject, r.service_name, r.job_position,
+               r.ref_id, r.status, r.source, r.created_at, r.email_sent_admin, r.email_sent_user,
+               sr.total_price AS amount_due, sr.payment_type, sr.is_paid
+           FROM requests r
+           LEFT JOIN service_requests sr ON sr.legacy_request_id = r.id
         {where_clause}
-        ORDER BY created_at DESC
+           ORDER BY r.created_at DESC
         LIMIT %s
         """,
         (*params, limit)
@@ -7416,6 +7527,18 @@ def admin_list_requests():
             row['created_at'] = created_at.isoformat()
         row['email_sent_admin'] = bool(row.get('email_sent_admin'))
         row['email_sent_user'] = bool(row.get('email_sent_user'))
+        if (row.get('request_type') or '').lower() == 'service':
+            row['amount_due'] = normalize_price_value(row.get('amount_due'))
+            row['payment_type'] = normalize_stored_payment_type(row.get('payment_type'))
+            row['is_paid'] = bool(row.get('is_paid'))
+            row['payment_status_label'] = resolve_payment_status_label(row.get('payment_type'), row.get('is_paid'))
+            row['payment_badge'] = resolve_payment_badge(row.get('payment_type'), row.get('is_paid'))
+        else:
+            row['amount_due'] = None
+            row['payment_type'] = ''
+            row['is_paid'] = False
+            row['payment_status_label'] = '—'
+            row['payment_badge'] = 'na'
 
     return jsonify(results)
 
@@ -7435,7 +7558,7 @@ def admin_list_requests_grouped():
     params = []
 
     if request_type_filter in {'service', 'job', 'general'}:
-        filters.append('request_type = %s')
+        filters.append('r.request_type = %s')
         params.append(request_type_filter)
 
     where_clause = f"WHERE {' AND '.join(filters)}" if filters else ''
@@ -7444,11 +7567,13 @@ def admin_list_requests_grouped():
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
         f"""
-        SELECT id, request_type, name, email, phone, subject, service_name, job_position,
-               ref_id, status, source, created_at, email_sent_admin, email_sent_user
-        FROM requests
+         SELECT r.id, r.request_type, r.name, r.email, r.phone, r.subject, r.service_name, r.job_position,
+             r.ref_id, r.status, r.source, r.created_at, r.email_sent_admin, r.email_sent_user,
+             sr.total_price AS amount_due, sr.payment_type, sr.is_paid
+         FROM requests r
+         LEFT JOIN service_requests sr ON sr.legacy_request_id = r.id
         {where_clause}
-        ORDER BY created_at DESC
+         ORDER BY r.created_at DESC
         LIMIT %s
         """,
         (*params, limit)
@@ -7487,6 +7612,18 @@ def admin_list_requests_grouped():
 
         item['email_sent_admin'] = bool(item.get('email_sent_admin'))
         item['email_sent_user'] = bool(item.get('email_sent_user'))
+        if (item.get('request_type') or '').lower() == 'service':
+            item['amount_due'] = normalize_price_value(item.get('amount_due'))
+            item['payment_type'] = normalize_stored_payment_type(item.get('payment_type'))
+            item['is_paid'] = bool(item.get('is_paid'))
+            item['payment_status_label'] = resolve_payment_status_label(item.get('payment_type'), item.get('is_paid'))
+            item['payment_badge'] = resolve_payment_badge(item.get('payment_type'), item.get('is_paid'))
+        else:
+            item['amount_due'] = None
+            item['payment_type'] = ''
+            item['is_paid'] = False
+            item['payment_status_label'] = '—'
+            item['payment_badge'] = 'na'
 
         status = (item.get('status') or 'pending').strip().lower()
         if status not in REQUEST_STATUSES:
@@ -7668,6 +7805,19 @@ def admin_request_detail(request_id):
     detail['metadata'] = detail.get('metadata') or {}
     detail['service_flow'] = detail.get('service_flow') or detail['metadata'].get('service_flow')
     detail['service_request'] = fetch_service_request_detail(request_id)
+
+    if detail['service_request']:
+        detail['payment_type'] = detail['service_request'].get('payment_type')
+        detail['is_paid'] = bool(detail['service_request'].get('is_paid'))
+        detail['payment_status_label'] = detail['service_request'].get('payment_status_label')
+        detail['payment_badge'] = detail['service_request'].get('payment_badge')
+        detail['amount_due'] = detail['service_request'].get('total_price')
+    else:
+        detail['payment_type'] = ''
+        detail['is_paid'] = False
+        detail['payment_status_label'] = '—'
+        detail['payment_badge'] = 'na'
+        detail['amount_due'] = None
 
     travel_summary = {}
     if detail['service_flow'] and isinstance(detail['service_flow'], dict):
