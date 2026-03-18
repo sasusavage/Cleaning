@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Clean Co.' %}
-    <title>Hero Content Manager | {{ company_name }} Admin</title>
+    <title>Home Page Manager | {{ company_name }} Admin</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         :root {
@@ -341,6 +341,11 @@
             border: 1px solid rgba(15, 23, 42, 0.12);
             overflow: hidden;
             background: linear-gradient(135deg, #0f172a, #1e293b);
+            display: grid;
+            grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+            align-items: end;
+            gap: 2.5rem;
+            padding: 5.6rem 2.6rem 2rem;
         }
 
         .hero-editor__stage::before {
@@ -361,8 +366,26 @@
             background: linear-gradient(110deg, rgba(8, 16, 32, 0.45) 0%, rgba(8, 16, 32, 0.2) 45%, rgba(8, 16, 32, 0.1) 100%);
         }
 
+        .hero-editor__content-col,
+        .hero-editor__visual-col {
+            position: relative;
+            z-index: 3;
+        }
+
+        .hero-editor__content-col {
+            display: grid;
+            gap: 1rem;
+            align-self: end;
+            min-width: 0;
+        }
+
+        .hero-editor__visual-col {
+            min-height: 430px;
+            align-self: end;
+        }
+
         .hero-editor__item {
-            position: absolute;
+            position: relative;
             user-select: none;
             touch-action: none;
             z-index: 5;
@@ -374,37 +397,24 @@
         }
 
         .hero-editor__item--tagline {
-            left: 3rem;
-            bottom: 15.8rem;
-            z-index: 5;
+            width: min(100%, 760px);
         }
 
         .hero-editor__item--title {
-            left: 3rem;
-            bottom: 10.3rem;
-            width: min(56%, 640px);
-            z-index: 5;
+            width: min(100%, 640px);
         }
 
         .hero-editor__item--subtitle {
-            left: 3rem;
-            bottom: 7.3rem;
-            width: min(52%, 520px);
-            z-index: 5;
+            width: min(100%, 540px);
         }
 
         .hero-editor__item--meta {
-            left: 3rem;
-            bottom: 1.35rem;
-            width: min(70%, 620px);
-            z-index: 5;
+            width: min(100%, 700px);
         }
 
         .hero-editor__static-cta {
-            position: absolute;
-            left: 3rem;
-            bottom: 5rem;
-            z-index: 4;
+            position: relative;
+            z-index: 5;
             display: inline-flex;
             align-items: center;
             gap: 1rem;
@@ -464,11 +474,15 @@
             border-radius: 6px;
             margin-bottom: 0.5rem;
             font-size: 0.85rem;
-            letter-spacing: 0.35em;
+            letter-spacing: 0.18em;
             text-transform: uppercase;
             font-weight: 600;
             background: #16a34a;
             color: #fff;
+            max-width: 100%;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            line-height: 1.3;
         }
 
         .hero-editor__title {
@@ -478,6 +492,9 @@
             line-height: 1.05;
             font-weight: 800;
             text-shadow: 0 2px 8px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.6);
+            max-width: 100%;
+            white-space: normal;
+            overflow-wrap: anywhere;
         }
 
         .hero-editor__subtitle {
@@ -487,6 +504,9 @@
             font-weight: 600;
             line-height: 1.45;
             text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7), 0 1px 3px rgba(0, 0, 0, 0.5);
+            max-width: 100%;
+            white-space: normal;
+            overflow-wrap: anywhere;
         }
 
         .hero-editor__meta {
@@ -507,6 +527,7 @@
         }
 
         .hero-editor__item--card {
+            position: absolute;
             min-width: 260px;
             width: min(300px, 92%);
             border-radius: 1.25rem;
@@ -521,6 +542,8 @@
             line-height: 1.45;
             z-index: 4;
             backdrop-filter: blur(14px);
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .hero-editor__item--card .hero-editor__drag-handle {
@@ -552,6 +575,41 @@
             left: 45%;
         }
 
+        @media (max-width: 1100px) {
+            .hero-editor__stage {
+                grid-template-columns: 1fr;
+                gap: 1.4rem;
+                padding: 4.2rem 1.4rem 1.4rem;
+            }
+
+            .hero-editor__content-col {
+                justify-items: center;
+                text-align: center;
+            }
+
+            .hero-editor__static-cta {
+                justify-content: center;
+            }
+
+            .hero-editor__meta {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+            }
+
+            .hero-editor__visual-col {
+                min-height: auto;
+                display: grid;
+                gap: 0.9rem;
+                justify-items: center;
+            }
+
+            .hero-editor__item--card {
+                position: relative;
+                inset: auto;
+                width: min(100%, 460px);
+            }
+        }
+
         .hero-editor__card-line {
             margin-top: 1.6rem;
             display: block;
@@ -569,6 +627,77 @@
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 0.75rem;
+        }
+
+        .homepage-flow {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: grid;
+            gap: 0.7rem;
+        }
+
+        .homepage-flow__item {
+            border: 1px solid var(--border);
+            border-radius: 0.7rem;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            padding: 0.7rem 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            cursor: grab;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .homepage-flow__item:hover {
+            border-color: rgba(37, 99, 235, 0.4);
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+            transform: translateY(-1px);
+        }
+
+        .homepage-flow__item.is-dragging {
+            opacity: 0.55;
+            transform: scale(0.99);
+            cursor: grabbing;
+        }
+
+        .homepage-flow__handle {
+            font-size: 1.05rem;
+            line-height: 1;
+            color: #64748b;
+            user-select: none;
+        }
+
+        .homepage-flow__content {
+            display: grid;
+            gap: 0.2rem;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .homepage-flow__content strong {
+            font-size: 0.95rem;
+            color: #0f172a;
+        }
+
+        .homepage-flow__content small {
+            color: var(--muted);
+            font-size: 0.78rem;
+            letter-spacing: 0.02em;
+        }
+
+        .homepage-flow__tag {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.2rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #065f46;
+            background: rgba(16, 185, 129, 0.18);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            white-space: nowrap;
         }
 
         @media (max-width: 1024px) {
@@ -704,7 +833,7 @@
 
     <div class="main-content">
         <div class="page-header">
-            <h1>Hero Content Manager</h1>
+            <h1>Home Page Manager</h1>
             <a class="btn btn-outline" href="{{ url_for('admin_dashboard') }}">← Back to Dashboard</a>
         </div>
 
@@ -807,57 +936,61 @@
                         style="--preview-bg-image: linear-gradient(135deg, #0f172a, #1e293b);"
                         {% endif %}
                     >
-                        <div class="hero-editor__item hero-editor__item--tagline" id="previewTaglineItem" data-x-input="tagline_offset_x" data-y-input="tagline_offset_y">
-                            <span class="hero-editor__drag-handle" data-drag-handle>Move Tagline</span>
-                            <span class="hero-editor__tagline" id="previewTagline">{{ hero.tagline if hero else 'Trusted Cleaning Experts' }}</span>
-                        </div>
+                        <div class="hero-editor__content-col">
+                            <div class="hero-editor__item hero-editor__item--tagline" id="previewTaglineItem" data-x-input="tagline_offset_x" data-y-input="tagline_offset_y">
+                                <span class="hero-editor__drag-handle" data-drag-handle>Move Tagline</span>
+                                <span class="hero-editor__tagline" id="previewTagline">{{ hero.tagline if hero else 'Trusted Cleaning Experts' }}</span>
+                            </div>
 
-                        <div class="hero-editor__item hero-editor__item--title" id="previewTitleItem" data-x-input="title_offset_x" data-y-input="title_offset_y">
-                            <span class="hero-editor__drag-handle" data-drag-handle>Move Title</span>
-                            <h3 class="hero-editor__title" id="previewTitle">{{ hero.title if hero else 'Professional Cleaning Services' }}</h3>
-                        </div>
+                            <div class="hero-editor__item hero-editor__item--title" id="previewTitleItem" data-x-input="title_offset_x" data-y-input="title_offset_y">
+                                <span class="hero-editor__drag-handle" data-drag-handle>Move Title</span>
+                                <h3 class="hero-editor__title" id="previewTitle">{{ hero.title if hero else 'Professional Cleaning Services' }}</h3>
+                            </div>
 
-                        <div class="hero-editor__item hero-editor__item--subtitle" id="previewSubtitleItem" data-x-input="subtitle_offset_x" data-y-input="subtitle_offset_y">
-                            <span class="hero-editor__drag-handle" data-drag-handle>Move Subtitle</span>
-                            <p class="hero-editor__subtitle" id="previewSubtitle">{{ hero.subtitle if hero else 'Reliable, affordable cleaning for your home or office.' }}</p>
-                        </div>
+                            <div class="hero-editor__item hero-editor__item--subtitle" id="previewSubtitleItem" data-x-input="subtitle_offset_x" data-y-input="subtitle_offset_y">
+                                <span class="hero-editor__drag-handle" data-drag-handle>Move Subtitle</span>
+                                <p class="hero-editor__subtitle" id="previewSubtitle">{{ hero.subtitle if hero else 'Reliable, affordable cleaning for your home or office.' }}</p>
+                            </div>
 
-                        <div class="hero-editor__static-cta" aria-hidden="true">
-                            <span class="hero-editor__cta-btn hero-editor__cta-btn--primary">Book a Service</span>
-                            <span class="hero-editor__cta-btn hero-editor__cta-btn--ghost">See Reviews</span>
-                        </div>
+                            <div class="hero-editor__static-cta" aria-hidden="true">
+                                <span class="hero-editor__cta-btn hero-editor__cta-btn--primary">Book a Service</span>
+                                <span class="hero-editor__cta-btn hero-editor__cta-btn--ghost">See Reviews</span>
+                            </div>
 
-                        <div class="hero-editor__item hero-editor__item--meta" id="previewMetaItem" data-x-input="meta_offset_x" data-y-input="meta_offset_y">
-                            <span class="hero-editor__drag-handle" data-drag-handle>Move Details</span>
-                            <div class="hero-editor__meta">
-                                <div class="hero-editor__meta-item" id="previewMeta1">{{ hero.small_text_line1 if hero else 'Over 150 satisfied clients nationwide' }}</div>
-                                <div class="hero-editor__meta-item" id="previewMeta2">{{ hero.small_text_line2 if hero else 'Eco-friendly products and flexible scheduling' }}</div>
-                                <div class="hero-editor__meta-item" id="previewMeta3">{{ hero.small_text_line3 if hero else 'Fully vetted, professional cleaning teams' }}</div>
+                            <div class="hero-editor__item hero-editor__item--meta" id="previewMetaItem" data-x-input="meta_offset_x" data-y-input="meta_offset_y">
+                                <span class="hero-editor__drag-handle" data-drag-handle>Move Details</span>
+                                <div class="hero-editor__meta">
+                                    <div class="hero-editor__meta-item" id="previewMeta1">{{ hero.small_text_line1 if hero else 'Over 150 satisfied clients nationwide' }}</div>
+                                    <div class="hero-editor__meta-item" id="previewMeta2">{{ hero.small_text_line2 if hero else 'Eco-friendly products and flexible scheduling' }}</div>
+                                    <div class="hero-editor__meta-item" id="previewMeta3">{{ hero.small_text_line3 if hero else 'Fully vetted, professional cleaning teams' }}</div>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="hero-editor__item hero-editor__item--card hero-editor__item--card1" id="previewCard1" data-x-input="card1_offset_x" data-y-input="card1_offset_y">
-                            <span class="hero-editor__drag-handle" data-drag-handle>Move Card 1</span>
-                            {% set stat1_preview = hero.stat1_text if hero else '98% · Client satisfaction score' %}
-                            <strong>{{ stat1_preview.split('·')[0] | trim if stat1_preview else '' }}</strong>
-                            {{ stat1_preview.split('·')[1] | trim if stat1_preview and '·' in stat1_preview else '' }}
-                            <span class="hero-editor__card-line"></span>
-                        </div>
+                        <div class="hero-editor__visual-col">
+                            <div class="hero-editor__item hero-editor__item--card hero-editor__item--card1" id="previewCard1" data-x-input="card1_offset_x" data-y-input="card1_offset_y">
+                                <span class="hero-editor__drag-handle" data-drag-handle>Move Card 1</span>
+                                {% set stat1_preview = hero.stat1_text if hero else '98% · Client satisfaction score' %}
+                                <strong>{{ stat1_preview.split('·')[0] | trim if stat1_preview else '' }}</strong>
+                                {{ stat1_preview.split('·')[1] | trim if stat1_preview and '·' in stat1_preview else '' }}
+                                <span class="hero-editor__card-line"></span>
+                            </div>
 
-                        <div class="hero-editor__item hero-editor__item--card hero-editor__item--card2" id="previewCard2" data-x-input="card2_offset_x" data-y-input="card2_offset_y">
-                            <span class="hero-editor__drag-handle" data-drag-handle>Move Card 2</span>
-                            {% set stat2_preview = hero.stat2_text if hero else '24h · Response time for every request' %}
-                            <strong>{{ stat2_preview.split('·')[0] | trim if stat2_preview else '' }}</strong>
-                            {{ stat2_preview.split('·')[1] | trim if stat2_preview and '·' in stat2_preview else '' }}
-                            <span class="hero-editor__card-line"></span>
-                        </div>
+                            <div class="hero-editor__item hero-editor__item--card hero-editor__item--card2" id="previewCard2" data-x-input="card2_offset_x" data-y-input="card2_offset_y">
+                                <span class="hero-editor__drag-handle" data-drag-handle>Move Card 2</span>
+                                {% set stat2_preview = hero.stat2_text if hero else '24h · Response time for every request' %}
+                                <strong>{{ stat2_preview.split('·')[0] | trim if stat2_preview else '' }}</strong>
+                                {{ stat2_preview.split('·')[1] | trim if stat2_preview and '·' in stat2_preview else '' }}
+                                <span class="hero-editor__card-line"></span>
+                            </div>
 
-                        <div class="hero-editor__item hero-editor__item--card hero-editor__item--card3" id="previewCard3" data-x-input="card3_offset_x" data-y-input="card3_offset_y">
-                            <span class="hero-editor__drag-handle" data-drag-handle>Move Card 3</span>
-                            {% set stat3_preview = hero.stat3_text if hero else 'Emergency · Cleanups available when you need them' %}
-                            <strong>{{ stat3_preview.split('·')[0] | trim if stat3_preview else '' }}</strong>
-                            {{ stat3_preview.split('·')[1] | trim if stat3_preview and '·' in stat3_preview else '' }}
-                            <span class="hero-editor__card-line"></span>
+                            <div class="hero-editor__item hero-editor__item--card hero-editor__item--card3" id="previewCard3" data-x-input="card3_offset_x" data-y-input="card3_offset_y">
+                                <span class="hero-editor__drag-handle" data-drag-handle>Move Card 3</span>
+                                {% set stat3_preview = hero.stat3_text if hero else 'Emergency · Cleanups available when you need them' %}
+                                <strong>{{ stat3_preview.split('·')[0] | trim if stat3_preview else '' }}</strong>
+                                {{ stat3_preview.split('·')[1] | trim if stat3_preview and '·' in stat3_preview else '' }}
+                                <span class="hero-editor__card-line"></span>
+                            </div>
                         </div>
                     </div>
 
@@ -975,6 +1108,26 @@
         </form>
 
         <div class="card">
+            <h2 class="section-title">Homepage Section Flow</h2>
+            <p class="text-muted" style="margin-bottom: 1rem;">Drag to mirror the live homepage sequence (Hero, Services, About, etc.). Changes are saved immediately and reflected on the site.</p>
+
+            <ul class="homepage-flow" id="homepageSectionList" aria-label="Homepage section order">
+                {% for section in homepage_sections %}
+                <li class="homepage-flow__item" draggable="true" data-section-key="{{ section.section_key }}">
+                    <span class="homepage-flow__handle" aria-hidden="true">↕</span>
+                    <div class="homepage-flow__content">
+                        <strong>{{ section.section_label }}</strong>
+                        <small>Key: {{ section.section_key }}</small>
+                    </div>
+                    <span class="homepage-flow__tag">Live</span>
+                </li>
+                {% endfor %}
+            </ul>
+
+            <p class="text-muted" id="homepageFlowStatus" aria-live="polite" style="margin-top: 0.9rem;">Drag and drop to reorder sections.</p>
+        </div>
+
+        <div class="card">
             <h2 class="section-title">Hero Badges</h2>
             {% if hero_badges %}
             <ul class="badge-list">
@@ -1032,6 +1185,100 @@
                 if (window.innerWidth > 1024 && sidebar.classList.contains('sidebar--menu-open')) {
                     sidebar.classList.remove('sidebar--menu-open');
                     sidebarToggle.setAttribute('aria-expanded', 'false');
+                }
+            });
+        }
+
+        const homepageSectionList = document.getElementById('homepageSectionList');
+        const homepageFlowStatus = document.getElementById('homepageFlowStatus');
+
+        function setHomepageFlowStatus(message, isError) {
+            if (!homepageFlowStatus) {
+                return;
+            }
+            homepageFlowStatus.textContent = message;
+            homepageFlowStatus.style.color = isError ? '#b91c1c' : '#6b7280';
+        }
+
+        function getHomepageSectionOrder() {
+            if (!homepageSectionList) {
+                return [];
+            }
+            return Array.from(homepageSectionList.querySelectorAll('[data-section-key]'))
+                .map((item) => item.dataset.sectionKey)
+                .filter(Boolean);
+        }
+
+        function getHomepageDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.homepage-flow__item:not(.is-dragging)')];
+
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset, element: child };
+                }
+                return closest;
+            }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+        }
+
+        function persistHomepageSectionOrder() {
+            const sectionKeys = getHomepageSectionOrder();
+            if (!sectionKeys.length) {
+                return;
+            }
+
+            setHomepageFlowStatus('Saving homepage order...', false);
+
+            fetch('/admin/api/homepage-sections/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ section_keys: sectionKeys })
+            })
+            .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) {
+                    throw new Error((data && data.error) ? data.error : 'Failed to save homepage order.');
+                }
+                setHomepageFlowStatus('Homepage order saved.', false);
+            })
+            .catch((error) => {
+                setHomepageFlowStatus(error.message || 'Failed to save homepage order.', true);
+            });
+        }
+
+        if (homepageSectionList) {
+            let draggedItem = null;
+            const flowItems = homepageSectionList.querySelectorAll('.homepage-flow__item');
+
+            flowItems.forEach((item) => {
+                item.addEventListener('dragstart', (event) => {
+                    draggedItem = item;
+                    item.classList.add('is-dragging');
+                    if (event.dataTransfer) {
+                        event.dataTransfer.effectAllowed = 'move';
+                        event.dataTransfer.setData('text/plain', item.dataset.sectionKey || '');
+                    }
+                });
+
+                item.addEventListener('dragend', () => {
+                    item.classList.remove('is-dragging');
+                    draggedItem = null;
+                    persistHomepageSectionOrder();
+                });
+            });
+
+            homepageSectionList.addEventListener('dragover', (event) => {
+                event.preventDefault();
+                if (!draggedItem) {
+                    return;
+                }
+
+                const afterElement = getHomepageDragAfterElement(homepageSectionList, event.clientY);
+                if (!afterElement) {
+                    homepageSectionList.appendChild(draggedItem);
+                } else if (afterElement !== draggedItem) {
+                    homepageSectionList.insertBefore(draggedItem, afterElement);
                 }
             });
         }

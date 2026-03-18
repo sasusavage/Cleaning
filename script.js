@@ -15,6 +15,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var serviceDrawerToggle = document.querySelector('[data-drawer-toggle="services-drawer"]');
     var servicesEmptyState = document.getElementById("services-empty");
     var rawCatalog = Array.isArray(window.SERVICE_CATALOG) ? window.SERVICE_CATALOG : [];
+    var homeSectionOrder = Array.isArray(window.HOME_SECTION_ORDER) ? window.HOME_SECTION_ORDER : [];
     var askForPostcode = Boolean(window.ASK_FOR_POSTCODE);
     var TRAVEL_QUOTE_KEY = "travel_quote_v1";
     var TRAVEL_POSTCODE_KEY = "travel_postcode_v1";
@@ -24,6 +25,50 @@ document.addEventListener("DOMContentLoaded", function () {
     } catch (error) {
         currencyFormatter = null;
     }
+
+    var applyHomepageSectionOrder = function () {
+        if (!homeSectionOrder.length) {
+            return;
+        }
+
+        var mainEl = document.querySelector("main");
+        if (!mainEl) {
+            return;
+        }
+
+        var sectionNodes = Array.prototype.slice.call(mainEl.querySelectorAll("[data-home-section]"));
+        if (!sectionNodes.length) {
+            return;
+        }
+
+        var sectionMap = {};
+        sectionNodes.forEach(function (node) {
+            var key = node.getAttribute("data-home-section");
+            if (key) {
+                sectionMap[key] = node;
+            }
+        });
+
+        var orderedNodes = [];
+        homeSectionOrder.forEach(function (key) {
+            var sectionNode = sectionMap[key];
+            if (sectionNode && orderedNodes.indexOf(sectionNode) === -1) {
+                orderedNodes.push(sectionNode);
+            }
+        });
+
+        sectionNodes.forEach(function (node) {
+            if (orderedNodes.indexOf(node) === -1) {
+                orderedNodes.push(node);
+            }
+        });
+
+        orderedNodes.forEach(function (node) {
+            mainEl.appendChild(node);
+        });
+    };
+
+    applyHomepageSectionOrder();
 
     var setStoredTravelQuote = function (quote, postcode) {
         try {

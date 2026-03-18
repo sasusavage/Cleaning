@@ -2096,6 +2096,118 @@ def ensure_faq_table():
     conn.close()
 
 
+DEFAULT_HOME_PAGE_SECTIONS = [
+    {'section_key': 'hero', 'section_label': 'Hero'},
+    {'section_key': 'services', 'section_label': 'Services'},
+    {'section_key': 'why_choose', 'section_label': 'Why Choose Us'},
+    {'section_key': 'about', 'section_label': 'About'},
+    {'section_key': 'testimonials', 'section_label': 'Testimonials'},
+    {'section_key': 'policy', 'section_label': 'Policies'},
+    {'section_key': 'careers', 'section_label': 'Careers'},
+    {'section_key': 'faqs', 'section_label': 'FAQs'},
+    {'section_key': 'reviews', 'section_label': 'Reviews'}
+]
+
+
+def ensure_home_page_sections_table():
+    """Create homepage section ordering table and seed defaults."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS home_page_sections (
+                section_key VARCHAR(64) PRIMARY KEY,
+                section_label VARCHAR(120) NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+            """
+        )
+    else:
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS home_page_sections (
+                section_key VARCHAR(64) PRIMARY KEY,
+                section_label VARCHAR(120) NOT NULL,
+                sort_order INT NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+            """
+        )
+
+    cursor.execute("SELECT section_key FROM home_page_sections")
+    existing_keys = {row[0] for row in cursor.fetchall()}
+
+    for index, section in enumerate(DEFAULT_HOME_PAGE_SECTIONS):
+        section_key = section['section_key']
+        section_label = section['section_label']
+        if section_key in existing_keys:
+            cursor.execute(
+                "UPDATE home_page_sections SET section_label = %s WHERE section_key = %s",
+                (section_label, section_key)
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO home_page_sections (section_key, section_label, sort_order) VALUES (%s, %s, %s)",
+                (section_key, section_label, index)
+            )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def fetch_home_page_sections():
+    """Fetch homepage sections in the saved display order."""
+    ensure_home_page_sections_table()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT section_key, section_label, sort_order FROM home_page_sections ORDER BY sort_order ASC, section_key ASC"
+    )
+    sections = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return sections
+
+
+def save_home_page_section_order(section_keys):
+    """Persist homepage section order based on submitted key list."""
+    ensure_home_page_sections_table()
+
+    if not isinstance(section_keys, list) or not section_keys:
+        raise ValueError('A valid section order is required.')
+
+    valid_keys = [section['section_key'] for section in DEFAULT_HOME_PAGE_SECTIONS]
+    normalized_keys = [str(key).strip() for key in section_keys if str(key).strip()]
+
+    if len(normalized_keys) != len(set(normalized_keys)):
+        raise ValueError('Duplicate sections are not allowed in order payload.')
+
+    invalid_keys = [key for key in normalized_keys if key not in valid_keys]
+    if invalid_keys:
+        raise ValueError('One or more sections are invalid.')
+
+    if set(normalized_keys) != set(valid_keys):
+        raise ValueError('Section order payload is incomplete.')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    for index, section_key in enumerate(normalized_keys):
+        cursor.execute(
+            "UPDATE home_page_sections SET sort_order = %s WHERE section_key = %s",
+            (index, section_key)
+        )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return fetch_home_page_sections()
+
+
 def ensure_policy_table():
     """Create policies table if it doesn't exist."""
     conn = get_db_connection()
@@ -8542,6 +8654,34 @@ def admin_reorder_policies():
     return jsonify({'message': 'Policies reordered.'})
 
 
+@app.route('/admin/api/homepage-sections', methods=['GET'])
+@admin_login_required
+def admin_get_homepage_sections():
+    """Return homepage sections in current render order."""
+    try:
+        return jsonify(fetch_home_page_sections())
+    except Exception:
+        app.logger.exception('Failed to load homepage sections.')
+        return jsonify({'error': 'Unable to load homepage sections right now.'}), 500
+
+
+@app.route('/admin/api/homepage-sections/reorder', methods=['POST'])
+@admin_login_required
+def admin_reorder_homepage_sections():
+    """Persist homepage section order immediately after drag-and-drop."""
+    payload = request.get_json(silent=True) or {}
+    section_keys = payload.get('section_keys')
+
+    try:
+        updated_sections = save_home_page_section_order(section_keys)
+        return jsonify({'message': 'Homepage section order updated.', 'sections': updated_sections})
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        app.logger.exception('Failed to reorder homepage sections.')
+        return jsonify({'error': 'Unable to save homepage order right now.'}), 500
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Domestic Cleaning Management Routes (Admin)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -9676,11 +9816,13 @@ def admin_hero_content_page():
     hero = fetch_hero_content()
     badges = fetch_hero_badges(include_inactive=True)
     site_settings = fetch_site_settings()
+    homepage_sections = fetch_home_page_sections()
 
     return render_template(
         'admin/hero_content.html',
         hero=hero,
         hero_badges=badges,
+        homepage_sections=homepage_sections,
         site_settings=site_settings,
         message=message,
         error=error
@@ -10053,6 +10195,7 @@ def index():
     travel_settings = {}
     site_content = {}
     domestic_cleaning = {}
+    home_section_order = [item['section_key'] for item in DEFAULT_HOME_PAGE_SECTIONS]
 
     try:
         services = fetch_services_from_db()
@@ -10108,6 +10251,13 @@ def index():
         domestic_cleaning = fetch_domestic_cleaning_data(include_inactive=False)
     except Exception:
         app.logger.exception('Error fetching domestic cleaning content for index page')
+
+    try:
+        ordered_sections = fetch_home_page_sections()
+        if ordered_sections:
+            home_section_order = [row.get('section_key') for row in ordered_sections if row.get('section_key')]
+    except Exception:
+        app.logger.exception('Error fetching homepage section order for index page')
 
     # Fetch active FAQs
     try:
@@ -10194,6 +10344,7 @@ def index():
         faqs=faqs,
         policies=policies,
         domestic_cleaning=domestic_cleaning,
+        home_section_order=home_section_order,
         prebook_discount_enabled=prebook_discount_enabled,
         prebook_discount_percent=prebook_discount_percent
     )
@@ -11402,4 +11553,8 @@ def admin_api_analytics_detailed():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(
+        host='0.0.0.0',
+        port=int(os.environ.get('PORT', 5000)),
+        debug=(os.environ.get('FLASK_DEBUG', '0') == '1')
+    )
