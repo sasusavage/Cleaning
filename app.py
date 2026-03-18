@@ -1169,6 +1169,29 @@ def build_request_summary_text(context):
         lines.append(f"Page: {context.get('context_page')}")
     if context.get('source'):
         lines.append(f"Source: {context.get('source')}")
+
+    service_flow = context.get('service_flow') or {}
+    payment_info = service_flow.get('payment') if isinstance(service_flow, dict) else {}
+    if isinstance(payment_info, dict) and payment_info:
+        payment_status = payment_info.get('status_label')
+        payment_type = payment_info.get('payment_type')
+        payment_intent_id = payment_info.get('stripe_payment_intent_id')
+        checkout_session_id = payment_info.get('stripe_checkout_session_id')
+        transaction_id = payment_info.get('transaction_id')
+        if payment_status or payment_type or payment_intent_id or checkout_session_id or transaction_id:
+            lines.append('')
+            lines.append('Payment:')
+            if payment_status:
+                lines.append(f"- Status: {payment_status}")
+            if payment_type:
+                lines.append(f"- Method: {payment_type}")
+            if transaction_id:
+                lines.append(f"- Transaction ID: {transaction_id}")
+            if checkout_session_id:
+                lines.append(f"- Checkout Session ID: {checkout_session_id}")
+            if payment_intent_id:
+                lines.append(f"- Payment Intent ID: {payment_intent_id}")
+
     lines.append('')
     lines.append('Message:')
     lines.append(context.get('message') or '(no message provided)')
@@ -5362,6 +5385,22 @@ def process_completed_payment_session(session_obj):
         prepared = json.loads(prepared_payload)
         if not prepared.get('payment_type_for_db'):
             prepared['payment_type_for_db'] = 'stripe'
+
+        service_metadata = prepared.get('service_metadata') if isinstance(prepared.get('service_metadata'), dict) else {}
+        payment_meta = service_metadata.get('payment') if isinstance(service_metadata.get('payment'), dict) else {}
+        payment_meta.update({
+            'option': PAYMENT_OPTION_PREBOOK,
+            'payment_type': 'stripe',
+            'is_paid': True,
+            'status_label': resolve_payment_status_label('stripe', True),
+            'transaction_id': tx.get('id'),
+            'stripe_checkout_session_id': session_obj.get('id') or tx.get('checkout_session_id'),
+            'stripe_payment_intent_id': session_obj.get('payment_intent') or tx.get('payment_intent_id'),
+            'stripe_payment_status': session_obj.get('payment_status')
+        })
+        service_metadata['payment'] = payment_meta
+        prepared['service_metadata'] = service_metadata
+
         submission = finalize_prepared_service_booking(prepared, remote_addr='stripe-webhook', mark_paid=True)
         update_payment_transaction(
             tx.get('id'),
@@ -5474,6 +5513,19 @@ def stripe_webhook_endpoint():
 def payment_callback_success():
     session_id = sanitize_text(request.args.get('session_id'), 255)
     target = url_for('index')
+
+    if session_id:
+        try:
+            tx = fetch_payment_transaction_by_session(session_id)
+            if tx and not (tx.get('request_id') and tx.get('service_request_id')) and stripe_ready():
+                stripe.api_key = stripe_secret_key()
+                session_obj = stripe.checkout.Session.retrieve(session_id)
+                session_data = dict(session_obj) if session_obj else {}
+                if (session_data.get('payment_status') or '').lower() == 'paid':
+                    process_completed_payment_session(session_data)
+        except Exception:
+            app.logger.exception('Success callback fallback finalization failed for session %s', session_id)
+
     if session_id:
         return redirect(f"{target}?payment=success&session_id={urllib.parse.quote(session_id)}")
     return redirect(f"{target}?payment=success")
