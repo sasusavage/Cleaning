@@ -3510,11 +3510,15 @@ document.addEventListener("DOMContentLoaded", function () {
                 }).join(", ") || "Custom package";
 
                 console.log("Building payload for submission...");
+                console.log("Current flowState.payment_option:", flowState.payment_option);
+                var normalizedPaymentOption = normalizePaymentOptionValue(flowState.payment_option);
+                console.log("Normalized payment_option for payload:", normalizedPaymentOption);
+                
                 var payload = {
                     source: "service-flow",
                     context_page: window.location.pathname,
                     notes: flowState.notes,
-                    payment_option: normalizePaymentOptionValue(flowState.payment_option),
+                    payment_option: normalizedPaymentOption,
                     customer: {
                         name: flowState.customer.name,
                         email: flowState.customer.email,
@@ -3556,6 +3560,9 @@ document.addEventListener("DOMContentLoaded", function () {
                     body: JSON.stringify(payload)
                 });
                 var data = await response.json().catch(function () { return {}; });
+                
+                console.log("Response from /start-checkout:", response.status, data);
+                console.log("Response mode:", data.mode, "checkout_url:", data.checkout_url);
 
                 if (response.ok) {
                     if (data.mode === "checkout" && data.checkout_url) {

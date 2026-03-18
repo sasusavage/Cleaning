@@ -4735,6 +4735,89 @@ def fetch_telegram_settings():
     return normalized
 
 
+def fetch_payment_settings():
+    """Fetch Stripe payment configuration settings from database."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    # Check if table exists and has settings
+    try:
+        cursor.execute(
+            "SELECT id, stripe_secret_key, stripe_public_key, currency, success_url, cancel_url FROM payment_settings WHERE id = 1"
+        )
+        settings = cursor.fetchone()
+    except:
+        # Table might not exist yet, return defaults
+        settings = None
+    
+    if not settings:
+        cursor.close()
+        # Try to create the table if it doesn't exist
+        try:
+            cursor = conn.cursor()
+            db_engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+            
+            if db_engine == 'postgres':
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS payment_settings (
+                        id SERIAL PRIMARY KEY,
+                        stripe_secret_key VARCHAR(255),
+                        stripe_public_key VARCHAR(255),
+                        currency VARCHAR(3) DEFAULT 'gbp',
+                        success_url VARCHAR(500),
+                        cancel_url VARCHAR(500),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+            else:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS payment_settings (
+                        id INT PRIMARY KEY AUTO_INCREMENT,
+                        stripe_secret_key VARCHAR(255),
+                        stripe_public_key VARCHAR(255),
+                        currency VARCHAR(3) DEFAULT 'gbp',
+                        success_url VARCHAR(500),
+                        cancel_url VARCHAR(500),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+            conn.commit()
+        except Exception as e:
+            app.logger.warning(f'Could not create payment_settings table: {e}')
+        
+        cursor.close()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT id, stripe_secret_key, stripe_public_key, currency, success_url, cancel_url FROM payment_settings WHERE id = 1"
+        )
+        settings = cursor.fetchone()
+    
+    cursor.close()
+    conn.close()
+    
+    if not settings:
+        # Return default empty settings
+        return {
+            'id': 1,
+            'stripe_secret_key': None,
+            'stripe_public_key': None,
+            'currency': 'gbp',
+            'success_url': None,
+            'cancel_url': None
+        }
+    
+    return {
+        'id': settings.get('id') or 1,
+        'stripe_secret_key': (settings.get('stripe_secret_key') or '').strip() or None,
+        'stripe_public_key': (settings.get('stripe_public_key') or '').strip() or None,
+        'currency': (settings.get('currency') or 'gbp').lower(),
+        'success_url': (settings.get('success_url') or '').strip() or None,
+        'cancel_url': (settings.get('cancel_url') or '').strip() or None
+    }
+
+
 def update_telegram_settings(payload):
     if not payload:
         raise ValueError('No data provided.')
@@ -5030,7 +5113,13 @@ def prepare_service_booking(payload):
 
     payment_option = normalize_payment_option(payload.get('payment_option') or payload.get('payment_type'))
     if has_custom or has_survey_request:
+        app.logger.info(f"prepare_service_booking - Forcing payment_option to 'in_person' due to has_custom={has_custom} or has_survey_request={has_survey_request}")
         payment_option = PAYMENT_OPTION_IN_PERSON
+    
+    app.logger.info(f"prepare_service_booking - Incoming payment_option value: {payload.get('payment_option')} or {payload.get('payment_type')}")
+    app.logger.info(f"prepare_service_booking - Normalized payment_option: {payment_option}")
+    app.logger.info(f"prepare_service_booking - has_custom: {has_custom}, has_survey_request: {has_survey_request}")
+    
     is_prebook_payment = payment_option == PAYMENT_OPTION_PREBOOK
 
     discounted_total = None
@@ -5222,6 +5311,14 @@ def start_stripe_checkout():
         prepared = prepare_service_booking(payload)
         payment_settings = fetch_payment_settings()
         payment_option = prepared.get('payment_option') or PAYMENT_OPTION_IN_PERSON
+        
+        # DEBUG: Log the payment option for troubleshooting
+        app.logger.info(f"start_stripe_checkout - Received payment_option from payload: {payload.get('payment_option')}")
+        app.logger.info(f"start_stripe_checkout - Prepared payment_option: {prepared.get('payment_option')}")
+        app.logger.info(f"start_stripe_checkout - Final payment_option after fallback: {payment_option}")
+        app.logger.info(f"start_stripe_checkout - PAYMENT_OPTION_PREBOOK constant: {PAYMENT_OPTION_PREBOOK}")
+        app.logger.info(f"start_stripe_checkout - Comparison result (payment_option != PAYMENT_OPTION_PREBOOK): {payment_option != PAYMENT_OPTION_PREBOOK}")
+        app.logger.info(f"start_stripe_checkout - Payment settings: {payment_settings}")
 
         if payment_option != PAYMENT_OPTION_PREBOOK:
             submission = finalize_prepared_service_booking(prepared, remote_addr=request.remote_addr, mark_paid=False)
@@ -5236,6 +5333,12 @@ def start_stripe_checkout():
         if payable_total is None or payable_total <= 0:
             return jsonify({'error': 'Unable to calculate a payable total for this booking.'}), 400
 
+        success_url = (payment_settings.get('success_url') or '').strip()
+        cancel_url = (payment_settings.get('cancel_url') or '').strip()
+        if not success_url or not cancel_url:
+            app.logger.error(f"start_stripe_checkout - Missing Stripe URLs: success_url={success_url}, cancel_url={cancel_url}")
+            return jsonify({'error': 'Stripe payment URLs are not configured. Please contact support.'}), 500
+
         if not stripe_ready():
             return jsonify({'error': 'Stripe is not configured. Set STRIPE_SECRET_KEY in environment variables.'}), 500
 
@@ -5243,6 +5346,9 @@ def start_stripe_checkout():
         currency = (payment_settings.get('currency') or 'gbp').lower()
         amount_minor = money_to_minor_units(payable_total)
         service_label = prepared.get('primary_service_name') or 'Cleaning service'
+        
+        app.logger.info(f"start_stripe_checkout - Stripe setup: currency={currency}, payable_total={payable_total}, amount_minor={amount_minor}, service_label={service_label}")
+        app.logger.info(f"start_stripe_checkout - Payment settings: success_url={payment_settings.get('success_url')}, cancel_url={payment_settings.get('cancel_url')}")
 
         tx_id = create_payment_transaction(
             amount_total=payable_total,
@@ -5253,7 +5359,10 @@ def start_stripe_checkout():
             request_payload=json.dumps(payload),
             prepared_payload=json.dumps(prepared, default=str)
         )
+        
+        app.logger.info(f"start_stripe_checkout - Payment transaction created: tx_id={tx_id}")
 
+        app.logger.info(f"start_stripe_checkout - Calling stripe.checkout.Session.create()...")
         session_data = stripe.checkout.Session.create(
             mode='payment',
             payment_method_types=['card'],
@@ -5282,6 +5391,8 @@ def start_stripe_checkout():
                 'transaction_id': str(tx_id)
             }
         )
+        
+        app.logger.info(f"start_stripe_checkout - Stripe session created successfully: session_id={session_data.get('id')}, url={session_data.get('url')}")
 
         update_payment_transaction(
             tx_id,
@@ -5300,9 +5411,11 @@ def start_stripe_checkout():
             'currency': currency
         }), 200
     except ValueError as exc:
+        app.logger.error(f"start_stripe_checkout - ValueError: {str(exc)}")
         return jsonify({'error': str(exc)}), 400
-    except Exception:
-        app.logger.exception('Failed to start Stripe checkout.')
+    except Exception as exc:
+        app.logger.error(f"start_stripe_checkout - Exception occurred: {type(exc).__name__}: {str(exc)}")
+        app.logger.exception('start_stripe_checkout - Full traceback:')
         return jsonify({'error': 'Unable to start payment right now.'}), 500
 
 
@@ -7938,6 +8051,73 @@ def admin_email_settings():
 
 
 @app.route('/admin/api/payment-settings', methods=['GET', 'POST'])
+@admin_login_required
+def admin_payment_settings():
+    """Get or update Stripe payment configuration."""
+    if request.method == 'GET':
+        settings = fetch_payment_settings()
+        # Never send actual secret key to frontend
+        settings['stripe_secret_key'] = ''
+        return jsonify(settings)
+
+    payload = request.get_json(silent=True) or {}
+    stripe_public_key = sanitize_text(payload.get('stripe_public_key'), 500)
+    stripe_secret_key = sanitize_text(payload.get('stripe_secret_key'), 500)
+    currency = sanitize_text(payload.get('currency'), 5).lower() or 'gbp'
+    success_url = sanitize_text(payload.get('success_url'), 500)
+    cancel_url = sanitize_text(payload.get('cancel_url'), 500)
+
+    if not success_url or not cancel_url:
+        return jsonify({'error': 'Success URL and Cancel URL are required.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Update or insert payment settings
+        cursor.execute(
+            """
+            UPDATE payment_settings
+            SET stripe_public_key=%s,
+                stripe_secret_key=%s,
+                currency=%s,
+                success_url=%s,
+                cancel_url=%s,
+                updated_at=CURRENT_TIMESTAMP
+            WHERE id=1
+            """,
+            (stripe_public_key or None, stripe_secret_key or None, currency, success_url, cancel_url)
+        )
+        
+        if cursor.rowcount == 0:
+            # Insert if doesn't exist
+            cursor.execute(
+                """
+                INSERT INTO payment_settings (id, stripe_public_key, stripe_secret_key, currency, success_url, cancel_url)
+                VALUES (1, %s, %s, %s, %s, %s)
+                """,
+                (stripe_public_key or None, stripe_secret_key or None, currency, success_url, cancel_url)
+            )
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        # Fetch and return updated settings
+        updated = fetch_payment_settings()
+        updated['stripe_secret_key'] = ''  # Never send secret key back
+        updated['message'] = 'Payment settings updated.'
+        return jsonify(updated)
+    except Exception as exc:
+        app.logger.exception('Failed to update payment settings.')
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+        return jsonify({'error': 'Unable to update payment settings at this time.'}), 500
+
+
+app.route('/admin/api/payment-settings', methods=['GET', 'POST'])
 @admin_login_required
 def admin_payment_settings_api():
     if request.method == 'GET':
