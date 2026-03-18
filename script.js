@@ -3515,7 +3515,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 if (response.ok) {
                     if (data.mode === "checkout" && data.checkout_url) {
-                        flowFeedback.textContent = "Redirecting to secure payment...";
+                        var checkoutTotal = typeof data.amount_total === "number" && !Number.isNaN(data.amount_total)
+                            ? " (" + formatPrice(data.amount_total) + ")"
+                            : "";
+                        flowFeedback.textContent = "Redirecting to secure payment" + checkoutTotal + "...";
                         flowFeedback.classList.add("is-success");
                         window.location.href = data.checkout_url;
                         return;

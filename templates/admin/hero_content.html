@@ -336,7 +336,7 @@
 
         .hero-editor__stage {
             position: relative;
-            min-height: 360px;
+            min-height: 520px;
             border-radius: 0.75rem;
             border: 1px solid rgba(15, 23, 42, 0.12);
             overflow: hidden;
@@ -350,14 +350,22 @@
             background-image: var(--preview-bg-image);
             background-size: cover;
             background-position: center;
-            opacity: 0.9;
+            opacity: 0.95;
+            transform: scale(1.05);
+        }
+
+        .hero-editor__stage::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(110deg, rgba(8, 16, 32, 0.45) 0%, rgba(8, 16, 32, 0.2) 45%, rgba(8, 16, 32, 0.1) 100%);
         }
 
         .hero-editor__item {
             position: absolute;
             user-select: none;
             touch-action: none;
-            z-index: 3;
+            z-index: 5;
         }
 
         .hero-editor__item * {
@@ -366,30 +374,67 @@
         }
 
         .hero-editor__item--tagline {
-            left: 1rem;
-            top: 1.2rem;
+            left: 3rem;
+            bottom: 15.8rem;
             z-index: 5;
         }
 
         .hero-editor__item--title {
-            left: 1rem;
-            top: 4.35rem;
-            width: min(62%, 460px);
+            left: 3rem;
+            bottom: 10.3rem;
+            width: min(56%, 640px);
             z-index: 5;
         }
 
         .hero-editor__item--subtitle {
-            left: 1rem;
-            top: 10.25rem;
-            width: min(62%, 460px);
+            left: 3rem;
+            bottom: 7.3rem;
+            width: min(52%, 520px);
             z-index: 5;
         }
 
         .hero-editor__item--meta {
-            left: 1rem;
-            bottom: 1rem;
-            width: min(70%, 560px);
+            left: 3rem;
+            bottom: 1.35rem;
+            width: min(70%, 620px);
             z-index: 5;
+        }
+
+        .hero-editor__static-cta {
+            position: absolute;
+            left: 3rem;
+            bottom: 5rem;
+            z-index: 4;
+            display: inline-flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .hero-editor__cta-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            padding: 0.85rem 1.55rem;
+            border-radius: 999px;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            border: 1px solid transparent;
+        }
+
+        .hero-editor__cta-btn--primary {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: #fff;
+            box-shadow: 0 14px 30px rgba(34, 197, 94, 0.25);
+        }
+
+        .hero-editor__cta-btn--ghost {
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
         }
 
         .hero-editor__drag-handle {
@@ -415,11 +460,11 @@
 
         .hero-editor__tagline {
             display: inline-block;
-            padding: 0.3rem 0.75rem;
-            border-radius: 0.45rem;
+            padding: 0.35rem 1rem;
+            border-radius: 6px;
             margin-bottom: 0.5rem;
-            font-size: 0.72rem;
-            letter-spacing: 0.18em;
+            font-size: 0.85rem;
+            letter-spacing: 0.35em;
             text-transform: uppercase;
             font-weight: 600;
             background: #16a34a;
@@ -429,46 +474,53 @@
         .hero-editor__title {
             margin: 0.2rem 0;
             color: #2563eb;
-            font-size: 2.15rem;
-            line-height: 1.08;
+            font-size: 4.2rem;
+            line-height: 1.05;
             font-weight: 800;
+            text-shadow: 0 2px 8px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.6);
         }
 
         .hero-editor__subtitle {
             margin: 0.5rem 0 0;
             color: #fff;
-            font-size: 1rem;
+            font-size: 1.1rem;
             font-weight: 600;
             line-height: 1.45;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7), 0 1px 3px rgba(0, 0, 0, 0.5);
         }
 
         .hero-editor__meta {
             margin-top: 0.7rem;
             display: grid;
-            gap: 0.45rem;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem;
         }
 
         .hero-editor__meta-item {
             color: #fff;
             background: #0f172a;
-            border-radius: 0.45rem;
-            padding: 0.35rem 0.55rem;
-            font-size: 0.78rem;
+            border: 1px solid rgba(22, 163, 74, 0.4);
+            border-radius: 0.65rem;
+            padding: 1rem 1.25rem;
+            font-size: 0.9rem;
+            font-weight: 500;
         }
 
         .hero-editor__item--card {
-            width: min(230px, 58%);
-            border-radius: 0.95rem;
-            background: rgba(255, 255, 255, 0.86);
+            min-width: 260px;
+            width: min(300px, 92%);
+            border-radius: 1.25rem;
+            background: linear-gradient(160deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.45));
             border: 1px solid rgba(15, 23, 42, 0.08);
             color: #334155;
-            padding: 0.9rem;
-            box-shadow: 0 10px 24px rgba(2, 6, 23, 0.2);
-            letter-spacing: 0.08em;
+            padding: 2rem;
+            box-shadow: 0 18px 36px rgba(2, 6, 23, 0.2);
+            letter-spacing: 0.3em;
             text-transform: uppercase;
-            font-size: 0.62rem;
+            font-size: 0.75rem;
             line-height: 1.45;
             z-index: 4;
+            backdrop-filter: blur(14px);
         }
 
         .hero-editor__item--card .hero-editor__drag-handle {
@@ -479,25 +531,33 @@
 
         .hero-editor__item--card strong {
             display: block;
-            font-size: 1.3rem;
-            letter-spacing: 0.04em;
+            font-size: 2rem;
+            letter-spacing: 0.05em;
             color: #0f172a;
-            margin-bottom: 0.25rem;
+            margin-bottom: 0.5rem;
         }
 
         .hero-editor__item--card1 {
-            top: 0.8rem;
-            right: 0.8rem;
+            top: 6%;
+            right: -6%;
         }
 
         .hero-editor__item--card2 {
-            bottom: 1rem;
-            right: 1rem;
+            bottom: 4%;
+            right: 8%;
         }
 
         .hero-editor__item--card3 {
             top: 40%;
-            left: 54%;
+            left: 45%;
+        }
+
+        .hero-editor__card-line {
+            margin-top: 1.6rem;
+            display: block;
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(15, 23, 42, 0.25), transparent);
         }
 
         .hero-editor__hint {
@@ -762,6 +822,11 @@
                             <p class="hero-editor__subtitle" id="previewSubtitle">{{ hero.subtitle or 'Reliable, affordable cleaning for your home or office.' }}</p>
                         </div>
 
+                        <div class="hero-editor__static-cta" aria-hidden="true">
+                            <span class="hero-editor__cta-btn hero-editor__cta-btn--primary">Book a Service</span>
+                            <span class="hero-editor__cta-btn hero-editor__cta-btn--ghost">See Reviews</span>
+                        </div>
+
                         <div class="hero-editor__item hero-editor__item--meta" id="previewMetaItem" data-x-input="meta_offset_x" data-y-input="meta_offset_y">
                             <span class="hero-editor__drag-handle" data-drag-handle>Move Details</span>
                             <div class="hero-editor__meta">
@@ -775,18 +840,21 @@
                             <span class="hero-editor__drag-handle" data-drag-handle>Move Card 1</span>
                             <strong>{{ (hero.stat1_text or '98% · Client satisfaction score').split('·')[0] | trim }}</strong>
                             {{ (hero.stat1_text or '98% · Client satisfaction score').split('·')[1] | trim if '·' in (hero.stat1_text or '') else 'Client satisfaction score' }}
+                            <span class="hero-editor__card-line"></span>
                         </div>
 
                         <div class="hero-editor__item hero-editor__item--card hero-editor__item--card2" id="previewCard2" data-x-input="card2_offset_x" data-y-input="card2_offset_y">
                             <span class="hero-editor__drag-handle" data-drag-handle>Move Card 2</span>
                             <strong>{{ (hero.stat2_text or '24h · Response time for every request').split('·')[0] | trim }}</strong>
                             {{ (hero.stat2_text or '24h · Response time for every request').split('·')[1] | trim if '·' in (hero.stat2_text or '') else 'Response time for every request' }}
+                            <span class="hero-editor__card-line"></span>
                         </div>
 
                         <div class="hero-editor__item hero-editor__item--card hero-editor__item--card3" id="previewCard3" data-x-input="card3_offset_x" data-y-input="card3_offset_y">
                             <span class="hero-editor__drag-handle" data-drag-handle>Move Card 3</span>
                             <strong>{{ (hero.stat3_text or 'Emergency · Cleanups available when you need them').split('·')[0] | trim }}</strong>
                             {{ (hero.stat3_text or 'Emergency · Cleanups available when you need them').split('·')[1] | trim if '·' in (hero.stat3_text or '') else 'Cleanups available when you need them' }}
+                            <span class="hero-editor__card-line"></span>
                         </div>
                     </div>
 

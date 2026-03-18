@@ -3709,7 +3709,7 @@ def resolve_service_selections(raw_selections):
             quantities = payload.get('quantities') or {}
             if not isinstance(quantities, dict) or not quantities:
                 raise ValueError('Please select at least one item.')
-            subtotal = 0.0
+            itemized_subtotal = 0.0
             lines = []
             item_details = []  # For readable display
             for item in service.get('pricing_items', []):
@@ -3720,18 +3720,18 @@ def resolve_service_selections(raw_selections):
                     qty = 0
                 price = normalize_price_value(item.get('price')) or 0
                 if qty > 0:
-                    subtotal += qty * price
+                    itemized_subtotal += qty * price
                     lines.append(f"{qty} × {item.get('item_name')}")
                     item_details.append(f"{item.get('item_name')} (x{qty})")
-            if subtotal <= 0:
+            if itemized_subtotal <= 0:
                 raise ValueError('Please select at least one item to continue.')
 
             discount_threshold = normalize_price_value(service.get('discount_threshold')) or 0
             discount_percent = normalize_price_value(service.get('discount_percent')) or 0
             discount_amount = 0.0
-            if discount_threshold and discount_percent and subtotal > discount_threshold:
-                discount_amount = round(subtotal * (discount_percent / 100), 2)
-            price_value = round(subtotal - discount_amount, 2)
+            if discount_threshold and discount_percent and itemized_subtotal > discount_threshold:
+                discount_amount = round(itemized_subtotal * (discount_percent / 100), 2)
+            price_value = round(itemized_subtotal - discount_amount, 2)
 
             # Generate detailed label from actual items instead of 'Custom selection'
             detailed_label = ', '.join(item_details) if item_details else 'Custom selection'
@@ -3746,7 +3746,7 @@ def resolve_service_selections(raw_selections):
                 'quantities': quantities,
                 'lines': lines,
                 'item_details': item_details,
-                'subtotal': subtotal,
+                'subtotal': itemized_subtotal,
                 'discount_threshold': discount_threshold,
                 'discount_percent': discount_percent,
                 'discount_amount': discount_amount,
