@@ -2535,11 +2535,25 @@ textarea {
     max-width: 100%;
     margin: 0;
     padding: 0;
-    background: var(--brand-green-dark, #0f172a);
-    color: rgba(255, 255, 255, 0.75);
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(155deg, #071225 0%, #0b1a2e 42%, #0d2437 100%);
+    color: rgba(255, 255, 255, 0.8);
     font-size: 0.95rem;
     border-top: none;
     margin-top: 0;
+}
+
+.footer::before {
+    content: "";
+    position: absolute;
+    top: -160px;
+    right: -120px;
+    width: 420px;
+    height: 420px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.22) 0%, rgba(59, 130, 246, 0) 70%);
+    pointer-events: none;
 }
 
 .footer__content {
@@ -2549,6 +2563,8 @@ textarea {
     max-width: var(--max-width);
     margin: 0 auto;
     padding: 2.5rem 3rem 2rem;
+    position: relative;
+    z-index: 1;
 }
 
 .footer__col h3 {
@@ -2560,7 +2576,7 @@ textarea {
 }
 
 .footer__col p {
-    color: rgba(255, 255, 255, 0.65);
+    color: rgba(255, 255, 255, 0.72);
     line-height: 1.7;
 }
 
@@ -2575,7 +2591,7 @@ textarea {
 
 .footer__links a {
     text-decoration: none;
-    color: rgba(255, 255, 255, 0.65);
+    color: rgba(255, 255, 255, 0.72);
     transition: color var(--transition-fast);
 }
 
@@ -2595,8 +2611,9 @@ textarea {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     transition: transform var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
 }
 
@@ -2610,9 +2627,11 @@ textarea {
 .footer__areas {
     max-width: 100%;
     margin: 0;
-    padding: 1.25rem 3rem;
-    background: var(--brand-blue);
+    padding: 1.2rem 3rem 1.7rem;
+    background: transparent;
     border: none;
+    position: relative;
+    z-index: 1;
 }
 
 .footer__areas-inner {
@@ -2627,6 +2646,11 @@ textarea {
     flex-wrap: wrap;
     max-width: var(--max-width);
     margin: 0 auto;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.88), rgba(14, 116, 144, 0.82));
+    border: 1px solid rgba(125, 211, 252, 0.34);
+    border-radius: 14px;
+    padding: 0.95rem 1.25rem;
+    box-shadow: 0 14px 30px rgba(14, 116, 144, 0.28);
 }
 
 .footer__areas-inner strong {
@@ -2636,15 +2660,23 @@ textarea {
 .footer__areas-icon {
     flex-shrink: 0;
     color: #ffffff;
+    width: 32px;
+    height: 32px;
+    padding: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .footer__bottom {
     text-align: center;
     padding: 1rem 3rem;
     margin-top: 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.45);
+    color: rgba(255, 255, 255, 0.52);
+    position: relative;
+    z-index: 1;
 }
 
 /* --- Back to Top Button (Legacy - Hidden, replaced by FAB) --- */
@@ -4207,7 +4239,8 @@ body {
         padding: 3rem 1.5rem 2rem;
     }
     .social-links { justify-content: center; }
-    .footer__areas { padding: 1.25rem 1.5rem; }
+    .footer__areas { padding: 1.1rem 1.1rem 1.4rem; }
+    .footer__areas-inner { border-radius: 12px; padding: 0.9rem 1rem; }
 }
 
 /* --- MOBILE FIXES FOR QUOTE SECTION --- */
