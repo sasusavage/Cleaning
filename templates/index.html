@@ -532,54 +532,6 @@
             </div>
         </section>
 
-        <!-- FAQ Section -->
-        {% if faqs and faqs|length > 0 %}
-        <section class="panel faqs" id="faqs">
-            <div class="faq-container">
-                <div class="faq-intro" data-animate="fade-in">
-                    <p class="section__eyebrow">Got Questions?</p>
-                    <h2 class="section__title">Frequently Asked<br>Questions</h2>
-                    <p class="faq-intro__desc">Everything you need to know about our cleaning services. Can't find what you're looking for? Feel free to contact us.</p>
-                    <div class="faq-intro__stats">
-                        <div class="faq-stat">
-                            <span class="faq-stat__number">{{ faqs|length }}</span>
-                            <span class="faq-stat__label">Answers</span>
-                        </div>
-                        <div class="faq-stat">
-                            <span class="faq-stat__number">24/7</span>
-                            <span class="faq-stat__label">Support</span>
-                        </div>
-                    </div>
-                    <button type="button" class="faq-cta" id="openChatFromFaq">
-                        <span>Still have questions? Chat with us!</span>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                        </svg>
-                    </button>
-                </div>
-                <div class="faq-accordion" data-animate="reveal">
-                    {% for faq in faqs %}
-                    <div class="faq-item" data-faq>
-                        <button class="faq-item__question" aria-expanded="false" aria-controls="faq-answer-{{ faq.id }}">
-                            <span class="faq-item__number">{{ '%02d'|format(loop.index) }}</span>
-                            <span class="faq-item__text">{{ faq.question }}</span>
-                            <span class="faq-item__toggle">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                                </svg>
-                            </span>
-                        </button>
-                        <div class="faq-item__answer" id="faq-answer-{{ faq.id }}" hidden>
-                            <p>{{ faq.answer }}</p>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </section>
-        {% endif %}
-
         <!-- Company Policy Section -->
         {% if policies and policies|length > 0 %}
         <section class="panel policy-section" id="policy">
@@ -738,6 +690,54 @@
             </div>
             {% endif %}
         </section>
+
+            <!-- FAQ Section -->
+            {% if faqs and faqs|length > 0 %}
+            <section class="panel faqs" id="faqs">
+                <div class="faq-container">
+                    <div class="faq-intro" data-animate="fade-in">
+                        <p class="section__eyebrow">Got Questions?</p>
+                        <h2 class="section__title">Frequently Asked<br>Questions</h2>
+                        <p class="faq-intro__desc">Everything you need to know about our cleaning services. Can't find what you're looking for? Feel free to contact us.</p>
+                        <div class="faq-intro__stats">
+                            <div class="faq-stat">
+                                <span class="faq-stat__number">{{ faqs|length }}</span>
+                                <span class="faq-stat__label">Answers</span>
+                            </div>
+                            <div class="faq-stat">
+                                <span class="faq-stat__number">24/7</span>
+                                <span class="faq-stat__label">Support</span>
+                            </div>
+                        </div>
+                        <button type="button" class="faq-cta" id="openChatFromFaq">
+                            <span>Still have questions? Chat with us!</span>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="faq-accordion" data-animate="reveal">
+                        {% for faq in faqs %}
+                        <div class="faq-item" data-faq>
+                            <button class="faq-item__question" aria-expanded="false" aria-controls="faq-answer-{{ faq.id }}">
+                                <span class="faq-item__number">{{ '%02d'|format(loop.index) }}</span>
+                                <span class="faq-item__text">{{ faq.question }}</span>
+                                <span class="faq-item__toggle">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                    </svg>
+                                </span>
+                            </button>
+                            <div class="faq-item__answer" id="faq-answer-{{ faq.id }}" hidden>
+                                <p>{{ faq.answer }}</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+            {% endif %}
 
         <section class="panel contact" id="reviews" {% if quote_background_url %}style="--quote-image:url('{{ quote_background_url }}');"{% endif %}>
             <div class="section__header" data-animate="fade-in">

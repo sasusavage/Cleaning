@@ -1939,6 +1939,8 @@
                         </label>
                     </div>
 
+                    <div id="payment-prebook-discount-preview" style="font-size:0.88rem; color:#6b7280; margin-top:-0.25rem;"></div>
+
                     <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
                         <label style="display:inline-flex; align-items:center; gap:0.5rem; font-weight:600;">
                             <input id="payment-require-payment" name="require_payment" type="checkbox">
@@ -2514,6 +2516,7 @@
         const paymentCancelUrlInput = document.getElementById('payment-cancel-url');
         const paymentPrebookDiscountEnabledInput = document.getElementById('payment-prebook-discount-enabled');
         const paymentPrebookDiscountPercentInput = document.getElementById('payment-prebook-discount-percent');
+        const paymentPrebookDiscountPreview = document.getElementById('payment-prebook-discount-preview');
         const paymentEnvStatus = document.getElementById('payment-env-status');
         const paymentTransactionsTable = document.getElementById('payment-transactions-table');
         const operatingBaseForm = document.getElementById('operating-base-form');
@@ -4176,6 +4179,22 @@
             }
         }
 
+        function updatePrebookDiscountPreview() {
+            if (!paymentPrebookDiscountPreview) {
+                return;
+            }
+            const isEnabled = Boolean(paymentPrebookDiscountEnabledInput && paymentPrebookDiscountEnabledInput.checked);
+            const rawPercent = Number(paymentPrebookDiscountPercentInput?.value);
+            const percent = Number.isFinite(rawPercent) ? Math.max(0, Math.min(100, rawPercent)) : 0;
+            const percentLabel = Number.isInteger(percent) ? String(percent) : percent.toFixed(2).replace(/\.00$/, '');
+
+            if (isEnabled && percent > 0) {
+                paymentPrebookDiscountPreview.textContent = `Customer checkout text: “Pre-book & Save (${percentLabel}% off)”`;
+            } else {
+                paymentPrebookDiscountPreview.textContent = 'Customer checkout text: “Pre-book & Pay Now” (discount disabled)';
+            }
+        }
+
         function applyPaymentSettingsToForm(settings = {}) {
             if (!paymentSettingsForm) {
                 return;
@@ -4189,6 +4208,7 @@
                 const value = Number(settings.prebook_discount_percent);
                 paymentPrebookDiscountPercentInput.value = Number.isFinite(value) ? value : 10;
             }
+            updatePrebookDiscountPreview();
             if (paymentEnvStatus) {
                 const stripeDetected = Boolean(settings.stripe_key_detected);
                 const stripeValid = Boolean(settings.stripe_secret_key_valid);
@@ -4208,6 +4228,13 @@
 
                 paymentEnvStatus.textContent = `${stripeStatus} • ${webhookStatus} • ${publishableStatus}. Keys are managed in environment variables.`;
             }
+        }
+
+        if (paymentPrebookDiscountEnabledInput) {
+            paymentPrebookDiscountEnabledInput.addEventListener('change', updatePrebookDiscountPreview);
+        }
+        if (paymentPrebookDiscountPercentInput) {
+            paymentPrebookDiscountPercentInput.addEventListener('input', updatePrebookDiscountPreview);
         }
 
         async function loadPaymentSettings(showToastOnSuccess = false) {
