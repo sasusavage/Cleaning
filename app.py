@@ -1317,6 +1317,57 @@ def process_request_submission(payload, uploaded_files=None, remote_addr=None, e
     return response_payload
 
 
+def route_contract_booking_to_crm(prepared, submission, service_request_id=None):
+    prepared = prepared or {}
+    submission = submission or {}
+    service_metadata = prepared.get('service_metadata') or {}
+    selections = prepared.get('selections') or []
+    service_names = [item.get('service_name') for item in selections if item.get('service_name')]
+    unique_names = []
+    for name in service_names:
+        if name not in unique_names:
+            unique_names.append(name)
+    notes = sanitize_text(prepared.get('notes'), 1000)
+    schedule = service_metadata.get('schedule') or {}
+    preferred_date = sanitize_text(schedule.get('preferred_date'), 40)
+    preferred_time = sanitize_text(schedule.get('preferred_time'), 40)
+    lead_lines = [
+        'Contract service lead captured from booking flow.',
+        f"Linked service request ref: {submission.get('reference') or ''}".strip(),
+        f"Requested services: {', '.join(unique_names) if unique_names else prepared.get('primary_service_name') or 'N/A'}",
+    ]
+    if preferred_date or preferred_time:
+        lead_lines.append(f"Preferred schedule: {preferred_date or 'Flexible'} {preferred_time or ''}".strip())
+    if notes:
+        lead_lines.append(f"Notes: {notes}")
+
+    payload = {
+        'request_type': 'general',
+        'name': prepared.get('customer_name') or (prepared.get('customer_bundle') or {}).get('name'),
+        'email': prepared.get('customer_email') or (prepared.get('customer_bundle') or {}).get('email'),
+        'phone': (prepared.get('customer_bundle') or {}).get('phone'),
+        'subject': 'Contract cleaning lead (from service booking)',
+        'service_name': prepared.get('primary_service_name') or 'Contract service enquiry',
+        'message': '\n'.join([line for line in lead_lines if line]),
+        'context_page': '/services',
+        'source': 'crm_contract_booking'
+    }
+
+    clean_payload = prepare_request_payload(payload)
+    metadata = clean_payload.get('metadata') or {}
+    metadata.update({
+        'crm_origin': 'contract_service_booking',
+        'linked_request_id': submission.get('request_id'),
+        'linked_reference': submission.get('reference'),
+        'linked_service_request_id': service_request_id,
+        'service_flow': service_metadata
+    })
+    clean_payload['metadata'] = metadata
+
+    request_record, _ = store_request(clean_payload, uploaded_files=None)
+    return request_record.get('id') if request_record else None
+
+
 def send_request_notifications(request_record, attachments=None):
     result = {'admin_sent': False, 'user_sent': False}
     if not request_record:
@@ -2028,6 +2079,17 @@ def ensure_travel_tables():
         if not cursor.fetchone():
             cursor.execute("ALTER TABLE services ADD COLUMN allow_multiselect TINYINT(1) DEFAULT 0 AFTER table_header_col3")
             app.logger.info('Added allow_multiselect column to services table.')
+
+    # Migration: Add service_category column for one-time vs contract services
+    if engine == 'postgres':
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS service_category VARCHAR(20) DEFAULT 'one_time'")
+    else:
+        cursor.execute("SHOW COLUMNS FROM services LIKE 'service_category'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE services ADD COLUMN service_category VARCHAR(20) DEFAULT 'one_time' AFTER discount_percent")
+            app.logger.info('Added service_category column to services table.')
+
+    cursor.execute("UPDATE services SET service_category = 'one_time' WHERE service_category IS NULL OR service_category = ''")
 
     # Auto-populate pricing_model based on existing pricing data
     cursor.execute("SELECT id FROM services WHERE pricing_model IS NULL OR pricing_model = 'simple'")
@@ -3585,6 +3647,14 @@ def parse_price_input(value):
             return None
         return float(cleaned)
 
+
+def normalize_service_category(value):
+    normalized = sanitize_text(value, 40)
+    normalized = (normalized or '').strip().lower().replace('-', '_').replace(' ', '_')
+    if normalized in {'contract', 'contract_based', 'contracted'}:
+        return 'contract'
+    return 'one_time'
+
 def fetch_services_from_db(include_inactive=False):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -3607,6 +3677,7 @@ def fetch_services_from_db(include_inactive=False):
             s.price,
             s.discount_threshold,
             s.discount_percent,
+            s.service_category,
             s.pricing_model,
             s.table_header_col1,
             s.table_header_col2,
@@ -3638,6 +3709,7 @@ def fetch_services_from_db(include_inactive=False):
             'price': normalize_price_value(row.get('price')),
             'discount_threshold': normalize_price_value(row.get('discount_threshold')),
             'discount_percent': normalize_price_value(row.get('discount_percent')),
+            'service_category': normalize_service_category(row.get('service_category')),
             'pricing_model': row.get('pricing_model') or 'simple',
             'table_header_col1': row.get('table_header_col1') or 'Property Type',
             'table_header_col2': row.get('table_header_col2') or 'Standard Price',
@@ -3859,6 +3931,7 @@ def resolve_service_selections(raw_selections):
         resolved_item = {
             'service_id': service_id,
             'service_name': service.get('name') or service.get('title'),
+            'service_category': normalize_service_category(service.get('service_category')),
             'service_option_id': None,
             'option_label': None,
             'price': None,
@@ -5171,6 +5244,8 @@ def prepare_service_booking(payload):
     selections_raw = payload.get('selections') or payload.get('cart')
     selections, subtotal, has_custom, pricing_details = resolve_service_selections(selections_raw)
     has_survey_request = any(item.get('is_survey_request') for item in selections)
+    selected_categories = sorted({normalize_service_category(item.get('service_category')) for item in selections})
+    has_contract_service = 'contract' in selected_categories
 
     user_postcode = sanitize_text(payload.get('postcode'), 255)
     if user_postcode:
@@ -5290,6 +5365,8 @@ def prepare_service_booking(payload):
         },
         'notes': notes,
         'selections': selections,
+        'service_categories': selected_categories,
+        'has_contract_service': has_contract_service,
         'pricing_details': pricing_details,
         'totals': {
             'amount': subtotal if (not has_custom and not has_survey_request) else None,
@@ -5356,7 +5433,9 @@ def prepare_service_booking(payload):
         'notes': notes,
         'primary_service_name': primary_service_name,
         'customer_name': customer_name,
-        'customer_email': customer_email
+        'customer_email': customer_email,
+        'has_contract_service': has_contract_service,
+        'selected_service_categories': selected_categories
     }
 
 
@@ -5386,7 +5465,16 @@ def finalize_prepared_service_booking(prepared, remote_addr=None, mark_paid=Fals
     )
     attach_service_request_reference(submission.get('request_id'), service_request_id)
 
+    crm_request_id = None
+    if prepared.get('has_contract_service'):
+        try:
+            crm_request_id = route_contract_booking_to_crm(prepared, submission, service_request_id)
+        except Exception:
+            app.logger.exception('Failed to route contract booking to CRM for request %s', submission.get('request_id'))
+
     submission['service_request_id'] = service_request_id
+    if crm_request_id:
+        submission['crm_request_id'] = crm_request_id
     submission['travel'] = prepared.get('travel_quote') or {}
     if prepared.get('total_with_travel') is not None:
         submission['total_with_travel'] = prepared.get('total_with_travel')
@@ -5730,6 +5818,7 @@ def add_service():
         raw_price = request.form.get('price')
         raw_discount_threshold = request.form.get('discount_threshold')
         raw_discount_percent = request.form.get('discount_percent')
+        service_category = normalize_service_category(request.form.get('service_category'))
         pricing_model = (request.form.get('pricing_model') or 'simple').strip().lower()
         is_active = str_to_bool(request.form.get('is_active', '1'))
 
@@ -5776,8 +5865,8 @@ def add_service():
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO services (title, name, short_description, description, price, discount_threshold, discount_percent, pricing_model, table_header_col1, table_header_col2, table_header_col3, allow_multiselect, image_path, is_active)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO services (title, name, short_description, description, price, discount_threshold, discount_percent, service_category, pricing_model, table_header_col1, table_header_col2, table_header_col3, allow_multiselect, image_path, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 service_name,
@@ -5787,6 +5876,7 @@ def add_service():
                 price,
                 discount_threshold,
                 discount_percent,
+                service_category,
                 pricing_model,
                 table_header_col1,
                 table_header_col2,
@@ -5815,6 +5905,7 @@ def edit_service(service_id):
         raw_price = request.form.get('price')
         raw_discount_threshold = request.form.get('discount_threshold')
         raw_discount_percent = request.form.get('discount_percent')
+        service_category = normalize_service_category(request.form.get('service_category'))
         pricing_model = (request.form.get('pricing_model') or '').strip().lower()
         existing_image = request.form.get('existing_image', '')
         is_active = str_to_bool(request.form.get('is_active', '1'))
@@ -5868,29 +5959,29 @@ def edit_service(service_id):
             cursor.execute(
                 """
                 UPDATE services
-                SET title=%s, name=%s, short_description=%s, description=%s, price=%s, discount_threshold=%s, discount_percent=%s, pricing_model=%s, table_header_col1=%s, table_header_col2=%s, table_header_col3=%s, allow_multiselect=%s, image_path=%s, is_active=%s
+                SET title=%s, name=%s, short_description=%s, description=%s, price=%s, discount_threshold=%s, discount_percent=%s, service_category=%s, pricing_model=%s, table_header_col1=%s, table_header_col2=%s, table_header_col3=%s, allow_multiselect=%s, image_path=%s, is_active=%s
                 WHERE id=%s
                 """,
-                (service_name, service_name, short_description, description, price, discount_threshold, discount_percent, pricing_model or None, table_header_col1, table_header_col2, table_header_col3, 1 if allow_multiselect else 0, image_path, 1 if is_active else 0, service_id)
+                (service_name, service_name, short_description, description, price, discount_threshold, discount_percent, service_category, pricing_model or None, table_header_col1, table_header_col2, table_header_col3, 1 if allow_multiselect else 0, image_path, 1 if is_active else 0, service_id)
             )
         else:
             if pricing_model:
                 cursor.execute(
                     """
                     UPDATE services
-                    SET title=%s, name=%s, short_description=%s, description=%s, price=%s, discount_threshold=%s, discount_percent=%s, pricing_model=%s, table_header_col1=%s, table_header_col2=%s, table_header_col3=%s, allow_multiselect=%s, is_active=%s
+                    SET title=%s, name=%s, short_description=%s, description=%s, price=%s, discount_threshold=%s, discount_percent=%s, service_category=%s, pricing_model=%s, table_header_col1=%s, table_header_col2=%s, table_header_col3=%s, allow_multiselect=%s, is_active=%s
                     WHERE id=%s
                     """,
-                    (service_name, service_name, short_description, description, price, discount_threshold, discount_percent, pricing_model, table_header_col1, table_header_col2, table_header_col3, 1 if allow_multiselect else 0, 1 if is_active else 0, service_id)
+                    (service_name, service_name, short_description, description, price, discount_threshold, discount_percent, service_category, pricing_model, table_header_col1, table_header_col2, table_header_col3, 1 if allow_multiselect else 0, 1 if is_active else 0, service_id)
                 )
             else:
                 cursor.execute(
                     """
                     UPDATE services
-                    SET title=%s, name=%s, short_description=%s, description=%s, price=%s, discount_threshold=%s, discount_percent=%s, table_header_col1=%s, table_header_col2=%s, table_header_col3=%s, allow_multiselect=%s, is_active=%s
+                    SET title=%s, name=%s, short_description=%s, description=%s, price=%s, discount_threshold=%s, discount_percent=%s, service_category=%s, table_header_col1=%s, table_header_col2=%s, table_header_col3=%s, allow_multiselect=%s, is_active=%s
                     WHERE id=%s
                     """,
-                    (service_name, service_name, short_description, description, price, discount_threshold, discount_percent, table_header_col1, table_header_col2, table_header_col3, 1 if allow_multiselect else 0, 1 if is_active else 0, service_id)
+                    (service_name, service_name, short_description, description, price, discount_threshold, discount_percent, service_category, table_header_col1, table_header_col2, table_header_col3, 1 if allow_multiselect else 0, 1 if is_active else 0, service_id)
                 )
         conn.commit()
         cursor.close()
@@ -9641,10 +9732,10 @@ def admin_hero_content_page():
                 tagline_bg_color = sanitize_css_color(request.form.get('tagline_bg_color'), '#16a34a')
                 tagline_text_color = sanitize_css_color(request.form.get('tagline_text_color'), '#ffffff')
                 title_color = sanitize_css_color(request.form.get('title_color'), '#2563eb')
-                title_size_px = sanitize_int_range(request.form.get('title_size_px'), 72, 34, 110)
+                title_size_px = sanitize_int_range(request.form.get('title_size_px'), 72, 34, 84)
                 title_weight = sanitize_int_range(request.form.get('title_weight'), 800, 400, 900)
                 subtitle_color = sanitize_css_color(request.form.get('subtitle_color'), '#ffffff')
-                subtitle_size_px = sanitize_int_range(request.form.get('subtitle_size_px'), 18, 14, 38)
+                subtitle_size_px = sanitize_int_range(request.form.get('subtitle_size_px'), 18, 14, 24)
                 subtitle_weight = sanitize_int_range(request.form.get('subtitle_weight'), 600, 300, 900)
                 content_bg_color = sanitize_css_color(request.form.get('content_bg_color'), '', allow_empty=True)
                 meta_text_color = sanitize_css_color(request.form.get('meta_text_color'), '#ffffff')
@@ -10185,6 +10276,8 @@ def admin_applications():
 @app.route('/')
 def index():
     services = []
+    one_time_services = []
+    contract_services = []
     job_positions = []
     testimonials = []
     hero_content = {}
@@ -10199,6 +10292,8 @@ def index():
 
     try:
         services = fetch_services_from_db()
+        one_time_services = [svc for svc in services if normalize_service_category(svc.get('service_category')) == 'one_time']
+        contract_services = [svc for svc in services if normalize_service_category(svc.get('service_category')) == 'contract']
     except Exception:
         app.logger.exception('Error fetching services for index page')
 
@@ -10330,6 +10425,8 @@ def index():
     return render_template(
         'index.html',
         services=services,
+        one_time_services=one_time_services,
+        contract_services=contract_services,
         job_positions=job_positions,
         testimonials=testimonials,
         hero=hero_content,
@@ -10347,6 +10444,34 @@ def index():
         home_section_order=home_section_order,
         prebook_discount_enabled=prebook_discount_enabled,
         prebook_discount_percent=prebook_discount_percent
+    )
+
+
+@app.route('/services')
+def services_page():
+    services = []
+    one_time_services = []
+    contract_services = []
+    site_settings = {}
+
+    try:
+        services = fetch_services_from_db(include_inactive=False)
+        one_time_services = [svc for svc in services if normalize_service_category(svc.get('service_category')) == 'one_time']
+        contract_services = [svc for svc in services if normalize_service_category(svc.get('service_category')) == 'contract']
+    except Exception:
+        app.logger.exception('Error fetching services for services page')
+
+    try:
+        site_settings = fetch_site_settings()
+    except Exception:
+        app.logger.exception('Error fetching site settings for services page')
+
+    return render_template(
+        'services.html',
+        services=services,
+        one_time_services=one_time_services,
+        contract_services=contract_services,
+        site_settings=site_settings
     )
 
 

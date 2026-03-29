@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Clean Co.' %}
+    {% set company_logo = site_settings.logo_path if site_settings and site_settings.logo_path else '' %}
+    {% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
+    <title>Services | {{ company_name }}</title>
+    <meta name="description" content="Browse one-time and contract-based cleaning services offered by {{ company_name }}.">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('favicon_asset', filename='apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('favicon_asset', filename='favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('favicon_asset', filename='favicon-16x16.png') }}">
+    <link rel="manifest" href="{{ url_for('favicon_asset', filename='site.webmanifest') }}">
+    <link rel="shortcut icon" href="{{ url_for('favicon') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="shell" id="top">
+        <nav class="nav is-sticky">
+            <div class="nav__rail">
+                <a class="nav__item nav__item--brand" href="{{ url_for('index') }}#top" title="{{ company_name }}">
+                    {% if company_logo_url %}
+                    <img class="nav__brand-logo" src="{{ company_logo_url }}" alt="{{ company_name }} logo">
+                    {% endif %}
+                    <span class="nav__brand-text">{{ company_name }}</span>
+                </a>
+                <div class="nav__items" role="navigation" aria-label="Primary">
+                    <a class="nav__item" href="{{ url_for('index') }}#services"><span class="nav__label">Book Service</span></a>
+                    <a class="nav__item" href="{{ url_for('index') }}#reviews"><span class="nav__label">Contact</span></a>
+                </div>
+            </div>
+        </nav>
+
+        <main>
+            <section class="panel services" style="padding-top: 8.5rem;">
+                <div class="section__header">
+                    <p class="section__eyebrow">Service Directory</p>
+                    <h1 class="section__title">Choose the right cleaning service for your home or business.</h1>
+                </div>
+
+                <div class="drawer-toggle" style="justify-content:flex-start; margin-top: 1rem;">
+                    <a class="button button--ghost" href="{{ url_for('index') }}#services">Back to Homepage Booking</a>
+                </div>
+            </section>
+
+            <section class="panel services" id="one-time" data-home-section="services">
+                <div class="section__header">
+                    <p class="section__eyebrow">Category</p>
+                    <h2 class="section__title">One-Time Services</h2>
+                </div>
+                <div class="services__grid">
+                    {% for service in one_time_services %}
+                    {% set image_url = service.image_path | media_url if service.image_path else '' %}
+                    {% set price_state = namespace(min_price=None) %}
+                    {% for option in service.options or [] %}
+                        {% if option.price is not none %}
+                            {% if price_state.min_price is none or option.price < price_state.min_price %}
+                                {% set price_state.min_price = option.price %}
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if price_state.min_price is none and service.price is not none %}
+                        {% set price_state.min_price = service.price %}
+                    {% endif %}
+                    {% set price_label = 'Custom pricing' if price_state.min_price is none else 'from £%.2f' % price_state.min_price %}
+                    <article class="service-card" id="service-{{ service.id }}">
+                        {% if image_url %}
+                        <div class="card-image-container">
+                            <img src="{{ image_url }}" class="card-image" alt="{{ service.name }} image" loading="lazy">
+                        </div>
+                        {% endif %}
+                        <div class="service-card__body">
+                            <h3>{{ service.name }}</h3>
+                            <p class="service-card__description">{{ service.short_description or service.description }}</p>
+                            <p class="service-card__price">{{ price_label }}</p>
+                            <a class="button button--ghost" href="{{ url_for('index') }}#services" style="margin-top: 1rem; width:100%; justify-content:center;">Request This Service</a>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% if not one_time_services %}
+                <p class="text-muted services__empty">No one-time services are available yet.</p>
+                {% endif %}
+            </section>
+
+            <section class="panel services" id="contract-based" data-home-section="services">
+                <div class="section__header">
+                    <p class="section__eyebrow">Category</p>
+                    <h2 class="section__title">Contract-Based Services</h2>
+                </div>
+                <div class="services__grid">
+                    {% for service in contract_services %}
+                    {% set image_url = service.image_path | media_url if service.image_path else '' %}
+                    {% set price_state = namespace(min_price=None) %}
+                    {% for option in service.options or [] %}
+                        {% if option.price is not none %}
+                            {% if price_state.min_price is none or option.price < price_state.min_price %}
+                                {% set price_state.min_price = option.price %}
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if price_state.min_price is none and service.price is not none %}
+                        {% set price_state.min_price = service.price %}
+                    {% endif %}
+                    {% set price_label = 'Custom pricing' if price_state.min_price is none else 'from £%.2f' % price_state.min_price %}
+                    <article class="service-card" id="service-{{ service.id }}">
+                        {% if image_url %}
+                        <div class="card-image-container">
+                            <img src="{{ image_url }}" class="card-image" alt="{{ service.name }} image" loading="lazy">
+                        </div>
+                        {% endif %}
+                        <div class="service-card__body">
+                            <h3>{{ service.name }}</h3>
+                            <p class="service-card__description">{{ service.short_description or service.description }}</p>
+                            <p class="service-card__price">{{ price_label }}</p>
+                            <a class="button button--ghost" href="{{ url_for('index') }}#services" style="margin-top: 1rem; width:100%; justify-content:center;">Request This Service</a>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% if not contract_services %}
+                <p class="text-muted services__empty">No contract-based services are available yet.</p>
+                {% endif %}
+            </section>
+        </main>
+    </div>
+</body>
+</html>

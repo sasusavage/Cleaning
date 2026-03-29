@@ -41,9 +41,27 @@
             </a>
 
             <div class="nav__items" id="primary-nav" role="navigation" aria-label="Primary">
-                <a class="nav__item" href="#services" title="Services" data-section="services">
-                    <span class="nav__label">Services</span>
-                </a>
+                <div class="nav__dropdown" data-nav-dropdown>
+                    <a
+                        class="nav__item nav__dropdown-toggle"
+                        href="#services"
+                        title="Services"
+                        data-section="services"
+                        data-nav-dropdown-toggle
+                        aria-expanded="false"
+                        aria-controls="services-nav-menu"
+                    >
+                        <span class="nav__label">Services</span>
+                        <svg class="nav__dropdown-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </a>
+                    <div class="nav__dropdown-menu" id="services-nav-menu">
+                        {% for service in services %}
+                        <a class="nav__dropdown-link" href="{{ url_for('services_page') }}#service-{{ service.id }}" data-service-id="{{ service.id }}">{{ service.name }}</a>
+                        {% endfor %}
+                    </div>
+                </div>
 
                 <a class="nav__item" href="#who-we-are" title="About Done-Well" data-section="who-we-are">
                     <span class="nav__label">About</span>
@@ -67,10 +85,6 @@
                     <span class="nav__label">Reviews</span>
                 </a>
             </div>
-
-            <a class="nav__item nav__item--cta button button--primary" href="#services" title="Book a Service">
-                Book a Service
-            </a>
 
             <button class="nav__toggle" aria-label="Toggle navigation" aria-controls="primary-nav" aria-expanded="false">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -162,7 +176,6 @@
                 <p class="hero__subtitle">{{ hero_subtitle_text }}</p>
                 {% endif %}
                 <div class="hero__cta button-group">
-                    <a class="button button--primary" href="{{ hero.button_link or '#services' }}">{{ hero.button_text or 'Book a Service' }}</a>
                     <a class="button button--ghost" href="#testimonials">See Reviews</a>
                 </div>
                 {% if hero_small_texts %}
@@ -299,83 +312,27 @@
             </div>
             {% endif %}
 
-            {% set primary_services = services[:3] if services else [] %}
-            {% set drawer_services = services[3:] if services and services|length > 3 else [] %}
-            <div class="services__grid" id="services-grid" data-services-grid>
-                {% for service in primary_services %}
-                {% set image_url = service.image_path | media_url if service.image_path else '' %}
-                {% set price_state = namespace(min_price=None) %}
-                {% for option in service.options or [] %}
-                    {% if option.price is not none %}
-                        {% if price_state.min_price is none or option.price < price_state.min_price %}
-                            {% set price_state.min_price = option.price %}
-                        {% endif %}
-                    {% endif %}
-                {% endfor %}
-                {% if price_state.min_price is none and service.price is not none %}
-                    {% set price_state.min_price = service.price %}
-                {% endif %}
-                {% set price_label = 'Custom pricing' if price_state.min_price is none else 'from £%.2f' % price_state.min_price %}
-                <article class="service-card" data-animate="reveal">
-                    {% if image_url %}
-                    <div class="card-image-container">
-                        <img src="{{ image_url }}" class="card-image" alt="{{ service.name }} image" loading="lazy">
-                    </div>
-                    {% endif %}
+            <div class="services__grid" data-animate="reveal" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));">
+                <article class="service-card">
                     <div class="service-card__body">
-                        <h3>{{ service.name }}</h3>
-                        {% set card_summary = service.short_description or service.description %}
-                        <p class="service-card__description">{{ card_summary }}</p>
-                        <button class="link-button service-read-more" type="button" data-service-id="{{ service.id }}" data-auto-expand="true" style="justify-content:flex-start; padding:0;">Read More...</button>
-                        <p class="service-card__price">{{ price_label }}</p>
-                        <button class="button button--ghost service-request-trigger" type="button" data-service-id="{{ service.id }}" style="margin-top: 1.25rem; width: 100%; justify-content: center;">Request This Service</button>
+                        <h3>One-Time Services</h3>
+                        <p class="service-card__description">Flexible jobs for deep cleans, move-in/move-out, post-build, and seasonal refreshes.</p>
+                        <p class="service-card__price">{{ one_time_services|length }} service{{ 's' if one_time_services|length != 1 else '' }}</p>
+                        <a class="button button--ghost" href="{{ url_for('services_page') }}#one-time" style="margin-top: 1.25rem; width: 100%; justify-content: center;">View One-Time Services</a>
                     </div>
                 </article>
-                {% endfor %}
+                <article class="service-card">
+                    <div class="service-card__body">
+                        <h3>Contract-Based Services</h3>
+                        <p class="service-card__description">Ongoing service plans for offices, shared buildings, and recurring maintenance needs.</p>
+                        <p class="service-card__price">{{ contract_services|length }} service{{ 's' if contract_services|length != 1 else '' }}</p>
+                        <a class="button button--ghost" href="{{ url_for('services_page') }}#contract-based" style="margin-top: 1.25rem; width: 100%; justify-content: center;">View Contract Services</a>
+                    </div>
+                </article>
             </div>
-            {% if drawer_services %}
-            <div class="drawer" id="services-drawer" data-drawer aria-hidden="true">
-                <div class="services__grid services__grid--drawer" id="services-drawer-grid">
-                    {% for service in drawer_services %}
-                    {% set image_url = service.image_path | optimized_card_url if service.image_path else '' %}
-                    {% set price_state = namespace(min_price=None) %}
-                    {% for option in service.options or [] %}
-                        {% if option.price is not none %}
-                            {% if price_state.min_price is none or option.price < price_state.min_price %}
-                                {% set price_state.min_price = option.price %}
-                            {% endif %}
-                        {% endif %}
-                    {% endfor %}
-                    {% if price_state.min_price is none and service.price is not none %}
-                        {% set price_state.min_price = service.price %}
-                    {% endif %}
-                    {% set price_label = 'Custom pricing' if price_state.min_price is none else 'from £%.2f' % price_state.min_price %}
-                    <article class="service-card" data-animate="reveal">
-                        {% if image_url %}
-                        <div class="card-image-container">
-                            <img src="{{ image_url }}" class="card-image" alt="{{ service.name }} image" loading="lazy">
-                        </div>
-                        {% endif %}
-                        <div class="service-card__body">
-                            <h3>{{ service.name }}</h3>
-                            {% set card_summary = service.short_description or service.description %}
-                            <p class="service-card__description">{{ card_summary }}</p>
-                            <button class="link-button service-read-more" type="button" data-service-id="{{ service.id }}" data-auto-expand="true" style="justify-content:flex-start; padding:0;">Read More...</button>
-                            <p class="service-card__price">{{ price_label }}</p>
-                            <button class="button button--ghost service-request-trigger" type="button" data-service-id="{{ service.id }}" style="margin-top: 1.25rem; width: 100%; justify-content: center;">Request This Service</button>
-                        </div>
-                    </article>
-                    {% endfor %}
-                </div>
+            <div class="drawer-toggle" data-animate="fade-in">
+                <a class="button button--primary" href="{{ url_for('services_page') }}">Browse Full Services Catalog</a>
             </div>
-            <div class="drawer-toggle">
-                {% set drawer_count = drawer_services|length %}
-                <button class="button button--ghost drawer-toggle__button" type="button" data-drawer-toggle="services-drawer" data-drawer-expand-label="View {{ drawer_count }} more service{{ 's' if drawer_count != 1 else '' }}" data-drawer-collapse-label="Show fewer services" aria-controls="services-drawer" aria-expanded="false">
-                    View {{ drawer_count }} more service{{ 's' if drawer_count != 1 else '' }}
-                </button>
-            </div>
-            {% endif %}
-            <p class="text-muted services__empty" id="services-empty" {% if services %}hidden{% endif %}>Services are being configured. Check back soon.</p>
         </section>
 
         <!-- Why Choose Us Section -->
@@ -695,6 +652,7 @@
             {% if faqs and faqs|length > 0 %}
             <section class="panel faqs" id="faqs" data-home-section="faqs">
                 <div class="faq-container">
+                    {% set faq_preview_limit = 6 %}
                     <div class="faq-intro" data-animate="fade-in">
                         <p class="section__eyebrow">Got Questions?</p>
                         <h2 class="section__title">Frequently Asked<br>Questions</h2>
@@ -718,7 +676,8 @@
                     </div>
                     <div class="faq-accordion" data-animate="reveal">
                         {% for faq in faqs %}
-                        <div class="faq-item" data-faq>
+                        {% set faq_is_hidden = loop.index > faq_preview_limit %}
+                        <div class="faq-item{% if faq_is_hidden %} faq-item--extra{% endif %}" data-faq {% if faq_is_hidden %}hidden{% endif %}>
                             <button class="faq-item__question" aria-expanded="false" aria-controls="faq-answer-{{ faq.id }}">
                                 <span class="faq-item__number">{{ '%02d'|format(loop.index) }}</span>
                                 <span class="faq-item__text">{{ faq.question }}</span>
@@ -734,6 +693,21 @@
                             </div>
                         </div>
                         {% endfor %}
+                        {% if faqs|length > faq_preview_limit %}
+                        {% set extra_faq_count = faqs|length - faq_preview_limit %}
+                        <div class="faq-accordion__footer">
+                            <button
+                                type="button"
+                                class="button button--ghost faq-accordion__toggle"
+                                id="faq-show-more"
+                                data-expanded-label="Show fewer FAQs"
+                                data-collapsed-label="View {{ extra_faq_count }} more FAQ{{ 's' if extra_faq_count != 1 else '' }}"
+                                aria-expanded="false"
+                            >
+                                View {{ extra_faq_count }} more FAQ{{ 's' if extra_faq_count != 1 else '' }}
+                            </button>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </section>
@@ -806,7 +780,7 @@
             <div class="footer__col">
                 <h3>Quick Links</h3>
                 <ul class="footer__links">
-                    <li><a href="#services">Our Services</a></li>
+                    <li><a href="{{ url_for('services_page') }}">Our Services</a></li>
                     <li><a href="#testimonials">Testimonials</a></li>
                     {% if faqs and faqs|length > 0 %}
                     <li><a href="#faqs">FAQs</a></li>

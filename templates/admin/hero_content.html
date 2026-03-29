@@ -336,7 +336,7 @@
 
         .hero-editor__stage {
             position: relative;
-            min-height: 520px;
+            min-height: 620px;
             border-radius: 0.75rem;
             border: 1px solid rgba(15, 23, 42, 0.12);
             overflow: hidden;
@@ -345,7 +345,7 @@
             grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
             align-items: end;
             gap: 2.5rem;
-            padding: 5.6rem 2.6rem 2rem;
+            padding: 6rem 3rem 3rem;
         }
 
         .hero-editor__stage::before {
@@ -380,7 +380,8 @@
         }
 
         .hero-editor__visual-col {
-            min-height: 430px;
+            min-height: 460px;
+            height: 460px;
             align-self: end;
         }
 
@@ -448,10 +449,12 @@
         }
 
         .hero-editor__drag-handle {
+            position: absolute;
+            top: -2rem;
+            left: 0;
             display: inline-flex;
             align-items: center;
             gap: 0.35rem;
-            margin-bottom: 0.55rem;
             padding: 0.22rem 0.55rem;
             border-radius: 0.45rem;
             font-size: 0.72rem;
@@ -462,6 +465,7 @@
             border: 1px solid rgba(148, 163, 184, 0.4);
             cursor: grab;
             width: fit-content;
+            z-index: 8;
         }
 
         .hero-editor__drag-handle:active {
@@ -472,9 +476,8 @@
             display: inline-block;
             padding: 0.35rem 1rem;
             border-radius: 6px;
-            margin-bottom: 0.5rem;
             font-size: 0.85rem;
-            letter-spacing: 0.18em;
+            letter-spacing: 0.35em;
             text-transform: uppercase;
             font-weight: 600;
             background: #16a34a;
@@ -536,8 +539,8 @@
             color: #334155;
             padding: 2rem;
             box-shadow: 0 18px 36px rgba(2, 6, 23, 0.2);
-            letter-spacing: 0.3em;
-            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            text-transform: none;
             font-size: 0.75rem;
             line-height: 1.45;
             z-index: 4;
@@ -547,6 +550,8 @@
         }
 
         .hero-editor__item--card .hero-editor__drag-handle {
+            top: 0.55rem;
+            left: 0.65rem;
             color: #1e293b;
             background: rgba(255, 255, 255, 0.8);
             border-color: rgba(15, 23, 42, 0.18);
@@ -555,24 +560,29 @@
         .hero-editor__item--card strong {
             display: block;
             font-size: 2rem;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
             color: #0f172a;
             margin-bottom: 0.5rem;
+            margin-top: 1rem;
         }
 
         .hero-editor__item--card1 {
             top: 6%;
             right: -6%;
+            z-index: 3;
         }
 
         .hero-editor__item--card2 {
-            bottom: 4%;
+            top: 44%;
             right: 8%;
+            z-index: 2;
         }
 
         .hero-editor__item--card3 {
-            top: 40%;
-            left: 45%;
+            top: 72%;
+            left: 30%;
+            z-index: 1;
         }
 
         @media (max-width: 1100px) {
@@ -580,6 +590,7 @@
                 grid-template-columns: 1fr;
                 gap: 1.4rem;
                 padding: 4.2rem 1.4rem 1.4rem;
+                min-height: auto;
             }
 
             .hero-editor__content-col {
@@ -598,6 +609,7 @@
 
             .hero-editor__visual-col {
                 min-height: auto;
+                height: auto;
                 display: grid;
                 gap: 0.9rem;
                 justify-items: center;
@@ -936,7 +948,7 @@
                         style="--preview-bg-image: linear-gradient(135deg, #0f172a, #1e293b);"
                         {% endif %}
                     >
-                        <div class="hero-editor__content-col">
+                        <div class="hero-editor__content-col" id="previewContentCol">
                             <div class="hero-editor__item hero-editor__item--tagline" id="previewTaglineItem" data-x-input="tagline_offset_x" data-y-input="tagline_offset_y">
                                 <span class="hero-editor__drag-handle" data-drag-handle>Move Tagline</span>
                                 <span class="hero-editor__tagline" id="previewTagline">{{ hero.tagline if hero else 'Trusted Cleaning Experts' }}</span>
@@ -953,7 +965,6 @@
                             </div>
 
                             <div class="hero-editor__static-cta" aria-hidden="true">
-                                <span class="hero-editor__cta-btn hero-editor__cta-btn--primary">Book a Service</span>
                                 <span class="hero-editor__cta-btn hero-editor__cta-btn--ghost">See Reviews</span>
                             </div>
 
@@ -971,30 +982,44 @@
                             <div class="hero-editor__item hero-editor__item--card hero-editor__item--card1" id="previewCard1" data-x-input="card1_offset_x" data-y-input="card1_offset_y">
                                 <span class="hero-editor__drag-handle" data-drag-handle>Move Card 1</span>
                                 {% set stat1_preview = hero.stat1_text if hero else '98% · Client satisfaction score' %}
-                                <strong>{{ stat1_preview.split('·')[0] | trim if stat1_preview else '' }}</strong>
-                                {{ stat1_preview.split('·')[1] | trim if stat1_preview and '·' in stat1_preview else '' }}
+                                {% set stat1_parts = stat1_preview.split('·') if stat1_preview else [] %}
+                                <strong id="previewCard1Primary">{{ stat1_parts[0] | trim if stat1_parts else '' }}</strong>
+                                <span id="previewCard1Secondary">{{ stat1_parts[1] | trim if stat1_parts|length > 1 else (stat1_preview | trim if stat1_preview and stat1_parts|length == 1 else '') }}</span>
                                 <span class="hero-editor__card-line"></span>
+                                <span id="previewCard1Tertiary">{{ stat1_parts[2] | trim if stat1_parts|length > 2 else '' }}</span>
                             </div>
 
                             <div class="hero-editor__item hero-editor__item--card hero-editor__item--card2" id="previewCard2" data-x-input="card2_offset_x" data-y-input="card2_offset_y">
                                 <span class="hero-editor__drag-handle" data-drag-handle>Move Card 2</span>
                                 {% set stat2_preview = hero.stat2_text if hero else '24h · Response time for every request' %}
-                                <strong>{{ stat2_preview.split('·')[0] | trim if stat2_preview else '' }}</strong>
-                                {{ stat2_preview.split('·')[1] | trim if stat2_preview and '·' in stat2_preview else '' }}
+                                {% set stat2_parts = stat2_preview.split('·') if stat2_preview else [] %}
+                                <strong id="previewCard2Primary">{{ stat2_parts[0] | trim if stat2_parts else '' }}</strong>
+                                <span id="previewCard2Secondary">{{ stat2_parts[1] | trim if stat2_parts|length > 1 else (stat2_preview | trim if stat2_preview and stat2_parts|length == 1 else '') }}</span>
                                 <span class="hero-editor__card-line"></span>
+                                <span id="previewCard2Tertiary">{{ stat2_parts[2] | trim if stat2_parts|length > 2 else '' }}</span>
                             </div>
 
                             <div class="hero-editor__item hero-editor__item--card hero-editor__item--card3" id="previewCard3" data-x-input="card3_offset_x" data-y-input="card3_offset_y">
                                 <span class="hero-editor__drag-handle" data-drag-handle>Move Card 3</span>
                                 {% set stat3_preview = hero.stat3_text if hero else 'Emergency · Cleanups available when you need them' %}
-                                <strong>{{ stat3_preview.split('·')[0] | trim if stat3_preview else '' }}</strong>
-                                {{ stat3_preview.split('·')[1] | trim if stat3_preview and '·' in stat3_preview else '' }}
+                                {% set stat3_parts = stat3_preview.split('·') if stat3_preview else [] %}
+                                <strong id="previewCard3Primary">{{ stat3_parts[0] | trim if stat3_parts else '' }}</strong>
+                                <span id="previewCard3Secondary">{{ stat3_parts[1] | trim if stat3_parts|length > 1 else (stat3_preview | trim if stat3_preview and stat3_parts|length == 1 else '') }}</span>
                                 <span class="hero-editor__card-line"></span>
+                                <span id="previewCard3Tertiary">{{ stat3_parts[2] | trim if stat3_parts|length > 2 else '' }}</span>
                             </div>
                         </div>
                     </div>
 
                     <div class="position-grid">
+                        <div class="form-group">
+                            <label for="content_offset_x">Content Block X (px)</label>
+                            <input type="number" id="content_offset_x" name="content_offset_x" min="-420" max="420" value="{{ hero.content_offset_x or 0 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="content_offset_y">Content Block Y (px)</label>
+                            <input type="number" id="content_offset_y" name="content_offset_y" min="-220" max="220" value="{{ hero.content_offset_y or 0 }}">
+                        </div>
                         <div class="form-group">
                             <label for="tagline_offset_x">Tagline X (px)</label>
                             <input type="number" id="tagline_offset_x" name="tagline_offset_x" min="-320" max="320" value="{{ hero.tagline_offset_x or 0 }}">
@@ -1068,7 +1093,7 @@
                         </div>
                         <div class="form-group">
                             <label for="title_size_px">Title Size (px)</label>
-                            <input type="number" id="title_size_px" name="title_size_px" min="34" max="110" value="{{ hero.title_size_px or 72 }}">
+                            <input type="number" id="title_size_px" name="title_size_px" min="34" max="84" value="{{ hero.title_size_px or 72 }}">
                         </div>
                         <div class="form-group">
                             <label for="title_weight">Title Boldness</label>
@@ -1080,7 +1105,7 @@
                         </div>
                         <div class="form-group">
                             <label for="subtitle_size_px">Paragraph Size (px)</label>
-                            <input type="number" id="subtitle_size_px" name="subtitle_size_px" min="14" max="38" value="{{ hero.subtitle_size_px or 18 }}">
+                            <input type="number" id="subtitle_size_px" name="subtitle_size_px" min="14" max="24" value="{{ hero.subtitle_size_px or 18 }}">
                         </div>
                         <div class="form-group">
                             <label for="subtitle_weight">Paragraph Boldness</label>
@@ -1379,7 +1404,7 @@
             const tagline = document.getElementById('previewTagline');
             const title = document.getElementById('previewTitle');
             const subtitle = document.getElementById('previewSubtitle');
-            const previewMeta = document.getElementById('previewMetaItem');
+            const previewContentCol = document.getElementById('previewContentCol');
 
             const taglineBg = document.getElementById('tagline_bg_color');
             const taglineText = document.getElementById('tagline_text_color');
@@ -1403,7 +1428,7 @@
                 title.style.color = titleColor.value;
             }
             if (title && titleSize) {
-                title.style.fontSize = `${clamp(titleSize.value, 34, 110)}px`;
+                title.style.fontSize = `${clamp(titleSize.value, 34, 84)}px`;
             }
             if (title && titleWeight) {
                 title.style.fontWeight = String(clamp(titleWeight.value, 400, 900));
@@ -1412,15 +1437,15 @@
                 subtitle.style.color = subtitleColor.value;
             }
             if (subtitle && subtitleSize) {
-                subtitle.style.fontSize = `${clamp(subtitleSize.value, 14, 38)}px`;
+                subtitle.style.fontSize = `${clamp(subtitleSize.value, 14, 24)}px`;
             }
             if (subtitle && subtitleWeight) {
                 subtitle.style.fontWeight = String(clamp(subtitleWeight.value, 300, 900));
             }
-            if (previewMeta && contentBgColor) {
-                previewMeta.style.background = contentBgColor.value ? contentBgColor.value : 'transparent';
-                previewMeta.style.borderRadius = contentBgColor.value ? '0.75rem' : '0';
-                previewMeta.style.padding = contentBgColor.value ? '0.6rem' : '0';
+            if (previewContentCol && contentBgColor) {
+                previewContentCol.style.background = contentBgColor.value ? contentBgColor.value : 'transparent';
+                previewContentCol.style.borderRadius = contentBgColor.value ? '0.75rem' : '0';
+                previewContentCol.style.padding = contentBgColor.value ? '1rem' : '0';
             }
 
             if (metaTextColor || metaBgColor) {
@@ -1435,8 +1460,77 @@
             }
         }
 
+        function parseStatPreview(rawValue) {
+            const text = String(rawValue || '').trim();
+            if (!text) {
+                return { primary: '', secondary: '', tertiary: '' };
+            }
+
+            const parts = text
+                .split('·')
+                .map((segment) => String(segment || '').trim())
+                .filter((segment) => segment);
+
+            if (!parts.length) {
+                return { primary: text, secondary: '', tertiary: '' };
+            }
+
+            return {
+                primary: parts[0] || '',
+                secondary: parts[1] || (parts.length === 1 ? text : ''),
+                tertiary: parts[2] || ''
+            };
+        }
+
+        function applyCardPreviewText() {
+            const mappings = [
+                { inputId: 'stat1_text', primaryId: 'previewCard1Primary', secondaryId: 'previewCard1Secondary', tertiaryId: 'previewCard1Tertiary' },
+                { inputId: 'stat2_text', primaryId: 'previewCard2Primary', secondaryId: 'previewCard2Secondary', tertiaryId: 'previewCard2Tertiary' },
+                { inputId: 'stat3_text', primaryId: 'previewCard3Primary', secondaryId: 'previewCard3Secondary', tertiaryId: 'previewCard3Tertiary' }
+            ];
+
+            mappings.forEach((mapping) => {
+                const input = document.getElementById(mapping.inputId);
+                const primary = document.getElementById(mapping.primaryId);
+                const secondary = document.getElementById(mapping.secondaryId);
+                const tertiary = document.getElementById(mapping.tertiaryId);
+
+                if (!input || !primary || !secondary || !tertiary) {
+                    return;
+                }
+
+                const parsed = parseStatPreview(input.value);
+                primary.textContent = parsed.primary;
+                secondary.textContent = parsed.secondary;
+                tertiary.textContent = parsed.tertiary;
+                tertiary.style.display = parsed.tertiary ? 'block' : 'none';
+            });
+        }
+
         if (previewStage) {
             draggableItems.forEach((item) => wireDraggableItem(item));
+
+            const previewContentCol = document.getElementById('previewContentCol');
+            const contentOffsetX = document.getElementById('content_offset_x');
+            const contentOffsetY = document.getElementById('content_offset_y');
+
+            function applyContentOffset() {
+                if (!previewContentCol || !contentOffsetX || !contentOffsetY) {
+                    return;
+                }
+                const nextX = clamp(contentOffsetX.value, -420, 420);
+                const nextY = clamp(contentOffsetY.value, -220, 220);
+                contentOffsetX.value = String(Math.round(nextX));
+                contentOffsetY.value = String(Math.round(nextY));
+                previewContentCol.style.transform = `translate(${Math.round(nextX)}px, ${Math.round(nextY)}px)`;
+            }
+
+            if (contentOffsetX) {
+                contentOffsetX.addEventListener('input', applyContentOffset);
+            }
+            if (contentOffsetY) {
+                contentOffsetY.addEventListener('input', applyContentOffset);
+            }
 
             [
                 'tagline_bg_color',
@@ -1457,7 +1551,16 @@
                 }
             });
 
+            ['stat1_text', 'stat2_text', 'stat3_text'].forEach((id) => {
+                const input = document.getElementById(id);
+                if (input) {
+                    input.addEventListener('input', applyCardPreviewText);
+                }
+            });
+
+            applyContentOffset();
             applyPreviewStyleControls();
+            applyCardPreviewText();
         }
     </script>
 </body>

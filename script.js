@@ -6,6 +6,8 @@ document.addEventListener("DOMContentLoaded", function () {
     var navToggle = document.querySelector(".nav__toggle");
     var primaryNav = document.getElementById("primary-nav");
     var navItems = document.querySelectorAll(".nav__item[data-section]");
+    var servicesDropdown = document.querySelector("[data-nav-dropdown]");
+    var servicesDropdownToggle = document.querySelector("[data-nav-dropdown-toggle]");
     var preloader = document.getElementById("preloader");
     var body = document.body;
     var yearSpan = document.getElementById("year");
@@ -346,6 +348,17 @@ document.addEventListener("DOMContentLoaded", function () {
     // Handle navigation active state
     navItems.forEach(function (item) {
         item.addEventListener("click", function (event) {
+            var isServicesToggle = item.hasAttribute("data-nav-dropdown-toggle");
+            if (isServicesToggle && window.innerWidth <= 820 && servicesDropdown) {
+                event.preventDefault();
+                event.stopPropagation();
+                var isOpen = servicesDropdown.classList.toggle("is-open");
+                if (servicesDropdownToggle) {
+                    servicesDropdownToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+                }
+                return;
+            }
+
             event.preventDefault();
             var section = item.getAttribute("data-section");
             var sectionEl = document.getElementById(section);
@@ -507,24 +520,53 @@ document.addEventListener("DOMContentLoaded", function () {
         navToggle.addEventListener("click", function () {
             var isOpen = nav.classList.toggle("nav--open");
             navToggle.setAttribute("aria-expanded", String(isOpen));
+            if (!isOpen && servicesDropdown) {
+                servicesDropdown.classList.remove("is-open");
+                if (servicesDropdownToggle) servicesDropdownToggle.setAttribute("aria-expanded", "false");
+            }
         });
 
         // Close menu when a link is clicked
         if (primaryNav) {
             primaryNav.addEventListener("click", function (e) {
                 var target = e.target;
-                if (target && target.closest && target.closest(".nav__item")) {
+                var clickedDropdownToggle = target && target.closest && target.closest("[data-nav-dropdown-toggle]");
+                if (clickedDropdownToggle) {
+                    return;
+                }
+                if (target && target.closest && (target.closest(".nav__item") || target.closest(".nav__dropdown-link"))) {
                     nav.classList.remove("nav--open");
                     navToggle.setAttribute("aria-expanded", "false");
+                    if (servicesDropdown) {
+                        servicesDropdown.classList.remove("is-open");
+                    }
+                    if (servicesDropdownToggle) {
+                        servicesDropdownToggle.setAttribute("aria-expanded", "false");
+                    }
                 }
             });
         }
+
+        document.addEventListener("click", function (e) {
+            if (!servicesDropdown || !servicesDropdownToggle) {
+                return;
+            }
+            if (window.innerWidth > 820) {
+                return;
+            }
+            if (!servicesDropdown.contains(e.target)) {
+                servicesDropdown.classList.remove("is-open");
+                servicesDropdownToggle.setAttribute("aria-expanded", "false");
+            }
+        });
 
         // Close on Escape
         document.addEventListener("keydown", function (e) {
             if (e.key === "Escape") {
                 nav.classList.remove("nav--open");
                 if (navToggle) navToggle.setAttribute("aria-expanded", "false");
+                if (servicesDropdown) servicesDropdown.classList.remove("is-open");
+                if (servicesDropdownToggle) servicesDropdownToggle.setAttribute("aria-expanded", "false");
             }
         });
     }
@@ -4534,7 +4576,80 @@ document.addEventListener("DOMContentLoaded", function () {
     // ─────────────────────────────────────────────────────────────────────────────
     // FAQ Accordion
     // ─────────────────────────────────────────────────────────────────────────────
-    var faqItems = document.querySelectorAll('[data-faq]');
+    var faqItems = Array.from(document.querySelectorAll('[data-faq]'));
+    var faqShowMoreButton = document.getElementById('faq-show-more');
+    var faqAccordion = document.querySelector('.faq-accordion');
+    var faqPreviewLimit = 6;
+
+    var closeFaqItem = function (faqItem) {
+        var button = faqItem.querySelector('.faq-item__question');
+        var answer = faqItem.querySelector('.faq-item__answer');
+        if (button && answer) {
+            button.setAttribute('aria-expanded', 'false');
+            answer.hidden = true;
+        }
+    };
+
+    if (!faqShowMoreButton && faqAccordion && faqItems.length > faqPreviewLimit) {
+        var extraFaqCount = faqItems.length - faqPreviewLimit;
+        var footer = document.createElement('div');
+        footer.className = 'faq-accordion__footer';
+
+        faqShowMoreButton = document.createElement('button');
+        faqShowMoreButton.type = 'button';
+        faqShowMoreButton.className = 'button button--ghost faq-accordion__toggle';
+        faqShowMoreButton.id = 'faq-show-more';
+        faqShowMoreButton.setAttribute('aria-expanded', 'false');
+        faqShowMoreButton.setAttribute('data-expanded-label', 'Show fewer FAQs');
+        faqShowMoreButton.setAttribute('data-collapsed-label', 'View ' + extraFaqCount + ' more FAQ' + (extraFaqCount === 1 ? '' : 's'));
+        faqShowMoreButton.textContent = faqShowMoreButton.getAttribute('data-collapsed-label');
+
+        footer.appendChild(faqShowMoreButton);
+        faqAccordion.appendChild(footer);
+    }
+
+    if (faqItems.length > faqPreviewLimit) {
+        faqItems.forEach(function (item, index) {
+            var isExtra = index >= faqPreviewLimit;
+            item.classList.toggle('faq-item--extra', isExtra);
+            if (isExtra) {
+                item.hidden = true;
+                closeFaqItem(item);
+            }
+        });
+    }
+
+    if (faqShowMoreButton) {
+        if (!faqShowMoreButton.hasAttribute('data-expanded-label')) {
+            faqShowMoreButton.setAttribute('data-expanded-label', 'Show fewer FAQs');
+        }
+        if (!faqShowMoreButton.hasAttribute('data-collapsed-label')) {
+            var collapsedCount = Math.max(0, faqItems.length - faqPreviewLimit);
+            faqShowMoreButton.setAttribute('data-collapsed-label', 'View ' + collapsedCount + ' more FAQ' + (collapsedCount === 1 ? '' : 's'));
+        }
+        faqShowMoreButton.setAttribute('aria-expanded', 'false');
+        faqShowMoreButton.textContent = faqShowMoreButton.getAttribute('data-collapsed-label');
+
+        faqShowMoreButton.addEventListener('click', function () {
+            var isExpanded = faqShowMoreButton.getAttribute('aria-expanded') === 'true';
+            var extraItems = faqItems.filter(function (item) { return item.classList.contains('faq-item--extra'); });
+            var expandedLabel = faqShowMoreButton.getAttribute('data-expanded-label') || 'Show fewer FAQs';
+            var collapsedLabel = faqShowMoreButton.getAttribute('data-collapsed-label') || 'View more FAQs';
+
+            extraItems.forEach(function (item) {
+                if (isExpanded) {
+                    item.hidden = true;
+                    closeFaqItem(item);
+                } else {
+                    item.hidden = false;
+                }
+            });
+
+            faqShowMoreButton.setAttribute('aria-expanded', isExpanded ? 'false' : 'true');
+            faqShowMoreButton.textContent = isExpanded ? collapsedLabel : expandedLabel;
+        });
+    }
+
     faqItems.forEach(function (item) {
         var questionBtn = item.querySelector('.faq-item__question');
         var answerDiv = item.querySelector('.faq-item__answer');
@@ -4546,12 +4661,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 // Close all other FAQ items
                 faqItems.forEach(function (otherItem) {
                     if (otherItem !== item) {
-                        var otherBtn = otherItem.querySelector('.faq-item__question');
-                        var otherAnswer = otherItem.querySelector('.faq-item__answer');
-                        if (otherBtn && otherAnswer) {
-                            otherBtn.setAttribute('aria-expanded', 'false');
-                            otherAnswer.hidden = true;
-                        }
+                        closeFaqItem(otherItem);
                     }
                 });
 
