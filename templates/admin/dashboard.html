@@ -189,6 +189,32 @@
             grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
             align-items: start;
         }
+        .toggle-switch input:checked + .toggle-slider { background: #4f46e5; }
+        .toggle-slider::before {
+            content: "";
+            position: absolute;
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+        .toggle-switch input:checked + .toggle-slider::before { transform: translateX(22px); }
+        .room-card-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.4rem;
+            margin-bottom: 0.4rem;
+            font-size: 0.9rem;
+        }
+        .room-card-item img { width: 40px; height: 40px; border-radius: 0.3rem; object-fit: cover; }
+        .room-card-item .room-card-actions { margin-left: auto; display: flex; gap: 0.25rem; }
 
         @media (max-width: 960px) {
             .service-management-grid {
@@ -1483,17 +1509,18 @@
         <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
             <a id="nav-analytics" class="nav-link" onclick="showSection('analytics')">Analytics</a>
             <a id="nav-requests" class="nav-link active" onclick="showSection('requests')">Requests</a>
-            <a id="nav-services" class="nav-link" onclick="showSection('services')">Services</a>
+            <a id="nav-services" class="nav-link" onclick="showSection('services')">Service Management</a>
+            <a id="nav-contracts" class="nav-link" onclick="showSection('contracts')">Contracts &amp; Schedules</a>
             <a id="nav-travel" class="nav-link" onclick="showSection('travel')">Travel Pricing</a>
             <a id="nav-positions" class="nav-link" onclick="showSection('positions')">Job Positions</a>
             <a id="nav-testimonials" class="nav-link" onclick="showSection('testimonials')">Testimonials</a>
             <a id="nav-hero" class="nav-link" onclick="showSection('hero')">Hero Content</a>
             <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
             <a id="nav-contact" class="nav-link" onclick="showSection('contact')">Quote &amp; Contact</a>
+            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">Domestic Cleaning</a>
             <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
             <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">FAQs</a>
             <a class="nav-link" href="{{ url_for('admin_policies_page') }}">Policies</a>
-            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">Domestic Cleaning</a>
             <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
             <a id="nav-email" class="nav-link" onclick="showSection('email')">Email Settings</a>
             <a id="nav-payments" class="nav-link" onclick="showSection('payments')">Payments</a>
@@ -2082,14 +2109,45 @@
             </div>
         </div>
 
+        <!-- Contracts Section -->
+        <div id="contracts" class="section">
+            <div class="header">
+                <div>
+                    <h1 class="title" style="margin-bottom: 0.25rem;">Contracts &amp; Schedules</h1>
+                    <p style="margin: 0; color: #6b7280; font-size: 0.95rem;">Track recurring service contracts and manage automated reminder runs.</p>
+                </div>
+                <button class="btn btn-primary" type="button" onclick="runContractReminders()">Run Reminders Now</button>
+            </div>
+            <div class="card">
+                <table id="contracts-table" class="table-compact">
+                    <thead>
+                        <tr>
+                            <th>Customer</th>
+                            <th>Signer</th>
+                            <th>Service</th>
+                            <th>Frequency</th>
+                            <th>Service Day</th>
+                            <th>Next Service</th>
+                            <th>Next Reminder</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Services Section -->
         <div id="services" class="section">
             <div class="header">
                 <div>
-                    <h1 class="title" style="margin-bottom: 0.25rem;">Manage Services</h1>
+                    <h1 class="title" style="margin-bottom: 0.25rem;">Service Management</h1>
                     <p style="margin: 0; color: #6b7280; font-size: 0.95rem;">Edit catalog items and configure granular pricing/options in one place.</p>
                 </div>
-                <button class="btn btn-primary" onclick="openServiceModal()">Add Service</button>
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <button class="btn btn-ghost" type="button" onclick="window.location.href='{{ url_for('admin_domestic_cleaning_page') }}'">Manage Domestic Cleaning</button>
+                    <button class="btn btn-primary" onclick="openServiceModal()">Add Service</button>
+                </div>
             </div>
             <div class="card section-card">
                 <div class="service-management-grid">
@@ -2267,12 +2325,90 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Service Category</label>
-                    <select id="service-category" name="service_category" style="padding: 0.5rem; border-radius: 0.4rem; border: 1px solid var(--border);">
-                        <option value="one_time">One-Time Service</option>
-                        <option value="contract">Contract-Based Service</option>
-                    </select>
-                    <p style="margin: 0.35rem 0 0; font-size: 0.85rem; color: #6b7280;">Used to group services on the public services page and route contract bookings to CRM.</p>
+                    <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                        <span>Contract-Based Service</span>
+                        <label class="toggle-switch" style="position: relative; display: inline-block; width: 48px; height: 26px; margin: 0;">
+                            <input type="checkbox" id="service-is-contract" name="is_contract" value="1" onchange="toggleServiceConfigFields()" style="opacity: 0; width: 0; height: 0;">
+                            <span class="toggle-slider" style="position: absolute; cursor: pointer; inset: 0; background: #d1d5db; border-radius: 26px; transition: 0.3s;"></span>
+                        </label>
+                    </label>
+                    <p style="margin: 0.35rem 0 0; font-size: 0.85rem; color: #6b7280;">Enable for recurring services (Weekly/Fortnightly/Monthly plans). Customers see a residential-style detail page with room cards and pricing plans.</p>
+                    <input type="hidden" id="service-category" name="service_category" value="one_time">
+                </div>
+
+                <div id="service-config-contract-pricing" class="form-group" style="display: none; padding: 1rem; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 0.6rem;">
+                    <label style="font-weight: 600; color: #3730a3; margin-bottom: 0.5rem; display: block;">Contract Pricing Plans</label>
+                    <p style="font-size: 0.85rem; color: #4f46e5; margin: 0 0 0.75rem;">Set recurring plan rates used on the service detail page.</p>
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem;">
+                        <label style="display:flex; flex-direction:column; gap:0.25rem;">Weekly (£)
+                            <input type="number" id="service-contract-weekly" name="contract_price_weekly" step="0.01" min="0" placeholder="17.99">
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:0.25rem;">Fortnightly (£)
+                            <input type="number" id="service-contract-fortnightly" name="contract_price_fortnightly" step="0.01" min="0" placeholder="19.99">
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:0.25rem;">Monthly (£)
+                            <input type="number" id="service-contract-monthly" name="contract_price_monthly" step="0.01" min="0" placeholder="24.99">
+                        </label>
+                    </div>
+                </div>
+
+                <div id="service-config-contract-intro" class="form-group" style="display: none; padding: 1rem; background: #f5f3ff; border: 1px solid #c4b5fd; border-radius: 0.6rem;">
+                    <label style="font-weight: 600; color: #5b21b6; margin-bottom: 0.5rem; display: block;">Detail Page Content</label>
+                    <p style="font-size: 0.85rem; color: #7c3aed; margin: 0 0 0.75rem;">Residential-style content shown on the service detail page.</p>
+                    <div style="display: grid; gap: 0.75rem;">
+                        <label style="display:flex; flex-direction:column; gap:0.25rem;">Section Title
+                            <input type="text" id="service-contract-section-title" name="contract_section_title" placeholder="e.g. Domestic Cleaning">
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:0.25rem;">Section Subtitle
+                            <textarea id="service-contract-section-subtitle" name="contract_section_subtitle" rows="2" style="padding: 0.5rem;" placeholder="Short tagline for the service"></textarea>
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:0.25rem;">Intro Title
+                            <input type="text" id="service-contract-intro-title" name="contract_intro_title" placeholder="e.g. Our Regular Domestic Cleaning Service">
+                        </label>
+                        <label style="display:flex; flex-direction:column; gap:0.25rem;">Intro Body
+                            <textarea id="service-contract-intro-body" name="contract_intro_body" rows="3" style="padding: 0.5rem;" placeholder="Describe the service experience"></textarea>
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                            <label style="display:flex; flex-direction:column; gap:0.25rem;">Trust Copy (Left Card)
+                                <textarea id="service-contract-trust-body" name="contract_trust_body" rows="3" style="padding: 0.5rem;" placeholder="Why customers can trust you"></textarea>
+                            </label>
+                            <label style="display:flex; flex-direction:column; gap:0.25rem;">Continuity Copy (Right Card)
+                                <textarea id="service-contract-continuity-body" name="contract_continuity_body" rows="3" style="padding: 0.5rem;" placeholder="How you maintain consistency"></textarea>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="service-config-room-cards" class="form-group" style="display: none; padding: 1rem; background: #fefce8; border: 1px solid #fde68a; border-radius: 0.6rem;">
+                    <label style="font-weight: 600; color: #92400e; margin-bottom: 0.5rem; display: block;">Room Cards</label>
+                    <p style="font-size: 0.85rem; color: #a16207; margin: 0 0 0.75rem;">Manage room/area cards shown on the detail page. Save the service first, then manage cards below.</p>
+                    <div id="room-cards-list" style="margin-bottom: 1rem;"></div>
+                    <div id="room-card-form-wrap" style="border-top: 1px solid #fde68a; padding-top: 0.75rem;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                            <label style="display:flex; flex-direction:column; gap:0.25rem;">Card Key
+                                <input type="text" id="room-card-key" placeholder="e.g. living_room" style="padding: 0.4rem;">
+                            </label>
+                            <label style="display:flex; flex-direction:column; gap:0.25rem;">Room Name
+                                <input type="text" id="room-card-name" placeholder="e.g. Living Room" style="padding: 0.4rem;">
+                            </label>
+                        </div>
+                        <label style="display:flex; flex-direction:column; gap:0.25rem; margin-top: 0.5rem;">Description
+                            <textarea id="room-card-copy" rows="2" style="padding: 0.4rem;" placeholder="Describe what is cleaned in this area"></textarea>
+                        </label>
+                        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; align-items: center;">
+                            <label style="display:flex; flex-direction:column; gap:0.25rem; flex: 1;">Image
+                                <input type="file" id="room-card-image" accept="image/*" style="padding: 0.3rem;">
+                            </label>
+                            <label style="display:flex; flex-direction:column; gap:0.25rem;">Order
+                                <input type="number" id="room-card-order" value="0" min="0" style="padding: 0.4rem; width: 60px;">
+                            </label>
+                        </div>
+                        <input type="hidden" id="room-card-edit-id" value="">
+                        <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+                            <button type="button" class="btn btn-primary" onclick="saveRoomCard()" style="font-size: 0.85rem;">Add Card</button>
+                            <button type="button" class="btn btn-ghost" onclick="resetRoomCardForm()" style="font-size: 0.85rem;">Reset</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Dynamic Configuration: Tenancy Table Headers -->
@@ -3337,11 +3473,17 @@
 
             // Schedule info if available
             const schedule = serviceFlow.schedule || {};
-            if (schedule.preferred_date || schedule.preferred_time) {
+            if (schedule.preferred_date || schedule.preferred_time || schedule.contract_frequency) {
                 html += '<div style="padding: 0.75rem 1rem; background: #fef3c7; border-top: 1px solid #fcd34d; font-size: 0.85rem;">';
                 html += '<strong style="color: #92400e;">📅 Preferred Schedule:</strong> ';
                 if (schedule.preferred_date) html += schedule.preferred_date;
                 if (schedule.preferred_time) html += ` at ${schedule.preferred_time}`;
+                if (schedule.contract_frequency) {
+                    const frequencyLabel = String(schedule.contract_frequency)
+                        .replace(/_/g, ' ')
+                        .replace(/\b\w/g, c => c.toUpperCase());
+                    html += ` • <strong>Frequency:</strong> ${escapeHtml(frequencyLabel)}`;
+                }
                 html += '</div>';
             }
 
@@ -4675,8 +4817,31 @@
         setupImagePreview('service-image-file', 'service-image-preview');
         setupImagePreview('job-position-image', 'job-image-preview');
 
+        async function focusDomesticService(openEditor = false) {
+            showSection('services');
+            const services = await loadServices(true);
+            const domestic = (Array.isArray(services) ? services : []).find(service => {
+                const title = String(service?.title || '').toLowerCase();
+                const name = String(service?.name || '').toLowerCase();
+                return title.includes('domestic cleaning') || name.includes('domestic cleaning');
+            });
+
+            if (!domestic) {
+                showToast('Domestic Cleaning service not found in catalog.', 'error');
+                return;
+            }
+
+            selectServiceForOptions(domestic.id);
+            if (openEditor) {
+                editService(domestic.id);
+            }
+        }
+
         // Navigation
         function showSection(id) {
+            if (!document.getElementById(id)) {
+                id = 'requests';
+            }
             // Hide all sections
             document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
             // Show target section
@@ -4690,6 +4855,11 @@
                 activeLink.classList.add('active');
             }
 
+            const targetHash = `#${id}`;
+            if (window.location.hash !== targetHash) {
+                history.replaceState(null, '', `${window.location.pathname}${window.location.search}${targetHash}`);
+            }
+
             loadData(id);
         }
 
@@ -4698,6 +4868,7 @@
                 loadRequests();
             }
             if (section === 'services') loadServices();
+            if (section === 'contracts') loadContracts();
             if (section === 'positions') loadJobPositions();
             if (section === 'testimonials') loadTestimonials();
             if (section === 'analytics') refreshAnalytics(false);
@@ -4710,6 +4881,19 @@
                 loadTravelSettings();
             }
         }
+
+        (function initializeSectionFromUrl() {
+            const hashSection = String(window.location.hash || '').replace(/^#/, '').trim();
+            const initialSection = hashSection && document.getElementById(hashSection) ? hashSection : 'requests';
+            showSection(initialSection);
+
+            const urlParams = new URLSearchParams(window.location.search);
+            if ((urlParams.get('focus') || '').toLowerCase() === 'domestic') {
+                setTimeout(() => {
+                    focusDomesticService(false);
+                }, 80);
+            }
+        })();
 
         async function loadServices(preserveSelection = true) {
             try {
@@ -4741,6 +4925,71 @@
             }
         }
 
+        function renderContractsTable(contracts) {
+            const tbody = document.querySelector('#contracts-table tbody');
+            if (!tbody) return;
+
+            if (!Array.isArray(contracts) || !contracts.length) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:1.1rem; color:#6b7280;">No contracts yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = contracts.map(contract => {
+                const frequency = String(contract.frequency || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || '—';
+                const status = escapeHtml(contract.status || 'active');
+                const reminderEnabled = Boolean(contract.reminder_enabled);
+                return `
+                    <tr>
+                        <td>
+                            <div style="display:flex; flex-direction:column; gap:0.2rem;">
+                                <strong>${escapeHtml(contract.customer_name || '—')}</strong>
+                                <small style="color:#6b7280;">${escapeHtml(contract.customer_email || '')}</small>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="display:flex; flex-direction:column; gap:0.2rem;">
+                                <strong>${escapeHtml(contract.signer_name || '—')}</strong>
+                                <small style="color:#6b7280;">${Boolean(contract.terms_agreed) ? 'Signed' : 'Unsigned'}</small>
+                            </div>
+                        </td>
+                        <td>${escapeHtml(contract.service_name || '—')}</td>
+                        <td>${escapeHtml(frequency)}</td>
+                        <td>${escapeHtml(contract.service_day || '—')}</td>
+                        <td>${escapeHtml(contract.next_service_date || '—')}</td>
+                        <td>${escapeHtml(contract.next_reminder_at || '—')}</td>
+                        <td>
+                            <span class="pill pill--muted">${status}</span>
+                            ${reminderEnabled ? '<small style="display:block; color:#16a34a; margin-top:0.25rem;">Reminder ON</small>' : '<small style="display:block; color:#ef4444; margin-top:0.25rem;">Reminder OFF</small>'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function loadContracts() {
+            try {
+                const res = await fetch('{{ url_for("admin_contracts_api") }}?limit=400');
+                if (!res.ok) throw new Error('Failed to fetch contracts.');
+                const data = await res.json();
+                renderContractsTable(Array.isArray(data) ? data : []);
+            } catch (error) {
+                showToast(error.message || 'Unable to load contracts.', 'error');
+                renderContractsTable([]);
+            }
+        }
+
+        async function runContractReminders() {
+            try {
+                const res = await fetch('{{ url_for("admin_run_contract_reminders_api") }}', { method: 'POST' });
+                const body = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(body.error || 'Failed to run reminders.');
+                showToast(`Reminders processed: ${body.processed || 0}, sent: ${body.sent || 0}`, 'success');
+                await loadContracts();
+            } catch (error) {
+                showToast(error.message || 'Unable to run reminders.', 'error');
+            }
+        }
+
         function renderServicesTable(services) {
             const tbody = document.querySelector('#services-table tbody');
             if (!tbody) {
@@ -4768,7 +5017,7 @@
                                 <small style="color:#6b7280;">${escapeHtml(description)}</small>
                             </div>
                         </td>
-                        <td>${renderServiceCategoryBadge(service.service_category)}</td>
+                        <td>${renderServiceCategoryBadge(service.is_contract ? 'contract' : 'one_time')}</td>
                         <td>${renderStatusBadge(service.is_active)}</td>
                         <td style="text-align:center; font-weight:600;">${optionCount}</td>
                         <td style="white-space:nowrap;">${escapeHtml(updatedLabel)}</td>
@@ -5647,27 +5896,44 @@
         // Toggle visibility of service config fields based on pricing model
         function toggleServiceConfigFields() {
             const pricingModel = document.getElementById('service-pricing-model').value;
+            const isContract = document.getElementById('service-is-contract')?.checked || false;
             const tenancyConfig = document.getElementById('service-config-tenancy');
             const multiselectConfig = document.getElementById('service-config-multiselect');
             const discountConfig = document.getElementById('service-config-discount');
+            const contractPricingConfig = document.getElementById('service-config-contract-pricing');
+            const contractIntroConfig = document.getElementById('service-config-contract-intro');
+            const roomCardsConfig = document.getElementById('service-config-room-cards');
+            const categoryHidden = document.getElementById('service-category');
+
+            // Sync hidden category field
+            if (categoryHidden) categoryHidden.value = isContract ? 'contract' : 'one_time';
 
             // Hide all config sections first
             if (tenancyConfig) tenancyConfig.style.display = 'none';
             if (multiselectConfig) multiselectConfig.style.display = 'none';
             if (discountConfig) discountConfig.style.display = 'none';
+            if (contractPricingConfig) contractPricingConfig.style.display = 'none';
+            if (contractIntroConfig) contractIntroConfig.style.display = 'none';
+            if (roomCardsConfig) roomCardsConfig.style.display = 'none';
+
+            if (isContract) {
+                if (contractPricingConfig) contractPricingConfig.style.display = 'block';
+                if (contractIntroConfig) contractIntroConfig.style.display = 'block';
+                if (roomCardsConfig) roomCardsConfig.style.display = 'block';
+                // Load room cards if a service is being edited
+                const serviceId = document.getElementById('service-id')?.value;
+                if (serviceId) loadRoomCards(serviceId);
+            }
 
             // Show relevant config based on pricing model
             if (pricingModel === 'tenancy') {
                 if (tenancyConfig) tenancyConfig.style.display = 'block';
             } else if (pricingModel === 'simple' || pricingModel === 'options') {
                 if (multiselectConfig) multiselectConfig.style.display = 'block';
-                // Show discount for simple/options when multiselect could be enabled
                 if (discountConfig) discountConfig.style.display = 'block';
             } else if (pricingModel === 'itemized') {
-                // Itemized always supports discounts
                 if (discountConfig) discountConfig.style.display = 'block';
             }
-            // Deep doesn't typically use bulk discounts
         }
 
         // Service CRUD
@@ -5677,7 +5943,11 @@
             const submitBtn = document.querySelector('#service-form button[type="submit"]');
             const activeToggle = document.getElementById('service-active');
             const pricingModelSelect = document.getElementById('service-pricing-model');
-            const serviceCategorySelect = document.getElementById('service-category');
+            const isContractToggle = document.getElementById('service-is-contract');
+            const categoryHidden = document.getElementById('service-category');
+            const contractWeeklyInput = document.getElementById('service-contract-weekly');
+            const contractFortnightlyInput = document.getElementById('service-contract-fortnightly');
+            const contractMonthlyInput = document.getElementById('service-contract-monthly');
 
             // Config field elements
             const headerCol1 = document.getElementById('service-header-col1');
@@ -5685,9 +5955,19 @@
             const headerCol3 = document.getElementById('service-header-col3');
             const allowMultiselect = document.getElementById('service-allow-multiselect');
 
+            // Contract intro field elements
+            const contractSectionTitle = document.getElementById('service-contract-section-title');
+            const contractSectionSubtitle = document.getElementById('service-contract-section-subtitle');
+            const contractIntroTitle = document.getElementById('service-contract-intro-title');
+            const contractIntroBody = document.getElementById('service-contract-intro-body');
+            const contractTrustBody = document.getElementById('service-contract-trust-body');
+            const contractContinuityBody = document.getElementById('service-contract-continuity-body');
+
             // Clear previous values
             document.getElementById('service-image-file').value = '';
             document.getElementById('service-existing-image').value = '';
+            document.getElementById('room-cards-list').innerHTML = '';
+            resetRoomCardForm();
 
             if (id) {
                 const serviceCollection = Array.isArray(window.servicesData) ? window.servicesData : [];
@@ -5706,21 +5986,39 @@
                 document.getElementById('service-discount-percent').value = service.discount_percent != null ? service.discount_percent : '';
                 document.getElementById('service-existing-image').value = service.image_path || '';
                 if (pricingModelSelect) {
-                    // Use explicit pricing_model if available, otherwise infer from pricing_type
                     const model = service.pricing_model || service.pricing_type || 'simple';
                     pricingModelSelect.value = model;
                 }
-                if (serviceCategorySelect) {
-                    serviceCategorySelect.value = (service.service_category === 'contract' || service.service_category === 'contract_based') ? 'contract' : 'one_time';
+                // is_contract toggle
+                if (isContractToggle) {
+                    isContractToggle.checked = service.is_contract === true || service.is_contract === 1;
                 }
+                if (categoryHidden) {
+                    categoryHidden.value = (service.is_contract || service.service_category === 'contract') ? 'contract' : 'one_time';
+                }
+                const contractPlans = Array.isArray(service.contract_pricing_plans) ? service.contract_pricing_plans : [];
+                const weekly = contractPlans.find(p => p && p.key === 'weekly');
+                const fortnightly = contractPlans.find(p => p && p.key === 'fortnightly');
+                const monthly = contractPlans.find(p => p && p.key === 'monthly');
+                if (contractWeeklyInput) contractWeeklyInput.value = weekly && weekly.price != null ? weekly.price : '';
+                if (contractFortnightlyInput) contractFortnightlyInput.value = fortnightly && fortnightly.price != null ? fortnightly.price : '';
+                if (contractMonthlyInput) contractMonthlyInput.value = monthly && monthly.price != null ? monthly.price : '';
                 if (activeToggle) {
                     activeToggle.checked = service.is_active !== false;
                 }
-                // Populate new config fields
+                // Populate config fields
                 if (headerCol1) headerCol1.value = service.table_header_col1 || 'Property Type';
                 if (headerCol2) headerCol2.value = service.table_header_col2 || 'Standard Price';
                 if (headerCol3) headerCol3.value = service.table_header_col3 || 'Upgrade Option';
                 if (allowMultiselect) allowMultiselect.checked = service.allow_multiselect === 1 || service.allow_multiselect === true;
+
+                // Populate contract intro fields
+                if (contractSectionTitle) contractSectionTitle.value = service.contract_section_title || '';
+                if (contractSectionSubtitle) contractSectionSubtitle.value = service.contract_section_subtitle || '';
+                if (contractIntroTitle) contractIntroTitle.value = service.contract_intro_title || '';
+                if (contractIntroBody) contractIntroBody.value = service.contract_intro_body || '';
+                if (contractTrustBody) contractTrustBody.value = service.contract_trust_body || '';
+                if (contractContinuityBody) contractContinuityBody.value = service.contract_continuity_body || '';
 
                 document.getElementById('service-modal-title').innerText = 'Edit Service';
                 submitBtn.innerText = 'Save Changes';
@@ -5733,27 +6031,30 @@
                 document.getElementById('service-discount-threshold').value = '';
                 document.getElementById('service-discount-percent').value = '';
                 document.getElementById('service-existing-image').value = '';
-                if (pricingModelSelect) {
-                    pricingModelSelect.value = 'simple';
-                }
-                if (serviceCategorySelect) {
-                    serviceCategorySelect.value = 'one_time';
-                }
-                if (activeToggle) {
-                    activeToggle.checked = true;
-                }
-                // Reset config fields to defaults
+                if (pricingModelSelect) pricingModelSelect.value = 'simple';
+                if (isContractToggle) isContractToggle.checked = false;
+                if (categoryHidden) categoryHidden.value = 'one_time';
+                if (contractWeeklyInput) contractWeeklyInput.value = '';
+                if (contractFortnightlyInput) contractFortnightlyInput.value = '';
+                if (contractMonthlyInput) contractMonthlyInput.value = '';
+                if (activeToggle) activeToggle.checked = true;
                 if (headerCol1) headerCol1.value = 'Property Type';
                 if (headerCol2) headerCol2.value = 'Standard Price';
                 if (headerCol3) headerCol3.value = 'Upgrade Option';
                 if (allowMultiselect) allowMultiselect.checked = false;
+                if (contractSectionTitle) contractSectionTitle.value = '';
+                if (contractSectionSubtitle) contractSectionSubtitle.value = '';
+                if (contractIntroTitle) contractIntroTitle.value = '';
+                if (contractIntroBody) contractIntroBody.value = '';
+                if (contractTrustBody) contractTrustBody.value = '';
+                if (contractContinuityBody) contractContinuityBody.value = '';
 
                 document.getElementById('service-modal-title').innerText = 'Add Service';
                 submitBtn.innerText = 'Add Service';
                 setImagePreviewFromPath('service-image-preview', '');
             }
 
-            // Toggle config field visibility based on pricing model
+            // Toggle config field visibility
             toggleServiceConfigFields();
         }
 
@@ -5764,6 +6065,8 @@
             const formData = new FormData(form);
             formData.delete('is_active');
             formData.set('is_active', document.getElementById('service-active').checked ? '1' : '0');
+            formData.delete('is_contract');
+            formData.set('is_contract', document.getElementById('service-is-contract').checked ? '1' : '0');
 
             const url = id ? `/api/services/edit/${id}` : '/api/services/add';
             const method = id ? 'PUT' : 'POST';
@@ -5811,6 +6114,111 @@
             } catch (error) {
                 showToast(error.message || 'Failed to delete service', 'error');
             }
+        }
+
+        // Room Cards CRUD (for contract services)
+        async function loadRoomCards(serviceId) {
+            const listEl = document.getElementById('room-cards-list');
+            if (!listEl || !serviceId) return;
+            try {
+                const res = await fetch(`/admin/api/services/${serviceId}/room-cards`);
+                const cards = await res.json();
+                if (!Array.isArray(cards) || cards.length === 0) {
+                    listEl.innerHTML = '<p style="color:#6b7280; font-size:0.85rem; text-align:center;">No room cards yet. Add one below.</p>';
+                    return;
+                }
+                listEl.innerHTML = cards.map(c => {
+                    const imgTag = c.image_path ? `<img src="${normalizeMediaPath(c.image_path)}" alt="${escapeHtml(c.room_name)}">` : '';
+                    return `<div class="room-card-item" data-card-id="${c.id}">
+                        ${imgTag}
+                        <div style="flex:1; min-width:0;">
+                            <strong>${escapeHtml(c.room_name)}</strong>
+                            <small style="display:block; color:#6b7280;">${escapeHtml(c.card_key)} &middot; Order: ${c.sort_order}</small>
+                        </div>
+                        <div class="room-card-actions">
+                            <button type="button" class="btn btn-sm" onclick="editRoomCard(${c.id}, ${serviceId})">Edit</button>
+                            <button type="button" class="btn btn-sm btn-danger" onclick="deleteRoomCard(${c.id}, ${serviceId})">Del</button>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                listEl.innerHTML = '<p style="color:#991b1b; font-size:0.85rem;">Failed to load room cards.</p>';
+            }
+        }
+
+        async function saveRoomCard() {
+            const serviceId = document.getElementById('service-id')?.value;
+            if (!serviceId) {
+                showToast('Save the service first before adding room cards.', 'error');
+                return;
+            }
+            const editId = document.getElementById('room-card-edit-id')?.value;
+            const formData = new FormData();
+            formData.set('card_key', (document.getElementById('room-card-key')?.value || '').trim());
+            formData.set('room_name', (document.getElementById('room-card-name')?.value || '').trim());
+            formData.set('lifestyle_copy', (document.getElementById('room-card-copy')?.value || '').trim());
+            formData.set('sort_order', document.getElementById('room-card-order')?.value || '0');
+            const imageFile = document.getElementById('room-card-image')?.files?.[0];
+            if (imageFile) formData.set('image', imageFile);
+
+            if (!formData.get('card_key') || !formData.get('room_name') || !formData.get('lifestyle_copy')) {
+                showToast('Card key, room name, and description are required.', 'error');
+                return;
+            }
+
+            try {
+                const url = editId ? `/admin/api/services/room-cards/${editId}` : `/admin/api/services/${serviceId}/room-cards`;
+                const method = editId ? 'PUT' : 'POST';
+                const res = await fetch(url, { method, body: formData });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to save card');
+                showToast(editId ? 'Card updated.' : 'Card added.', 'success');
+                resetRoomCardForm();
+                await loadRoomCards(serviceId);
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function editRoomCard(cardId, serviceId) {
+            try {
+                const res = await fetch(`/admin/api/services/${serviceId}/room-cards`);
+                const cards = await res.json();
+                const card = cards.find(c => c.id === cardId);
+                if (!card) return;
+                document.getElementById('room-card-edit-id').value = card.id;
+                document.getElementById('room-card-key').value = card.card_key || '';
+                document.getElementById('room-card-name').value = card.room_name || '';
+                document.getElementById('room-card-copy').value = card.lifestyle_copy || '';
+                document.getElementById('room-card-order').value = card.sort_order || 0;
+                document.querySelector('#room-card-form-wrap .btn-primary').textContent = 'Update Card';
+            } catch (e) {
+                showToast('Failed to load card for editing.', 'error');
+            }
+        }
+
+        async function deleteRoomCard(cardId, serviceId) {
+            if (!confirm('Delete this room card?')) return;
+            try {
+                const res = await fetch(`/admin/api/services/room-cards/${cardId}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error('Failed to delete card');
+                showToast('Card deleted.', 'success');
+                await loadRoomCards(serviceId);
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        function resetRoomCardForm() {
+            const el = id => document.getElementById(id);
+            if (el('room-card-edit-id')) el('room-card-edit-id').value = '';
+            if (el('room-card-key')) el('room-card-key').value = '';
+            if (el('room-card-name')) el('room-card-name').value = '';
+            if (el('room-card-copy')) el('room-card-copy').value = '';
+            if (el('room-card-order')) el('room-card-order').value = '0';
+            if (el('room-card-image')) el('room-card-image').value = '';
+            const btn = document.querySelector('#room-card-form-wrap .btn-primary');
+            if (btn) btn.textContent = 'Add Card';
         }
 
         // Testimonial CRUD

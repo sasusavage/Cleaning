@@ -23,10 +23,12 @@ import urllib.parse
 from email.message import EmailMessage
 from email.utils import formataddr
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timedelta, date
 import calendar
 import time
 import threading
+import logging
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -125,6 +127,8 @@ SESSION_TRAVEL_CACHE_TTL_SECONDS = 10 * 60
 _travel_quote_cache = {}
 _travel_cache_lock = threading.Lock()
 EMAIL_EXECUTOR = ThreadPoolExecutor(max_workers=4)
+_contract_reminder_lock = threading.Lock()
+_contract_reminder_last_run = datetime.min
 
 def allowed_file(filename, allowed_extensions=None):
     extensions = allowed_extensions or IMAGE_EXTENSIONS
@@ -1244,12 +1248,16 @@ def parse_order_for_email(service_flow):
 
     # Build schedule info string
     schedule_info = None
-    if schedule.get('preferred_date') or schedule.get('preferred_time'):
+    if schedule.get('preferred_date') or schedule.get('preferred_time') or schedule.get('contract_frequency'):
         parts = []
         if schedule.get('preferred_date'):
             parts.append(str(schedule.get('preferred_date')))
         if schedule.get('preferred_time'):
             parts.append(f"at {schedule.get('preferred_time')}")
+        if schedule.get('contract_frequency'):
+            freq_label = format_contract_frequency_label(schedule.get('contract_frequency'))
+            if freq_label:
+                parts.append(f"({freq_label})")
         schedule_info = ' '.join(parts)
 
     # Build location info for email
@@ -1331,6 +1339,7 @@ def route_contract_booking_to_crm(prepared, submission, service_request_id=None)
     schedule = service_metadata.get('schedule') or {}
     preferred_date = sanitize_text(schedule.get('preferred_date'), 40)
     preferred_time = sanitize_text(schedule.get('preferred_time'), 40)
+    contract_frequency = format_contract_frequency_label(schedule.get('contract_frequency'))
     lead_lines = [
         'Contract service lead captured from booking flow.',
         f"Linked service request ref: {submission.get('reference') or ''}".strip(),
@@ -1338,6 +1347,8 @@ def route_contract_booking_to_crm(prepared, submission, service_request_id=None)
     ]
     if preferred_date or preferred_time:
         lead_lines.append(f"Preferred schedule: {preferred_date or 'Flexible'} {preferred_time or ''}".strip())
+    if contract_frequency:
+        lead_lines.append(f"Contract frequency: {contract_frequency}")
     if notes:
         lead_lines.append(f"Notes: {notes}")
 
@@ -1366,6 +1377,223 @@ def route_contract_booking_to_crm(prepared, submission, service_request_id=None)
 
     request_record, _ = store_request(clean_payload, uploaded_files=None)
     return request_record.get('id') if request_record else None
+
+
+def persist_contract_record(prepared, submission, service_request_id=None):
+    prepared = prepared or {}
+    if not prepared.get('has_contract_service'):
+        return None
+
+    service_metadata = prepared.get('service_metadata') or {}
+    schedule = service_metadata.get('schedule') or {}
+    contract_info = service_metadata.get('contract') or {}
+    frequency = normalize_contract_frequency(schedule.get('contract_frequency'))
+    if not frequency:
+        return None
+
+    signer_name = sanitize_text(
+        contract_info.get('signer_name') or (prepared.get('customer_bundle') or {}).get('name') or prepared.get('customer_name'),
+        150
+    )
+    terms_agreed = bool(str_to_bool(contract_info.get('terms_agreed') or contract_info.get('agreed')))
+
+    preferred_date = parse_preferred_date(schedule.get('preferred_date'))
+    if not preferred_date:
+        preferred_date = date.today()
+    while preferred_date < date.today():
+        next_date = advance_contract_date(preferred_date, frequency)
+        if not isinstance(next_date, date) or next_date == preferred_date:
+            break
+        preferred_date = next_date
+
+    weekday_names = set(calendar.day_name)
+    anchored_service_day = sanitize_text(contract_info.get('service_day'), 20)
+    anchored_service_day = anchored_service_day.title() if anchored_service_day else ''
+    if anchored_service_day not in weekday_names:
+        anchored_service_day = ''
+    service_day = anchored_service_day or (calendar.day_name[preferred_date.weekday()] if isinstance(preferred_date, date) else calendar.day_name[date.today().weekday()])
+
+    next_reminder_at = calculate_next_reminder_at(preferred_date, frequency)
+    metadata = {
+        'service_flow': service_metadata,
+        'agreement': contract_info,
+        'linked_request_reference': submission.get('reference') if isinstance(submission, dict) else None
+    }
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    try:
+        insert_sql = """
+            INSERT INTO contracts (
+                request_id, service_request_id, customer_name, customer_email, customer_phone,
+                service_name, frequency, preferred_time, next_service_date, next_reminder_at,
+                signer_name, terms_agreed, service_day, reminder_enabled, status, metadata
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        if engine == 'postgres':
+            insert_sql += " RETURNING id"
+
+        cursor.execute(
+            insert_sql,
+            (
+                submission.get('request_id') if isinstance(submission, dict) else None,
+                service_request_id,
+                (prepared.get('customer_bundle') or {}).get('name') or prepared.get('customer_name'),
+                (prepared.get('customer_bundle') or {}).get('email') or prepared.get('customer_email'),
+                (prepared.get('customer_bundle') or {}).get('phone'),
+                prepared.get('primary_service_name') or 'Contract service',
+                frequency,
+                sanitize_text(schedule.get('preferred_time'), 32),
+                preferred_date,
+                next_reminder_at,
+                signer_name,
+                (True if engine == 'postgres' else (1 if terms_agreed else 0)),
+                service_day,
+                1 if engine != 'postgres' else True,
+                'active',
+                json.dumps(metadata)
+            )
+        )
+
+        contract_id = cursor.fetchone()[0] if engine == 'postgres' else cursor.lastrowid
+        conn.commit()
+        return contract_id
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def fetch_contract_records(limit=250):
+    ensure_travel_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        """
+        SELECT id, request_id, service_request_id, customer_name, customer_email, customer_phone,
+             service_name, frequency, preferred_time, signer_name, terms_agreed, service_day,
+             next_service_date, next_reminder_at,
+               last_reminder_sent_at, reminder_enabled, status, created_at
+        FROM contracts
+        ORDER BY created_at DESC
+        LIMIT %s
+        """,
+        (max(1, min(int(limit or 250), 1000)),)
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    for row in rows:
+        for key in ('next_service_date', 'next_reminder_at', 'last_reminder_sent_at', 'created_at'):
+            value = row.get(key)
+            if isinstance(value, datetime):
+                row[key] = value.isoformat()
+            elif isinstance(value, date):
+                row[key] = value.isoformat()
+    return rows
+
+
+def process_due_contract_reminders(limit=25):
+    ensure_travel_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    now = datetime.now(datetime.UTC).replace(tzinfo=None)
+    tomorrow = (datetime.now(datetime.UTC) + timedelta(days=1)).date()
+
+    try:
+        cursor.execute(
+            """
+            SELECT *
+            FROM contracts
+            WHERE status = 'active'
+              AND reminder_enabled = %s
+                            AND next_service_date = %s
+                        ORDER BY next_service_date ASC, id ASC
+            LIMIT %s
+            """,
+                        ((True if engine == 'postgres' else 1), tomorrow, max(1, min(int(limit or 25), 200)))
+        )
+        due_contracts = cursor.fetchall()
+        if not due_contracts:
+            return {'processed': 0, 'sent': 0}
+
+        settings = fetch_email_settings()
+        sent_count = 0
+        processed_count = 0
+        for contract in due_contracts:
+            processed_count += 1
+            recipient = sanitize_email(contract.get('customer_email'))
+            if recipient and settings and int(settings.get('is_active') or 0):
+                frequency_label = format_contract_frequency_label(contract.get('frequency')) or 'Recurring'
+                service_date = contract.get('next_service_date')
+                service_time = contract.get('preferred_time') or '09:00'
+                subject = f"Reminder: {contract.get('service_name') or 'Cleaning service'} tomorrow"
+                html_body = (
+                    f"<p>Hello {contract.get('customer_name') or 'there'},</p>"
+                    f"<p>This is your reminder for your {frequency_label.lower()} contract service <strong>{contract.get('service_name') or 'Cleaning service'}</strong>.</p>"
+                    f"<p><strong>Scheduled for:</strong> {service_date} at {service_time}</p>"
+                    f"<p>If you need any changes, please reply to this email.</p>"
+                )
+                text_body = (
+                    f"Hello {contract.get('customer_name') or 'there'},\n\n"
+                    f"Reminder for your {frequency_label.lower()} contract service ({contract.get('service_name') or 'Cleaning service'})\n"
+                    f"Scheduled for: {service_date} at {service_time}\n\n"
+                    "Need changes? Reply to this email."
+                )
+                if send_email_via_settings(
+                    subject=subject,
+                    html_body=html_body,
+                    text_body=text_body,
+                    recipients=[recipient],
+                    settings=settings,
+                    attachments=None,
+                    reply_to=settings.get('reply_to') or settings.get('sender_email'),
+                    error_context='contract_reminder',
+                    request_id=contract.get('request_id')
+                ):
+                    sent_count += 1
+
+            next_service_date = contract.get('next_service_date')
+            if isinstance(next_service_date, datetime):
+                next_service_date = next_service_date.date()
+            if isinstance(next_service_date, str):
+                next_service_date = parse_preferred_date(next_service_date)
+            next_service_date = advance_contract_date(next_service_date or date.today(), contract.get('frequency'))
+            next_reminder_at = calculate_next_reminder_at(next_service_date, contract.get('frequency'))
+            next_service_day = calendar.day_name[next_service_date.weekday()] if isinstance(next_service_date, date) else ''
+
+            cursor.execute(
+                """
+                UPDATE contracts
+                SET next_service_date=%s,
+                    next_reminder_at=%s,
+                    last_reminder_sent_at=%s,
+                    service_day=%s
+                WHERE id=%s
+                """,
+                (next_service_date, next_reminder_at, now, next_service_day, contract.get('id'))
+            )
+
+        conn.commit()
+        return {'processed': processed_count, 'sent': sent_count}
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def maybe_process_due_contract_reminders():
+    global _contract_reminder_last_run
+    now = datetime.now(datetime.UTC).replace(tzinfo=None)
+    with _contract_reminder_lock:
+        if (now - _contract_reminder_last_run).total_seconds() < 300:
+            return {'processed': 0, 'sent': 0, 'skipped': True}
+        _contract_reminder_last_run = now
+    try:
+        return process_due_contract_reminders(limit=50)
+    except Exception:
+        app.logger.exception('Automated contract reminder processing failed')
+        return {'processed': 0, 'sent': 0, 'error': True}
 
 
 def send_request_notifications(request_record, attachments=None):
@@ -2091,6 +2319,154 @@ def ensure_travel_tables():
 
     cursor.execute("UPDATE services SET service_category = 'one_time' WHERE service_category IS NULL OR service_category = ''")
 
+    # Migration: Add contract_pricing_plans column to services
+    if engine == 'postgres':
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_pricing_plans TEXT")
+    else:
+        cursor.execute("SHOW COLUMNS FROM services LIKE 'contract_pricing_plans'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE services ADD COLUMN contract_pricing_plans TEXT NULL AFTER service_category")
+            app.logger.info('Added contract_pricing_plans column to services table.')
+
+    # Migration: Add is_contract boolean to services (replaces service_category for contract toggling)
+    if engine == 'postgres':
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS is_contract BOOLEAN DEFAULT FALSE")
+    else:
+        cursor.execute("SHOW COLUMNS FROM services LIKE 'is_contract'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE services ADD COLUMN is_contract TINYINT(1) DEFAULT 0 AFTER contract_pricing_plans")
+            app.logger.info('Added is_contract column to services table.')
+
+    # Migration: Add contract_intro fields to services for residential-style detail pages
+    if engine == 'postgres':
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_section_title VARCHAR(255)")
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_section_subtitle TEXT")
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_intro_title VARCHAR(255)")
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_intro_body TEXT")
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_trust_body TEXT")
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_continuity_body TEXT")
+    else:
+        cursor.execute("SHOW COLUMNS FROM services LIKE 'contract_section_title'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE services ADD COLUMN contract_section_title VARCHAR(255) NULL AFTER is_contract")
+            cursor.execute("ALTER TABLE services ADD COLUMN contract_section_subtitle TEXT NULL AFTER contract_section_title")
+            cursor.execute("ALTER TABLE services ADD COLUMN contract_intro_title VARCHAR(255) NULL AFTER contract_section_subtitle")
+            cursor.execute("ALTER TABLE services ADD COLUMN contract_intro_body TEXT NULL AFTER contract_intro_title")
+            cursor.execute("ALTER TABLE services ADD COLUMN contract_trust_body TEXT NULL AFTER contract_intro_body")
+            cursor.execute("ALTER TABLE services ADD COLUMN contract_continuity_body TEXT NULL AFTER contract_trust_body")
+            app.logger.info('Added contract intro fields to services table.')
+
+    # Backfill is_contract from service_category for existing records
+    if engine == 'postgres':
+        cursor.execute("UPDATE services SET is_contract = TRUE WHERE service_category = 'contract' AND (is_contract IS NULL OR is_contract = FALSE)")
+    else:
+        cursor.execute("UPDATE services SET is_contract = 1 WHERE service_category = 'contract' AND (is_contract IS NULL OR is_contract = 0)")
+
+    if engine == 'postgres':
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS contracts (
+                id BIGSERIAL PRIMARY KEY,
+                request_id BIGINT NULL,
+                service_request_id BIGINT NULL,
+                customer_name VARCHAR(150) NOT NULL,
+                customer_email VARCHAR(150) NULL,
+                customer_phone VARCHAR(50) NULL,
+                service_name VARCHAR(255) NOT NULL,
+                frequency VARCHAR(30) NOT NULL,
+                preferred_time VARCHAR(32) NULL,
+                signer_name VARCHAR(150) NULL,
+                terms_agreed BOOLEAN DEFAULT FALSE,
+                service_day VARCHAR(20) NULL,
+                next_service_date DATE NOT NULL,
+                next_reminder_at TIMESTAMPTZ NULL,
+                last_reminder_sent_at TIMESTAMPTZ NULL,
+                reminder_enabled BOOLEAN DEFAULT TRUE,
+                status VARCHAR(30) DEFAULT 'active',
+                metadata TEXT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+            """
+        )
+    else:
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS contracts (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                request_id INT NULL,
+                service_request_id INT NULL,
+                customer_name VARCHAR(150) NOT NULL,
+                customer_email VARCHAR(150) NULL,
+                customer_phone VARCHAR(50) NULL,
+                service_name VARCHAR(255) NOT NULL,
+                frequency VARCHAR(30) NOT NULL,
+                preferred_time VARCHAR(32) NULL,
+                signer_name VARCHAR(150) NULL,
+                terms_agreed TINYINT(1) DEFAULT 0,
+                service_day VARCHAR(20) NULL,
+                next_service_date DATE NOT NULL,
+                next_reminder_at DATETIME NULL,
+                last_reminder_sent_at DATETIME NULL,
+                reminder_enabled TINYINT(1) DEFAULT 1,
+                status VARCHAR(30) DEFAULT 'active',
+                metadata TEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+            """
+        )
+
+    # Migration: ensure agreement/day columns exist on older contracts tables
+    if engine == 'postgres':
+        cursor.execute("ALTER TABLE contracts ADD COLUMN IF NOT EXISTS signer_name VARCHAR(150)")
+        cursor.execute("ALTER TABLE contracts ADD COLUMN IF NOT EXISTS terms_agreed BOOLEAN DEFAULT FALSE")
+        cursor.execute("ALTER TABLE contracts ADD COLUMN IF NOT EXISTS service_day VARCHAR(20)")
+    else:
+        cursor.execute("SHOW COLUMNS FROM contracts LIKE 'signer_name'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE contracts ADD COLUMN signer_name VARCHAR(150) NULL AFTER preferred_time")
+        cursor.execute("SHOW COLUMNS FROM contracts LIKE 'terms_agreed'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE contracts ADD COLUMN terms_agreed TINYINT(1) DEFAULT 0 AFTER signer_name")
+        cursor.execute("SHOW COLUMNS FROM contracts LIKE 'service_day'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE contracts ADD COLUMN service_day VARCHAR(20) NULL AFTER terms_agreed")
+
+    # Create service_room_cards table for contract-service room cards (replaces domestic_cleaning_cards)
+    if engine == 'postgres':
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS service_room_cards (
+                id BIGSERIAL PRIMARY KEY,
+                service_id BIGINT NOT NULL,
+                card_key VARCHAR(80) NOT NULL,
+                room_name VARCHAR(120) NOT NULL,
+                lifestyle_copy TEXT NOT NULL,
+                image_path TEXT,
+                sort_order INTEGER DEFAULT 0,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(service_id, card_key)
+            )
+        """)
+    else:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS service_room_cards (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                service_id INT NOT NULL,
+                card_key VARCHAR(80) NOT NULL,
+                room_name VARCHAR(120) NOT NULL,
+                lifestyle_copy TEXT NOT NULL,
+                image_path TEXT,
+                sort_order INT DEFAULT 0,
+                is_active TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_service_card (service_id, card_key)
+            )
+        """)
+
     # Auto-populate pricing_model based on existing pricing data
     cursor.execute("SELECT id FROM services WHERE pricing_model IS NULL OR pricing_model = 'simple'")
     services_to_update = cursor.fetchall()
@@ -2163,6 +2539,7 @@ DEFAULT_HOME_PAGE_SECTIONS = [
     {'section_key': 'services', 'section_label': 'Services'},
     {'section_key': 'why_choose', 'section_label': 'Why Choose Us'},
     {'section_key': 'about', 'section_label': 'About'},
+    {'section_key': 'areas_coverage', 'section_label': 'Areas We Cover'},
     {'section_key': 'testimonials', 'section_label': 'Testimonials'},
     {'section_key': 'policy', 'section_label': 'Policies'},
     {'section_key': 'careers', 'section_label': 'Careers'},
@@ -2563,6 +2940,484 @@ def fetch_domestic_cleaning_data(include_inactive=False):
         'pricing': pricing
     }
 
+
+def migrate_domestic_to_services():
+    """Auto-migrate domestic_cleaning_* data into the unified services table.
+
+    Creates a 'Domestic Cleaning' service record with is_contract=True,
+    copies room cards into service_room_cards, and drops the legacy tables.
+    This is idempotent — skips if migration already happened.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    # Check if domestic tables still exist
+    try:
+        cursor.execute("SELECT COUNT(*) AS cnt FROM domestic_cleaning_content")
+        cursor.fetchone()
+    except Exception:
+        # Tables already dropped — migration already done
+        cursor.close()
+        conn.close()
+        return
+
+    # Check if we already migrated (look for a service with contract_section_title matching domestic content)
+    cursor.execute(
+        "SELECT id FROM services WHERE service_category = %s AND title LIKE %s LIMIT 1",
+        ('contract', '%Domestic Cleaning%')
+    )
+    existing = cursor.fetchone()
+    if existing:
+        # Already migrated — proceed to drop legacy tables
+        cursor.close()
+        cursor = conn.cursor()
+        cursor.execute("DROP TABLE IF EXISTS domestic_cleaning_pricing")
+        cursor.execute("DROP TABLE IF EXISTS domestic_cleaning_cards")
+        cursor.execute("DROP TABLE IF EXISTS domestic_cleaning_content")
+        conn.commit()
+        cursor.close()
+        conn.close()
+        app.logger.info('Domestic tables already migrated (service exists). Dropped legacy tables.')
+        return
+
+    # Fetch all domestic data
+    domestic = fetch_domestic_cleaning_data(include_inactive=True)
+    content = domestic.get('content') or {}
+    cards = domestic.get('cards') or []
+    pricing = domestic.get('pricing') or []
+
+    # Build contract_pricing_plans from domestic pricing
+    contract_plans = []
+    for plan in pricing:
+        contract_plans.append({
+            'key': plan.get('plan_key', ''),
+            'label': plan.get('plan_name', ''),
+            'price': float(plan.get('price_per_hour', 0))
+        })
+    if not contract_plans:
+        contract_plans = default_contract_pricing_plans()
+
+    # Build the service description from domestic content
+    description = content.get('intro_body') or 'Regular domestic cleaning service tailored to your home.'
+
+    is_pg = 'postgres' in engine
+    active_val = 1
+    is_contract_val = True if is_pg else 1
+    inactive_val = 0
+
+    cursor.close()
+    cursor = conn.cursor()
+
+    # Insert the unified service record
+    if is_pg:
+        cursor.execute(
+            """
+            INSERT INTO services (title, name, short_description, description, price,
+                service_category, contract_pricing_plans, is_contract,
+                contract_section_title, contract_section_subtitle,
+                contract_intro_title, contract_intro_body,
+                contract_trust_body, contract_continuity_body,
+                pricing_model, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+            """,
+            (
+                content.get('section_title') or 'Domestic Cleaning',
+                content.get('section_title') or 'Domestic Cleaning',
+                (content.get('section_subtitle') or description)[:150],
+                description,
+                float(contract_plans[0]['price']) if contract_plans else 17.99,
+                'contract',
+                json.dumps(contract_plans),
+                is_contract_val,
+                content.get('section_title') or 'Domestic Cleaning',
+                content.get('section_subtitle') or '',
+                content.get('intro_title') or '',
+                content.get('intro_body') or '',
+                content.get('trust_body') or '',
+                content.get('continuity_body') or '',
+                'simple',
+                active_val
+            )
+        )
+        new_service_id = cursor.fetchone()[0]
+    else:
+        cursor.execute(
+            """
+            INSERT INTO services (title, name, short_description, description, price,
+                service_category, contract_pricing_plans, is_contract,
+                contract_section_title, contract_section_subtitle,
+                contract_intro_title, contract_intro_body,
+                contract_trust_body, contract_continuity_body,
+                pricing_model, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                content.get('section_title') or 'Domestic Cleaning',
+                content.get('section_title') or 'Domestic Cleaning',
+                (content.get('section_subtitle') or description)[:150],
+                description,
+                float(contract_plans[0]['price']) if contract_plans else 17.99,
+                'contract',
+                json.dumps(contract_plans),
+                1,
+                content.get('section_title') or 'Domestic Cleaning',
+                content.get('section_subtitle') or '',
+                content.get('intro_title') or '',
+                content.get('intro_body') or '',
+                content.get('trust_body') or '',
+                content.get('continuity_body') or '',
+                'simple',
+                1
+            )
+        )
+        new_service_id = cursor.lastrowid
+
+    # Migrate room cards
+    for card in cards:
+        cursor.execute(
+            """
+            INSERT INTO service_room_cards (service_id, card_key, room_name, lifestyle_copy, image_path, sort_order, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                new_service_id,
+                card.get('card_key', ''),
+                card.get('room_name', ''),
+                card.get('lifestyle_copy', ''),
+                card.get('image_path'),
+                card.get('sort_order', 0),
+                active_val if card.get('is_active') else inactive_val
+            )
+        )
+
+    conn.commit()
+
+    # Drop legacy tables
+    cursor.execute("DROP TABLE IF EXISTS domestic_cleaning_pricing")
+    cursor.execute("DROP TABLE IF EXISTS domestic_cleaning_cards")
+    cursor.execute("DROP TABLE IF EXISTS domestic_cleaning_content")
+    conn.commit()
+
+    cursor.close()
+    conn.close()
+    app.logger.info('Successfully migrated domestic cleaning data to service id=%s and dropped legacy tables.', new_service_id)
+
+
+def ensure_residential_contract_service():
+    """Guarantee a dedicated Domestic Cleaning contract service exists."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    try:
+        cursor.execute(
+            """
+            SELECT id
+            FROM services
+            WHERE service_category = %s
+              AND (
+                    LOWER(COALESCE(title, '')) LIKE %s
+                 OR LOWER(COALESCE(name, '')) LIKE %s
+              )
+            LIMIT 1
+            """,
+            ('contract', '%domestic%', '%domestic%')
+        )
+        found = cursor.fetchone()
+        if found:
+            return
+
+        default_plans = json.dumps(default_contract_pricing_plans())
+        cursor.close()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO services (
+                title, name, short_description, description, price,
+                service_category, contract_pricing_plans, is_contract,
+                contract_section_title, contract_section_subtitle,
+                contract_intro_title, contract_intro_body,
+                contract_trust_body, contract_continuity_body,
+                pricing_model, is_active
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                'Domestic Cleaning',
+                'Domestic Cleaning',
+                'Recurring home cleaning plans tailored to your routine.',
+                'Professional recurring domestic cleaning with flexible weekly, fortnightly, and monthly plans.',
+                17.99,
+                'contract',
+                default_plans,
+                (True if engine == 'postgres' else 1),
+                'Domestic Cleaning',
+                'Lifestyle-led home care designed around your routine.',
+                'Our Regular Domestic Cleaning Service',
+                'Choose a recurring cleaning plan that fits your schedule and home.',
+                'Vetted, insured, and reliable cleaning professionals.',
+                'Consistent quality and continuity for every visit.',
+                'simple',
+                1
+            )
+        )
+        conn.commit()
+        app.logger.info('Created fallback Domestic Cleaning contract service in services table.')
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def _default_domestic_room_cards_seed():
+    return [
+        {
+            'card_key': 'living_room',
+            'room_name': 'Living Room',
+            'lifestyle_copy': 'We restore freshness and order to your sanctuary—lifting dust, polishing glass and mirrors, refreshing surfaces, and leaving your social space visibly calm and welcoming.',
+            'sort_order': 1,
+            'is_active': True
+        },
+        {
+            'card_key': 'kitchen',
+            'room_name': 'Kitchen Areas',
+            'lifestyle_copy': 'We bring hygienic shine back to your kitchen with degreased touchpoints, refreshed worktops, polished sinks and taps, and a clean, ready-to-use cooking space.',
+            'sort_order': 2,
+            'is_active': True
+        },
+        {
+            'card_key': 'all_rooms',
+            'room_name': 'All Rooms Finishing',
+            'lifestyle_copy': 'We handle the often-missed details—from handles, switches, skirting and ledges to polished mirrors—so your entire home feels consistently finished.',
+            'sort_order': 3,
+            'is_active': True
+        },
+        {
+            'card_key': 'bedrooms',
+            'room_name': 'Bedrooms',
+            'lifestyle_copy': 'We create a restful bedroom environment with tidy surfaces, polished mirrors, refreshed floors and beautifully presented bedding for a hotel-like finish.',
+            'sort_order': 4,
+            'is_active': True
+        },
+        {
+            'card_key': 'bathrooms',
+            'room_name': 'Bathrooms / Toilets',
+            'lifestyle_copy': 'We deliver a sanitised, sparkling bathroom standard—disinfected essentials, polished chrome, refreshed tiles and neatly arranged finishing touches.',
+            'sort_order': 5,
+            'is_active': True
+        }
+    ]
+
+
+def _default_domestic_pricing_seed():
+    return [
+        {
+            'id': 1,
+            'plan_key': 'weekly',
+            'plan_name': 'Weekly Regular Domestic Cleaning',
+            'price_per_hour': 17.99,
+            'per_label': 'per hour per cleaner',
+            'sort_order': 1,
+            'is_active': True
+        },
+        {
+            'id': 2,
+            'plan_key': 'fortnightly',
+            'plan_name': 'Fortnightly Regular Domestic Cleaning',
+            'price_per_hour': 19.99,
+            'per_label': 'per hour per cleaner',
+            'sort_order': 2,
+            'is_active': True
+        },
+        {
+            'id': 3,
+            'plan_key': 'monthly',
+            'plan_name': 'Monthly Regular Domestic Cleaning',
+            'price_per_hour': 24.99,
+            'per_label': 'per hour per cleaner',
+            'sort_order': 3,
+            'is_active': True
+        }
+    ]
+
+
+def _normalize_domestic_plan_row(item, fallback_id):
+    if not isinstance(item, dict):
+        return None
+    plan_key = sanitize_text(item.get('plan_key') or item.get('key'), 40).lower().replace(' ', '_')
+    if not plan_key:
+        return None
+    raw_name = item.get('plan_name') or item.get('label') or plan_key.replace('_', ' ').title()
+    plan_name = sanitize_text(raw_name, 120)
+    price = normalize_price_value(item.get('price_per_hour') if item.get('price_per_hour') is not None else item.get('price'))
+    per_label = sanitize_text(item.get('per_label') or 'per hour per cleaner', 120)
+    sort_order = int(item.get('sort_order') or fallback_id)
+    is_active = str_to_bool(item.get('is_active', True))
+    row_id = int(item.get('id') or fallback_id)
+    return {
+        'id': row_id,
+        'plan_key': plan_key,
+        'plan_name': plan_name or plan_key.replace('_', ' ').title(),
+        'price_per_hour': price if price is not None else 0,
+        'per_label': per_label or 'per hour per cleaner',
+        'sort_order': sort_order,
+        'is_active': bool(is_active)
+    }
+
+
+def _load_domestic_pricing_from_service(raw_value):
+    parsed = raw_value
+    if isinstance(raw_value, str):
+        try:
+            parsed = json.loads(raw_value)
+        except Exception:
+            parsed = []
+    if isinstance(parsed, dict):
+        parsed = parsed.get('plans') or []
+    if not isinstance(parsed, list):
+        parsed = []
+
+    rows = []
+    for idx, item in enumerate(parsed, start=1):
+        normalized = _normalize_domestic_plan_row(item, idx)
+        if normalized:
+            rows.append(normalized)
+
+    if not rows:
+        rows = [dict(row) for row in _default_domestic_pricing_seed()]
+
+    rows.sort(key=lambda row: (int(row.get('sort_order') or 0), int(row.get('id') or 0)))
+    return rows
+
+
+def _serialize_domestic_pricing_for_service(rows):
+    payload = []
+    for row in rows:
+        item = _normalize_domestic_plan_row(row, row.get('id') or 1)
+        if not item:
+            continue
+        payload.append(
+            {
+                'id': item['id'],
+                'plan_key': item['plan_key'],
+                'plan_name': item['plan_name'],
+                'price_per_hour': item['price_per_hour'],
+                'per_label': item['per_label'],
+                'sort_order': item['sort_order'],
+                'is_active': item['is_active'],
+                'key': item['plan_key'],
+                'label': item['plan_name'],
+                'price': item['price_per_hour']
+            }
+        )
+    return json.dumps(payload)
+
+
+def get_domestic_service_record(create_if_missing=True):
+    if create_if_missing:
+        ensure_residential_contract_service()
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        """
+        SELECT *
+        FROM services
+        WHERE service_category = %s
+          AND (
+                LOWER(COALESCE(title, '')) LIKE %s
+             OR LOWER(COALESCE(name, '')) LIKE %s
+          )
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        ('contract', '%domestic%', '%domestic%')
+    )
+    service = cursor.fetchone()
+
+    if not service:
+        cursor.close()
+        conn.close()
+        return None
+
+    service_id = service.get('id')
+
+    cursor.execute("SELECT COUNT(*) AS cnt FROM service_room_cards WHERE service_id=%s", (service_id,))
+    card_count = int((cursor.fetchone() or {}).get('cnt') or 0)
+
+    needs_content_defaults = not (sanitize_text(service.get('contract_intro_body')) and sanitize_text(service.get('contract_section_title')))
+    needs_pricing_defaults = not service.get('contract_pricing_plans')
+
+    if card_count == 0 or needs_content_defaults or needs_pricing_defaults:
+        cursor.close()
+        cursor = conn.cursor()
+        if card_count == 0:
+            for row in _default_domestic_room_cards_seed():
+                cursor.execute(
+                    """
+                    INSERT INTO service_room_cards (service_id, card_key, room_name, lifestyle_copy, image_path, sort_order, is_active)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        service_id,
+                        row['card_key'],
+                        row['room_name'],
+                        row['lifestyle_copy'],
+                        None,
+                        int(row['sort_order']),
+                        True if (app.config.get('DB_ENGINE') or 'mysql').strip().lower() == 'postgres' else 1
+                    )
+                )
+
+        if needs_content_defaults or needs_pricing_defaults:
+            section_title = sanitize_text(service.get('contract_section_title'), 255) or 'Domestic Cleaning'
+            section_subtitle = sanitize_text(service.get('contract_section_subtitle')) or 'Lifestyle-led home care designed around your routine, with premium consistency and trusted professionals.'
+            intro_title = sanitize_text(service.get('contract_intro_title'), 255) or 'Our Regular Domestic Cleaning Service'
+            intro_body = sanitize_text(service.get('contract_intro_body')) or 'Your home should feel calm, fresh and effortlessly welcoming. Done-Well tailors each visit to your priorities so every room feels restored, reset and ready for living.'
+            trust_body = sanitize_text(service.get('contract_trust_body')) or 'Every cleaner is reference-checked, fully vetted, trained, and legally eligible to work in the UK. Our teams arrive in company uniform with ID for complete peace of mind.'
+            continuity_body = sanitize_text(service.get('contract_continuity_body')) or 'Where possible, you keep the same cleaner to build trust and familiarity. If your regular cleaner is unavailable, we quickly arrange a suitable replacement to keep your routine uninterrupted.'
+            pricing_json = service.get('contract_pricing_plans') or _serialize_domestic_pricing_for_service(_default_domestic_pricing_seed())
+
+            cursor.execute(
+                """
+                UPDATE services
+                SET title=%s,
+                    name=%s,
+                    contract_section_title=%s,
+                    contract_section_subtitle=%s,
+                    contract_intro_title=%s,
+                    contract_intro_body=%s,
+                    contract_trust_body=%s,
+                    contract_continuity_body=%s,
+                    contract_pricing_plans=%s,
+                    service_category=%s,
+                    is_contract=%s
+                WHERE id=%s
+                """,
+                (
+                    section_title,
+                    section_title,
+                    section_title,
+                    section_subtitle,
+                    intro_title,
+                    intro_body,
+                    trust_body,
+                    continuity_body,
+                    pricing_json,
+                    'contract',
+                    True if (app.config.get('DB_ENGINE') or 'mysql').strip().lower() == 'postgres' else 1,
+                    service_id
+                )
+            )
+
+        conn.commit()
+        cursor.close()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM services WHERE id=%s", (service_id,))
+        service = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+    return service
 
 
 def ensure_chat_tables():
@@ -3655,7 +4510,151 @@ def normalize_service_category(value):
         return 'contract'
     return 'one_time'
 
+
+def normalize_contract_frequency(value):
+    normalized = sanitize_text(value, 30)
+    normalized = (normalized or '').strip().lower().replace('-', '_').replace(' ', '_')
+    if normalized in {'weekly', 'fortnightly', 'monthly'}:
+        return normalized
+    return ''
+
+
+def format_contract_frequency_label(value):
+    normalized = normalize_contract_frequency(value)
+    if normalized == 'weekly':
+        return 'Weekly'
+    if normalized == 'fortnightly':
+        return 'Fortnightly (Every 2 weeks)'
+    if normalized == 'monthly':
+        return 'Monthly'
+    return ''
+
+
+def add_months_to_date(base_date, months):
+    if not isinstance(base_date, date):
+        return base_date
+    total_month = (base_date.month - 1) + int(months or 0)
+    year = base_date.year + (total_month // 12)
+    month = (total_month % 12) + 1
+    day = min(base_date.day, [31, 29 if (year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1])
+    return date(year, month, day)
+
+
+def advance_contract_date(base_date, frequency):
+    normalized = normalize_contract_frequency(frequency)
+    if not isinstance(base_date, date):
+        return base_date
+    if normalized == 'weekly':
+        return base_date + timedelta(days=7)
+    if normalized == 'fortnightly':
+        return base_date + timedelta(days=14)
+    if normalized == 'monthly':
+        return add_months_to_date(base_date, 1)
+    return base_date
+
+
+def combine_contract_datetime(service_date, preferred_time='09:00'):
+    if not isinstance(service_date, date):
+        return None
+    time_text = sanitize_text(preferred_time, 32) or '09:00'
+    try:
+        hour_part, minute_part = [int(part) for part in time_text.split(':', 1)]
+    except Exception:
+        hour_part, minute_part = 9, 0
+    hour_part = max(0, min(23, hour_part))
+    minute_part = max(0, min(59, minute_part))
+    return datetime(service_date.year, service_date.month, service_date.day, hour_part, minute_part)
+
+
+def default_contract_pricing_plans():
+    return [
+        {'key': 'weekly', 'label': 'Weekly', 'price': 17.99},
+        {'key': 'fortnightly', 'label': 'Fortnightly', 'price': 19.99},
+        {'key': 'monthly', 'label': 'Monthly', 'price': 24.99}
+    ]
+
+
+def parse_contract_pricing_plans(raw_value):
+    plans = default_contract_pricing_plans()
+    if raw_value in (None, ''):
+        return plans
+
+    parsed = raw_value
+    if isinstance(raw_value, str):
+        try:
+            parsed = json.loads(raw_value)
+        except Exception:
+            return plans
+
+    if isinstance(parsed, dict):
+        parsed = parsed.get('plans') or []
+
+    if not isinstance(parsed, list):
+        return plans
+
+    keyed = {item['key']: dict(item) for item in plans}
+    for item in parsed:
+        if not isinstance(item, dict):
+            continue
+        key = normalize_contract_frequency(item.get('key'))
+        if key not in keyed:
+            continue
+        price = normalize_price_value(item.get('price'))
+        keyed[key]['price'] = price
+        if item.get('label'):
+            keyed[key]['label'] = sanitize_text(item.get('label'), 80) or keyed[key]['label']
+
+    return [keyed['weekly'], keyed['fortnightly'], keyed['monthly']]
+
+
+def build_contract_pricing_plans_from_form(form_data):
+    return [
+        {'key': 'weekly', 'label': 'Weekly', 'price': normalize_price_value(form_data.get('contract_price_weekly'))},
+        {'key': 'fortnightly', 'label': 'Fortnightly', 'price': normalize_price_value(form_data.get('contract_price_fortnightly'))},
+        {'key': 'monthly', 'label': 'Monthly', 'price': normalize_price_value(form_data.get('contract_price_monthly'))}
+    ]
+
+
+def calculate_next_reminder_at(preferred_date_value, frequency):
+    if not preferred_date_value or not frequency:
+        return None
+    if isinstance(preferred_date_value, datetime):
+        service_date = preferred_date_value.date()
+    else:
+        service_date = parse_preferred_date(preferred_date_value)
+    if not service_date:
+        return None
+
+    reminder_date = service_date - timedelta(days=1)
+    reminder_dt = datetime.combine(reminder_date, datetime.min.time()) + timedelta(hours=9)
+    if reminder_dt <= datetime.now(datetime.UTC).replace(tzinfo=None):
+        if frequency == 'weekly':
+            service_date = service_date + timedelta(days=7)
+        elif frequency == 'fortnightly':
+            service_date = service_date + timedelta(days=14)
+        elif frequency == 'monthly':
+            month = service_date.month + 1
+            year = service_date.year
+            if month > 12:
+                month = 1
+                year += 1
+            day = min(service_date.day, calendar.monthrange(year, month)[1])
+            service_date = service_date.replace(year=year, month=month, day=day)
+        reminder_date = service_date - timedelta(days=1)
+        reminder_dt = datetime.combine(reminder_date, datetime.min.time()) + timedelta(hours=9)
+    return reminder_dt
+
 def fetch_services_from_db(include_inactive=False):
+    try:
+        migrate_domestic_to_services()
+    except Exception:
+        app.logger.exception('Error during domestic-to-services migration (fetch_services_from_db)')
+
+    try:
+        ensure_residential_contract_service()
+    except Exception:
+        app.logger.exception('Error ensuring fallback Residential Cleaning contract service')
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -3678,6 +4677,14 @@ def fetch_services_from_db(include_inactive=False):
             s.discount_threshold,
             s.discount_percent,
             s.service_category,
+            s.contract_pricing_plans,
+            s.is_contract,
+            s.contract_section_title,
+            s.contract_section_subtitle,
+            s.contract_intro_title,
+            s.contract_intro_body,
+            s.contract_trust_body,
+            s.contract_continuity_body,
             s.pricing_model,
             s.table_header_col1,
             s.table_header_col2,
@@ -3700,6 +4707,7 @@ def fetch_services_from_db(include_inactive=False):
         created_at = row.get('created_at')
         updated_at = row.get('updated_at')
         service_id = row.get('id')
+        is_contract = bool(row.get('is_contract')) or normalize_service_category(row.get('service_category')) == 'contract'
         services[service_id] = {
             'id': service_id,
             'title': row.get('title'),
@@ -3709,7 +4717,16 @@ def fetch_services_from_db(include_inactive=False):
             'price': normalize_price_value(row.get('price')),
             'discount_threshold': normalize_price_value(row.get('discount_threshold')),
             'discount_percent': normalize_price_value(row.get('discount_percent')),
-            'service_category': normalize_service_category(row.get('service_category')),
+            'service_category': 'contract' if is_contract else normalize_service_category(row.get('service_category')),
+            'is_contract': is_contract,
+            'contract_pricing_plans': parse_contract_pricing_plans(row.get('contract_pricing_plans')),
+            'contract_section_title': row.get('contract_section_title') or '',
+            'contract_section_subtitle': row.get('contract_section_subtitle') or '',
+            'contract_intro_title': row.get('contract_intro_title') or '',
+            'contract_intro_body': row.get('contract_intro_body') or '',
+            'contract_trust_body': row.get('contract_trust_body') or '',
+            'contract_continuity_body': row.get('contract_continuity_body') or '',
+            'room_cards': [],
             'pricing_model': row.get('pricing_model') or 'simple',
             'table_header_col1': row.get('table_header_col1') or 'Property Type',
             'table_header_col2': row.get('table_header_col2') or 'Standard Price',
@@ -3818,6 +4835,36 @@ def fetch_services_from_db(include_inactive=False):
                     'deep_clean_price': normalize_price_value(rate.get('deep_clean_price')),
                     'is_blocker': bool(rate.get('is_blocker')),
                     'blocker_msg': rate.get('blocker_msg')
+                })
+
+        # Room cards for contract services
+        room_card_where = f"WHERE rc.service_id IN ({placeholders})"
+        room_card_params = list(service_ids)
+        if not include_inactive:
+            condition, cond_params = build_active_true_condition('rc.is_active', engine)
+            room_card_where += f" AND {condition}"
+            room_card_params.extend(cond_params)
+        cursor.execute(
+            f"""
+            SELECT rc.id, rc.service_id, rc.card_key, rc.room_name, rc.lifestyle_copy, rc.image_path, rc.sort_order, rc.is_active
+            FROM service_room_cards rc
+            {room_card_where}
+            ORDER BY rc.service_id ASC, rc.sort_order ASC, rc.id ASC
+            """,
+            room_card_params
+        )
+        for card in cursor.fetchall():
+            svc = services.get(card['service_id'])
+            if svc:
+                svc['room_cards'].append({
+                    'id': card['id'],
+                    'service_id': card['service_id'],
+                    'card_key': card.get('card_key'),
+                    'room_name': card.get('room_name'),
+                    'lifestyle_copy': card.get('lifestyle_copy'),
+                    'image_path': card.get('image_path'),
+                    'sort_order': card.get('sort_order', 0),
+                    'is_active': bool(card.get('is_active'))
                 })
 
         # Set pricing_type based on pricing_model or infer from data for backwards compatibility
@@ -5274,11 +6321,25 @@ def prepare_service_booking(payload):
 
     preferred_date_raw = schedule_data.get('preferred_date') or payload.get('preferred_date')
     preferred_time = sanitize_text(schedule_data.get('preferred_time') or payload.get('preferred_time'), 32)
+    contract_frequency = normalize_contract_frequency(schedule_data.get('contract_frequency') or payload.get('contract_frequency'))
     parsed_date = parse_preferred_date(preferred_date_raw)
     if preferred_date_raw and not parsed_date:
         raise ValueError('Please choose a valid preferred date.')
+    if has_contract_service and not contract_frequency:
+        raise ValueError('Please choose a contract frequency for contract-based services.')
 
     notes = sanitize_text(payload.get('notes') or schedule_data.get('notes'), 1000)
+    contract_data = payload.get('contract_agreement') or {}
+    contract_signer_name = sanitize_text(contract_data.get('signer_name') or customer_name, 150)
+    contract_terms_agreed = bool(str_to_bool(contract_data.get('agreed')))
+    contract_service_day = sanitize_text(contract_data.get('service_day'), 20)
+    contract_service_day = contract_service_day.title() if contract_service_day else ''
+    if contract_service_day not in set(calendar.day_name):
+        contract_service_day = ''
+    if has_contract_service and not contract_service_day:
+        contract_service_day = calendar.day_name[datetime.now(datetime.UTC).weekday()]
+    if has_contract_service and not contract_terms_agreed:
+        raise ValueError('Contract terms must be accepted for contract-based services.')
 
     travel_fee_value = travel_quote.get('travel_fee') if travel_quote else None
     services_subtotal_display = 'To be confirmed (survey required)' if has_survey_request else (format_currency_label(subtotal) if not has_custom else 'Custom quote')
@@ -5340,6 +6401,12 @@ def prepare_service_booking(payload):
     summary_lines.append('')
     summary_lines.append(f"Preferred date: {preferred_date_raw or 'Flexible'}")
     summary_lines.append(f"Preferred time: {preferred_time or 'Flexible'}")
+    if has_contract_service and contract_frequency:
+        summary_lines.append(f"Contract frequency: {format_contract_frequency_label(contract_frequency)}")
+    if has_contract_service:
+        summary_lines.append(f"Contract signer: {contract_signer_name or customer_name}")
+        summary_lines.append(f"Contract service day: {contract_service_day}")
+        summary_lines.append(f"Contract terms accepted: {'Yes' if contract_terms_agreed else 'No'}")
     if customer_address:
         summary_lines.append(f"Address: {customer_address}")
     if notes:
@@ -5361,12 +6428,18 @@ def prepare_service_booking(payload):
         },
         'schedule': {
             'preferred_date': preferred_date_raw,
-            'preferred_time': preferred_time
+            'preferred_time': preferred_time,
+            'contract_frequency': contract_frequency
         },
         'notes': notes,
         'selections': selections,
         'service_categories': selected_categories,
         'has_contract_service': has_contract_service,
+        'contract': {
+            'signer_name': contract_signer_name,
+            'service_day': contract_service_day,
+            'terms_agreed': contract_terms_agreed
+        },
         'pricing_details': pricing_details,
         'totals': {
             'amount': subtotal if (not has_custom and not has_survey_request) else None,
@@ -5466,15 +6539,22 @@ def finalize_prepared_service_booking(prepared, remote_addr=None, mark_paid=Fals
     attach_service_request_reference(submission.get('request_id'), service_request_id)
 
     crm_request_id = None
+    contract_id = None
     if prepared.get('has_contract_service'):
         try:
             crm_request_id = route_contract_booking_to_crm(prepared, submission, service_request_id)
         except Exception:
             app.logger.exception('Failed to route contract booking to CRM for request %s', submission.get('request_id'))
+        try:
+            contract_id = persist_contract_record(prepared, submission, service_request_id)
+        except Exception:
+            app.logger.exception('Failed to persist contract record for request %s', submission.get('request_id'))
 
     submission['service_request_id'] = service_request_id
     if crm_request_id:
         submission['crm_request_id'] = crm_request_id
+    if contract_id:
+        submission['contract_id'] = contract_id
     submission['travel'] = prepared.get('travel_quote') or {}
     if prepared.get('total_with_travel') is not None:
         submission['total_with_travel'] = prepared.get('total_with_travel')
@@ -5818,7 +6898,8 @@ def add_service():
         raw_price = request.form.get('price')
         raw_discount_threshold = request.form.get('discount_threshold')
         raw_discount_percent = request.form.get('discount_percent')
-        service_category = normalize_service_category(request.form.get('service_category'))
+        is_contract = str_to_bool(request.form.get('is_contract', '0'))
+        service_category = 'contract' if is_contract else normalize_service_category(request.form.get('service_category'))
         pricing_model = (request.form.get('pricing_model') or 'simple').strip().lower()
         is_active = str_to_bool(request.form.get('is_active', '1'))
 
@@ -5827,6 +6908,16 @@ def add_service():
         table_header_col2 = (request.form.get('table_header_col2') or 'Standard Price').strip()[:100]
         table_header_col3 = (request.form.get('table_header_col3') or 'Upgrade Option').strip()[:100]
         allow_multiselect = str_to_bool(request.form.get('allow_multiselect', '0'))
+        contract_plans = build_contract_pricing_plans_from_form(request.form)
+        contract_pricing_plans_json = json.dumps(contract_plans)
+
+        # Contract intro fields (residential-style detail page content)
+        contract_section_title = sanitize_text(request.form.get('contract_section_title'), 255)
+        contract_section_subtitle = sanitize_text(request.form.get('contract_section_subtitle'))
+        contract_intro_title = sanitize_text(request.form.get('contract_intro_title'), 255)
+        contract_intro_body = sanitize_text(request.form.get('contract_intro_body'))
+        contract_trust_body = sanitize_text(request.form.get('contract_trust_body'))
+        contract_continuity_body = sanitize_text(request.form.get('contract_continuity_body'))
 
         if not service_name:
             return jsonify({'error': 'Service name is required.'}), 400
@@ -5865,8 +6956,11 @@ def add_service():
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO services (title, name, short_description, description, price, discount_threshold, discount_percent, service_category, pricing_model, table_header_col1, table_header_col2, table_header_col3, allow_multiselect, image_path, is_active)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO services (title, name, short_description, description, price, discount_threshold, discount_percent,
+                service_category, contract_pricing_plans, is_contract,
+                contract_section_title, contract_section_subtitle, contract_intro_title, contract_intro_body, contract_trust_body, contract_continuity_body,
+                pricing_model, table_header_col1, table_header_col2, table_header_col3, allow_multiselect, image_path, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 service_name,
@@ -5877,6 +6971,14 @@ def add_service():
                 discount_threshold,
                 discount_percent,
                 service_category,
+                contract_pricing_plans_json,
+                1 if is_contract else 0,
+                contract_section_title,
+                contract_section_subtitle,
+                contract_intro_title,
+                contract_intro_body,
+                contract_trust_body,
+                contract_continuity_body,
                 pricing_model,
                 table_header_col1,
                 table_header_col2,
@@ -5905,16 +7007,27 @@ def edit_service(service_id):
         raw_price = request.form.get('price')
         raw_discount_threshold = request.form.get('discount_threshold')
         raw_discount_percent = request.form.get('discount_percent')
-        service_category = normalize_service_category(request.form.get('service_category'))
+        is_contract = str_to_bool(request.form.get('is_contract', '0'))
+        service_category = 'contract' if is_contract else normalize_service_category(request.form.get('service_category'))
         pricing_model = (request.form.get('pricing_model') or '').strip().lower()
         existing_image = request.form.get('existing_image', '')
         is_active = str_to_bool(request.form.get('is_active', '1'))
 
-        # New config fields
+        # Config fields
         table_header_col1 = (request.form.get('table_header_col1') or 'Property Type').strip()[:100]
         table_header_col2 = (request.form.get('table_header_col2') or 'Standard Price').strip()[:100]
         table_header_col3 = (request.form.get('table_header_col3') or 'Upgrade Option').strip()[:100]
         allow_multiselect = str_to_bool(request.form.get('allow_multiselect', '0'))
+        contract_plans = build_contract_pricing_plans_from_form(request.form)
+        contract_pricing_plans_json = json.dumps(contract_plans)
+
+        # Contract intro fields
+        contract_section_title = sanitize_text(request.form.get('contract_section_title'), 255)
+        contract_section_subtitle = sanitize_text(request.form.get('contract_section_subtitle'))
+        contract_intro_title = sanitize_text(request.form.get('contract_intro_title'), 255)
+        contract_intro_body = sanitize_text(request.form.get('contract_intro_body'))
+        contract_trust_body = sanitize_text(request.form.get('contract_trust_body'))
+        contract_continuity_body = sanitize_text(request.form.get('contract_continuity_body'))
 
         if not service_name:
             return jsonify({'error': 'Service name is required.'}), 400
@@ -5924,7 +7037,7 @@ def edit_service(service_id):
         # Validate pricing_model
         valid_pricing_models = ('simple', 'options', 'tenancy', 'deep', 'airbnb', 'itemized')
         if pricing_model and pricing_model not in valid_pricing_models:
-            pricing_model = None  # Don't update if invalid
+            pricing_model = None
 
         if not short_description:
             short_description = description[:150]
@@ -5949,40 +7062,42 @@ def edit_service(service_id):
         except ValueError as exc:
             return jsonify({'error': str(exc)}), 400
 
-        # If image changed, delete the old one from Cloudinary / disk
         if image_path and existing_image and image_path != existing_image:
             delete_uploaded_file(existing_image)
 
         conn = get_db_connection()
         cursor = conn.cursor()
+        set_clauses = [
+            "title=%s", "name=%s", "short_description=%s", "description=%s",
+            "price=%s", "discount_threshold=%s", "discount_percent=%s",
+            "service_category=%s", "contract_pricing_plans=%s", "is_contract=%s",
+            "contract_section_title=%s", "contract_section_subtitle=%s",
+            "contract_intro_title=%s", "contract_intro_body=%s",
+            "contract_trust_body=%s", "contract_continuity_body=%s",
+            "table_header_col1=%s", "table_header_col2=%s", "table_header_col3=%s",
+            "allow_multiselect=%s", "is_active=%s"
+        ]
+        params = [
+            service_name, service_name, short_description, description,
+            price, discount_threshold, discount_percent,
+            service_category, contract_pricing_plans_json, 1 if is_contract else 0,
+            contract_section_title, contract_section_subtitle,
+            contract_intro_title, contract_intro_body,
+            contract_trust_body, contract_continuity_body,
+            table_header_col1, table_header_col2, table_header_col3,
+            1 if allow_multiselect else 0, 1 if is_active else 0
+        ]
+        if pricing_model:
+            set_clauses.append("pricing_model=%s")
+            params.append(pricing_model)
         if image_path:
-            cursor.execute(
-                """
-                UPDATE services
-                SET title=%s, name=%s, short_description=%s, description=%s, price=%s, discount_threshold=%s, discount_percent=%s, service_category=%s, pricing_model=%s, table_header_col1=%s, table_header_col2=%s, table_header_col3=%s, allow_multiselect=%s, image_path=%s, is_active=%s
-                WHERE id=%s
-                """,
-                (service_name, service_name, short_description, description, price, discount_threshold, discount_percent, service_category, pricing_model or None, table_header_col1, table_header_col2, table_header_col3, 1 if allow_multiselect else 0, image_path, 1 if is_active else 0, service_id)
-            )
-        else:
-            if pricing_model:
-                cursor.execute(
-                    """
-                    UPDATE services
-                    SET title=%s, name=%s, short_description=%s, description=%s, price=%s, discount_threshold=%s, discount_percent=%s, service_category=%s, pricing_model=%s, table_header_col1=%s, table_header_col2=%s, table_header_col3=%s, allow_multiselect=%s, is_active=%s
-                    WHERE id=%s
-                    """,
-                    (service_name, service_name, short_description, description, price, discount_threshold, discount_percent, service_category, pricing_model, table_header_col1, table_header_col2, table_header_col3, 1 if allow_multiselect else 0, 1 if is_active else 0, service_id)
-                )
-            else:
-                cursor.execute(
-                    """
-                    UPDATE services
-                    SET title=%s, name=%s, short_description=%s, description=%s, price=%s, discount_threshold=%s, discount_percent=%s, service_category=%s, table_header_col1=%s, table_header_col2=%s, table_header_col3=%s, allow_multiselect=%s, is_active=%s
-                    WHERE id=%s
-                    """,
-                    (service_name, service_name, short_description, description, price, discount_threshold, discount_percent, service_category, table_header_col1, table_header_col2, table_header_col3, 1 if allow_multiselect else 0, 1 if is_active else 0, service_id)
-                )
+            set_clauses.append("image_path=%s")
+            params.append(image_path)
+        params.append(service_id)
+        cursor.execute(
+            f"UPDATE services SET {', '.join(set_clauses)} WHERE id=%s",
+            params
+        )
         conn.commit()
         cursor.close()
         conn.close()
@@ -6001,14 +7116,20 @@ def delete_service(service_id):
         cursor.execute("SELECT image_path FROM services WHERE id=%s", (service_id,))
         row = cursor.fetchone()
         old_image = row.get('image_path', '') if row else ''
+        # Collect room card images for cleanup
+        cursor.execute("SELECT image_path FROM service_room_cards WHERE service_id=%s", (service_id,))
+        room_card_images = [r.get('image_path') for r in cursor.fetchall() if r.get('image_path')]
         cursor.close()
         cursor = conn.cursor()
+        cursor.execute("DELETE FROM service_room_cards WHERE service_id=%s", (service_id,))
         cursor.execute("DELETE FROM services WHERE id=%s", (service_id,))
         conn.commit()
         cursor.close()
         conn.close()
         if old_image:
             delete_uploaded_file(old_image)
+        for img in room_card_images:
+            delete_uploaded_file(img)
         return jsonify({'message': 'Service deleted!'})
     except Exception as e:
         app.logger.exception('Failed to delete service')
@@ -8189,6 +9310,30 @@ def admin_request_detail(request_id):
     return jsonify(detail)
 
 
+@app.route('/admin/api/contracts', methods=['GET'])
+@app.route('/api/contracts', methods=['GET'])
+@admin_login_required
+def admin_contracts_api():
+    try:
+        limit = request.args.get('limit', 250)
+        contracts = fetch_contract_records(limit=limit)
+        return jsonify(contracts)
+    except Exception:
+        app.logger.exception('Failed to fetch contracts list')
+        return jsonify({'error': 'Unable to fetch contracts right now.'}), 500
+
+
+@app.route('/admin/api/contracts/reminders/run', methods=['POST'])
+@admin_login_required
+def admin_run_contract_reminders_api():
+    try:
+        result = process_due_contract_reminders(limit=100)
+        return jsonify({'message': 'Reminder run completed.', **(result or {})})
+    except Exception:
+        app.logger.exception('Failed to run contract reminders manually')
+        return jsonify({'error': 'Unable to process reminders right now.'}), 500
+
+
 @app.route('/admin/api/requests/<int:request_id>/files/<int:file_id>', methods=['GET'])
 @app.route('/admin/api/requests/<int:request_id>/files/<int:file_id>/download', methods=['GET'])
 @admin_login_required
@@ -8774,13 +9919,13 @@ def admin_reorder_homepage_sections():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Domestic Cleaning Management Routes (Admin)
+# Service Room Cards CRUD (Admin) — replaces domestic_cleaning_cards routes
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route('/admin/domestic-cleaning')
 @admin_login_required
 def admin_domestic_cleaning_page():
-    ensure_domestic_cleaning_tables()
+    """Domestic cleaning editor backed by unified services data."""
     site_settings = fetch_site_settings()
     return render_template('admin/domestic_cleaning.html', site_settings=site_settings)
 
@@ -8788,70 +9933,313 @@ def admin_domestic_cleaning_page():
 @app.route('/admin/api/domestic-cleaning', methods=['GET', 'POST'])
 @admin_login_required
 def admin_domestic_cleaning_content_api():
-    ensure_domestic_cleaning_tables()
+    service = get_domestic_service_record(create_if_missing=True)
+    if not service:
+        return jsonify({'error': 'Domestic Cleaning service not found.'}), 404
+
     if request.method == 'GET':
-        return jsonify(fetch_domestic_cleaning_data(include_inactive=True).get('content') or {})
+        return jsonify(
+            {
+                'service_id': service.get('id'),
+                'section_title': service.get('contract_section_title') or service.get('title') or 'Domestic Cleaning',
+                'section_subtitle': service.get('contract_section_subtitle') or '',
+                'intro_title': service.get('contract_intro_title') or '',
+                'intro_body': service.get('contract_intro_body') or '',
+                'trust_body': service.get('contract_trust_body') or '',
+                'continuity_body': service.get('contract_continuity_body') or '',
+                'is_active': bool(service.get('is_active'))
+            }
+        )
 
     payload = request.get_json(silent=True) or {}
     section_title = sanitize_text(payload.get('section_title'), 255) or 'Domestic Cleaning'
-    section_subtitle = sanitize_text(payload.get('section_subtitle'))
-    intro_title = sanitize_text(payload.get('intro_title'), 255) or 'Our Regular Domestic Cleaning Service'
-    intro_body = sanitize_text(payload.get('intro_body'))
-    trust_body = sanitize_text(payload.get('trust_body'))
-    continuity_body = sanitize_text(payload.get('continuity_body'))
+    section_subtitle = sanitize_text(payload.get('section_subtitle')) or ''
+    intro_title = sanitize_text(payload.get('intro_title'), 255) or ''
+    intro_body = sanitize_text(payload.get('intro_body')) or ''
+    trust_body = sanitize_text(payload.get('trust_body')) or ''
+    continuity_body = sanitize_text(payload.get('continuity_body')) or ''
     is_active = str_to_bool(payload.get('is_active', True))
-
-    if not section_subtitle or not intro_body or not trust_body or not continuity_body:
-        return jsonify({'error': 'Please complete all domestic section content fields.'}), 400
-
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT id FROM domestic_cleaning_content ORDER BY id ASC LIMIT 1")
-    existing = cursor.fetchone()
-    cursor.close()
-
-    cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     active_value = is_active if engine == 'postgres' else (1 if is_active else 0)
-    if existing:
-        cursor.execute(
-            """
-            UPDATE domestic_cleaning_content
-            SET section_title=%s,
-                section_subtitle=%s,
-                intro_title=%s,
-                intro_body=%s,
-                trust_body=%s,
-                continuity_body=%s,
-                is_active=%s
-            WHERE id=%s
-            """,
-            (section_title, section_subtitle, intro_title, intro_body, trust_body, continuity_body, active_value, existing['id'])
-        )
-    else:
-        cursor.execute(
-            """
-            INSERT INTO domestic_cleaning_content
-                (section_title, section_subtitle, intro_title, intro_body, trust_body, continuity_body, is_active)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """,
-            (section_title, section_subtitle, intro_title, intro_body, trust_body, continuity_body, active_value)
-        )
 
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE services
+        SET title=%s,
+            name=%s,
+            short_description=%s,
+            contract_section_title=%s,
+            contract_section_subtitle=%s,
+            contract_intro_title=%s,
+            contract_intro_body=%s,
+            contract_trust_body=%s,
+            contract_continuity_body=%s,
+            service_category=%s,
+            is_contract=%s,
+            is_active=%s
+        WHERE id=%s
+        """,
+        (
+            section_title,
+            section_title,
+            section_subtitle[:150],
+            section_title,
+            section_subtitle,
+            intro_title,
+            intro_body,
+            trust_body,
+            continuity_body,
+            'contract',
+            True if engine == 'postgres' else 1,
+            active_value,
+            service.get('id')
+        )
+    )
     conn.commit()
     cursor.close()
     conn.close()
-    return jsonify({'message': 'Domestic cleaning section content saved.'})
+    return jsonify({'message': 'Domestic cleaning section saved.'})
 
 
 @app.route('/admin/api/domestic-cleaning/cards', methods=['GET', 'POST'])
 @admin_login_required
 def admin_domestic_cleaning_cards_api():
-    ensure_domestic_cleaning_tables()
+    service = get_domestic_service_record(create_if_missing=True)
+    if not service:
+        return jsonify({'error': 'Domestic Cleaning service not found.'}), 404
+
+    service_id = int(service.get('id'))
+
+    if request.method == 'GET':
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT * FROM service_room_cards WHERE service_id=%s ORDER BY sort_order ASC, id ASC",
+            (service_id,)
+        )
+        cards = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        for card in cards:
+            card['is_active'] = bool(card.get('is_active'))
+        return jsonify(cards)
+
+    payload = request.form or request.get_json(silent=True) or {}
+    room_name = sanitize_text(payload.get('room_name'), 120)
+    card_key = sanitize_text(payload.get('card_key'), 80).lower().replace(' ', '_')
+    lifestyle_copy = sanitize_text(payload.get('lifestyle_copy'))
+    sort_order = int(payload.get('sort_order') or 0)
+    is_active = str_to_bool(payload.get('is_active', True))
+    image_path = upload_domestic_card_image('')
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    active_value = is_active if engine == 'postgres' else (1 if is_active else 0)
+
+    if not room_name or not card_key or not lifestyle_copy:
+        return jsonify({'error': 'room_name, card_key and lifestyle_copy are required.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        if engine == 'postgres':
+            cursor.execute(
+                """
+                INSERT INTO service_room_cards (service_id, card_key, room_name, lifestyle_copy, image_path, sort_order, is_active)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (service_id, card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
+            )
+            card_id = cursor.fetchone()[0]
+        else:
+            cursor.execute(
+                """
+                INSERT INTO service_room_cards (service_id, card_key, room_name, lifestyle_copy, image_path, sort_order, is_active)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (service_id, card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
+            )
+            card_id = cursor.lastrowid
+    except Exception:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Card key must be unique per service.'}), 400
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Room card created.', 'id': card_id})
+
+
+@app.route('/admin/api/domestic-cleaning/cards/<int:card_id>', methods=['PUT', 'DELETE'])
+@admin_login_required
+def admin_domestic_cleaning_card_detail_api(card_id):
+    service = get_domestic_service_record(create_if_missing=True)
+    if not service:
+        return jsonify({'error': 'Domestic Cleaning service not found.'}), 404
+
+    service_id = int(service.get('id'))
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM service_room_cards WHERE id=%s AND service_id=%s", (card_id, service_id))
+    existing = cursor.fetchone()
+    if not existing:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Card not found.'}), 404
+
+    if request.method == 'DELETE':
+        cursor.close()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM service_room_cards WHERE id=%s AND service_id=%s", (card_id, service_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        if existing.get('image_path'):
+            delete_uploaded_file(existing.get('image_path'))
+        return jsonify({'message': 'Card deleted.'})
+
+    payload = request.form or request.get_json(silent=True) or {}
+    room_name = sanitize_text(payload.get('room_name', existing.get('room_name')), 120)
+    card_key = sanitize_text(payload.get('card_key', existing.get('card_key')), 80).lower().replace(' ', '_')
+    lifestyle_copy = sanitize_text(payload.get('lifestyle_copy', existing.get('lifestyle_copy')))
+    sort_order = int(payload.get('sort_order', existing.get('sort_order') or 0))
+    is_active = str_to_bool(payload.get('is_active', existing.get('is_active', True)))
+    old_image = existing.get('image_path') or ''
+    image_path = upload_domestic_card_image(old_image)
+    if image_path and old_image and image_path != old_image:
+        delete_uploaded_file(old_image)
+
+    if not room_name or not card_key or not lifestyle_copy:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'room_name, card_key and lifestyle_copy are required.'}), 400
+
+    cursor.close()
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    active_value = is_active if engine == 'postgres' else (1 if is_active else 0)
+    try:
+        cursor.execute(
+            """
+            UPDATE service_room_cards
+            SET card_key=%s, room_name=%s, lifestyle_copy=%s, image_path=%s, sort_order=%s, is_active=%s
+            WHERE id=%s AND service_id=%s
+            """,
+            (card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value, card_id, service_id)
+        )
+    except Exception:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Card key must be unique per service.'}), 400
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Card updated.'})
+
+
+@app.route('/admin/api/domestic-cleaning/pricing', methods=['GET', 'POST'])
+@admin_login_required
+def admin_domestic_cleaning_pricing_api():
+    service = get_domestic_service_record(create_if_missing=True)
+    if not service:
+        return jsonify({'error': 'Domestic Cleaning service not found.'}), 404
+
+    plans = _load_domestic_pricing_from_service(service.get('contract_pricing_plans'))
+
+    if request.method == 'GET':
+        return jsonify(plans)
+
+    payload = request.get_json(silent=True) or {}
+    candidate = _normalize_domestic_plan_row(payload, (max([int(p.get('id') or 0) for p in plans] or [0]) + 1))
+    if not candidate:
+        return jsonify({'error': 'plan_key is required.'}), 400
+
+    if any((p.get('plan_key') or '').lower() == candidate.get('plan_key') for p in plans):
+        return jsonify({'error': 'Plan key already exists.'}), 400
+
+    plans.append(candidate)
+    plans.sort(key=lambda row: (int(row.get('sort_order') or 0), int(row.get('id') or 0)))
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE services SET contract_pricing_plans=%s WHERE id=%s",
+        (_serialize_domestic_pricing_for_service(plans), service.get('id'))
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return jsonify({'message': 'Pricing plan created.'})
+
+
+@app.route('/admin/api/domestic-cleaning/pricing/<int:plan_id>', methods=['PUT', 'DELETE'])
+@admin_login_required
+def admin_domestic_cleaning_pricing_detail_api(plan_id):
+    service = get_domestic_service_record(create_if_missing=True)
+    if not service:
+        return jsonify({'error': 'Domestic Cleaning service not found.'}), 404
+
+    plans = _load_domestic_pricing_from_service(service.get('contract_pricing_plans'))
+    idx = next((i for i, row in enumerate(plans) if int(row.get('id') or 0) == int(plan_id)), -1)
+    if idx < 0:
+        return jsonify({'error': 'Pricing plan not found.'}), 404
+
+    if request.method == 'DELETE':
+        plans.pop(idx)
+    else:
+        payload = request.get_json(silent=True) or {}
+        updated = _normalize_domestic_plan_row(payload, plan_id)
+        if not updated:
+            return jsonify({'error': 'plan_key is required.'}), 400
+        duplicate = next(
+            (
+                row for i, row in enumerate(plans)
+                if i != idx and (row.get('plan_key') or '').lower() == updated.get('plan_key')
+            ),
+            None
+        )
+        if duplicate:
+            return jsonify({'error': 'Plan key already exists.'}), 400
+        updated['id'] = plan_id
+        plans[idx] = updated
+
+    plans.sort(key=lambda row: (int(row.get('sort_order') or 0), int(row.get('id') or 0)))
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE services SET contract_pricing_plans=%s WHERE id=%s",
+        (_serialize_domestic_pricing_for_service(plans), service.get('id'))
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return jsonify({'message': 'Pricing plans updated.'})
+
+
+@app.route('/admin/api/services/<int:service_id>/room-cards', methods=['GET', 'POST'])
+@admin_login_required
+def admin_service_room_cards_api(service_id):
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
 
     if request.method == 'GET':
-        return jsonify(fetch_domestic_cleaning_data(include_inactive=True).get('cards') or [])
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT * FROM service_room_cards WHERE service_id=%s ORDER BY sort_order ASC, id ASC",
+            (service_id,)
+        )
+        cards = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        for c in cards:
+            c['is_active'] = bool(c.get('is_active'))
+        return jsonify(cards)
 
     payload = request.form or request.get_json(silent=True) or {}
     room_name = sanitize_text(payload.get('room_name'), 120)
@@ -8871,40 +10259,39 @@ def admin_domestic_cleaning_cards_api():
         if engine == 'postgres':
             cursor.execute(
                 """
-                INSERT INTO domestic_cleaning_cards (card_key, room_name, lifestyle_copy, image_path, sort_order, is_active)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO service_room_cards (service_id, card_key, room_name, lifestyle_copy, image_path, sort_order, is_active)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                (card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
+                (service_id, card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
             )
             card_id = cursor.fetchone()[0]
         else:
             cursor.execute(
                 """
-                INSERT INTO domestic_cleaning_cards (card_key, room_name, lifestyle_copy, image_path, sort_order, is_active)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO service_room_cards (service_id, card_key, room_name, lifestyle_copy, image_path, sort_order, is_active)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
-                (card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
+                (service_id, card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
             )
             card_id = cursor.lastrowid
     except Exception:
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Card key must be unique.'}), 400
+        return jsonify({'error': 'Card key must be unique per service.'}), 400
 
     conn.commit()
     cursor.close()
     conn.close()
-    return jsonify({'message': 'Domestic cleaning card created.', 'id': card_id})
+    return jsonify({'message': 'Room card created.', 'id': card_id})
 
 
-@app.route('/admin/api/domestic-cleaning/cards/<int:card_id>', methods=['PUT', 'PATCH', 'DELETE'])
+@app.route('/admin/api/services/room-cards/<int:card_id>', methods=['PUT', 'PATCH', 'DELETE'])
 @admin_login_required
-def admin_domestic_cleaning_card_detail_api(card_id):
-    ensure_domestic_cleaning_tables()
+def admin_service_room_card_detail_api(card_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM domestic_cleaning_cards WHERE id=%s", (card_id,))
+    cursor.execute("SELECT * FROM service_room_cards WHERE id=%s", (card_id,))
     existing = cursor.fetchone()
     if not existing:
         cursor.close()
@@ -8914,7 +10301,7 @@ def admin_domestic_cleaning_card_detail_api(card_id):
     if request.method == 'DELETE':
         cursor.close()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM domestic_cleaning_cards WHERE id=%s", (card_id,))
+        cursor.execute("DELETE FROM service_room_cards WHERE id=%s", (card_id,))
         conn.commit()
         cursor.close()
         conn.close()
@@ -8927,12 +10314,10 @@ def admin_domestic_cleaning_card_detail_api(card_id):
     card_key = sanitize_text(payload.get('card_key', existing.get('card_key')), 80).lower().replace(' ', '_')
     lifestyle_copy = sanitize_text(payload.get('lifestyle_copy', existing.get('lifestyle_copy')))
     sort_order = int(payload.get('sort_order', existing.get('sort_order') or 0))
-    is_active = payload.get('is_active', existing.get('is_active', True))
-    is_active = str_to_bool(is_active)
+    is_active = str_to_bool(payload.get('is_active', existing.get('is_active', True)))
     old_image = existing.get('image_path') or ''
     image_path = upload_domestic_card_image(old_image)
 
-    # If image changed, delete the old one from Cloudinary / disk
     if image_path and old_image and image_path != old_image:
         delete_uploaded_file(old_image)
 
@@ -8948,13 +10333,8 @@ def admin_domestic_cleaning_card_detail_api(card_id):
     try:
         cursor.execute(
             """
-            UPDATE domestic_cleaning_cards
-            SET card_key=%s,
-                room_name=%s,
-                lifestyle_copy=%s,
-                image_path=%s,
-                sort_order=%s,
-                is_active=%s
+            UPDATE service_room_cards
+            SET card_key=%s, room_name=%s, lifestyle_copy=%s, image_path=%s, sort_order=%s, is_active=%s
             WHERE id=%s
             """,
             (card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value, card_id)
@@ -8962,7 +10342,7 @@ def admin_domestic_cleaning_card_detail_api(card_id):
     except Exception:
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Card key must be unique.'}), 400
+        return jsonify({'error': 'Card key must be unique per service.'}), 400
 
     conn.commit()
     cursor.close()
@@ -8970,10 +10350,9 @@ def admin_domestic_cleaning_card_detail_api(card_id):
     return jsonify({'message': 'Card updated.'})
 
 
-@app.route('/admin/api/domestic-cleaning/cards/reorder', methods=['POST'])
+@app.route('/admin/api/services/<int:service_id>/room-cards/reorder', methods=['POST'])
 @admin_login_required
-def admin_domestic_cleaning_reorder_cards_api():
-    ensure_domestic_cleaning_tables()
+def admin_service_room_cards_reorder_api(service_id):
     payload = request.get_json(silent=True) or {}
     order = payload.get('order') or []
     if not isinstance(order, list) or not order:
@@ -8982,137 +10361,11 @@ def admin_domestic_cleaning_reorder_cards_api():
     conn = get_db_connection()
     cursor = conn.cursor()
     for idx, card_id in enumerate(order):
-        cursor.execute("UPDATE domestic_cleaning_cards SET sort_order=%s WHERE id=%s", (idx, card_id))
+        cursor.execute("UPDATE service_room_cards SET sort_order=%s WHERE id=%s AND service_id=%s", (idx, card_id, service_id))
     conn.commit()
     cursor.close()
     conn.close()
     return jsonify({'message': 'Cards reordered.'})
-
-
-@app.route('/admin/api/domestic-cleaning/pricing', methods=['GET', 'POST'])
-@admin_login_required
-def admin_domestic_cleaning_pricing_api():
-    ensure_domestic_cleaning_tables()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-
-    if request.method == 'GET':
-        return jsonify(fetch_domestic_cleaning_data(include_inactive=True).get('pricing') or [])
-
-    payload = request.get_json(silent=True) or {}
-    plan_key = sanitize_text(payload.get('plan_key'), 40).lower().replace(' ', '_')
-    plan_name = sanitize_text(payload.get('plan_name'), 120)
-    per_label = sanitize_text(payload.get('per_label'), 120) or 'per hour per cleaner'
-    sort_order = int(payload.get('sort_order') or 0)
-    is_active = str_to_bool(payload.get('is_active', True))
-    try:
-        price_per_hour = float(payload.get('price_per_hour'))
-    except (TypeError, ValueError):
-        return jsonify({'error': 'A valid price_per_hour is required.'}), 400
-
-    if not plan_key or not plan_name:
-        return jsonify({'error': 'plan_key and plan_name are required.'}), 400
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    active_value = is_active if engine == 'postgres' else (1 if is_active else 0)
-    try:
-        if engine == 'postgres':
-            cursor.execute(
-                """
-                INSERT INTO domestic_cleaning_pricing (plan_key, plan_name, price_per_hour, per_label, sort_order, is_active)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                RETURNING id
-                """,
-                (plan_key, plan_name, price_per_hour, per_label, sort_order, active_value)
-            )
-            pricing_id = cursor.fetchone()[0]
-        else:
-            cursor.execute(
-                """
-                INSERT INTO domestic_cleaning_pricing (plan_key, plan_name, price_per_hour, per_label, sort_order, is_active)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                """,
-                (plan_key, plan_name, price_per_hour, per_label, sort_order, active_value)
-            )
-            pricing_id = cursor.lastrowid
-    except Exception:
-        cursor.close()
-        conn.close()
-        return jsonify({'error': 'Plan key must be unique.'}), 400
-
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return jsonify({'message': 'Pricing plan created.', 'id': pricing_id})
-
-
-@app.route('/admin/api/domestic-cleaning/pricing/<int:pricing_id>', methods=['PUT', 'PATCH', 'DELETE'])
-@admin_login_required
-def admin_domestic_cleaning_pricing_detail_api(pricing_id):
-    ensure_domestic_cleaning_tables()
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM domestic_cleaning_pricing WHERE id=%s", (pricing_id,))
-    existing = cursor.fetchone()
-    if not existing:
-        cursor.close()
-        conn.close()
-        return jsonify({'error': 'Pricing plan not found.'}), 404
-
-    if request.method == 'DELETE':
-        cursor.close()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM domestic_cleaning_pricing WHERE id=%s", (pricing_id,))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return jsonify({'message': 'Pricing plan deleted.'})
-
-    payload = request.get_json(silent=True) or {}
-    plan_key = sanitize_text(payload.get('plan_key', existing.get('plan_key')), 40).lower().replace(' ', '_')
-    plan_name = sanitize_text(payload.get('plan_name', existing.get('plan_name')), 120)
-    per_label = sanitize_text(payload.get('per_label', existing.get('per_label')), 120) or 'per hour per cleaner'
-    sort_order = int(payload.get('sort_order', existing.get('sort_order') or 0))
-    is_active = str_to_bool(payload.get('is_active', existing.get('is_active', True)))
-    try:
-        price_per_hour = float(payload.get('price_per_hour', existing.get('price_per_hour')))
-    except (TypeError, ValueError):
-        cursor.close()
-        conn.close()
-        return jsonify({'error': 'A valid price_per_hour is required.'}), 400
-
-    if not plan_key or not plan_name:
-        cursor.close()
-        conn.close()
-        return jsonify({'error': 'plan_key and plan_name are required.'}), 400
-
-    cursor.close()
-    cursor = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    active_value = is_active if engine == 'postgres' else (1 if is_active else 0)
-    try:
-        cursor.execute(
-            """
-            UPDATE domestic_cleaning_pricing
-            SET plan_key=%s,
-                plan_name=%s,
-                price_per_hour=%s,
-                per_label=%s,
-                sort_order=%s,
-                is_active=%s
-            WHERE id=%s
-            """,
-            (plan_key, plan_name, price_per_hour, per_label, sort_order, active_value, pricing_id)
-        )
-    except Exception:
-        cursor.close()
-        conn.close()
-        return jsonify({'error': 'Plan key must be unique.'}), 400
-
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return jsonify({'message': 'Pricing plan updated.'})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -10286,14 +11539,25 @@ def index():
     footer_info = {}
     site_settings = {}
     travel_settings = {}
+    operating_bases = []
     site_content = {}
-    domestic_cleaning = {}
     home_section_order = [item['section_key'] for item in DEFAULT_HOME_PAGE_SECTIONS]
 
     try:
+        maybe_process_due_contract_reminders()
+    except Exception:
+        app.logger.exception('Failed background contract reminder pass on homepage')
+
+    # Run one-time migration of domestic cleaning data into services table
+    try:
+        migrate_domestic_to_services()
+    except Exception:
+        app.logger.exception('Error during domestic-to-services migration')
+
+    try:
         services = fetch_services_from_db()
-        one_time_services = [svc for svc in services if normalize_service_category(svc.get('service_category')) == 'one_time']
-        contract_services = [svc for svc in services if normalize_service_category(svc.get('service_category')) == 'contract']
+        one_time_services = [svc for svc in services if not svc.get('is_contract')]
+        contract_services = [svc for svc in services if svc.get('is_contract')]
     except Exception:
         app.logger.exception('Error fetching services for index page')
 
@@ -10338,14 +11602,14 @@ def index():
         app.logger.exception('Error fetching travel settings for index page')
 
     try:
+        operating_bases = fetch_operating_bases(include_inactive=False)
+    except Exception:
+        app.logger.exception('Error fetching operating bases for index page')
+
+    try:
         site_content = fetch_site_content()
     except Exception:
         app.logger.exception('Error fetching site content for index page')
-
-    try:
-        domestic_cleaning = fetch_domestic_cleaning_data(include_inactive=False)
-    except Exception:
-        app.logger.exception('Error fetching domestic cleaning content for index page')
 
     try:
         ordered_sections = fetch_home_page_sections()
@@ -10437,10 +11701,10 @@ def index():
         footer_info=footer_info,
         site_settings=site_settings,
         travel_settings=travel_settings,
+        operating_bases=operating_bases,
         site_content=site_content,
         faqs=faqs,
         policies=policies,
-        domestic_cleaning=domestic_cleaning,
         home_section_order=home_section_order,
         prebook_discount_enabled=prebook_discount_enabled,
         prebook_discount_percent=prebook_discount_percent
@@ -10455,9 +11719,14 @@ def services_page():
     site_settings = {}
 
     try:
+        maybe_process_due_contract_reminders()
+    except Exception:
+        app.logger.exception('Failed background contract reminder pass on services page')
+
+    try:
         services = fetch_services_from_db(include_inactive=False)
-        one_time_services = [svc for svc in services if normalize_service_category(svc.get('service_category')) == 'one_time']
-        contract_services = [svc for svc in services if normalize_service_category(svc.get('service_category')) == 'contract']
+        one_time_services = [svc for svc in services if not svc.get('is_contract')]
+        contract_services = [svc for svc in services if svc.get('is_contract')]
     except Exception:
         app.logger.exception('Error fetching services for services page')
 
@@ -10472,6 +11741,39 @@ def services_page():
         one_time_services=one_time_services,
         contract_services=contract_services,
         site_settings=site_settings
+    )
+
+
+@app.route('/services/<int:service_id>')
+def service_detail_page(service_id):
+    site_settings = {}
+    service = None
+    domestic_cleaning = {}
+
+    try:
+        services = fetch_services_from_db(include_inactive=False)
+        service = next((svc for svc in services if int(svc.get('id')) == int(service_id)), None)
+    except Exception:
+        app.logger.exception('Error fetching service detail for %s', service_id)
+
+    if not service:
+        return redirect(url_for('services_page'))
+
+    try:
+        site_settings = fetch_site_settings()
+    except Exception:
+        app.logger.exception('Error fetching site settings for service detail page')
+
+    try:
+        domestic_cleaning = fetch_domestic_cleaning_data(include_inactive=False)
+    except Exception:
+        app.logger.exception('Error fetching domestic flow data for service detail page')
+
+    return render_template(
+        'service_detail.html',
+        service=service,
+        site_settings=site_settings,
+        domestic_cleaning=domestic_cleaning
     )
 
 
@@ -11678,8 +12980,36 @@ def admin_api_analytics_detailed():
 
 
 if __name__ == '__main__':
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+        sys.stderr.reconfigure(line_buffering=True)
+    except Exception:
+        pass
+
+    log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    server_log_path = os.path.join(log_dir, 'server.log')
+
+    logging.basicConfig(
+        level=logging.INFO,
+        force=True,
+        format='%(asctime)s %(levelname)s %(name)s: %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler(server_log_path, encoding='utf-8')
+        ]
+    )
+    app.logger.setLevel(logging.INFO)
+    logging.getLogger('werkzeug').setLevel(logging.INFO)
+
+    host = '0.0.0.0'
+    port = int(os.environ.get('PORT', 5000))
+    debug_enabled = (os.environ.get('FLASK_DEBUG', '0') == '1')
+    print(f"[startup] Flask server starting on http://{host}:{port} (debug={debug_enabled})", flush=True)
+    print(f"[startup] Writing logs to {server_log_path}", flush=True)
+
     app.run(
-        host='0.0.0.0',
-        port=int(os.environ.get('PORT', 5000)),
-        debug=(os.environ.get('FLASK_DEBUG', '0') == '1')
+        host=host,
+        port=port,
+        debug=debug_enabled
     )

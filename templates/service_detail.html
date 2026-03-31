@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Clean Co.' %}
+    {% set company_logo = site_settings.logo_path if site_settings and site_settings.logo_path else '' %}
+    {% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
+    <title>{{ service.name }} | {{ company_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="shell" id="top">
+        <nav class="nav is-sticky">
+            <div class="nav__rail">
+                <a class="nav__item nav__item--brand" href="{{ url_for('index') }}#top" title="{{ company_name }}">
+                    {% if company_logo_url %}
+                    <img class="nav__brand-logo" src="{{ company_logo_url }}" alt="{{ company_name }} logo">
+                    {% endif %}
+                    <span class="nav__brand-text">{{ company_name }}</span>
+                </a>
+                <div class="nav__items" role="navigation" aria-label="Primary">
+                    <a class="nav__item" href="{{ url_for('services_page') }}"><span class="nav__label">All Services</span></a>
+                    <a class="nav__item" href="{{ url_for('index') }}#services"><span class="nav__label">Book</span></a>
+                </div>
+            </div>
+        </nav>
+
+        <main>
+            <section class="panel services" style="padding-top: 8.5rem;">
+                <div class="section__header">
+                    <p class="section__eyebrow">Service Detail</p>
+                    <h1 class="section__title">{{ service.name }}</h1>
+                    <p class="section__subtitle">{{ service.short_description or service.description }}</p>
+                </div>
+
+                <div class="service-card" style="margin-top: 1rem;">
+                    {% if service.image_path %}
+                    <div class="card-image-container">
+                        <img src="{{ service.image_path | media_url }}" class="card-image" alt="{{ service.name }} image" loading="lazy">
+                    </div>
+                    {% endif %}
+                    <div class="service-card__body">
+                        <h3>What’s included</h3>
+                        <p class="service-card__description" style="white-space: pre-line;">{{ service.description }}</p>
+                    </div>
+                </div>
+            </section>
+
+            {% set domestic_content = domestic_cleaning.content if domestic_cleaning else {} %}
+            {% set domestic_cards = domestic_cleaning.cards if domestic_cleaning else [] %}
+            {% set service_is_contract = service.service_category == 'contract' %}
+            {% if service_is_contract %}
+            <section class="panel services" id="contract-plans">
+                <div class="section__header">
+                    <p class="section__eyebrow">Contract Service</p>
+                    <h2 class="section__title">Choose your recurring plan</h2>
+                    <p class="section__subtitle">Contract services use the residential-style room and plan flow.</p>
+                </div>
+
+                <div class="domestic-cleaning__intro" data-animate="reveal" style="margin-top: 0.5rem;">
+                    <article class="domestic-cleaning__intro-card">
+                        <h3>{{ domestic_content.intro_title or 'Our Regular Contract Cleaning Service' }}</h3>
+                        <p>{{ domestic_content.intro_body or service.description }}</p>
+                    </article>
+                </div>
+
+                {% if domestic_cards %}
+                <div class="domestic-cleaning__grid" data-animate="reveal" style="margin-top: 1rem;">
+                    {% for room in domestic_cards[:6] %}
+                    {% set room_image = room.image_path | optimized_card_url if room.image_path else '' %}
+                    <article class="domestic-card">
+                        {% if room_image %}
+                        <div class="domestic-card__image-wrap">
+                            <img src="{{ room_image }}" alt="{{ room.room_name }}" class="domestic-card__image" loading="lazy">
+                        </div>
+                        {% endif %}
+                        <div class="domestic-card__body">
+                            <h3>{{ room.room_name }}</h3>
+                            <p>{{ room.lifestyle_copy }}</p>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% elif service.options %}
+                <div class="domestic-cleaning__grid" data-animate="reveal" style="margin-top: 1rem;">
+                    {% for option in service.options[:6] %}
+                    <article class="domestic-card">
+                        <div class="domestic-card__body">
+                            <h3>{{ option.label or option.option_label or 'Service Area' }}</h3>
+                            <p>{{ option.details or 'Tailored recurring cleaning option.' }}</p>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="services__grid">
+                    {% for plan in service.contract_pricing_plans %}
+                    <article class="service-card">
+                        <div class="service-card__body">
+                            <h3>{{ plan.label }}</h3>
+                            <p class="service-card__price">{% if plan.price is not none %}£{{ '%.2f'|format(plan.price) }}{% else %}Custom quote{% endif %}</p>
+                            <p class="service-card__description">Recurring {{ plan.label|lower }} service plan.</p>
+                            <a
+                                class="button button--primary"
+                                data-contract-book
+                                data-service-id="{{ service.id }}"
+                                data-frequency="{{ plan.key }}"
+                                href="{{ url_for('index') }}?service_id={{ service.id }}&contract_frequency={{ plan.key }}#services"
+                                style="margin-top: 1rem; width:100%; justify-content:center;"
+                            >
+                                Book Now
+                            </a>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+
+                <script>
+                    (function () {
+                        var dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                        var todayName = dayNames[new Date().getDay()];
+                        var links = document.querySelectorAll('[data-contract-book]');
+                        links.forEach(function (link) {
+                            var baseHref = link.getAttribute('href') || '';
+                            if (!baseHref) return;
+                            var joiner = baseHref.indexOf('?') === -1 ? '?' : '&';
+                            var withDay = baseHref + joiner + 'service_day=' + encodeURIComponent(todayName);
+                            link.setAttribute('href', withDay);
+                        });
+                    })();
+                </script>
+            </section>
+            {% else %}
+            <section class="panel services" id="one-time-booking">
+                <div class="section__header">
+                    <p class="section__eyebrow">Book Now</p>
+                    <h2 class="section__title">One-time booking</h2>
+                </div>
+                <div class="service-card" style="max-width: 480px;">
+                    <div class="service-card__body">
+                        <h3>Quick Booking Card</h3>
+                        <p class="service-card__price">{% if service.price is not none %}£{{ '%.2f'|format(service.price) }}{% else %}Custom quote{% endif %}</p>
+                        <label for="cleaner-count" style="display:block; margin-top: 0.75rem;">Cleaners</label>
+                        <select id="cleaner-count" style="width:100%; padding:0.65rem; border:1px solid #d1d5db; border-radius:0.5rem;">
+                            <option value="1">1 Cleaner</option>
+                            <option value="2" selected>2 Cleaners</option>
+                            <option value="3">3 Cleaners</option>
+                            <option value="4">4 Cleaners</option>
+                        </select>
+                        <p class="service-card__description" id="one-time-estimate" style="margin-top:0.75rem;">Estimated: —</p>
+                        <a class="button button--primary" href="{{ url_for('index') }}#services" style="margin-top: 1rem; width:100%; justify-content:center;">Continue to Booking</a>
+                    </div>
+                </div>
+            </section>
+            <script>
+                (function () {
+                    const basePrice = {{ service.price if service.price is not none else 'null' }};
+                    const countInput = document.getElementById('cleaner-count');
+                    const estimateEl = document.getElementById('one-time-estimate');
+                    const format = (n) => '£' + Number(n || 0).toFixed(2);
+                    const update = () => {
+                        if (basePrice === null || basePrice === undefined) {
+                            estimateEl.textContent = 'Estimated: Custom quote';
+                            return;
+                        }
+                        const cleaners = Number(countInput.value || 1);
+                        estimateEl.textContent = 'Estimated: ' + format(basePrice * cleaners) + ' (' + cleaners + ' cleaner' + (cleaners === 1 ? '' : 's') + ' per hour)';
+                    };
+                    countInput.addEventListener('change', update);
+                    update();
+                })();
+            </script>
+            {% endif %}
+        </main>
+    </div>
+</body>
+</html>

@@ -163,9 +163,7 @@
         }
 
         form.card {
-            max-height: min(82vh, 960px);
-            overflow-y: auto;
-            scrollbar-gutter: stable;
+            /* natural page scroll — no inner scroll trap */
         }
 
         .grid {
@@ -334,11 +332,23 @@
             gap: 1rem;
         }
 
-        .hero-editor__stage {
-            position: relative;
-            min-height: 620px;
+        /* Wrapper clips the scaled stage and collapses to the scaled height */
+        .hero-editor__stage-wrap {
+            overflow: hidden;
             border-radius: 0.75rem;
             border: 1px solid rgba(15, 23, 42, 0.12);
+            /* JS will set --stage-scale and --stage-height as CSS custom properties */
+            height: calc(620px * var(--stage-scale, 1));
+        }
+
+        .hero-editor__stage {
+            position: relative;
+            /* Fixed desktop width — same as live hero max-width */
+            width: 1280px;
+            min-height: 620px;
+            transform-origin: top left;
+            transform: scale(var(--stage-scale, 1));
+            border-radius: 0.75rem;
             overflow: hidden;
             background: linear-gradient(135deg, #0f172a, #1e293b);
             display: grid;
@@ -390,6 +400,21 @@
             user-select: none;
             touch-action: none;
             z-index: 5;
+            border-radius: 0.5rem;
+            transition: box-shadow 0.18s ease;
+        }
+
+        .hero-editor__item:hover {
+            outline: 1px dashed rgba(148, 163, 184, 0.45);
+            outline-offset: 4px;
+        }
+
+        .hero-editor__item.is-drag-active {
+            outline: 2px solid rgba(59, 130, 246, 0.7);
+            outline-offset: 4px;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35);
+            z-index: 20;
+            cursor: grabbing;
         }
 
         .hero-editor__item * {
@@ -450,8 +475,8 @@
 
         .hero-editor__drag-handle {
             position: absolute;
-            top: -2rem;
-            left: 0;
+            top: 0.45rem;
+            left: 0.45rem;
             display: inline-flex;
             align-items: center;
             gap: 0.35rem;
@@ -461,11 +486,19 @@
             font-weight: 600;
             letter-spacing: 0.04em;
             color: #e2e8f0;
-            background: rgba(15, 23, 42, 0.78);
+            background: rgba(15, 23, 42, 0.82);
             border: 1px solid rgba(148, 163, 184, 0.4);
             cursor: grab;
             width: fit-content;
             z-index: 8;
+            opacity: 0;
+            transition: opacity 0.18s ease;
+            pointer-events: auto;
+        }
+
+        .hero-editor__item:hover .hero-editor__drag-handle,
+        .hero-editor__item.is-drag-active .hero-editor__drag-handle {
+            opacity: 1;
         }
 
         .hero-editor__drag-handle:active {
@@ -550,10 +583,8 @@
         }
 
         .hero-editor__item--card .hero-editor__drag-handle {
-            top: 0.55rem;
-            left: 0.65rem;
             color: #1e293b;
-            background: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.88);
             border-color: rgba(15, 23, 42, 0.18);
         }
 
@@ -637,8 +668,53 @@
 
         .position-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 0.75rem;
+            gap: 0.5rem;
+        }
+
+        .position-row {
+            display: grid;
+            grid-template-columns: 120px 1fr 1fr;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.45rem 0.6rem;
+            border-radius: 0.5rem;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+        }
+
+        .position-row:hover {
+            background: #f0f4ff;
+            border-color: rgba(37, 99, 235, 0.25);
+        }
+
+        .position-row__label {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .position-row .form-group {
+            gap: 0.2rem;
+        }
+
+        .position-row label {
+            font-size: 0.72rem;
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .position-row input[type="number"] {
+            padding: 0.35rem 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        @media (max-width: 600px) {
+            .position-row {
+                grid-template-columns: 1fr;
+            }
         }
 
         .homepage-flow {
@@ -939,6 +1015,10 @@
                 <p class="hero-editor__hint">Drag items in the preview to reposition them. You can also fine-tune exact X/Y values and typography colors/weight below.</p>
 
                 <div class="hero-editor">
+                    <p class="hero-editor__hint" style="margin-bottom: 0.5rem;">
+                        Hover any element in the preview and drag it to reposition. Exact pixel values update in the table below in real time.
+                    </p>
+                    <div class="hero-editor__stage-wrap" id="heroEditorStageWrap">
                     <div
                         class="hero-editor__stage"
                         id="heroEditorStage"
@@ -1010,71 +1090,96 @@
                             </div>
                         </div>
                     </div>
+                    </div>
 
                     <div class="position-grid">
-                        <div class="form-group">
-                            <label for="content_offset_x">Content Block X (px)</label>
-                            <input type="number" id="content_offset_x" name="content_offset_x" min="-420" max="420" value="{{ hero.content_offset_x or 0 }}">
+                        <div class="position-row">
+                            <span class="position-row__label">Content Block</span>
+                            <div class="form-group">
+                                <label for="content_offset_x">X (px)</label>
+                                <input type="number" id="content_offset_x" name="content_offset_x" min="-420" max="420" value="{{ hero.content_offset_x or 0 }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="content_offset_y">Y (px)</label>
+                                <input type="number" id="content_offset_y" name="content_offset_y" min="-220" max="220" value="{{ hero.content_offset_y or 0 }}">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="content_offset_y">Content Block Y (px)</label>
-                            <input type="number" id="content_offset_y" name="content_offset_y" min="-220" max="220" value="{{ hero.content_offset_y or 0 }}">
+                        <div class="position-row">
+                            <span class="position-row__label">Tagline</span>
+                            <div class="form-group">
+                                <label for="tagline_offset_x">X (px)</label>
+                                <input type="number" id="tagline_offset_x" name="tagline_offset_x" min="-320" max="320" value="{{ hero.tagline_offset_x or 0 }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="tagline_offset_y">Y (px)</label>
+                                <input type="number" id="tagline_offset_y" name="tagline_offset_y" min="-220" max="220" value="{{ hero.tagline_offset_y or 0 }}">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="tagline_offset_x">Tagline X (px)</label>
-                            <input type="number" id="tagline_offset_x" name="tagline_offset_x" min="-320" max="320" value="{{ hero.tagline_offset_x or 0 }}">
+                        <div class="position-row">
+                            <span class="position-row__label">Title</span>
+                            <div class="form-group">
+                                <label for="title_offset_x">X (px)</label>
+                                <input type="number" id="title_offset_x" name="title_offset_x" min="-320" max="320" value="{{ hero.title_offset_x or 0 }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="title_offset_y">Y (px)</label>
+                                <input type="number" id="title_offset_y" name="title_offset_y" min="-220" max="220" value="{{ hero.title_offset_y or 0 }}">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="tagline_offset_y">Tagline Y (px)</label>
-                            <input type="number" id="tagline_offset_y" name="tagline_offset_y" min="-220" max="220" value="{{ hero.tagline_offset_y or 0 }}">
+                        <div class="position-row">
+                            <span class="position-row__label">Subtitle</span>
+                            <div class="form-group">
+                                <label for="subtitle_offset_x">X (px)</label>
+                                <input type="number" id="subtitle_offset_x" name="subtitle_offset_x" min="-320" max="320" value="{{ hero.subtitle_offset_x or 0 }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="subtitle_offset_y">Y (px)</label>
+                                <input type="number" id="subtitle_offset_y" name="subtitle_offset_y" min="-220" max="220" value="{{ hero.subtitle_offset_y or 0 }}">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="title_offset_x">Title X (px)</label>
-                            <input type="number" id="title_offset_x" name="title_offset_x" min="-320" max="320" value="{{ hero.title_offset_x or 0 }}">
+                        <div class="position-row">
+                            <span class="position-row__label">Details</span>
+                            <div class="form-group">
+                                <label for="meta_offset_x">X (px)</label>
+                                <input type="number" id="meta_offset_x" name="meta_offset_x" min="-320" max="320" value="{{ hero.meta_offset_x or 0 }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="meta_offset_y">Y (px)</label>
+                                <input type="number" id="meta_offset_y" name="meta_offset_y" min="-220" max="220" value="{{ hero.meta_offset_y or 0 }}">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="title_offset_y">Title Y (px)</label>
-                            <input type="number" id="title_offset_y" name="title_offset_y" min="-220" max="220" value="{{ hero.title_offset_y or 0 }}">
+                        <div class="position-row">
+                            <span class="position-row__label">Stat Card 1</span>
+                            <div class="form-group">
+                                <label for="card1_offset_x">X (px)</label>
+                                <input type="number" id="card1_offset_x" name="card1_offset_x" min="-220" max="220" value="{{ hero.card1_offset_x or 0 }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="card1_offset_y">Y (px)</label>
+                                <input type="number" id="card1_offset_y" name="card1_offset_y" min="-220" max="220" value="{{ hero.card1_offset_y or 0 }}">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="subtitle_offset_x">Subtitle X (px)</label>
-                            <input type="number" id="subtitle_offset_x" name="subtitle_offset_x" min="-320" max="320" value="{{ hero.subtitle_offset_x or 0 }}">
+                        <div class="position-row">
+                            <span class="position-row__label">Stat Card 2</span>
+                            <div class="form-group">
+                                <label for="card2_offset_x">X (px)</label>
+                                <input type="number" id="card2_offset_x" name="card2_offset_x" min="-220" max="220" value="{{ hero.card2_offset_x or 0 }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="card2_offset_y">Y (px)</label>
+                                <input type="number" id="card2_offset_y" name="card2_offset_y" min="-220" max="220" value="{{ hero.card2_offset_y or 0 }}">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="subtitle_offset_y">Subtitle Y (px)</label>
-                            <input type="number" id="subtitle_offset_y" name="subtitle_offset_y" min="-220" max="220" value="{{ hero.subtitle_offset_y or 0 }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="meta_offset_x">Details X (px)</label>
-                            <input type="number" id="meta_offset_x" name="meta_offset_x" min="-320" max="320" value="{{ hero.meta_offset_x or 0 }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="meta_offset_y">Details Y (px)</label>
-                            <input type="number" id="meta_offset_y" name="meta_offset_y" min="-220" max="220" value="{{ hero.meta_offset_y or 0 }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="card1_offset_x">Card 1 X (px)</label>
-                            <input type="number" id="card1_offset_x" name="card1_offset_x" min="-220" max="220" value="{{ hero.card1_offset_x or 0 }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="card1_offset_y">Card 1 Y (px)</label>
-                            <input type="number" id="card1_offset_y" name="card1_offset_y" min="-220" max="220" value="{{ hero.card1_offset_y or 0 }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="card2_offset_x">Card 2 X (px)</label>
-                            <input type="number" id="card2_offset_x" name="card2_offset_x" min="-220" max="220" value="{{ hero.card2_offset_x or 0 }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="card2_offset_y">Card 2 Y (px)</label>
-                            <input type="number" id="card2_offset_y" name="card2_offset_y" min="-220" max="220" value="{{ hero.card2_offset_y or 0 }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="card3_offset_x">Card 3 X (px)</label>
-                            <input type="number" id="card3_offset_x" name="card3_offset_x" min="-220" max="220" value="{{ hero.card3_offset_x or 0 }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="card3_offset_y">Card 3 Y (px)</label>
-                            <input type="number" id="card3_offset_y" name="card3_offset_y" min="-220" max="220" value="{{ hero.card3_offset_y or 0 }}">
+                        <div class="position-row">
+                            <span class="position-row__label">Stat Card 3</span>
+                            <div class="form-group">
+                                <label for="card3_offset_x">X (px)</label>
+                                <input type="number" id="card3_offset_x" name="card3_offset_x" min="-220" max="220" value="{{ hero.card3_offset_x or 0 }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="card3_offset_y">Y (px)</label>
+                                <input type="number" id="card3_offset_y" name="card3_offset_y" min="-220" max="220" value="{{ hero.card3_offset_y or 0 }}">
+                            </div>
                         </div>
                     </div>
 
@@ -1309,6 +1414,24 @@
         }
 
         const previewStage = document.getElementById('heroEditorStage');
+        const stageWrap = document.getElementById('heroEditorStageWrap');
+        const STAGE_DESIGN_WIDTH = 1280; // match live hero desktop width
+
+        function updateStageScale() {
+            if (!stageWrap || !previewStage) return;
+            const availableWidth = stageWrap.parentElement ? stageWrap.parentElement.clientWidth : stageWrap.clientWidth;
+            const scale = Math.min(1, availableWidth / STAGE_DESIGN_WIDTH);
+            const stageH = previewStage.offsetHeight || 620;
+            stageWrap.style.setProperty('--stage-scale', scale);
+            stageWrap.style.height = `${Math.round(stageH * scale)}px`;
+            previewStage.style.transform = `scale(${scale})`;
+        }
+
+        updateStageScale();
+        // Re-run once layout is fully painted so offsetHeight is accurate
+        requestAnimationFrame(() => requestAnimationFrame(updateStageScale));
+        window.addEventListener('resize', updateStageScale);
+
         const draggableItems = previewStage ? previewStage.querySelectorAll('[data-x-input][data-y-input]') : [];
 
         function clamp(value, min, max) {
@@ -1339,38 +1462,51 @@
                 return;
             }
 
-            const xMin = Number(xInput.min || -400);
-            const xMax = Number(xInput.max || 400);
-            const yMin = Number(yInput.min || -220);
-            const yMax = Number(yInput.max || 220);
-
             applyItemTransform(item);
 
-            xInput.addEventListener('input', () => {
-                xInput.value = String(clamp(xInput.value, xMin, xMax));
-                applyItemTransform(item);
-            });
-
-            yInput.addEventListener('input', () => {
-                yInput.value = String(clamp(yInput.value, yMin, yMax));
-                applyItemTransform(item);
-            });
+            xInput.addEventListener('input', () => applyItemTransform(item));
+            yInput.addEventListener('input', () => applyItemTransform(item));
 
             let isDragging = false;
             let startX = 0;
             let startY = 0;
             let startOffsetX = 0;
             let startOffsetY = 0;
+            let xMin = -400, xMax = 400, yMin = -300, yMax = 300;
 
             dragHandle.addEventListener('pointerdown', (event) => {
                 event.preventDefault();
                 event.stopPropagation();
+
                 isDragging = true;
                 startX = event.clientX;
                 startY = event.clientY;
                 startOffsetX = Number(xInput.value) || 0;
                 startOffsetY = Number(yInput.value) || 0;
+
+                // Compute bounds from the live stage size so items can't escape it
+                // Stage is CSS-scaled, so divide screen-px by scale to get logical-px bounds
+                const currentScale = parseFloat(previewStage ? previewStage.style.transform.replace('scale(', '').replace(')', '') : '1') || 1;
+                if (previewStage) {
+                    const stageRect = previewStage.getBoundingClientRect();
+                    const itemRect = item.getBoundingClientRect();
+                    // Convert screen-px distances to logical stage pixels
+                    xMin = Math.round((stageRect.left - itemRect.left) / currentScale + startOffsetX) + 8;
+                    xMax = Math.round((stageRect.right - itemRect.right) / currentScale + startOffsetX) - 8;
+                    yMin = Math.round((stageRect.top - itemRect.top) / currentScale + startOffsetY) + 8;
+                    yMax = Math.round((stageRect.bottom - itemRect.bottom) / currentScale + startOffsetY) - 8;
+                    // Ensure min <= max (can happen if item is larger than stage)
+                    if (xMin > xMax) { const mid = (xMin + xMax) / 2; xMin = mid; xMax = mid; }
+                    if (yMin > yMax) { const mid = (yMin + yMax) / 2; yMin = mid; yMax = mid; }
+                } else {
+                    xMin = Number(xInput.min) || -400;
+                    xMax = Number(xInput.max) || 400;
+                    yMin = Number(yInput.min) || -300;
+                    yMax = Number(yInput.max) || 300;
+                }
+
                 item.setPointerCapture(event.pointerId);
+                item.classList.add('is-drag-active');
                 document.body.classList.add('is-preview-dragging');
             });
 
@@ -1378,26 +1514,25 @@
                 if (!isDragging) {
                     return;
                 }
-
                 event.preventDefault();
-
-                const nextX = clamp(startOffsetX + (event.clientX - startX), xMin, xMax);
-                const nextY = clamp(startOffsetY + (event.clientY - startY), yMin, yMax);
+                const scale = parseFloat(previewStage ? previewStage.style.transform.replace('scale(', '').replace(')', '') : '1') || 1;
+                const nextX = clamp(startOffsetX + (event.clientX - startX) / scale, xMin, xMax);
+                const nextY = clamp(startOffsetY + (event.clientY - startY) / scale, yMin, yMax);
                 xInput.value = String(Math.round(nextX));
                 yInput.value = String(Math.round(nextY));
                 applyItemTransform(item);
             });
 
-            item.addEventListener('pointerup', (event) => {
+            function endDrag(event) {
+                if (!isDragging) return;
                 isDragging = false;
                 item.releasePointerCapture(event.pointerId);
+                item.classList.remove('is-drag-active');
                 document.body.classList.remove('is-preview-dragging');
-            });
+            }
 
-            item.addEventListener('pointercancel', () => {
-                isDragging = false;
-                document.body.classList.remove('is-preview-dragging');
-            });
+            item.addEventListener('pointerup', endDrag);
+            item.addEventListener('pointercancel', endDrag);
         }
 
         function applyPreviewStyleControls() {
@@ -1561,6 +1696,8 @@
             applyContentOffset();
             applyPreviewStyleControls();
             applyCardPreviewText();
+            // Recalculate wrapper height after all items have rendered and fonts loaded
+            requestAnimationFrame(() => requestAnimationFrame(updateStageScale));
         }
     </script>
 </body>

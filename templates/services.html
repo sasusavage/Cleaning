@@ -36,10 +36,37 @@
         </nav>
 
         <main>
+            {% set residential_contract = namespace(item=None) %}
+            {% for svc in contract_services %}
+                {% set svc_name = (svc.name or svc.title or '')|lower %}
+                {% if residential_contract.item is none and ('residential' in svc_name or 'domestic' in svc_name) %}
+                    {% set residential_contract.item = svc %}
+                {% endif %}
+            {% endfor %}
+
             <section class="panel services" style="padding-top: 8.5rem;">
                 <div class="section__header">
                     <p class="section__eyebrow">Service Directory</p>
                     <h1 class="section__title">Choose the right cleaning service for your home or business.</h1>
+                </div>
+
+                <div class="services__grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 1.25rem;">
+                    <article class="service-card">
+                        <div class="service-card__body">
+                            <h3>One-Time Services</h3>
+                            <p class="service-card__description">Deep cleans, move-in/move-out, post-build and one-off specialist jobs.</p>
+                            <p class="service-card__price">{{ one_time_services|length }} service{{ 's' if one_time_services|length != 1 else '' }}</p>
+                            <a class="button button--ghost" href="#one-time" style="margin-top: 1rem; width:100%; justify-content:center;">Browse One-Time</a>
+                        </div>
+                    </article>
+                    <article class="service-card">
+                        <div class="service-card__body">
+                            <h3>Contract-Based Services</h3>
+                            <p class="service-card__description">Recurring plans with weekly, fortnightly, and monthly options.</p>
+                            <p class="service-card__price">{{ contract_services|length }} service{{ 's' if contract_services|length != 1 else '' }}</p>
+                            <a class="button button--ghost" href="#contract-based" style="margin-top: 1rem; width:100%; justify-content:center;">Browse Contract Plans</a>
+                        </div>
+                    </article>
                 </div>
 
                 <div class="drawer-toggle" style="justify-content:flex-start; margin-top: 1rem;">
@@ -77,7 +104,7 @@
                             <h3>{{ service.name }}</h3>
                             <p class="service-card__description">{{ service.short_description or service.description }}</p>
                             <p class="service-card__price">{{ price_label }}</p>
-                            <a class="button button--ghost" href="{{ url_for('index') }}#services" style="margin-top: 1rem; width:100%; justify-content:center;">Request This Service</a>
+                            <a class="button button--ghost" href="/services/{{ service.id }}" style="margin-top: 1rem; width:100%; justify-content:center;">Read More</a>
                         </div>
                     </article>
                     {% endfor %}
@@ -93,7 +120,38 @@
                     <h2 class="section__title">Contract-Based Services</h2>
                 </div>
                 <div class="services__grid">
+                    {% if residential_contract.item %}
+                    {% set service = residential_contract.item %}
+                    {% set image_url = service.image_path | media_url if service.image_path else '' %}
+                    {% set price_state = namespace(min_price=None) %}
+                    {% for option in service.options or [] %}
+                        {% if option.price is not none %}
+                            {% if price_state.min_price is none or option.price < price_state.min_price %}
+                                {% set price_state.min_price = option.price %}
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if price_state.min_price is none and service.price is not none %}
+                        {% set price_state.min_price = service.price %}
+                    {% endif %}
+                    {% set price_label = 'Custom pricing' if price_state.min_price is none else 'from £%.2f' % price_state.min_price %}
+                    <article class="service-card" id="service-{{ service.id }}">
+                        {% if image_url %}
+                        <div class="card-image-container">
+                            <img src="{{ image_url }}" class="card-image" alt="{{ service.name }} image" loading="lazy">
+                        </div>
+                        {% endif %}
+                        <div class="service-card__body">
+                            <h3>Residential Cleaning</h3>
+                            <p class="service-card__description">{{ service.short_description or service.description }}</p>
+                            <p class="service-card__price">{{ price_label }}</p>
+                            <a class="button button--ghost" href="/services/{{ service.id }}" style="margin-top: 1rem; width:100%; justify-content:center;">Read More</a>
+                        </div>
+                    </article>
+                    {% endif %}
+
                     {% for service in contract_services %}
+                    {% if not residential_contract.item or service.id != residential_contract.item.id %}
                     {% set image_url = service.image_path | media_url if service.image_path else '' %}
                     {% set price_state = namespace(min_price=None) %}
                     {% for option in service.options or [] %}
@@ -117,9 +175,10 @@
                             <h3>{{ service.name }}</h3>
                             <p class="service-card__description">{{ service.short_description or service.description }}</p>
                             <p class="service-card__price">{{ price_label }}</p>
-                            <a class="button button--ghost" href="{{ url_for('index') }}#services" style="margin-top: 1rem; width:100%; justify-content:center;">Request This Service</a>
+                            <a class="button button--ghost" href="/services/{{ service.id }}" style="margin-top: 1rem; width:100%; justify-content:center;">Read More</a>
                         </div>
                     </article>
+                    {% endif %}
                     {% endfor %}
                 </div>
                 {% if not contract_services %}

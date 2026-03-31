@@ -177,6 +177,7 @@ document.addEventListener("DOMContentLoaded", function () {
             name: service.name || service.title || "",
             description: service.description || "",
             short_description: service.short_description || service.description || "",
+            service_category: service.service_category || "one_time",
             image: service.image || service.image_path || "",
             pricing: pricing,
             pricing_items: Array.isArray(service.pricing_items) ? service.pricing_items : [],
@@ -864,6 +865,12 @@ document.addEventListener("DOMContentLoaded", function () {
         var flowPostcodeInput = document.getElementById("flow-postcode");
         var flowDateInput = document.getElementById("flow-date");
         var flowTimeInput = document.getElementById("flow-time");
+        var flowContractFrequencyRow = document.getElementById("flow-contract-frequency-row");
+        var flowContractFrequencyInput = document.getElementById("flow-contract-frequency");
+        var flowContractSignerRow = document.getElementById("flow-contract-signer-row");
+        var flowContractSignerInput = document.getElementById("flow-contract-signer");
+        var flowContractTermsRow = document.getElementById("flow-contract-terms-row");
+        var flowContractTermsInput = document.getElementById("flow-contract-terms");
         var flowNotesInput = document.getElementById("flow-notes");
         var flowPaymentOptionInputs = serviceFlowForm ? serviceFlowForm.querySelectorAll('input[name="flow_payment_option"]') : [];
         var FLOW_STATE_KEY = "serviceFlowWizard";
@@ -899,7 +906,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 },
                 schedule: {
                     preferred_date: "",
-                    preferred_time: ""
+                    preferred_time: "",
+                    contract_frequency: ""
+                },
+                contract: {
+                    signer_name: "",
+                    service_day: "",
+                    agreed: false
                 },
                 notes: "",
                 payment_option: "pay_in_person",
@@ -924,6 +937,21 @@ document.addEventListener("DOMContentLoaded", function () {
         };
 
         var flowState = loadFlowState();
+        if (!flowState.schedule || typeof flowState.schedule !== "object") {
+            flowState.schedule = { preferred_date: "", preferred_time: "", contract_frequency: "" };
+        }
+        if (flowState.schedule.contract_frequency === undefined || flowState.schedule.contract_frequency === null) {
+            flowState.schedule.contract_frequency = "";
+        }
+        if (!flowState.contract || typeof flowState.contract !== "object") {
+            flowState.contract = { signer_name: "", service_day: "", agreed: false };
+        }
+        if (flowState.contract.agreed === undefined || flowState.contract.agreed === null) {
+            flowState.contract.agreed = false;
+        }
+        if (flowState.contract.service_day === undefined || flowState.contract.service_day === null) {
+            flowState.contract.service_day = "";
+        }
         if (flowState.travelPostcodeSnapshot === undefined) {
             flowState.travelPostcodeSnapshot = "";
         }
@@ -1030,6 +1058,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 results.push(Object.assign({
                     serviceId: service.id,
                     serviceName: service.name,
+                    serviceCategory: selection.serviceCategory || service.service_category || "one_time",
                     optionLabel: optionLabel,
                     optionDetails: optionDetails,
                     price: normalizedPrice,
@@ -1040,6 +1069,45 @@ document.addEventListener("DOMContentLoaded", function () {
             });
 
             return results;
+        };
+
+        var hasContractSelections = function (selectionList) {
+            var list = Array.isArray(selectionList) ? selectionList : getOrderedSelections();
+            return list.some(function (selection) {
+                if (selection && selection.isDomestic) {
+                    return false;
+                }
+                return String((selection && selection.serviceCategory) || "one_time").toLowerCase() === "contract";
+            });
+        };
+
+        var updateContractFrequencyVisibility = function () {
+            if (!flowContractFrequencyRow) {
+                return;
+            }
+            var shouldShow = hasContractSelections();
+            flowContractFrequencyRow.hidden = !shouldShow;
+            if (flowContractSignerRow) {
+                flowContractSignerRow.hidden = !shouldShow;
+            }
+            if (flowContractTermsRow) {
+                flowContractTermsRow.hidden = !shouldShow;
+            }
+            if (flowContractFrequencyInput) {
+                flowContractFrequencyInput.required = shouldShow;
+                if (!shouldShow) {
+                    flowContractFrequencyInput.value = "";
+                    flowState.schedule.contract_frequency = "";
+                    if (flowContractSignerInput) flowContractSignerInput.value = "";
+                    if (flowContractTermsInput) flowContractTermsInput.checked = false;
+                    flowState.contract.signer_name = "";
+                    flowState.contract.agreed = false;
+                    persistFlowState();
+                }
+            }
+            if (flowContractSignerInput) {
+                flowContractSignerInput.required = shouldShow;
+            }
         };
 
         var lastSummaryTotals = { serviceTotal: 0, hasCustom: false, hasSurvey: false };
@@ -2435,6 +2503,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 var indicatorStep = Number(indicator.getAttribute("data-flow-step-indicator"));
                 indicator.classList.toggle("is-active", indicatorStep === stepNumber);
             });
+            if (stepNumber === 3) {
+                updateContractFrequencyVisibility();
+            }
         };
 
         var hydrateContactFields = function () {
@@ -2457,7 +2528,11 @@ document.addEventListener("DOMContentLoaded", function () {
             if (flowSummaryPostcodeInput) flowSummaryPostcodeInput.value = hydratedPostcode;
             if (flowDateInput) flowDateInput.value = flowState.schedule.preferred_date || "";
             if (flowTimeInput) flowTimeInput.value = flowState.schedule.preferred_time || "";
+            if (flowContractFrequencyInput) flowContractFrequencyInput.value = flowState.schedule.contract_frequency || "";
+            if (flowContractSignerInput) flowContractSignerInput.value = flowState.contract.signer_name || flowState.customer.name || "";
+            if (flowContractTermsInput) flowContractTermsInput.checked = Boolean(flowState.contract.agreed);
             if (flowNotesInput) flowNotesInput.value = flowState.notes || "";
+            updateContractFrequencyVisibility();
         };
 
         var renderServiceStep = function () {
@@ -2532,7 +2607,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             var handleSelectionChange = function (selection) {
                 if (selection) {
-                    flowState.selections[service.id] = Object.assign({}, selection, { serviceId: service.id, serviceName: service.name });
+                        flowState.selections[service.id] = Object.assign({}, selection, { serviceId: service.id, serviceName: service.name, serviceCategory: service.service_category || "one_time" });
                 } else {
                     delete flowState.selections[service.id];
                 }
@@ -3388,7 +3463,15 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         handleFieldChange(flowDateInput, function (value) { flowState.schedule.preferred_date = value; });
         handleFieldChange(flowTimeInput, function (value) { flowState.schedule.preferred_time = value; });
+        handleFieldChange(flowContractFrequencyInput, function (value) { flowState.schedule.contract_frequency = value; });
+        handleFieldChange(flowContractSignerInput, function (value) { flowState.contract.signer_name = value; });
         handleFieldChange(flowNotesInput, function (value) { flowState.notes = value; });
+        if (flowContractTermsInput) {
+            flowContractTermsInput.addEventListener("change", function () {
+                flowState.contract.agreed = Boolean(flowContractTermsInput.checked);
+                persistFlowState();
+            });
+        }
 
         if (flowPostcodeInput) {
             flowPostcodeInput.addEventListener("change", function () {
@@ -3523,6 +3606,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (flowNameInput) flowState.customer.name = (flowNameInput.value || "").trim();
                 if (flowEmailInput) flowState.customer.email = (flowEmailInput.value || "").trim();
                 if (flowPhoneInput) flowState.customer.phone = (flowPhoneInput.value || "").trim();
+                if (flowContractSignerInput) flowState.contract.signer_name = (flowContractSignerInput.value || "").trim();
+                if (!flowState.contract.service_day) {
+                    flowState.contract.service_day = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date().getDay()];
+                }
+                if (flowContractTermsInput) flowState.contract.agreed = Boolean(flowContractTermsInput.checked);
                 if (flowNotesInput) flowState.notes = (flowNotesInput.value || "").trim();
                 if (flowPaymentOptionInputs && flowPaymentOptionInputs.length) {
                     var selectedPaymentInput = Array.prototype.find.call(flowPaymentOptionInputs, function (input) { return input.checked; });
@@ -3563,6 +3651,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (askForPostcode && !flowState.customer.postcode) errors.push("Please add your postcode or address.");
                 if (!flowState.schedule.preferred_date) errors.push("Choose a preferred date.");
                 if (!flowState.schedule.preferred_time) errors.push("Choose a preferred time.");
+                if (hasContractSelections() && !flowState.schedule.contract_frequency) errors.push("Choose a contract frequency.");
+                if (hasContractSelections() && !flowState.contract.signer_name) errors.push("Enter the contract signer name.");
+                if (hasContractSelections() && !flowState.contract.agreed) errors.push("You must accept the contract terms.");
 
                 flowFeedback.classList.remove("is-error", "is-success");
 
@@ -3615,7 +3706,13 @@ document.addEventListener("DOMContentLoaded", function () {
                     },
                     schedule: {
                         preferred_date: flowState.schedule.preferred_date,
-                        preferred_time: flowState.schedule.preferred_time
+                        preferred_time: flowState.schedule.preferred_time,
+                        contract_frequency: hasContractSelections(bookableSelections) ? flowState.schedule.contract_frequency : ""
+                    },
+                    contract_agreement: {
+                        signer_name: hasContractSelections(bookableSelections) ? flowState.contract.signer_name : "",
+                        service_day: hasContractSelections(bookableSelections) ? flowState.contract.service_day : "",
+                        agreed: hasContractSelections(bookableSelections) ? Boolean(flowState.contract.agreed) : false
                     },
                     postcode: flowState.customer.postcode,
                     selections: bookableSelections.map(function (selection) {
@@ -3763,6 +3860,36 @@ document.addEventListener("DOMContentLoaded", function () {
             persistFlowState();
             updateMiniCart();
         };
+
+        (function applyContractPrefillFromQuery() {
+            try {
+                var params = new URLSearchParams(window.location.search || "");
+                var serviceId = Number(params.get("service_id") || 0);
+                var frequency = String(params.get("contract_frequency") || "").trim().toLowerCase();
+                var serviceDay = String(params.get("service_day") || "").trim();
+                var validFrequency = ["weekly", "fortnightly", "monthly"].indexOf(frequency) !== -1;
+                var validServiceDay = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].indexOf(serviceDay) !== -1;
+                if (!serviceId) return;
+
+                if (validFrequency) {
+                    flowState.schedule.contract_frequency = frequency;
+                }
+                if (validServiceDay) {
+                    flowState.contract.service_day = serviceDay;
+                }
+                persistFlowState();
+
+                setTimeout(function () {
+                    if (askForPostcode && typeof window.openPostcodeModal === "function") {
+                        window.openPostcodeModal(serviceId);
+                    } else if (typeof window.openServiceModal === "function") {
+                        window.openServiceModal(serviceId);
+                    }
+                }, 120);
+            } catch (error) {
+                console.warn("Unable to apply contract prefill", error);
+            }
+        })();
 
         if (!SERVICE_CATALOG.length) {
             fetchCatalogFromApi();

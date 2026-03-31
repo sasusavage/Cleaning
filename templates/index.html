@@ -18,6 +18,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""
+    >
 </head>
 <body>
     <div class="preloader" id="preloader" aria-live="polite" role="status">
@@ -65,6 +71,10 @@
 
                 <a class="nav__item" href="#who-we-are" title="About Done-Well" data-section="who-we-are">
                     <span class="nav__label">About</span>
+                </a>
+
+                <a class="nav__item" href="#areas-we-cover" title="Areas We Cover" data-section="areas-we-cover">
+                    <span class="nav__label">Coverage</span>
                 </a>
 
                 <a class="nav__item" href="#testimonials" title="Testimonials" data-section="testimonials">
@@ -206,130 +216,31 @@
         </header>
 
         {% set domestic_content = domestic_cleaning.content if domestic_cleaning else {} %}
-        {% set domestic_cards = domestic_cleaning.cards if domestic_cleaning else [] %}
-        {% set domestic_pricing = domestic_cleaning.pricing if domestic_cleaning else [] %}
-
         <section class="panel services" id="services" data-home-section="services">
-            <!-- ── Unified Section Header ── -->
             <div class="section__header" data-animate="fade-in">
                 <p class="section__eyebrow">Our Services</p>
                 <h2 class="section__title">Professional cleaning tailored to every space &mdash; from your home to your business.</h2>
             </div>
 
-            {% if domestic_content and domestic_cards %}
-            <!-- ── Domestic Cleaning Sub-section ── -->
-            <div class="services__subsection" id="domestic-cleaning" data-animate="fade-in">
-                <div class="services__subsection-header">
-                    <h3 class="services__subsection-title">{{ domestic_content.section_title or 'Domestic Cleaning' }}</h3>
-                    <p class="services__subsection-desc">{{ domestic_content.section_subtitle or 'Lifestyle-led home care designed around your routine.' }}</p>
-                </div>
-
-                <div class="domestic-cleaning__intro" data-animate="reveal">
-                    <article class="domestic-cleaning__intro-card">
-                        <h3>{{ domestic_content.intro_title or 'Our Regular Domestic Cleaning Service' }}</h3>
-                        <p>{{ domestic_content.intro_body }}</p>
-                    </article>
-                </div>
-
-                <div class="domestic-cleaning__grid" data-animate="reveal">
-                    {% set primary_rooms = domestic_cards[:3] %}
-                    {% set drawer_rooms = domestic_cards[3:] %}
-                    {% for room in primary_rooms %}
-                    {% set room_image = room.image_path | optimized_card_url if room.image_path else '' %}
-                    <article class="domestic-card">
-                        {% if room_image %}
-                        <div class="domestic-card__image-wrap">
-                            <img src="{{ room_image }}" alt="{{ room.room_name }}" class="domestic-card__image" loading="lazy">
-                        </div>
-                        {% endif %}
-                        <div class="domestic-card__body">
-                            <h3>{{ room.room_name }}</h3>
-                            <p>{{ room.lifestyle_copy }}</p>
-                        </div>
-                    </article>
-                    {% endfor %}
-                </div>
-                {% if drawer_rooms %}
-                <div class="drawer" id="domestic-cards-drawer" data-drawer aria-hidden="true">
-                    <div class="domestic-cleaning__grid domestic-cleaning__grid--drawer">
-                        {% for room in drawer_rooms %}
-                        {% set room_image = room.image_path | optimized_card_url if room.image_path else '' %}
-                        <article class="domestic-card">
-                            {% if room_image %}
-                            <div class="domestic-card__image-wrap">
-                                <img src="{{ room_image }}" alt="{{ room.room_name }}" class="domestic-card__image" loading="lazy">
-                            </div>
-                            {% endif %}
-                            <div class="domestic-card__body">
-                                <h3>{{ room.room_name }}</h3>
-                                <p>{{ room.lifestyle_copy }}</p>
-                            </div>
-                        </article>
-                        {% endfor %}
-                    </div>
-                </div>
-                <div class="drawer-toggle">
-                    {% set room_drawer_count = drawer_rooms|length %}
-                    <button class="button button--ghost drawer-toggle__button" type="button" data-drawer-toggle="domestic-cards-drawer" data-drawer-expand-label="View {{ room_drawer_count }} more room{{ 's' if room_drawer_count != 1 else '' }}" data-drawer-collapse-label="Show fewer rooms" aria-controls="domestic-cards-drawer" aria-expanded="false">
-                        View {{ room_drawer_count }} more room{{ 's' if room_drawer_count != 1 else '' }}
-                    </button>
-                </div>
-                {% endif %}
-
-                {% if domestic_pricing %}
-                <div class="domestic-cleaning__pricing" data-animate="fade-in">
-                    <h3>Residential Cleaning Plans</h3>
-                    <div class="domestic-pricing__grid">
-                        {% for plan in domestic_pricing %}
-                        <article class="domestic-pricing__card">
-                            <h4>{{ plan.plan_name }}</h4>
-                            <p class="domestic-pricing__value">&pound;{{ '%.2f'|format(plan.price_per_hour or 0) }}</p>
-                            <p class="domestic-pricing__label">{{ plan.per_label or 'per hour per cleaner' }}</p>
-                            <button
-                                type="button"
-                                class="button button--primary domestic-pricing__cta"
-                                data-domestic-book
-                                data-plan-id="{{ plan.id }}"
-                                data-plan-name="{{ plan.plan_name }}"
-                                data-plan-price="{{ '%.2f'|format(plan.price_per_hour or 0) }}"
-                            >
-                                Book This Service
-                            </button>
-                        </article>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-
-            <!-- ── Visual Divider ── -->
-            <hr class="services__divider" data-animate="fade-in">
-
-            <!-- ── Specialist & Commercial Sub-section Header ── -->
-            <div class="services__subsection-header" data-animate="fade-in">
-                <h3 class="services__subsection-title">Commercial Cleaning</h3>
-                <p class="services__subsection-desc">Deep cleans, end-of-tenancy, office spaces and more &mdash; delivered to the same trusted standard.</p>
-            </div>
-            {% endif %}
-
-            <div class="services__grid" data-animate="reveal" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));">
+            <div class="services__grid" data-animate="fade-in" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 1.25rem;">
                 <article class="service-card">
                     <div class="service-card__body">
                         <h3>One-Time Services</h3>
-                        <p class="service-card__description">Flexible jobs for deep cleans, move-in/move-out, post-build, and seasonal refreshes.</p>
+                        <p class="service-card__description">Deep cleans, move-in/move-out, post-build and one-off specialist jobs.</p>
                         <p class="service-card__price">{{ one_time_services|length }} service{{ 's' if one_time_services|length != 1 else '' }}</p>
-                        <a class="button button--ghost" href="{{ url_for('services_page') }}#one-time" style="margin-top: 1.25rem; width: 100%; justify-content: center;">View One-Time Services</a>
+                        <a class="button button--ghost" href="{{ url_for('services_page') }}#one-time" style="margin-top: 1rem; width: 100%; justify-content: center;">Browse One-Time</a>
                     </div>
                 </article>
                 <article class="service-card">
                     <div class="service-card__body">
                         <h3>Contract-Based Services</h3>
-                        <p class="service-card__description">Ongoing service plans for offices, shared buildings, and recurring maintenance needs.</p>
+                        <p class="service-card__description">Recurring plans with weekly, fortnightly, and monthly options.</p>
                         <p class="service-card__price">{{ contract_services|length }} service{{ 's' if contract_services|length != 1 else '' }}</p>
-                        <a class="button button--ghost" href="{{ url_for('services_page') }}#contract-based" style="margin-top: 1.25rem; width: 100%; justify-content: center;">View Contract Services</a>
+                        <a class="button button--ghost" href="{{ url_for('services_page') }}#contract-based" style="margin-top: 1rem; width: 100%; justify-content: center;">Browse Contract Plans</a>
                     </div>
                 </article>
             </div>
+
             <div class="drawer-toggle" data-animate="fade-in">
                 <a class="button button--primary" href="{{ url_for('services_page') }}">Browse Full Services Catalog</a>
             </div>
@@ -435,6 +346,54 @@
                         <span>Our Professional Team</span>
                     </div>
                     {% endif %}
+                </div>
+            </div>
+        </section>
+
+        {% set areas_text = site_content.areas_covered if site_content and site_content.areas_covered else 'Enfield, Stevenage, Barnet, St. Albans, and surrounding areas.' %}
+        {% set coverage_radius = (travel_settings.max_service_radius_miles if travel_settings and travel_settings.max_service_radius_miles else 20) %}
+        {% set coverage_base = operating_bases[0] if operating_bases and operating_bases|length > 0 else none %}
+        {% set coverage_base_label = coverage_base.name if coverage_base and coverage_base.name else 'our main base' %}
+        {% set coverage_ns = namespace(geo_bases=[]) %}
+        {% if operating_bases and operating_bases|length > 0 %}
+            {% for base in operating_bases %}
+                {% if base.latitude is not none and base.longitude is not none %}
+                    {% set _ = coverage_ns.geo_bases.append({'name': base.name, 'postcode': base.postcode, 'lat': base.latitude, 'lng': base.longitude}) %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+        {% set coverage_query = coverage_base.postcode if coverage_base and coverage_base.postcode else (areas_text if areas_text else 'St Albans, Hertfordshire') %}
+        {% set coverage_query_encoded = coverage_query | replace(' ', '+') %}
+        <section class="panel coverage-map" id="areas-we-cover" data-home-section="areas_coverage">
+            <div class="coverage-map__grid" data-animate="grow">
+                <div class="coverage-map__content">
+                    <p class="section__eyebrow">Areas We Cover</p>
+                    <h2 class="section__title">Cleaning coverage across your local area</h2>
+                    <p class="coverage-map__intro">From {{ coverage_base_label }}, we cover up to {{ coverage_radius }} miles for regular and one-time services.</p>
+                    <p class="coverage-map__areas"><strong>Towns covered:</strong> {{ areas_text }}</p>
+                    {% if operating_bases and operating_bases|length > 0 %}
+                    <div class="coverage-map__chips">
+                        {% for base in operating_bases %}
+                        <span class="coverage-map__chip">{{ base.name }}{% if base.postcode %} ({{ base.postcode }}){% endif %}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <a class="button button--primary" href="#quote">Areas We Cover</a>
+                </div>
+                <div class="coverage-map__media" aria-label="Service coverage map">
+                    <div
+                        id="coverage-zones-map"
+                        class="coverage-zones-map{% if not coverage_ns.geo_bases %} is-hidden{% endif %}"
+                        data-coverage-bases='{{ coverage_ns.geo_bases | tojson | safe }}'
+                        data-coverage-radius='{{ coverage_radius }}'>
+                    </div>
+                    <iframe
+                        class="coverage-map__fallback{% if coverage_ns.geo_bases %} is-hidden{% endif %}"
+                        src="https://www.google.com/maps?q={{ coverage_query_encoded }}&output=embed"
+                        loading="lazy"
+                        referrerpolicy="no-referrer-when-downgrade"
+                        title="Service coverage map">
+                    </iframe>
                 </div>
             </div>
         </section>
@@ -1131,6 +1090,27 @@
                                 <label for="flow-time">Preferred Time</label>
                                 <input type="time" id="flow-time" name="flow_time" required>
                             </div>
+                            <div class="form-row" id="flow-contract-frequency-row" hidden>
+                                <label for="flow-contract-frequency">Contract Frequency</label>
+                                <select id="flow-contract-frequency" name="flow_contract_frequency">
+                                    <option value="">Select frequency</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="fortnightly">Fortnightly (Every 2 weeks)</option>
+                                    <option value="monthly">Monthly</option>
+                                </select>
+                                <small class="form-hint">Only required for contract-based services.</small>
+                            </div>
+                            <div class="form-row" id="flow-contract-signer-row" hidden>
+                                <label for="flow-contract-signer">Contract Name</label>
+                                <input type="text" id="flow-contract-signer" name="flow_contract_signer" placeholder="Full legal name for this agreement">
+                                <small class="form-hint">This name appears on your recurring service agreement.</small>
+                            </div>
+                            <div class="form-row form-row--full" id="flow-contract-terms-row" hidden>
+                                <label style="display:flex; align-items:flex-start; gap:0.6rem;">
+                                    <input type="checkbox" id="flow-contract-terms" name="flow_contract_terms" value="1" style="margin-top:0.2rem; width:auto;">
+                                    <span>I agree to the recurring contract terms and authorize Done-Well to schedule this service based on the selected frequency.</span>
+                                </label>
+                            </div>
                             {% if travel_settings and travel_settings.ask_for_postcode %}
                             <div class="form-row">
                                 <label for="flow-postcode">Postcode or address</label>
@@ -1455,6 +1435,80 @@
 
     <script>
         window.HOME_SECTION_ORDER = {{ home_section_order | tojson }};
+    </script>
+    <script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin="">
+    </script>
+    <script>
+        (function initCoverageZonesMap() {
+            var mapEl = document.getElementById('coverage-zones-map');
+            if (!mapEl) return;
+
+            var fallback = document.querySelector('.coverage-map__fallback');
+            var rawBases = mapEl.getAttribute('data-coverage-bases') || '[]';
+            var radiusMiles = Number(mapEl.getAttribute('data-coverage-radius') || 20);
+            var bases = [];
+
+            try {
+                bases = JSON.parse(rawBases);
+            } catch (error) {
+                bases = [];
+            }
+
+            bases = Array.isArray(bases) ? bases.filter(function (base) {
+                return base && Number.isFinite(Number(base.lat)) && Number.isFinite(Number(base.lng));
+            }) : [];
+
+            if (!window.L || !bases.length) {
+                mapEl.classList.add('is-hidden');
+                if (fallback) fallback.classList.remove('is-hidden');
+                return;
+            }
+
+            if (fallback) fallback.classList.add('is-hidden');
+            mapEl.classList.remove('is-hidden');
+
+            var map = L.map(mapEl, { scrollWheelZoom: false });
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            var bounds = [];
+            var radiusMeters = Math.max(1, radiusMiles) * 1609.34;
+
+            bases.forEach(function (base) {
+                var lat = Number(base.lat);
+                var lng = Number(base.lng);
+                var baseName = base.name || 'Operating Base';
+                var basePostcode = base.postcode || '';
+
+                var marker = L.marker([lat, lng]).addTo(map);
+                marker.bindPopup('<strong>' + baseName + '</strong>' + (basePostcode ? '<br>' + basePostcode : ''));
+
+                var zone = L.circle([lat, lng], {
+                    radius: radiusMeters,
+                    color: '#2563eb',
+                    fillColor: '#60a5fa',
+                    fillOpacity: 0.18,
+                    weight: 2
+                }).addTo(map);
+
+                bounds.push(zone.getBounds());
+            });
+
+            if (bounds.length === 1) {
+                map.fitBounds(bounds[0], { padding: [18, 18] });
+            } else if (bounds.length > 1) {
+                var merged = bounds[0];
+                for (var i = 1; i < bounds.length; i += 1) {
+                    merged.extend(bounds[i]);
+                }
+                map.fitBounds(merged, { padding: [18, 18] });
+            }
+        })();
     </script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
