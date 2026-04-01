@@ -3184,6 +3184,8 @@ body {
 .modal__content--xl {
     max-width: 1080px;
     padding: 2.5rem 3rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .service-flow {
@@ -3698,7 +3700,7 @@ body {
 
 .flow-form-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
     gap: 1.25rem;
 }
 
@@ -4817,8 +4819,8 @@ body {
 
 @media (max-width: 680px) {
     .modal {
-        align-items: flex-start;
-        padding: 0.75rem;
+        align-items: flex-end;
+        padding: 0;
     }
 
     .modal__content,
@@ -4826,9 +4828,13 @@ body {
     .postcode-modal .modal__content,
     .company-profile-modal {
         max-width: 100%;
-        padding: 1.5rem;
-        border-radius: 18px;
-        max-height: 88vh;
+        width: 100%;
+        padding: 1.25rem 1rem 2rem;
+        border-radius: 20px 20px 0 0;
+        max-height: 92dvh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        box-shadow: 0 -8px 40px rgba(0,0,0,0.18);
     }
 
     .modal__title {
@@ -5541,20 +5547,8 @@ html, body, .shell {
     overflow-x: hidden;
 }
 
-/* ── Flow modal: full screen on mobile ── */
+/* ── Flow modal: bottom-sheet on mobile ── */
 @media (max-width: 640px) {
-    .service-modal,
-    .postcode-modal {
-        border-radius: 0 !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        min-height: 100dvh;
-        margin: 0 !important;
-        top: 0 !important;
-        left: 0 !important;
-        transform: none !important;
-    }
-
     .flow-mini-cart {
         padding: 0.75rem 1rem;
     }

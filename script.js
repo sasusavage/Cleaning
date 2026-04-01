@@ -1473,18 +1473,28 @@ document.addEventListener("DOMContentLoaded", function () {
                     removeBtn.className = "flow-mini-cart__remove";
                     removeBtn.setAttribute("aria-label", "Remove " + selection.serviceName);
                     removeBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>';
-                    removeBtn.addEventListener("click", function (e) {
-                        e.stopPropagation();
-                        delete flowState.selections[selection.serviceId];
-                        persistFlowState();
-                        updateMiniCart();
-                        updateContractFrequencyVisibility();
-                        if (activeStep === 2) {
-                            renderSummary();
-                        } else {
-                            renderServiceStep();
-                        }
-                    });
+                    removeBtn.addEventListener("click", (function (capturedServiceId) {
+                        return function (e) {
+                            e.stopPropagation();
+                            delete flowState.selections[capturedServiceId];
+                            persistFlowState();
+                            updateMiniCart();
+                            updateContractFrequencyVisibility();
+                            if (activeStep === 2) {
+                                renderSummary();
+                            } else {
+                                // Navigate to the removed service so the user sees it cleared
+                                var removedIndex = serviceQueue.indexOf(String(capturedServiceId));
+                                if (removedIndex < 0) {
+                                    removedIndex = serviceQueue.indexOf(capturedServiceId);
+                                }
+                                if (removedIndex >= 0 && removedIndex < serviceQueue.length) {
+                                    currentServiceIndex = removedIndex;
+                                }
+                                renderServiceStep();
+                            }
+                        };
+                    })(selection.serviceId));
                     item.appendChild(removeBtn);
                     
                     flowMiniCartList.appendChild(item);
