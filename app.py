@@ -284,7 +284,7 @@ def str_to_bool(value):
 def build_active_true_condition(column: str, engine: str):
     """Return SQL fragment and params to test truthy flag across engines."""
     normalized = (engine or 'mysql').strip().lower()
-    if normalized == 'postgres':
+    if 'postgres' in normalized:
         # Works for boolean or smallint/tinyint columns migrated from MySQL
         return f"COALESCE({column}::text, '0') IN ('1','t','true')", ()
     return f"{column} = %s", (1,)
@@ -3019,6 +3019,11 @@ def migrate_domestic_to_services():
         cursor.fetchone()
     except Exception:
         # Tables already dropped — migration already done
+        # Rollback any aborted transaction before returning connection to pool
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         cursor.close()
         conn.close()
         return
@@ -3211,7 +3216,7 @@ def ensure_residential_contract_service():
                 17.99,
                 'contract',
                 default_plans,
-                (True if engine == 'postgres' else 1),
+                (True if 'postgres' in engine else 1),
                 'Domestic Cleaning',
                 'Lifestyle-led home care designed around your routine.',
                 'Our Regular Domestic Cleaning Service',

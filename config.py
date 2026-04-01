@@ -16,7 +16,9 @@ except Exception:
 
 class Config:
     # Primary database engine for the app: 'mysql' or 'postgres'
-    DB_ENGINE = os.environ.get('DB_ENGINE', 'postgres').strip().lower()
+    # Normalize 'postgresql' → 'postgres' so all engine == 'postgres' checks work
+    _raw_engine = os.environ.get('DB_ENGINE', 'postgres').strip().lower()
+    DB_ENGINE = 'postgres' if 'postgres' in _raw_engine else _raw_engine
 
     MYSQL_HOST = os.environ.get('MYSQL_HOST', 'your-db-host')
     MYSQL_USER = os.environ.get('MYSQL_USER', 'your-db-user')
