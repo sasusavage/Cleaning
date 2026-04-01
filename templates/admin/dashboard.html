@@ -1517,7 +1517,7 @@
             <a id="nav-hero" class="nav-link" onclick="showSection('hero')">Hero Content</a>
             <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
             <a id="nav-contact" class="nav-link" onclick="showSection('contact')">Quote &amp; Contact</a>
-            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">Domestic Cleaning</a>
+            <a id="nav-domestic" class="nav-link" onclick="showSection('services')">Domestic Cleaning</a>
             <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
             <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">FAQs</a>
             <a class="nav-link" href="{{ url_for('admin_policies_page') }}">Policies</a>
@@ -2369,12 +2369,38 @@
                             <textarea id="service-contract-intro-body" name="contract_intro_body" rows="3" style="padding: 0.5rem;" placeholder="Describe the service experience"></textarea>
                         </label>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                            <label style="display:flex; flex-direction:column; gap:0.25rem;">Trust Copy (Left Card)
-                                <textarea id="service-contract-trust-body" name="contract_trust_body" rows="3" style="padding: 0.5rem;" placeholder="Why customers can trust you"></textarea>
-                            </label>
-                            <label style="display:flex; flex-direction:column; gap:0.25rem;">Continuity Copy (Right Card)
-                                <textarea id="service-contract-continuity-body" name="contract_continuity_body" rows="3" style="padding: 0.5rem;" placeholder="How you maintain consistency"></textarea>
-                            </label>
+                            <!-- Trust card -->
+                            <div style="display:flex; flex-direction:column; gap:0.4rem; padding:0.75rem; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:0.5rem;">
+                                <strong style="font-size:0.85rem; color:#166534;">Vetted &amp; Trusted (Left Card)</strong>
+                                <label style="display:flex; flex-direction:column; gap:0.25rem; font-size:0.82rem;">Copy
+                                    <textarea id="service-contract-trust-body" name="contract_trust_body" rows="3" style="padding: 0.4rem;" placeholder="Why customers can trust you"></textarea>
+                                </label>
+                                <label style="display:flex; flex-direction:column; gap:0.25rem; font-size:0.82rem;">Image
+                                    <input type="file" id="service-contract-trust-image" name="contract_trust_image" accept="image/*" style="padding:0.3rem;">
+                                    <input type="hidden" id="service-contract-trust-image-existing" name="existing_trust_image" value="">
+                                </label>
+                                <div id="service-trust-image-preview" style="display:none; margin-top:0.25rem;">
+                                    <img id="service-trust-image-thumb" src="" alt="Trust card image" style="max-width:100%; max-height:80px; border-radius:0.35rem; object-fit:cover;">
+                                    <button type="button" onclick="removeContractImage('trust')" style="display:block; margin-top:0.25rem; font-size:0.78rem; color:#b91c1c; background:none; border:none; cursor:pointer; padding:0;">✕ Remove image</button>
+                                    <input type="hidden" id="service-contract-remove-trust-image" name="remove_trust_image" value="false">
+                                </div>
+                            </div>
+                            <!-- Continuity card -->
+                            <div style="display:flex; flex-direction:column; gap:0.4rem; padding:0.75rem; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:0.5rem;">
+                                <strong style="font-size:0.85rem; color:#166534;">Consistency (Right Card)</strong>
+                                <label style="display:flex; flex-direction:column; gap:0.25rem; font-size:0.82rem;">Copy
+                                    <textarea id="service-contract-continuity-body" name="contract_continuity_body" rows="3" style="padding: 0.4rem;" placeholder="How you maintain consistency"></textarea>
+                                </label>
+                                <label style="display:flex; flex-direction:column; gap:0.25rem; font-size:0.82rem;">Image
+                                    <input type="file" id="service-contract-continuity-image" name="contract_continuity_image" accept="image/*" style="padding:0.3rem;">
+                                    <input type="hidden" id="service-contract-continuity-image-existing" name="existing_continuity_image" value="">
+                                </label>
+                                <div id="service-continuity-image-preview" style="display:none; margin-top:0.25rem;">
+                                    <img id="service-continuity-image-thumb" src="" alt="Continuity card image" style="max-width:100%; max-height:80px; border-radius:0.35rem; object-fit:cover;">
+                                    <button type="button" onclick="removeContractImage('continuity')" style="display:block; margin-top:0.25rem; font-size:0.78rem; color:#b91c1c; background:none; border:none; cursor:pointer; padding:0;">✕ Remove image</button>
+                                    <input type="hidden" id="service-contract-remove-continuity-image" name="remove_continuity_image" value="false">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2395,15 +2421,21 @@
                         <label style="display:flex; flex-direction:column; gap:0.25rem; margin-top: 0.5rem;">Description
                             <textarea id="room-card-copy" rows="2" style="padding: 0.4rem;" placeholder="Describe what is cleaned in this area"></textarea>
                         </label>
-                        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; align-items: center;">
+                        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; align-items: flex-start;">
                             <label style="display:flex; flex-direction:column; gap:0.25rem; flex: 1;">Image
                                 <input type="file" id="room-card-image" accept="image/*" style="padding: 0.3rem;">
+                                <div id="room-card-image-preview" style="display:none; margin-top:0.25rem;">
+                                    <img id="room-card-image-thumb" src="" alt="Current image" style="max-width:80px; max-height:60px; border-radius:0.35rem; object-fit:cover;">
+                                    <button type="button" onclick="removeRoomCardImage()" style="display:block; margin-top:0.2rem; font-size:0.78rem; color:#b91c1c; background:none; border:none; cursor:pointer; padding:0;">✕ Remove image</button>
+                                    <input type="hidden" id="room-card-remove-image" name="remove_image" value="false">
+                                </div>
                             </label>
                             <label style="display:flex; flex-direction:column; gap:0.25rem;">Order
                                 <input type="number" id="room-card-order" value="0" min="0" style="padding: 0.4rem; width: 60px;">
                             </label>
                         </div>
                         <input type="hidden" id="room-card-edit-id" value="">
+                        <input type="hidden" id="room-card-existing-image" value="">
                         <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
                             <button type="button" class="btn btn-primary" onclick="saveRoomCard()" style="font-size: 0.85rem;">Add Card</button>
                             <button type="button" class="btn btn-ghost" onclick="resetRoomCardForm()" style="font-size: 0.85rem;">Reset</button>
@@ -2768,6 +2800,21 @@
                 if (imageEl) imageEl.src = '';
                 preview.hidden = true;
             }
+        }
+
+        function removeContractImage(type) {
+            const previewId = type === 'trust' ? 'service-trust-image-preview' : 'service-continuity-image-preview';
+            const existingId = type === 'trust' ? 'service-contract-trust-image-existing' : 'service-contract-continuity-image-existing';
+            const removeId = type === 'trust' ? 'service-contract-remove-trust-image' : 'service-contract-remove-continuity-image';
+            const fileId = type === 'trust' ? 'service-contract-trust-image' : 'service-contract-continuity-image';
+            const preview = document.getElementById(previewId);
+            const existing = document.getElementById(existingId);
+            const removeFlag = document.getElementById(removeId);
+            const fileInput = document.getElementById(fileId);
+            if (preview) preview.style.display = 'none';
+            if (existing) existing.value = '';
+            if (removeFlag) removeFlag.value = 'true';
+            if (fileInput) fileInput.value = '';
         }
 
         function normalizeMediaPath(path) {
@@ -5936,6 +5983,13 @@
             }
         }
 
+        function isTruthyValue(value) {
+            if (value === true || value === 1) return true;
+            if (value === false || value === 0 || value == null) return false;
+            const normalized = String(value).trim().toLowerCase();
+            return normalized === '1' || normalized === 'true' || normalized === 't' || normalized === 'yes' || normalized === 'on';
+        }
+
         // Service CRUD
         function openServiceModal(id = null) {
             document.getElementById('service-modal').classList.add('open');
@@ -5991,10 +6045,10 @@
                 }
                 // is_contract toggle
                 if (isContractToggle) {
-                    isContractToggle.checked = service.is_contract === true || service.is_contract === 1;
+                    isContractToggle.checked = isTruthyValue(service.is_contract) || String(service.service_category || '').toLowerCase() === 'contract';
                 }
                 if (categoryHidden) {
-                    categoryHidden.value = (service.is_contract || service.service_category === 'contract') ? 'contract' : 'one_time';
+                    categoryHidden.value = (isTruthyValue(service.is_contract) || String(service.service_category || '').toLowerCase() === 'contract') ? 'contract' : 'one_time';
                 }
                 const contractPlans = Array.isArray(service.contract_pricing_plans) ? service.contract_pricing_plans : [];
                 const weekly = contractPlans.find(p => p && p.key === 'weekly');
@@ -6004,13 +6058,13 @@
                 if (contractFortnightlyInput) contractFortnightlyInput.value = fortnightly && fortnightly.price != null ? fortnightly.price : '';
                 if (contractMonthlyInput) contractMonthlyInput.value = monthly && monthly.price != null ? monthly.price : '';
                 if (activeToggle) {
-                    activeToggle.checked = service.is_active !== false;
+                    activeToggle.checked = isTruthyValue(service.is_active);
                 }
                 // Populate config fields
                 if (headerCol1) headerCol1.value = service.table_header_col1 || 'Property Type';
                 if (headerCol2) headerCol2.value = service.table_header_col2 || 'Standard Price';
                 if (headerCol3) headerCol3.value = service.table_header_col3 || 'Upgrade Option';
-                if (allowMultiselect) allowMultiselect.checked = service.allow_multiselect === 1 || service.allow_multiselect === true;
+                if (allowMultiselect) allowMultiselect.checked = isTruthyValue(service.allow_multiselect);
 
                 // Populate contract intro fields
                 if (contractSectionTitle) contractSectionTitle.value = service.contract_section_title || '';
@@ -6019,6 +6073,39 @@
                 if (contractIntroBody) contractIntroBody.value = service.contract_intro_body || '';
                 if (contractTrustBody) contractTrustBody.value = service.contract_trust_body || '';
                 if (contractContinuityBody) contractContinuityBody.value = service.contract_continuity_body || '';
+
+                // Trust / continuity images
+                const trustImgExisting = document.getElementById('service-contract-trust-image-existing');
+                const contImgExisting = document.getElementById('service-contract-continuity-image-existing');
+                const removeTrust = document.getElementById('service-contract-remove-trust-image');
+                const removeCont = document.getElementById('service-contract-remove-continuity-image');
+                if (trustImgExisting) trustImgExisting.value = service.contract_trust_image || '';
+                if (contImgExisting) contImgExisting.value = service.contract_continuity_image || '';
+                if (removeTrust) removeTrust.value = 'false';
+                if (removeCont) removeCont.value = 'false';
+                // Show thumbs if images exist
+                const trustPreview = document.getElementById('service-trust-image-preview');
+                const trustThumb = document.getElementById('service-trust-image-thumb');
+                if (trustPreview && trustThumb) {
+                    if (service.contract_trust_image) {
+                        trustThumb.src = normalizeMediaPath(service.contract_trust_image);
+                        trustPreview.style.display = 'block';
+                    } else {
+                        trustPreview.style.display = 'none';
+                        trustThumb.src = '';
+                    }
+                }
+                const contPreview = document.getElementById('service-continuity-image-preview');
+                const contThumb = document.getElementById('service-continuity-image-thumb');
+                if (contPreview && contThumb) {
+                    if (service.contract_continuity_image) {
+                        contThumb.src = normalizeMediaPath(service.contract_continuity_image);
+                        contPreview.style.display = 'block';
+                    } else {
+                        contPreview.style.display = 'none';
+                        contThumb.src = '';
+                    }
+                }
 
                 document.getElementById('service-modal-title').innerText = 'Edit Service';
                 submitBtn.innerText = 'Save Changes';
@@ -6048,6 +6135,19 @@
                 if (contractIntroBody) contractIntroBody.value = '';
                 if (contractTrustBody) contractTrustBody.value = '';
                 if (contractContinuityBody) contractContinuityBody.value = '';
+                // Reset trust/continuity images
+                const rTrustEx = document.getElementById('service-contract-trust-image-existing');
+                const rContEx = document.getElementById('service-contract-continuity-image-existing');
+                const rRmTrust = document.getElementById('service-contract-remove-trust-image');
+                const rRmCont = document.getElementById('service-contract-remove-continuity-image');
+                if (rTrustEx) rTrustEx.value = '';
+                if (rContEx) rContEx.value = '';
+                if (rRmTrust) rRmTrust.value = 'false';
+                if (rRmCont) rRmCont.value = 'false';
+                const rTrustPrev = document.getElementById('service-trust-image-preview');
+                const rContPrev = document.getElementById('service-continuity-image-preview');
+                if (rTrustPrev) rTrustPrev.style.display = 'none';
+                if (rContPrev) rContPrev.style.display = 'none';
 
                 document.getElementById('service-modal-title').innerText = 'Add Service';
                 submitBtn.innerText = 'Add Service';
@@ -6160,6 +6260,10 @@
             formData.set('sort_order', document.getElementById('room-card-order')?.value || '0');
             const imageFile = document.getElementById('room-card-image')?.files?.[0];
             if (imageFile) formData.set('image', imageFile);
+            const removeImage = document.getElementById('room-card-remove-image')?.value;
+            if (removeImage === 'true') formData.set('remove_image', 'true');
+            const existingImage = document.getElementById('room-card-existing-image')?.value;
+            if (existingImage) formData.set('existing_image', existingImage);
 
             if (!formData.get('card_key') || !formData.get('room_name') || !formData.get('lifestyle_copy')) {
                 showToast('Card key, room name, and description are required.', 'error');
@@ -6191,10 +6295,33 @@
                 document.getElementById('room-card-name').value = card.room_name || '';
                 document.getElementById('room-card-copy').value = card.lifestyle_copy || '';
                 document.getElementById('room-card-order').value = card.sort_order || 0;
+                document.getElementById('room-card-existing-image').value = card.image_path || '';
+                const preview = document.getElementById('room-card-image-preview');
+                const thumb = document.getElementById('room-card-image-thumb');
+                const removeFlag = document.getElementById('room-card-remove-image');
+                if (card.image_path && preview && thumb) {
+                    thumb.src = normalizeMediaPath(card.image_path);
+                    preview.style.display = 'block';
+                    if (removeFlag) removeFlag.value = 'false';
+                } else if (preview) {
+                    preview.style.display = 'none';
+                }
                 document.querySelector('#room-card-form-wrap .btn-primary').textContent = 'Update Card';
+                document.getElementById('room-card-form-wrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } catch (e) {
                 showToast('Failed to load card for editing.', 'error');
             }
+        }
+
+        function removeRoomCardImage() {
+            const preview = document.getElementById('room-card-image-preview');
+            const removeFlag = document.getElementById('room-card-remove-image');
+            const existingField = document.getElementById('room-card-existing-image');
+            if (preview) preview.style.display = 'none';
+            if (removeFlag) removeFlag.value = 'true';
+            if (existingField) existingField.value = '';
+            const fileInput = document.getElementById('room-card-image');
+            if (fileInput) fileInput.value = '';
         }
 
         async function deleteRoomCard(cardId, serviceId) {
@@ -6217,6 +6344,9 @@
             if (el('room-card-copy')) el('room-card-copy').value = '';
             if (el('room-card-order')) el('room-card-order').value = '0';
             if (el('room-card-image')) el('room-card-image').value = '';
+            if (el('room-card-existing-image')) el('room-card-existing-image').value = '';
+            if (el('room-card-remove-image')) el('room-card-remove-image').value = 'false';
+            if (el('room-card-image-preview')) el('room-card-image-preview').style.display = 'none';
             const btn = document.querySelector('#room-card-form-wrap .btn-primary');
             if (btn) btn.textContent = 'Add Card';
         }

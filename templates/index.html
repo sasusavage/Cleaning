@@ -354,16 +354,12 @@
         {% set coverage_radius = (travel_settings.max_service_radius_miles if travel_settings and travel_settings.max_service_radius_miles else 20) %}
         {% set coverage_base = operating_bases[0] if operating_bases and operating_bases|length > 0 else none %}
         {% set coverage_base_label = coverage_base.name if coverage_base and coverage_base.name else 'our main base' %}
-        {% set coverage_ns = namespace(geo_bases=[]) %}
+        {% set coverage_ns = namespace(map_bases=[]) %}
         {% if operating_bases and operating_bases|length > 0 %}
             {% for base in operating_bases %}
-                {% if base.latitude is not none and base.longitude is not none %}
-                    {% set _ = coverage_ns.geo_bases.append({'name': base.name, 'postcode': base.postcode, 'lat': base.latitude, 'lng': base.longitude}) %}
-                {% endif %}
+                {% set _ = coverage_ns.map_bases.append({'name': base.name, 'postcode': base.postcode, 'lat': base.latitude, 'lng': base.longitude}) %}
             {% endfor %}
         {% endif %}
-        {% set coverage_query = coverage_base.postcode if coverage_base and coverage_base.postcode else (areas_text if areas_text else 'St Albans, Hertfordshire') %}
-        {% set coverage_query_encoded = coverage_query | replace(' ', '+') %}
         <section class="panel coverage-map" id="areas-we-cover" data-home-section="areas_coverage">
             <div class="coverage-map__grid" data-animate="grow">
                 <div class="coverage-map__content">
@@ -383,17 +379,10 @@
                 <div class="coverage-map__media" aria-label="Service coverage map">
                     <div
                         id="coverage-zones-map"
-                        class="coverage-zones-map{% if not coverage_ns.geo_bases %} is-hidden{% endif %}"
-                        data-coverage-bases='{{ coverage_ns.geo_bases | tojson | safe }}'
+                        class="coverage-zones-map"
+                        data-coverage-bases='{{ coverage_ns.map_bases | tojson | safe }}'
                         data-coverage-radius='{{ coverage_radius }}'>
                     </div>
-                    <iframe
-                        class="coverage-map__fallback{% if coverage_ns.geo_bases %} is-hidden{% endif %}"
-                        src="https://www.google.com/maps?q={{ coverage_query_encoded }}&output=embed"
-                        loading="lazy"
-                        referrerpolicy="no-referrer-when-downgrade"
-                        title="Service coverage map">
-                    </iframe>
                 </div>
             </div>
         </section>
@@ -1446,10 +1435,10 @@
             var mapEl = document.getElementById('coverage-zones-map');
             if (!mapEl) return;
 
-            var fallback = document.querySelector('.coverage-map__fallback');
             var rawBases = mapEl.getAttribute('data-coverage-bases') || '[]';
             var radiusMiles = Number(mapEl.getAttribute('data-coverage-radius') || 20);
             var bases = [];
+            var map = null;
 
             try {
                 bases = JSON.parse(rawBases);
@@ -1457,57 +1446,109 @@
                 bases = [];
             }
 
-            bases = Array.isArray(bases) ? bases.filter(function (base) {
-                return base && Number.isFinite(Number(base.lat)) && Number.isFinite(Number(base.lng));
-            }) : [];
-
-            if (!window.L || !bases.length) {
-                mapEl.classList.add('is-hidden');
-                if (fallback) fallback.classList.remove('is-hidden');
+            if (!window.L) {
                 return;
             }
+            map = L.map(mapEl, { scrollWheelZoom: false, center: [52.3, -1.5], zoom: 7 });
 
-            if (fallback) fallback.classList.add('is-hidden');
-            mapEl.classList.remove('is-hidden');
-
-            var map = L.map(mapEl, { scrollWheelZoom: false });
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            var tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 18,
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(map);
-
-            var bounds = [];
-            var radiusMeters = Math.max(1, radiusMiles) * 1609.34;
-
-            bases.forEach(function (base) {
-                var lat = Number(base.lat);
-                var lng = Number(base.lng);
-                var baseName = base.name || 'Operating Base';
-                var basePostcode = base.postcode || '';
-
-                var marker = L.marker([lat, lng]).addTo(map);
-                marker.bindPopup('<strong>' + baseName + '</strong>' + (basePostcode ? '<br>' + basePostcode : ''));
-
-                var zone = L.circle([lat, lng], {
-                    radius: radiusMeters,
-                    color: '#2563eb',
-                    fillColor: '#60a5fa',
-                    fillOpacity: 0.18,
-                    weight: 2
-                }).addTo(map);
-
-                bounds.push(zone.getBounds());
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             });
+            tileLayer.addTo(map);
+            // Force Leaflet to measure the container after DOM paint
+            setTimeout(function () { map.invalidateSize(); }, 100);
 
-            if (bounds.length === 1) {
-                map.fitBounds(bounds[0], { padding: [18, 18] });
-            } else if (bounds.length > 1) {
-                var merged = bounds[0];
-                for (var i = 1; i < bounds.length; i += 1) {
-                    merged.extend(bounds[i]);
+            var radiusMeters = Math.max(1, radiusMiles) * 1609.34;
+            var normalizedBases = Array.isArray(bases) ? bases.map(function (base) {
+                return {
+                    name: base && base.name ? base.name : 'Operating Base',
+                    postcode: base && base.postcode ? String(base.postcode) : '',
+                    lat: base && base.lat != null ? Number(base.lat) : null,
+                    lng: base && base.lng != null ? Number(base.lng) : null
+                };
+            }) : [];
+
+            var geocodeBase = async function (base) {
+                if (Number.isFinite(base.lat) && Number.isFinite(base.lng)) {
+                    base._hadCoords = true;
+                    return base;
                 }
-                map.fitBounds(merged, { padding: [18, 18] });
-            }
+                if (!base.postcode) {
+                    return base;
+                }
+                try {
+                    var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=gb&q=' + encodeURIComponent(base.postcode);
+                    var response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                    if (!response.ok) {
+                        return base;
+                    }
+                    var results = await response.json();
+                    if (Array.isArray(results) && results.length > 0) {
+                        base.lat = Number(results[0].lat);
+                        base.lng = Number(results[0].lon);
+                    }
+                } catch (error) {
+                }
+                return base;
+            };
+
+            var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+
+            var renderZones = async function () {
+                var resolvedBases = [];
+                for (var i = 0; i < normalizedBases.length; i += 1) {
+                    var resolved = await geocodeBase(normalizedBases[i]);
+                    if (Number.isFinite(resolved.lat) && Number.isFinite(resolved.lng)) {
+                        resolvedBases.push(resolved);
+                    }
+                    // Nominatim rate limit: 1 req/sec
+                    if (i < normalizedBases.length - 1 && !resolved._hadCoords) {
+                        await sleep(1100);
+                    }
+                }
+
+                if (!resolvedBases.length) {
+                    // No coords — show UK overview so the map isn't blank
+                    map.setView([52.3, -1.5], 7);
+                    return;
+                }
+
+                var bounds = [];
+                resolvedBases.forEach(function (base) {
+                    var marker = L.marker([base.lat, base.lng]).addTo(map);
+                    marker.bindPopup('<strong>' + base.name + '</strong>' + (base.postcode ? '<br>' + base.postcode : ''));
+
+                    var zone = L.circle([base.lat, base.lng], {
+                        radius: radiusMeters,
+                        color: '#2563eb',
+                        fillColor: '#60a5fa',
+                        fillOpacity: 0.18,
+                        weight: 2
+                    }).addTo(map);
+                    bounds.push(zone.getBounds());
+                });
+
+                if (bounds.length === 1) {
+                    map.fitBounds(bounds[0], { padding: [18, 18] });
+                } else {
+                    var merged = bounds[0];
+                    for (var j = 1; j < bounds.length; j += 1) {
+                        merged.extend(bounds[j]);
+                    }
+                    map.fitBounds(merged, { padding: [18, 18] });
+                }
+
+                setTimeout(function () {
+                    map.invalidateSize();
+                }, 220);
+            };
+
+            renderZones();
+            window.addEventListener('resize', function () {
+                if (!map) return;
+                map.invalidateSize();
+            });
         })();
     </script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>

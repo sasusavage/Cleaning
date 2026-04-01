@@ -605,22 +605,31 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (preloader) {
-        window.addEventListener("load", function () {
-            var finalizePreloader = function () {
-                body.classList.add("is-loaded");
-                preloader.classList.add("is-hidden");
-                var removePreloader = function () {
-                    preloader.remove();
-                };
-                preloader.addEventListener("transitionend", removePreloader, { once: true });
-                window.setTimeout(removePreloader, 900);
+        var finalizePreloader = function () {
+            body.classList.add("is-loaded");
+            preloader.classList.add("is-hidden");
+            var removePreloader = function () {
+                if (preloader.parentNode) preloader.remove();
             };
+            preloader.addEventListener("transitionend", removePreloader, { once: true });
+            window.setTimeout(removePreloader, 800);
+        };
 
-            if (prefersReducedMotion) {
-                finalizePreloader();
-            } else {
-                window.setTimeout(finalizePreloader, 280);
-            }
+        // Hide preloader as soon as DOM is interactive — don't wait for images/fonts
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", function () {
+                window.setTimeout(finalizePreloader, prefersReducedMotion ? 0 : 200);
+            });
+        } else {
+            window.setTimeout(finalizePreloader, prefersReducedMotion ? 0 : 200);
+        }
+
+        // Hard cap: never show more than 3 seconds regardless
+        window.setTimeout(finalizePreloader, 3000);
+
+        window.addEventListener("load", function () {
+            // Ensure it's gone after full load too
+            finalizePreloader();
         });
     } else {
         body.classList.add("is-loaded");
@@ -1453,7 +1462,12 @@ document.addEventListener("DOMContentLoaded", function () {
                         delete flowState.selections[selection.serviceId];
                         persistFlowState();
                         updateMiniCart();
-                        renderServiceStep();
+                        updateContractFrequencyVisibility();
+                        if (activeStep === 2) {
+                            renderSummary();
+                        } else {
+                            renderServiceStep();
+                        }
                     });
                     item.appendChild(removeBtn);
                     
@@ -3037,9 +3051,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
         var buildServiceQueue = function (startServiceId) {
             // Build a reordered queue: selected service first, then remaining services
+            if (!SERVICE_CATALOG.length) return [];
             var startIndex = SERVICE_CATALOG.findIndex(function (service) { return String(service.id) === String(startServiceId); });
             if (startIndex < 0) startIndex = 0;
-            
+
             var queue = [];
             // Add the selected service first
             queue.push(SERVICE_CATALOG[startIndex].id);
@@ -3066,6 +3081,26 @@ document.addEventListener("DOMContentLoaded", function () {
         var openServiceModal = function (serviceId, autoExpandDetails, readOnly) {
             // Build reordered queue starting with the selected service
             serviceQueue = buildServiceQueue(serviceId);
+            if (!serviceQueue.length) return; // catalog not loaded yet — applyCatalogUpdate will retry
+
+            // Clear stale selections from other services so a one-time service
+            // never inherits contract form state from a previous contract service session.
+            if (serviceId) {
+                Object.keys(flowState.selections || {}).forEach(function (key) {
+                    if (String(key) !== String(serviceId)) {
+                        delete flowState.selections[key];
+                    }
+                });
+                // Also reset contract fields so they don't bleed over
+                if (flowState.contract) {
+                    flowState.contract.signer_name = '';
+                    flowState.contract.agreed = false;
+                }
+                if (flowState.schedule) {
+                    flowState.schedule.contract_frequency = '';
+                }
+                persistFlowState();
+            }
             currentServiceIndex = 0;
             autoExpandDescription = Boolean(autoExpandDetails);
             flowReadOnlyMode = Boolean(readOnly);
@@ -3817,6 +3852,24 @@ document.addEventListener("DOMContentLoaded", function () {
                 setActiveStep(1);
                 renderServiceStep();
                 updateMiniCart();
+                // Re-fire contract prefill if we arrived from a service detail page
+                // and the modal hasn't opened yet (catalog was empty when the timeout fired)
+                try {
+                    var params = new URLSearchParams(window.location.search || "");
+                    var pendingSvcId = Number(params.get("service_id") || 0);
+                    if (pendingSvcId && !serviceModal.classList.contains("is-open")) {
+                        var freq = String(params.get("contract_frequency") || "").trim().toLowerCase();
+                        var sDay = String(params.get("service_day") || "").trim();
+                        if (["weekly","fortnightly","monthly"].indexOf(freq) !== -1) flowState.schedule.contract_frequency = freq;
+                        if (["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].indexOf(sDay) !== -1) flowState.contract.service_day = sDay;
+                        persistFlowState();
+                        if (askForPostcode && typeof window.openPostcodeModal === "function") {
+                            window.openPostcodeModal(pendingSvcId);
+                        } else {
+                            openServiceModal(pendingSvcId);
+                        }
+                    }
+                } catch (e) { /* ignore */ }
             }
         };
 
@@ -3867,23 +3920,25 @@ document.addEventListener("DOMContentLoaded", function () {
                 var serviceId = Number(params.get("service_id") || 0);
                 var frequency = String(params.get("contract_frequency") || "").trim().toLowerCase();
                 var serviceDay = String(params.get("service_day") || "").trim();
-                var validFrequency = ["weekly", "fortnightly", "monthly"].indexOf(frequency) !== -1;
-                var validServiceDay = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].indexOf(serviceDay) !== -1;
                 if (!serviceId) return;
 
-                if (validFrequency) {
+                if (["weekly", "fortnightly", "monthly"].indexOf(frequency) !== -1) {
                     flowState.schedule.contract_frequency = frequency;
                 }
-                if (validServiceDay) {
+                if (["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].indexOf(serviceDay) !== -1) {
                     flowState.contract.service_day = serviceDay;
                 }
                 persistFlowState();
 
+                // Only open now if the catalog is already loaded.
+                // If catalog is empty, applyCatalogUpdate will re-fire this after fetch completes.
+                if (!SERVICE_CATALOG.length) return;
+
                 setTimeout(function () {
                     if (askForPostcode && typeof window.openPostcodeModal === "function") {
                         window.openPostcodeModal(serviceId);
-                    } else if (typeof window.openServiceModal === "function") {
-                        window.openServiceModal(serviceId);
+                    } else {
+                        openServiceModal(serviceId);
                     }
                 }, 120);
             } catch (error) {

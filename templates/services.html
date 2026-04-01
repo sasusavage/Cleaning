@@ -32,8 +32,14 @@
                     <a class="nav__item" href="{{ url_for('index') }}#services"><span class="nav__label">Book Service</span></a>
                     <a class="nav__item" href="{{ url_for('index') }}#reviews"><span class="nav__label">Contact</span></a>
                 </div>
+                <button class="nav__toggle" aria-expanded="false" aria-label="Toggle navigation">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
             </div>
         </nav>
+        <script>
+            (function(){var t=document.querySelector('.nav__toggle'),n=document.querySelector('.nav');if(!t||!n)return;t.addEventListener('click',function(){var o=n.classList.toggle('nav--open');t.setAttribute('aria-expanded',o?'true':'false');});})();
+        </script>
 
         <main>
             {% set residential_contract = namespace(item=None) %}
@@ -124,13 +130,22 @@
                     {% set service = residential_contract.item %}
                     {% set image_url = service.image_path | media_url if service.image_path else '' %}
                     {% set price_state = namespace(min_price=None) %}
-                    {% for option in service.options or [] %}
-                        {% if option.price is not none %}
-                            {% if price_state.min_price is none or option.price < price_state.min_price %}
-                                {% set price_state.min_price = option.price %}
+                    {% for plan in service.contract_pricing_plans or [] %}
+                        {% if plan.price is not none %}
+                            {% if price_state.min_price is none or plan.price < price_state.min_price %}
+                                {% set price_state.min_price = plan.price %}
                             {% endif %}
                         {% endif %}
                     {% endfor %}
+                    {% if price_state.min_price is none %}
+                        {% for option in service.options or [] %}
+                            {% if option.price is not none %}
+                                {% if price_state.min_price is none or option.price < price_state.min_price %}
+                                    {% set price_state.min_price = option.price %}
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
                     {% if price_state.min_price is none and service.price is not none %}
                         {% set price_state.min_price = service.price %}
                     {% endif %}
@@ -144,6 +159,15 @@
                         <div class="service-card__body">
                             <h3>Residential Cleaning</h3>
                             <p class="service-card__description">{{ service.short_description or service.description }}</p>
+                            {% if service.contract_pricing_plans and service.contract_pricing_plans|length > 0 %}
+                            <div style="margin: 0.5rem 0; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                {% for plan in service.contract_pricing_plans %}
+                                <span style="font-size: 0.8rem; background: var(--surface-alt, #f3f4f6); border-radius: 0.375rem; padding: 0.2rem 0.5rem; font-weight: 500;">
+                                    {{ plan.label }}: {% if plan.price is not none %}£{{ '%.2f'|format(plan.price) }}{% else %}Quote{% endif %}
+                                </span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
                             <p class="service-card__price">{{ price_label }}</p>
                             <a class="button button--ghost" href="/services/{{ service.id }}" style="margin-top: 1rem; width:100%; justify-content:center;">Read More</a>
                         </div>
@@ -154,13 +178,22 @@
                     {% if not residential_contract.item or service.id != residential_contract.item.id %}
                     {% set image_url = service.image_path | media_url if service.image_path else '' %}
                     {% set price_state = namespace(min_price=None) %}
-                    {% for option in service.options or [] %}
-                        {% if option.price is not none %}
-                            {% if price_state.min_price is none or option.price < price_state.min_price %}
-                                {% set price_state.min_price = option.price %}
+                    {% for plan in service.contract_pricing_plans or [] %}
+                        {% if plan.price is not none %}
+                            {% if price_state.min_price is none or plan.price < price_state.min_price %}
+                                {% set price_state.min_price = plan.price %}
                             {% endif %}
                         {% endif %}
                     {% endfor %}
+                    {% if price_state.min_price is none %}
+                        {% for option in service.options or [] %}
+                            {% if option.price is not none %}
+                                {% if price_state.min_price is none or option.price < price_state.min_price %}
+                                    {% set price_state.min_price = option.price %}
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
                     {% if price_state.min_price is none and service.price is not none %}
                         {% set price_state.min_price = service.price %}
                     {% endif %}
@@ -174,6 +207,15 @@
                         <div class="service-card__body">
                             <h3>{{ service.name }}</h3>
                             <p class="service-card__description">{{ service.short_description or service.description }}</p>
+                            {% if service.contract_pricing_plans and service.contract_pricing_plans|length > 0 %}
+                            <div style="margin: 0.5rem 0; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                {% for plan in service.contract_pricing_plans %}
+                                <span style="font-size: 0.8rem; background: var(--surface-alt, #f3f4f6); border-radius: 0.375rem; padding: 0.2rem 0.5rem; font-weight: 500;">
+                                    {{ plan.label }}: {% if plan.price is not none %}£{{ '%.2f'|format(plan.price) }}{% else %}Quote{% endif %}
+                                </span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
                             <p class="service-card__price">{{ price_label }}</p>
                             <a class="button button--ghost" href="/services/{{ service.id }}" style="margin-top: 1rem; width:100%; justify-content:center;">Read More</a>
                         </div>

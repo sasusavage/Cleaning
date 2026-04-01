@@ -23,7 +23,7 @@ import urllib.parse
 from email.message import EmailMessage
 from email.utils import formataddr
 from io import BytesIO
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 import calendar
 import time
 import threading
@@ -45,8 +45,41 @@ except ImportError:
 try:
     import psycopg2
     from psycopg2.extras import Json as PGJson, RealDictCursor
+    from psycopg2 import pool as psycopg2_pool
 except ImportError:
     psycopg2 = None
+    psycopg2_pool = None
+
+# ── PostgreSQL connection pool (created once at startup) ──────────────────────
+_pg_pool = None
+
+def _get_pg_pool():
+    global _pg_pool
+    if _pg_pool is not None:
+        return _pg_pool
+    if psycopg2_pool is None:
+        return None
+    dsn = (os.environ.get('POSTGRES_URL') or '').strip()
+    if not dsn:
+        return None
+    try:
+        _pg_pool = psycopg2_pool.ThreadedConnectionPool(
+            minconn=1,
+            maxconn=10,
+            dsn=dsn,
+            keepalives=1,
+            keepalives_idle=30,
+            keepalives_interval=10,
+            keepalives_count=5,
+            connect_timeout=10,
+        )
+        import logging as _log
+        _log.getLogger(__name__).info('PostgreSQL connection pool created (min=1, max=10)')
+    except Exception as exc:
+        import logging as _log
+        _log.getLogger(__name__).warning('Could not create PG pool: %s', exc)
+        _pg_pool = None
+    return _pg_pool
     PGJson = None
     RealDictCursor = None
 
@@ -1498,8 +1531,8 @@ def process_due_contract_reminders(limit=25):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    now = datetime.now(datetime.UTC).replace(tzinfo=None)
-    tomorrow = (datetime.now(datetime.UTC) + timedelta(days=1)).date()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).date()
 
     try:
         cursor.execute(
@@ -1584,7 +1617,7 @@ def process_due_contract_reminders(limit=25):
 
 def maybe_process_due_contract_reminders():
     global _contract_reminder_last_run
-    now = datetime.now(datetime.UTC).replace(tzinfo=None)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     with _contract_reminder_lock:
         if (now - _contract_reminder_last_run).total_seconds() < 300:
             return {'processed': 0, 'sent': 0, 'skipped': True}
@@ -1938,17 +1971,24 @@ def get_db_connection():
 
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     if engine == 'postgres':
-        dsn = (app.config.get('POSTGRES_URL') or '').strip()
-        if not dsn:
-            raise ValueError('DB_ENGINE=postgres but POSTGRES_URL is not configured')
         if psycopg2 is None:
             raise RuntimeError('psycopg2 is not installed (install psycopg2-binary)')
 
-        raw = psycopg2.connect(dsn)
+        pool = _get_pg_pool()
+        if pool is not None:
+            raw = pool.getconn()
+        else:
+            # Fallback: direct connect if pool unavailable
+            dsn = (app.config.get('POSTGRES_URL') or '').strip()
+            if not dsn:
+                raise ValueError('DB_ENGINE=postgres but POSTGRES_URL is not configured')
+            raw = psycopg2.connect(dsn)
+            pool = None  # mark so close() doesn't try to return to pool
 
         class _PGConnWrapper:
-            def __init__(self, conn):
+            def __init__(self, conn, pool_ref):
                 self._conn = conn
+                self._pool = pool_ref
 
             def cursor(self, dictionary=False, *args, **kwargs):
                 if dictionary:
@@ -1961,12 +2001,22 @@ def get_db_connection():
                 return self._conn.commit()
 
             def close(self):
-                return self._conn.close()
+                if self._pool is not None:
+                    try:
+                        self._conn.reset()
+                    except Exception:
+                        pass
+                    try:
+                        self._pool.putconn(self._conn)
+                    except Exception:
+                        self._conn.close()
+                else:
+                    self._conn.close()
 
             def __getattr__(self, name):
                 return getattr(self._conn, name)
 
-        return _PGConnWrapper(raw)
+        return _PGConnWrapper(raw, pool)
 
     # Default: MySQL
     conn = mysql.connector.connect(
@@ -2344,7 +2394,9 @@ def ensure_travel_tables():
         cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_intro_title VARCHAR(255)")
         cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_intro_body TEXT")
         cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_trust_body TEXT")
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_trust_image VARCHAR(500)")
         cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_continuity_body TEXT")
+        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_continuity_image VARCHAR(500)")
     else:
         cursor.execute("SHOW COLUMNS FROM services LIKE 'contract_section_title'")
         if not cursor.fetchone():
@@ -2353,8 +2405,17 @@ def ensure_travel_tables():
             cursor.execute("ALTER TABLE services ADD COLUMN contract_intro_title VARCHAR(255) NULL AFTER contract_section_subtitle")
             cursor.execute("ALTER TABLE services ADD COLUMN contract_intro_body TEXT NULL AFTER contract_intro_title")
             cursor.execute("ALTER TABLE services ADD COLUMN contract_trust_body TEXT NULL AFTER contract_intro_body")
-            cursor.execute("ALTER TABLE services ADD COLUMN contract_continuity_body TEXT NULL AFTER contract_trust_body")
+            cursor.execute("ALTER TABLE services ADD COLUMN contract_trust_image VARCHAR(500) NULL AFTER contract_trust_body")
+            cursor.execute("ALTER TABLE services ADD COLUMN contract_continuity_body TEXT NULL AFTER contract_trust_image")
+            cursor.execute("ALTER TABLE services ADD COLUMN contract_continuity_image VARCHAR(500) NULL AFTER contract_continuity_body")
             app.logger.info('Added contract intro fields to services table.')
+        else:
+            # Add image columns if they were added after initial migration
+            cursor.execute("SHOW COLUMNS FROM services LIKE 'contract_trust_image'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE services ADD COLUMN contract_trust_image VARCHAR(500) NULL AFTER contract_trust_body")
+                cursor.execute("ALTER TABLE services ADD COLUMN contract_continuity_image VARCHAR(500) NULL AFTER contract_continuity_body")
+                app.logger.info('Added contract trust/continuity image columns to services table.')
 
     # Backfill is_contract from service_category for existing records
     if engine == 'postgres':
@@ -4216,6 +4277,53 @@ def _get_session_travel_quote(postcode):
     return None
 
 
+def geocode_postcode_nominatim(postcode):
+    """Geocode a postcode via Nominatim (no API key required). Returns {'lat': float, 'lng': float} or None."""
+    if not postcode:
+        return None
+    try:
+        url = 'https://nominatim.openstreetmap.org/search'
+        params = {'format': 'json', 'limit': '1', 'q': postcode}
+        headers = {'User-Agent': 'CleaningApp/1.0'}
+        resp = requests.get(url, params=params, headers=headers, timeout=8)
+        resp.raise_for_status()
+        results = resp.json() or []
+        if results:
+            return {'lat': float(results[0]['lat']), 'lng': float(results[0]['lon'])}
+    except Exception:
+        pass
+    return None
+
+
+def geocode_bases_if_needed(bases):
+    """For any bases missing lat/lng, geocode via Nominatim and persist the result to DB."""
+    if not bases:
+        return bases
+    needs_geocode = [b for b in bases if b.get('latitude') is None or b.get('longitude') is None]
+    if not needs_geocode:
+        return bases
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        import time as _time
+        for base in needs_geocode:
+            coords = geocode_postcode_nominatim(base.get('postcode', ''))
+            if coords:
+                base['latitude'] = coords['lat']
+                base['longitude'] = coords['lng']
+                cursor.execute(
+                    "UPDATE operating_bases SET latitude=%s, longitude=%s WHERE id=%s",
+                    (coords['lat'], coords['lng'], base['id'])
+                )
+            _time.sleep(1.1)  # Nominatim usage policy: max 1 req/sec
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception:
+        app.logger.exception('Failed to geocode operating bases')
+    return bases
+
+
 def geocode_postcode_tomtom(postcode, api_key):
     if not postcode or not api_key:
         return None
@@ -4575,22 +4683,22 @@ def default_contract_pricing_plans():
 
 
 def parse_contract_pricing_plans(raw_value):
-    plans = default_contract_pricing_plans()
     if raw_value in (None, ''):
-        return plans
+        return []
 
+    plans = default_contract_pricing_plans()
     parsed = raw_value
     if isinstance(raw_value, str):
         try:
             parsed = json.loads(raw_value)
         except Exception:
-            return plans
+            return []
 
     if isinstance(parsed, dict):
         parsed = parsed.get('plans') or []
 
-    if not isinstance(parsed, list):
-        return plans
+    if not isinstance(parsed, list) or not parsed:
+        return []
 
     keyed = {item['key']: dict(item) for item in plans}
     for item in parsed:
@@ -4627,7 +4735,7 @@ def calculate_next_reminder_at(preferred_date_value, frequency):
 
     reminder_date = service_date - timedelta(days=1)
     reminder_dt = datetime.combine(reminder_date, datetime.min.time()) + timedelta(hours=9)
-    if reminder_dt <= datetime.now(datetime.UTC).replace(tzinfo=None):
+    if reminder_dt <= datetime.now(timezone.utc).replace(tzinfo=None):
         if frequency == 'weekly':
             service_date = service_date + timedelta(days=7)
         elif frequency == 'fortnightly':
@@ -4684,7 +4792,9 @@ def fetch_services_from_db(include_inactive=False):
             s.contract_intro_title,
             s.contract_intro_body,
             s.contract_trust_body,
+            s.contract_trust_image,
             s.contract_continuity_body,
+            s.contract_continuity_image,
             s.pricing_model,
             s.table_header_col1,
             s.table_header_col2,
@@ -4725,7 +4835,9 @@ def fetch_services_from_db(include_inactive=False):
             'contract_intro_title': row.get('contract_intro_title') or '',
             'contract_intro_body': row.get('contract_intro_body') or '',
             'contract_trust_body': row.get('contract_trust_body') or '',
+            'contract_trust_image': row.get('contract_trust_image') or '',
             'contract_continuity_body': row.get('contract_continuity_body') or '',
+            'contract_continuity_image': row.get('contract_continuity_image') or '',
             'room_cards': [],
             'pricing_model': row.get('pricing_model') or 'simple',
             'table_header_col1': row.get('table_header_col1') or 'Property Type',
@@ -6337,7 +6449,7 @@ def prepare_service_booking(payload):
     if contract_service_day not in set(calendar.day_name):
         contract_service_day = ''
     if has_contract_service and not contract_service_day:
-        contract_service_day = calendar.day_name[datetime.now(datetime.UTC).weekday()]
+        contract_service_day = calendar.day_name[datetime.now(timezone.utc).weekday()]
     if has_contract_service and not contract_terms_agreed:
         raise ValueError('Contract terms must be accepted for contract-based services.')
 
@@ -6892,6 +7004,7 @@ def get_job_positions():
 @admin_login_required
 def add_service():
     try:
+        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
         service_name = sanitize_text(request.form.get('name') or request.form.get('title'), 120)
         short_description = (request.form.get('short_description') or '').strip()
         description = (request.form.get('description') or '').strip()
@@ -6952,6 +7065,11 @@ def add_service():
         except ValueError as exc:
             return jsonify({'error': str(exc)}), 400
 
+        is_pg = 'postgres' in engine
+        contract_value = True if is_contract else False  # is_contract is boolean in PG
+        multiselect_value = 1 if allow_multiselect else 0  # smallint in PG
+        active_value = 1 if is_active else 0  # smallint in PG
+
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -6972,7 +7090,7 @@ def add_service():
                 discount_percent,
                 service_category,
                 contract_pricing_plans_json,
-                1 if is_contract else 0,
+                contract_value,
                 contract_section_title,
                 contract_section_subtitle,
                 contract_intro_title,
@@ -6983,9 +7101,9 @@ def add_service():
                 table_header_col1,
                 table_header_col2,
                 table_header_col3,
-                1 if allow_multiselect else 0,
+                multiselect_value,
                 image_path or None,
-                1 if is_active else 0
+                active_value
             )
         )
         conn.commit()
@@ -7001,6 +7119,7 @@ def add_service():
 @admin_login_required
 def edit_service(service_id):
     try:
+        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
         service_name = sanitize_text(request.form.get('name') or request.form.get('title'), 120)
         short_description = (request.form.get('short_description') or '').strip()
         description = (request.form.get('description') or '').strip()
@@ -7028,6 +7147,26 @@ def edit_service(service_id):
         contract_intro_body = sanitize_text(request.form.get('contract_intro_body'))
         contract_trust_body = sanitize_text(request.form.get('contract_trust_body'))
         contract_continuity_body = sanitize_text(request.form.get('contract_continuity_body'))
+
+        # Trust / continuity card images
+        existing_trust_image = request.form.get('existing_trust_image', '').strip()
+        existing_continuity_image = request.form.get('existing_continuity_image', '').strip()
+        remove_trust_image = str_to_bool(request.form.get('remove_trust_image', 'false'))
+        remove_continuity_image = str_to_bool(request.form.get('remove_continuity_image', 'false'))
+
+        if remove_trust_image:
+            if existing_trust_image:
+                delete_uploaded_file(existing_trust_image)
+            contract_trust_image = None
+        else:
+            contract_trust_image = handle_upload('contract_trust_image', SERVICE_UPLOAD_FOLDER, existing_trust_image) or None
+
+        if remove_continuity_image:
+            if existing_continuity_image:
+                delete_uploaded_file(existing_continuity_image)
+            contract_continuity_image = None
+        else:
+            contract_continuity_image = handle_upload('contract_continuity_image', SERVICE_UPLOAD_FOLDER, existing_continuity_image) or None
 
         if not service_name:
             return jsonify({'error': 'Service name is required.'}), 400
@@ -7065,6 +7204,11 @@ def edit_service(service_id):
         if image_path and existing_image and image_path != existing_image:
             delete_uploaded_file(existing_image)
 
+        is_pg = 'postgres' in engine
+        contract_value = True if is_contract else False  # is_contract is boolean in PG
+        multiselect_value = 1 if allow_multiselect else 0  # smallint in PG
+        active_value = 1 if is_active else 0  # smallint in PG
+
         conn = get_db_connection()
         cursor = conn.cursor()
         set_clauses = [
@@ -7073,19 +7217,21 @@ def edit_service(service_id):
             "service_category=%s", "contract_pricing_plans=%s", "is_contract=%s",
             "contract_section_title=%s", "contract_section_subtitle=%s",
             "contract_intro_title=%s", "contract_intro_body=%s",
-            "contract_trust_body=%s", "contract_continuity_body=%s",
+            "contract_trust_body=%s", "contract_trust_image=%s",
+            "contract_continuity_body=%s", "contract_continuity_image=%s",
             "table_header_col1=%s", "table_header_col2=%s", "table_header_col3=%s",
             "allow_multiselect=%s", "is_active=%s"
         ]
         params = [
             service_name, service_name, short_description, description,
             price, discount_threshold, discount_percent,
-            service_category, contract_pricing_plans_json, 1 if is_contract else 0,
+            service_category, contract_pricing_plans_json, contract_value,
             contract_section_title, contract_section_subtitle,
             contract_intro_title, contract_intro_body,
-            contract_trust_body, contract_continuity_body,
+            contract_trust_body, contract_trust_image,
+            contract_continuity_body, contract_continuity_image,
             table_header_col1, table_header_col2, table_header_col3,
-            1 if allow_multiselect else 0, 1 if is_active else 0
+            multiselect_value, active_value
         ]
         if pricing_model:
             set_clauses.append("pricing_model=%s")
@@ -10316,10 +10462,15 @@ def admin_service_room_card_detail_api(card_id):
     sort_order = int(payload.get('sort_order', existing.get('sort_order') or 0))
     is_active = str_to_bool(payload.get('is_active', existing.get('is_active', True)))
     old_image = existing.get('image_path') or ''
-    image_path = upload_domestic_card_image(old_image)
-
-    if image_path and old_image and image_path != old_image:
-        delete_uploaded_file(old_image)
+    remove_image = str_to_bool(payload.get('remove_image', 'false'))
+    if remove_image:
+        if old_image:
+            delete_uploaded_file(old_image)
+        image_path = None
+    else:
+        image_path = upload_domestic_card_image(old_image)
+        if image_path and old_image and image_path != old_image:
+            delete_uploaded_file(old_image)
 
     if not room_name or not card_key or not lifestyle_copy:
         cursor.close()
@@ -10328,8 +10479,7 @@ def admin_service_room_card_detail_api(card_id):
 
     cursor.close()
     cursor = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    active_value = is_active if engine == 'postgres' else (1 if is_active else 0)
+    active_value = 1 if is_active else 0
     try:
         cursor.execute(
             """
@@ -10337,7 +10487,7 @@ def admin_service_room_card_detail_api(card_id):
             SET card_key=%s, room_name=%s, lifestyle_copy=%s, image_path=%s, sort_order=%s, is_active=%s
             WHERE id=%s
             """,
-            (card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value, card_id)
+            (card_key, room_name, lifestyle_copy, image_path if not remove_image else None, sort_order, active_value, card_id)
         )
     except Exception:
         cursor.close()
@@ -11603,6 +11753,12 @@ def index():
 
     try:
         operating_bases = fetch_operating_bases(include_inactive=False)
+        # If any bases are missing coordinates, geocode them in the background
+        # so this request isn't blocked. On subsequent loads the cached coords are used.
+        needs_geocode = any(b.get('latitude') is None or b.get('longitude') is None for b in operating_bases)
+        if needs_geocode:
+            import threading
+            threading.Thread(target=geocode_bases_if_needed, args=(list(operating_bases),), daemon=True).start()
     except Exception:
         app.logger.exception('Error fetching operating bases for index page')
 
@@ -12980,6 +13136,14 @@ def admin_api_analytics_detailed():
 
 
 if __name__ == '__main__':
+    # Pre-warm the DB connection pool so the first request is fast
+    try:
+        _db_engine = (os.environ.get('DB_ENGINE') or '').strip().lower()
+        if 'postgres' in _db_engine:
+            _get_pg_pool()
+    except Exception:
+        pass
+
     try:
         sys.stdout.reconfigure(line_buffering=True)
         sys.stderr.reconfigure(line_buffering=True)
