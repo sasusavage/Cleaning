@@ -35,6 +35,7 @@ class Config:
     MYSQL_CURSORCLASS = 'DictCursor'
     SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key')
     EMAIL_ENCRYPTION_KEY = os.environ.get('EMAIL_ENCRYPTION_KEY', 'your-email-key')
+    PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL', os.environ.get('SITE_URL', '')).strip().rstrip('/')
 
     # Cloudinary settings
     CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', 'dhzw2vdy9')

@@ -11946,11 +11946,35 @@ def company_info():
     return redirect(url_for('index') + '#who-we-are')
 
 
+def _public_base_url():
+    configured = (app.config.get('PUBLIC_BASE_URL') or '').strip().rstrip('/')
+    if configured:
+        return configured
+
+    forwarded_proto = (request.headers.get('X-Forwarded-Proto') or '').split(',')[0].strip()
+    forwarded_host = (request.headers.get('X-Forwarded-Host') or '').split(',')[0].strip()
+    host = forwarded_host or request.host
+    scheme = forwarded_proto or request.scheme or 'https'
+
+    if scheme not in ('http', 'https'):
+        scheme = 'https'
+
+    return f"{scheme}://{host}".rstrip('/')
+
+
+def _public_url(path):
+    base = _public_base_url()
+    normalized_path = '/' + str(path or '').lstrip('/')
+    return f"{base}{normalized_path}"
+
+
 @app.route('/sitemap.xml', methods=['GET'])
 def sitemap_xml():
+    home_url = _public_url(url_for('index'))
+    services_url = _public_url(url_for('services_page'))
     base_urls = [
-        {'loc': url_for('index', _external=True), 'lastmod': None, 'changefreq': 'daily', 'priority': '1.0'},
-        {'loc': url_for('services_page', _external=True), 'lastmod': None, 'changefreq': 'daily', 'priority': '0.9'},
+        {'loc': home_url, 'lastmod': None, 'changefreq': 'daily', 'priority': '1.0'},
+        {'loc': services_url, 'lastmod': None, 'changefreq': 'daily', 'priority': '0.9'},
     ]
 
     service_urls = []
@@ -11968,7 +11992,7 @@ def sitemap_xml():
                 lastmod = updated_value.split('T')[0].split(' ')[0]
             service_urls.append(
                 {
-                    'loc': url_for('service_detail_page', service_id=int(service_id), _external=True),
+                    'loc': _public_url(url_for('service_detail_page', service_id=int(service_id))),
                     'lastmod': lastmod,
                     'changefreq': 'weekly',
                     'priority': '0.8'
@@ -11997,7 +12021,7 @@ def sitemap_xml():
 
 @app.route('/robots.txt', methods=['GET'])
 def robots_txt():
-    sitemap_url = url_for('sitemap_xml', _external=True)
+    sitemap_url = _public_url(url_for('sitemap_xml'))
     body = f"User-agent: *\nAllow: /\n\nSitemap: {sitemap_url}\n"
     return Response(body, mimetype='text/plain')
 
