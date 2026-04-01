@@ -1,8 +1,9 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, send_file, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, send_file, session, Response
 import mysql.connector
 import os
 from uuid import uuid4
 from collections import OrderedDict
+from xml.sax.saxutils import escape as xml_escape
 from werkzeug.utils import secure_filename, safe_join
 from werkzeug.security import check_password_hash
 from functools import wraps
@@ -11943,6 +11944,62 @@ def service_detail_page(service_id):
 @app.route('/company-info')
 def company_info():
     return redirect(url_for('index') + '#who-we-are')
+
+
+@app.route('/sitemap.xml', methods=['GET'])
+def sitemap_xml():
+    base_urls = [
+        {'loc': url_for('index', _external=True), 'lastmod': None, 'changefreq': 'daily', 'priority': '1.0'},
+        {'loc': url_for('services_page', _external=True), 'lastmod': None, 'changefreq': 'daily', 'priority': '0.9'},
+    ]
+
+    service_urls = []
+    try:
+        services = fetch_services_from_db(include_inactive=False)
+        for service in services or []:
+            service_id = service.get('id')
+            if not service_id:
+                continue
+            updated_value = service.get('updated_at') or service.get('created_at')
+            lastmod = None
+            if isinstance(updated_value, datetime):
+                lastmod = updated_value.date().isoformat()
+            elif isinstance(updated_value, str):
+                lastmod = updated_value.split('T')[0].split(' ')[0]
+            service_urls.append(
+                {
+                    'loc': url_for('service_detail_page', service_id=int(service_id), _external=True),
+                    'lastmod': lastmod,
+                    'changefreq': 'weekly',
+                    'priority': '0.8'
+                }
+            )
+    except Exception:
+        app.logger.exception('Failed to build dynamic service URLs for sitemap.xml')
+
+    all_urls = base_urls + service_urls
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for item in all_urls:
+        lines.append('  <url>')
+        lines.append(f"    <loc>{xml_escape(item['loc'])}</loc>")
+        if item.get('lastmod'):
+            lines.append(f"    <lastmod>{xml_escape(str(item['lastmod']))}</lastmod>")
+        if item.get('changefreq'):
+            lines.append(f"    <changefreq>{xml_escape(item['changefreq'])}</changefreq>")
+        if item.get('priority'):
+            lines.append(f"    <priority>{xml_escape(item['priority'])}</priority>")
+        lines.append('  </url>')
+    lines.append('</urlset>')
+
+    payload = '\n'.join(lines)
+    return Response(payload, mimetype='application/xml')
+
+
+@app.route('/robots.txt', methods=['GET'])
+def robots_txt():
+    sitemap_url = url_for('sitemap_xml', _external=True)
+    body = f"User-agent: *\nAllow: /\n\nSitemap: {sitemap_url}\n"
+    return Response(body, mimetype='text/plain')
 
 
 # =============================================================================
