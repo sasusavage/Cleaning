@@ -605,14 +605,16 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (preloader) {
+        var _preloaderDone = false;
         var finalizePreloader = function () {
+            if (_preloaderDone) return;
+            _preloaderDone = true;
             body.classList.add("is-loaded");
             preloader.classList.add("is-hidden");
-            var removePreloader = function () {
+            // Remove after transition (fallback after 800ms if transitionend never fires)
+            window.setTimeout(function () {
                 if (preloader.parentNode) preloader.remove();
-            };
-            preloader.addEventListener("transitionend", removePreloader, { once: true });
-            window.setTimeout(removePreloader, 800);
+            }, 800);
         };
 
         // Skip preloader entirely when navigating back with a booking intent:
@@ -630,6 +632,7 @@ document.addEventListener("DOMContentLoaded", function () {
             // Hide immediately — no animation
             if (preloader.parentNode) preloader.remove();
             body.classList.add("is-loaded");
+            _preloaderDone = true;
         } else {
             // Hide preloader as soon as DOM is interactive — don't wait for images/fonts
             if (document.readyState === "loading") {

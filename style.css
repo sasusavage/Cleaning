@@ -3835,25 +3835,34 @@ body {
 
 /* ── Mobile hero: full-bleed photo with overlay ── */
 @media (max-width: 768px) {
+    /* Break out of .panel max-width constraint */
+    .hero.panel {
+        max-width: 100%;
+        width: 100%;
+        margin: 0;
+    }
+
     .hero {
         display: flex;
         flex-direction: column;
         min-height: 100svh;
         min-height: 100vh;
-        padding: 0 0 4rem;
+        padding: 0;
         gap: 0;
+        position: relative;
+        overflow: hidden;
     }
 
-    /* Dark gradient — stronger at bottom so text is readable */
+    /* Stronger dark gradient for readability */
     .hero::after {
         content: "";
         position: absolute;
         inset: 0;
         background: linear-gradient(
             to top,
-            rgba(5, 10, 20, 0.88) 0%,
-            rgba(5, 10, 20, 0.55) 50%,
-            rgba(5, 10, 20, 0.2) 100%
+            rgba(5, 10, 20, 0.90) 0%,
+            rgba(5, 10, 20, 0.60) 45%,
+            rgba(5, 10, 20, 0.25) 100%
         );
         z-index: 0;
     }
@@ -3863,48 +3872,47 @@ body {
         z-index: 1;
     }
 
-    /* Badge strip at top */
-    .badge-marquee {
-        order: -2;
-        position: relative;
-        bottom: auto;
-        z-index: 2;
+    /* Hide badge marquee on mobile — clutters the hero */
+    .hero .badge-marquee {
+        display: none;
     }
 
-    /* Content block: eyebrow at top, rest pushed to bottom */
+    /* Content: eyebrow at top, rest at bottom via flex */
     .hero__content {
-        order: 0;
         flex: 1;
         display: flex;
         flex-direction: column;
-        padding: 1.25rem 1.25rem 0;
+        padding: 2rem 1.25rem 1.75rem;
         text-align: left;
         gap: 0;
+        transform: none !important;
     }
 
-    /* Eyebrow stays at top of content */
+    /* Eyebrow pill pinned to top of content */
     .hero__eyebrow {
         font-size: 0.72rem;
-        padding: 0.3rem 0.75rem;
-        transform: none !important;
+        padding: 0.28rem 0.7rem;
         align-self: flex-start;
-        margin-bottom: auto; /* pushes everything below it to the bottom */
+        margin-bottom: auto;
+        transform: none !important;
+        white-space: normal;
+        max-width: 90%;
+        line-height: 1.4;
     }
 
-    /* Title, subtitle, CTA, meta cluster at the bottom */
+    /* Title/subtitle/CTA cluster at the bottom */
     .hero__title {
-        font-size: clamp(1.85rem, 8vw, 2.6rem) !important;
+        font-size: clamp(1.75rem, 7.5vw, 2.4rem) !important;
         line-height: 1.1;
-        padding-top: 1rem;
+        margin-top: 0;
+        padding-top: 0.75rem;
         transform: none !important;
     }
 
     .hero__subtitle {
-        font-size: 0.9rem;
+        font-size: 0.88rem;
         max-width: 100%;
-        margin-left: 0;
-        margin-right: 0;
-        margin-top: 0.65rem;
+        margin: 0.6rem 0 0;
         transform: none !important;
     }
 
@@ -3914,61 +3922,33 @@ body {
         transform: none !important;
     }
 
+    .hero__cta .button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Meta items: show as a compact list inside the hero at the bottom */
     .hero__meta {
-        grid-template-columns: 1fr;
-        gap: 0.4rem;
-        margin-left: 0;
-        margin-right: 0;
-        margin-top: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        margin: 0.85rem 0 0;
         transform: none !important;
     }
 
     .hero__meta-item {
-        font-size: 0.82rem;
-        padding: 0.55rem 0.9rem;
+        font-size: 0.8rem;
+        padding: 0.45rem 0.85rem;
+        background: rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #fff;
+        border-radius: 8px;
     }
 
-    /* Stat cards: horizontal scrollable strip below content */
+    /* Hide stat cards on mobile — no room */
     .hero__visual {
-        display: flex !important;
-        flex-direction: row;
-        order: 1;
-        overflow-x: auto;
-        overflow-y: visible;
-        gap: 0.75rem;
-        padding: 0.85rem 1.25rem 0;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-        height: auto;
-    }
-
-    .hero__visual::-webkit-scrollbar {
-        display: none;
-    }
-
-    .hero__card {
-        position: relative !important;
-        inset: unset !important;
-        top: unset !important;
-        right: unset !important;
-        transform: none !important;
-        flex: 0 0 auto;
-        width: 200px;
-        min-width: 180px;
-        padding: 0.9rem 1rem;
-        font-size: 0.75rem;
-    }
-
-    .hero__card strong {
-        font-size: 1.35rem;
-    }
-
-    .hero__card--primary,
-    .hero__card--secondary,
-    .hero__card--tertiary {
-        top: unset !important;
-        right: unset !important;
-        transform: none !important;
+        display: none !important;
     }
 
     .contact__grid {
@@ -3986,6 +3966,11 @@ body {
         width: 100%;
         height: auto;
         padding: 0.5rem 0.75rem;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+        z-index: 50;
     }
 
     .nav:hover {
@@ -5759,5 +5744,66 @@ html, body, .shell {
     .nav__item {
         display: flex;
         align-items: center;
+    }
+}
+
+/* ── Mobile badge strip: shown only on mobile, below hero ── */
+.hero-badges-mobile {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .hero-badges-mobile {
+        display: block;
+        background: #fff;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+        padding: 0.85rem 0 0.6rem;
+        overflow: hidden;
+    }
+
+    .hero-badges-mobile__label {
+        text-align: center;
+        font-size: 0.65rem;
+        letter-spacing: 0.25em;
+        text-transform: uppercase;
+        color: var(--text-muted, #9ca3af);
+        font-weight: 600;
+        margin-bottom: 0.6rem;
+    }
+
+    .hero-badges-mobile__track {
+        overflow: hidden;
+        position: relative;
+        /* Fade edges */
+        -webkit-mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
+        mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
+    }
+
+    .hero-badges-mobile__inner {
+        display: flex;
+        gap: 1.5rem;
+        align-items: center;
+        width: max-content;
+        animation: badgeMobileScroll 18s linear infinite;
+    }
+
+    .hero-badges-mobile__item {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+    }
+
+    .hero-badges-mobile__item img {
+        height: 36px;
+        width: auto;
+        max-width: 90px;
+        object-fit: contain;
+        filter: grayscale(20%);
+        opacity: 0.85;
+    }
+
+    @keyframes badgeMobileScroll {
+        0%   { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
     }
 }

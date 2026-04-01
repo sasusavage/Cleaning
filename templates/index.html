@@ -215,6 +215,26 @@
             </div>
         </header>
 
+        {% if hero_badges %}
+        <div class="hero-badges-mobile" aria-label="Certifications and partners">
+            <p class="hero-badges-mobile__label">Trusted &amp; Accredited</p>
+            <div class="hero-badges-mobile__track">
+                <div class="hero-badges-mobile__inner">
+                    {% for badge in hero_badges[:10] %}
+                    <div class="hero-badges-mobile__item">
+                        <img src="{{ badge.image_path | media_url }}" alt="Certification badge {{ loop.index }}" loading="lazy">
+                    </div>
+                    {% endfor %}
+                    {% for badge in hero_badges[:10] %}
+                    <div class="hero-badges-mobile__item">
+                        <img src="{{ badge.image_path | media_url }}" alt="Certification badge {{ loop.index }}" loading="lazy" aria-hidden="true">
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         {% set domestic_content = domestic_cleaning.content if domestic_cleaning else {} %}
         <section class="panel services" id="services" data-home-section="services">
             <div class="section__header" data-animate="fade-in">
