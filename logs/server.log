@@ -2745,3 +2745,45 @@ server closed the connection unexpectedly
 2026-04-01 18:43:56,163 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 18:43:56] "GET / HTTP/1.1" 200 -
 2026-04-01 18:43:56,234 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 18:43:56] "GET /style.css HTTP/1.1" 200 -
 2026-04-01 18:43:56,830 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 18:43:56] "[36mGET /script.js HTTP/1.1[0m" 304 -
+2026-04-01 20:35:40,260 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:35:40] "[36mGET /favicon/site.webmanifest HTTP/1.1[0m" 304 -
+2026-04-01 20:35:40,277 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:35:40] "[33mGET /android-chrome-192x192.png HTTP/1.1[0m" 404 -
+2026-04-01 20:35:40,292 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:35:40] "[33mGET /android-chrome-512x512.png HTTP/1.1[0m" 404 -
+2026-04-01 20:35:49,529 ERROR app: Automated contract reminder processing failed
+Traceback (most recent call last):
+  File "C:\Users\DeLL\OneDrive\Documents\Cleaning\app.py", line 1626, in maybe_process_due_contract_reminders
+    return process_due_contract_reminders(limit=50)
+  File "C:\Users\DeLL\OneDrive\Documents\Cleaning\app.py", line 1530, in process_due_contract_reminders
+    ensure_travel_tables()
+    ~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\DeLL\OneDrive\Documents\Cleaning\app.py", line 2151, in ensure_travel_tables
+    cursor.execute(
+    ~~~~~~~~~~~~~~^
+        """
+        ^^^
+    ...<9 lines>...
+        """
+        ^^^
+    )
+    ^
+psycopg2.OperationalError: server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+
+2026-04-01 20:37:25,047 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:37:25] "GET / HTTP/1.1" 200 -
+2026-04-01 20:37:25,145 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:37:25] "GET /style.css HTTP/1.1" 200 -
+2026-04-01 20:37:28,217 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:37:28] "GET /script.js HTTP/1.1" 200 -
+2026-04-01 20:37:30,422 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:37:30] "GET /favicon.ico HTTP/1.1" 200 -
+2026-04-01 20:37:30,423 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:37:30] "[36mGET /favicon/site.webmanifest HTTP/1.1[0m" 304 -
+2026-04-01 20:37:30,438 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:37:30] "[33mGET /android-chrome-192x192.png HTTP/1.1[0m" 404 -
+2026-04-01 20:37:30,449 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:37:30] "[33mGET /android-chrome-512x512.png HTTP/1.1[0m" 404 -
+2026-04-01 20:47:47,855 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:47:47] "GET / HTTP/1.1" 200 -
+2026-04-01 20:47:47,949 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:47:47] "GET /style.css HTTP/1.1" 200 -
+2026-04-01 20:47:47,986 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:47:47] "GET /script.js HTTP/1.1" 200 -
+2026-04-01 20:47:51,383 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:47:51] "GET /favicon.ico HTTP/1.1" 200 -
+2026-04-01 20:47:51,384 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:47:51] "[36mGET /favicon/site.webmanifest HTTP/1.1[0m" 304 -
+2026-04-01 20:47:51,397 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:47:51] "[33mGET /android-chrome-192x192.png HTTP/1.1[0m" 404 -
+2026-04-01 20:47:51,425 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:47:51] "[33mGET /android-chrome-512x512.png HTTP/1.1[0m" 404 -
+2026-04-01 20:47:56,771 INFO werkzeug: 127.0.0.1 - - [01/Apr/2026 20:47:56] "[36mGET /favicon/apple-touch-icon.png HTTP/1.1[0m" 304 -

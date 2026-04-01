@@ -317,10 +317,47 @@ main {
     margin: 0 auto;
     height: auto;
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: auto auto 1fr auto;
     align-items: center;
     gap: 0.75rem;
     padding: 0;
+}
+
+.nav__contact {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.nav__contact-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+    padding: 0.25rem 0.4rem;
+    border-radius: 6px;
+}
+
+.nav__contact-item:hover {
+    color: var(--brand-green);
+    background: rgba(22, 163, 74, 0.07);
+}
+
+.nav__contact-item svg {
+    flex-shrink: 0;
+    color: var(--brand-green);
+}
+
+.nav__contact-sep {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1;
 }
 
 .nav__item {
@@ -2314,6 +2351,7 @@ body.is-nav-expanded main {
     background: linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 100%);
     position: relative;
     overflow: hidden;
+    padding-top: 4rem;
 }
 
 .policy-section::before {
@@ -3759,6 +3797,16 @@ body {
     margin-top: 1rem;
 }
 
+@media (max-width: 1024px) {
+    .nav__contact {
+        display: none;
+    }
+    /* Revert to 3-col grid when contact is hidden */
+    .nav__rail {
+        grid-template-columns: auto 1fr auto;
+    }
+}
+
 @media (max-width: 960px) {
     .service-flow {
         grid-template-columns: 1fr;
@@ -3998,7 +4046,11 @@ body {
 
     .nav__toggle {
         justify-self: end;
-        grid-column: 3;
+        grid-column: 4;
+    }
+
+    .nav__contact {
+        display: none;
     }
 
     .nav__items {
