@@ -6791,18 +6791,20 @@ def start_stripe_checkout():
             }
         )
         
-        app.logger.info(f"start_stripe_checkout - Stripe session created successfully: session_id={session_data.get('id')}, url={session_data.get('url')}")
+        session_id_val = session_data.id
+        session_url_val = session_data.url
+        app.logger.info(f"start_stripe_checkout - Stripe session created successfully: session_id={session_id_val}, url={session_url_val}")
 
         update_payment_transaction(
             tx_id,
-            checkout_session_id=session_data.get('id'),
+            checkout_session_id=session_id_val,
             status='checkout_created'
         )
 
         return jsonify({
             'mode': 'checkout',
-            'checkout_url': session_data.get('url'),
-            'session_id': session_data.get('id'),
+            'checkout_url': session_url_val,
+            'session_id': session_id_val,
             'transaction_id': tx_id,
             'amount_total': payable_total,
             'original_amount': prepared.get('total_with_travel'),
