@@ -113,6 +113,21 @@ def favicon_asset(filename):
         os.path.join(app.root_path, 'favicon'),
         filename
     )
+
+
+@app.route('/android-chrome-192x192.png')
+def favicon_android_192():
+    return send_from_directory(os.path.join(app.root_path, 'favicon'), 'android-chrome-192x192.png', mimetype='image/png')
+
+
+@app.route('/android-chrome-512x512.png')
+def favicon_android_512():
+    return send_from_directory(os.path.join(app.root_path, 'favicon'), 'android-chrome-512x512.png', mimetype='image/png')
+
+
+@app.route('/apple-touch-icon.png')
+def favicon_apple_touch_icon():
+    return send_from_directory(os.path.join(app.root_path, 'favicon'), 'apple-touch-icon.png', mimetype='image/png')
 app.config.from_object(Config)
 
 UPLOAD_ROOT = os.path.join(app.static_folder, 'static', 'uploads')
