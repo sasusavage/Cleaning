@@ -615,22 +615,38 @@ document.addEventListener("DOMContentLoaded", function () {
             window.setTimeout(removePreloader, 800);
         };
 
-        // Hide preloader as soon as DOM is interactive — don't wait for images/fonts
-        if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", function () {
-                window.setTimeout(finalizePreloader, prefersReducedMotion ? 0 : 200);
-            });
+        // Skip preloader entirely when navigating back with a booking intent:
+        // ?service_id=, ?contract_frequency=, or any #services* hash
+        var _qs = window.location.search || "";
+        var _hash = window.location.hash || "";
+        var _isBookingReturn = _qs.indexOf("service_id=") !== -1 ||
+                               _qs.indexOf("contract_frequency=") !== -1 ||
+                               _qs.indexOf("service_day=") !== -1 ||
+                               _hash.indexOf("#services") === 0 ||
+                               _hash.indexOf("#service-") === 0 ||
+                               _hash === "#book";
+
+        if (_isBookingReturn || prefersReducedMotion) {
+            // Hide immediately — no animation
+            if (preloader.parentNode) preloader.remove();
+            body.classList.add("is-loaded");
         } else {
-            window.setTimeout(finalizePreloader, prefersReducedMotion ? 0 : 200);
+            // Hide preloader as soon as DOM is interactive — don't wait for images/fonts
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", function () {
+                    window.setTimeout(finalizePreloader, 200);
+                });
+            } else {
+                window.setTimeout(finalizePreloader, 200);
+            }
+
+            // Hard cap: never show more than 2.5 seconds regardless
+            window.setTimeout(finalizePreloader, 2500);
+
+            window.addEventListener("load", function () {
+                finalizePreloader();
+            });
         }
-
-        // Hard cap: never show more than 3 seconds regardless
-        window.setTimeout(finalizePreloader, 3000);
-
-        window.addEventListener("load", function () {
-            // Ensure it's gone after full load too
-            finalizePreloader();
-        });
     } else {
         body.classList.add("is-loaded");
     }

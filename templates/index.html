@@ -162,14 +162,14 @@
             {% if hero_badges %}
             <div class="badge-marquee" aria-label="Certifications and partners">
                 <div class="badge-marquee__track">
-                    {% for badge in hero_badges %}
+                    {% for badge in hero_badges[:10] %}
                     <div class="badge-marquee__item">
                         <img src="{{ badge.image_path | media_url }}" alt="Certification badge {{ loop.index }}" loading="lazy">
                     </div>
                     {% endfor %}
-                    {% for badge in hero_badges %}
+                    {% for badge in hero_badges[:10] %}
                     <div class="badge-marquee__item">
-                        <img src="{{ badge.image_path | media_url }}" alt="Certification badge duplicate {{ loop.index }}" loading="lazy" aria-hidden="true">
+                        <img src="{{ badge.image_path | media_url }}" alt="Certification badge {{ loop.index }}" loading="lazy" aria-hidden="true">
                     </div>
                     {% endfor %}
                 </div>
