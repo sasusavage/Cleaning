@@ -1514,10 +1514,10 @@
             <a id="nav-travel" class="nav-link" onclick="showSection('travel')">Travel Pricing</a>
             <a id="nav-positions" class="nav-link" onclick="showSection('positions')">Job Positions</a>
             <a id="nav-testimonials" class="nav-link" onclick="showSection('testimonials')">Testimonials</a>
-            <a id="nav-hero" class="nav-link" onclick="showSection('hero')">Hero Content</a>
+            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">Hero Content</a>
             <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
-            <a id="nav-contact" class="nav-link" onclick="showSection('contact')">Quote &amp; Contact</a>
-            <a id="nav-domestic" class="nav-link" onclick="showSection('services')">Domestic Cleaning</a>
+            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">Quote &amp; Contact</a>
+            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">Domestic Cleaning</a>
             <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
             <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">FAQs</a>
             <a class="nav-link" href="{{ url_for('admin_policies_page') }}">Policies</a>
