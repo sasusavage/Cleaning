@@ -898,26 +898,48 @@
             <div class="logo">{{ company_name }} Admin</div>
             <button type="button" class="sidebar__toggle" aria-expanded="false" aria-controls="sidebar-nav">Menu</button>
         </div>
-        <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#analytics">Analytics</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">Requests</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">Services</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">Travel Pricing</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">Job Positions</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">Testimonials</a>
-            <a class="nav-link active" href="{{ url_for('admin_hero_content_page') }}">Hero Content</a>
-            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
-            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">Quote &amp; Contact</a>
-            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
-            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">FAQs</a>
-            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">Policies</a>
-            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">Domestic Cleaning</a>
-            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">Email Settings</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">Payments</a>
-            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">Telegram</a>
-            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">AI Assistant</a>
-            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">Chat Conversations</a>
+                <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
+
+            <!-- Operations -->
+            <span class="nav-group__label">Operations</span>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">📊 Analytics</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">📋 Requests</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#contracts">📄 Contracts</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">💳 Payments</a>
+
+            <hr class="nav-divider">
+
+            <!-- Services -->
+            <span class="nav-group__label">Services</span>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">🛠 Service Management</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">🚗 Travel Pricing</a>
+            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">🏠 Domestic Cleaning</a>
+
+            <hr class="nav-divider">
+
+            <!-- Content -->
+            <span class="nav-group__label">Content</span>
+            <a class="nav-link active" href="{{ url_for('admin_hero_content_page') }}">🖼 Hero Content</a>
+            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">✏️ Site Content</a>
+            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
+            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">⭐ Testimonials</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">💼 Job Positions</a>
+
+            <hr class="nav-divider">
+
+            <!-- Settings -->
+            <span class="nav-group__label">Settings</span>
+            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">🎨 Brand &amp; Logo</a>
+            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">💬 Quote &amp; Contact</a>
+            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">🔗 Footer</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">📧 Email Settings</a>
+            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">✈️ Telegram</a>
+            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">🤖 AI Assistant</a>
+            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">💬 Chat Conversations</a>
+
+            <hr class="nav-divider">
+
             <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
                 <button type="submit" class="sidebar__logout-button">Log Out</button>
             </form>
@@ -927,7 +949,7 @@
     <div class="main-content">
         <div class="page-header">
             <h1>Home Page Manager</h1>
-            <a class="btn btn-outline" href="{{ url_for('admin_dashboard') }}">← Back to Dashboard</a>
+            <a class="btn btn-outline" href="{{{ url_for('admin_dashboard') }}">← Back to Dashboard</a>
         </div>
 
         {% if error %}
@@ -1368,8 +1390,7 @@
             fetch('/admin/api/homepage-sections/reorder', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ section_keys: sectionKeys })
-            })
+                body: JSON.stringify({ section_keys: sectionKeys }) }})
             .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
             .then(({ ok, data }) => {
                 if (!ok) {
@@ -1428,7 +1449,7 @@
             const scale = Math.min(1, availableWidth / STAGE_DESIGN_WIDTH);
             const stageH = previewStage.offsetHeight || 620;
             stageWrap.style.setProperty('--stage-scale', scale);
-            stageWrap.style.height = `${Math.round(stageH * scale)}px`;
+            stageWrap.style.height = `${Math.round(stageH * scale) }}px`;
             previewStage.style.transform = `scale(${scale})`;
         }
 
@@ -1568,7 +1589,7 @@
                 title.style.color = titleColor.value;
             }
             if (title && titleSize) {
-                title.style.fontSize = `${clamp(titleSize.value, 34, 84)}px`;
+                title.style.fontSize = `${clamp(titleSize.value, 34, 84) }}px`;
             }
             if (title && titleWeight) {
                 title.style.fontWeight = String(clamp(titleWeight.value, 400, 900));
@@ -1577,7 +1598,7 @@
                 subtitle.style.color = subtitleColor.value;
             }
             if (subtitle && subtitleSize) {
-                subtitle.style.fontSize = `${clamp(subtitleSize.value, 14, 24)}px`;
+                subtitle.style.fontSize = `${clamp(subtitleSize.value, 14, 24) }}px`;
             }
             if (subtitle && subtitleWeight) {
                 subtitle.style.fontWeight = String(clamp(subtitleWeight.value, 300, 900));
@@ -1662,7 +1683,7 @@
                 const nextY = clamp(contentOffsetY.value, -220, 220);
                 contentOffsetX.value = String(Math.round(nextX));
                 contentOffsetY.value = String(Math.round(nextY));
-                previewContentCol.style.transform = `translate(${Math.round(nextX)}px, ${Math.round(nextY)}px)`;
+                previewContentCol.style.transform = `translate(${Math.round(nextX) }}px, ${Math.round(nextY) }}px)`;
             }
 
             if (contentOffsetX) {

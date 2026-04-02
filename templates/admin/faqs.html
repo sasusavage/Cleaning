@@ -690,26 +690,48 @@
             <div class="logo">{{ company_name }} Admin</div>
             <button type="button" class="sidebar__toggle" aria-expanded="false" aria-controls="sidebar-nav">Menu</button>
         </div>
-        <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#analytics">Analytics</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">Requests</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">Services</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">Travel Pricing</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">Job Positions</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">Testimonials</a>
-            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">Hero Content</a>
-            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
-            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">Quote &amp; Contact</a>
-            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
-            <a class="nav-link active" href="{{ url_for('admin_faqs_page') }}">FAQs</a>
-            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">Policies</a>
-            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">Domestic Cleaning</a>
-            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">Email Settings</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">Payments</a>
-            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">Telegram</a>
-            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">AI Assistant</a>
-            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">Chat Conversations</a>
+                <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
+
+            <!-- Operations -->
+            <span class="nav-group__label">Operations</span>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">📊 Analytics</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">📋 Requests</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#contracts">📄 Contracts</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">💳 Payments</a>
+
+            <hr class="nav-divider">
+
+            <!-- Services -->
+            <span class="nav-group__label">Services</span>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">🛠 Service Management</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">🚗 Travel Pricing</a>
+            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">🏠 Domestic Cleaning</a>
+
+            <hr class="nav-divider">
+
+            <!-- Content -->
+            <span class="nav-group__label">Content</span>
+            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">🖼 Hero Content</a>
+            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">✏️ Site Content</a>
+            <a class="nav-link active" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
+            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">⭐ Testimonials</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">💼 Job Positions</a>
+
+            <hr class="nav-divider">
+
+            <!-- Settings -->
+            <span class="nav-group__label">Settings</span>
+            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">🎨 Brand &amp; Logo</a>
+            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">💬 Quote &amp; Contact</a>
+            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">🔗 Footer</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">📧 Email Settings</a>
+            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">✈️ Telegram</a>
+            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">🤖 AI Assistant</a>
+            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">💬 Chat Conversations</a>
+
+            <hr class="nav-divider">
+
             <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
                 <button type="submit" class="sidebar__logout-button">Log Out</button>
             </form>
@@ -876,7 +898,7 @@
             const categories = Array.from(new Set(faqs.map(faq => (faq.category || 'General').trim()).filter(Boolean))).sort();
 
             categoryFilter.innerHTML = '<option value="all">All Categories</option>' + categories
-                .map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)
+                .map(category => `<option value="${escapeHtml(category) }}">${escapeHtml(category) }}</option>`)
                 .join('');
 
             if (selected && Array.from(categoryFilter.options).some(option => option.value === selected)) {
@@ -958,17 +980,17 @@
                     <div class="faq-item__header">
                         <div class="faq-item__left">
                             <span class="faq-item__order">${faq.sort_order || 0}</span>
-                            <h3 class="faq-item__question">${escapeHtml(faq.question)}</h3>
+                            <h3 class="faq-item__question">${escapeHtml(faq.question) }}</h3>
                         </div>
                         <div class="faq-item__actions">
                             <button class="btn btn-secondary btn-sm" onclick="editFaq(${faq.id})">Edit</button>
                             <button class="btn btn-danger btn-sm" onclick="deleteFaq(${faq.id})">Delete</button>
                         </div>
                     </div>
-                    <p class="faq-item__answer">${expandedFaqIds.has(faq.id) ? formatFaqAnswerFull(faq.answer) : formatFaqAnswerPreview(faq.answer)}</p>
+                    <p class="faq-item__answer">${expandedFaqIds.has(faq.id) ? formatFaqAnswerFull(faq.answer) : formatFaqAnswerPreview(faq.answer) }}</p>
                     ${shouldShowToggle(faq.answer) ? `<button class="faq-item__toggle" type="button" onclick="toggleFaqAnswer(${faq.id})">${expandedFaqIds.has(faq.id) ? 'Show less' : 'Read more'}</button>` : ''}
                     <div class="faq-item__meta">
-                        <span class="faq-item__category">${escapeHtml(faq.category || 'General')}</span>
+                        <span class="faq-item__category">${escapeHtml(faq.category || 'General') }}</span>
                         <span class="status-badge ${faq.is_active ? 'status-badge--active' : 'status-badge--inactive'}">
                             ${faq.is_active ? '✓ Active' : '✗ Inactive'}
                         </span>
@@ -987,7 +1009,7 @@
         function formatFaqAnswerPreview(answer) {
             const text = (answer || '').trim();
             if (text.length <= 180) return escapeHtml(text);
-            return `${escapeHtml(text.slice(0, 180))}...`;
+            return `${escapeHtml(text.slice(0, 180)) }}...`;
         }
 
         function formatFaqAnswerFull(answer) {
@@ -1103,8 +1125,7 @@
                 const res = await fetch(url, {
                     method,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
+                    body: JSON.stringify(data) }});
 
                 const result = await res.json();
                 if (!res.ok) throw new Error(result.error || 'Failed to save FAQ');

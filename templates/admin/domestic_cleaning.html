@@ -75,28 +75,53 @@
             <div class="logo">{{ company_name }} Admin</div>
             <button type="button" class="sidebar__toggle" id="sidebarToggle">Menu</button>
         </div>
-        <nav class="sidebar__nav">
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#analytics">Analytics</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">Requests</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">Services</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">Travel Pricing</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">Job Positions</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">Testimonials</a>
-            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">Hero Content</a>
-            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
-            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">Quote &amp; Contact</a>
-            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
-            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">FAQs</a>
-            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">Policies</a>
-            <a class="nav-link active" href="{{ url_for('admin_domestic_cleaning_page') }}">Domestic Cleaning</a>
-            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">Email Settings</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">Payments</a>
-            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">Telegram</a>
-            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">AI Assistant</a>
-            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">Chat Conversations</a>
+                <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
+
+            <!-- Operations -->
+            <span class="nav-group__label">Operations</span>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">📊 Analytics</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">📋 Requests</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#contracts">📄 Contracts</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">💳 Payments</a>
+
+            <hr class="nav-divider">
+
+            <!-- Services -->
+            <span class="nav-group__label">Services</span>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">🛠 Service Management</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">🚗 Travel Pricing</a>
+            <a class="nav-link active" href="{{ url_for('admin_domestic_cleaning_page') }}">🏠 Domestic Cleaning</a>
+
+            <hr class="nav-divider">
+
+            <!-- Content -->
+            <span class="nav-group__label">Content</span>
+            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">🖼 Hero Content</a>
+            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">✏️ Site Content</a>
+            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
+            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">⭐ Testimonials</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">💼 Job Positions</a>
+
+            <hr class="nav-divider">
+
+            <!-- Settings -->
+            <span class="nav-group__label">Settings</span>
+            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">🎨 Brand &amp; Logo</a>
+            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">💬 Quote &amp; Contact</a>
+            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">🔗 Footer</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">📧 Email Settings</a>
+            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">✈️ Telegram</a>
+            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">🤖 AI Assistant</a>
+            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">💬 Chat Conversations</a>
+
+            <hr class="nav-divider">
+
+            <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
+                <button type="submit" class="sidebar__logout-button">Log Out</button>
+            </form>
         </nav>
-        <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
+        <form class="sidebar__logout-form" method="post" action="{{{ url_for('admin_logout') }}">
             <button type="submit" class="sidebar__logout-button">Log Out</button>
         </form>
     </aside>
@@ -215,10 +240,10 @@
             const tbody = document.querySelector('#cardsTable tbody');
             tbody.innerHTML = cardsState.map(card => `
                 <tr>
-                    <td>${card.image_path ? `<img class="thumb" src="${resolveImageUrl(card.image_path)}" alt="${card.room_name}">` : '<span class="muted">No image</span>'}</td>
+                    <td>${card.image_path ? `<img class="thumb" src="${resolveImageUrl(card.image_path) }}" alt="${card.room_name}">` : '<span class="muted">No image</span>'}</td>
                     <td>${card.room_name || ''}</td>
                     <td>${card.card_key || ''}</td>
-                    <td>${(card.lifestyle_copy || '').slice(0, 120)}${(card.lifestyle_copy || '').length > 120 ? '…' : ''}</td>
+                    <td>${(card.lifestyle_copy || '').slice(0, 120) }}${(card.lifestyle_copy || '').length > 120 ? '…' : ''}</td>
                     <td><span class="pill ${card.is_active ? 'ok' : 'off'}">${card.is_active ? 'Active' : 'Inactive'}</span></td>
                     <td>${card.sort_order ?? 0}</td>
                     <td>
@@ -243,7 +268,7 @@
                 <tr>
                     <td>${row.plan_name || ''}</td>
                     <td>${row.plan_key || ''}</td>
-                    <td>£${Number(row.price_per_hour || 0).toFixed(2)}</td>
+                    <td>£${Number(row.price_per_hour || 0).toFixed(2) }}</td>
                     <td>${row.per_label || ''}</td>
                     <td><span class="pill ${row.is_active ? 'ok' : 'off'}">${row.is_active ? 'Active' : 'Inactive'}</span></td>
                     <td>${row.sort_order ?? 0}</td>
@@ -269,8 +294,7 @@
                         trust_body: document.getElementById('trust_body').value,
                         continuity_body: document.getElementById('continuity_body').value,
                         is_active: document.getElementById('content_active').checked
-                    })
-                });
+                    }) }});
                 showToast('Section content saved');
             } catch (err) { showToast(err.message, 'error'); }
         });
@@ -347,13 +371,11 @@
             try {
                 if (id) {
                     await api(`/admin/api/domestic-cleaning/pricing/${id}`, {
-                        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-                    });
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }});
                     showToast('Pricing updated');
                 } else {
                     await api('/admin/api/domestic-cleaning/pricing', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-                    });
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }});
                     showToast('Pricing added');
                 }
                 resetPricingForm();
