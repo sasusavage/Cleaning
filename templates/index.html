@@ -249,8 +249,8 @@
         {% set domestic_content = domestic_cleaning.content if domestic_cleaning else {} %}
         <section class="panel services" id="services" data-home-section="services">
             <div class="section__header" data-animate="fade-in">
-                <p class="section__eyebrow">Our Services</p>
-                <h2 class="section__title">Professional cleaning tailored to every space &mdash; from your home to your business.</h2>
+                <p class="section__eyebrow">{{ site_content.services_eyebrow if site_content and site_content.services_eyebrow else 'Our Services' }}</p>
+                <h2 class="section__title">{{ site_content.services_section_title if site_content and site_content.services_section_title else 'Professional cleaning tailored to every space \u2014 from your home to your business.' }}</h2>
             </div>
 
             <div class="services__grid" data-animate="fade-in" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 1.25rem;">
@@ -282,8 +282,8 @@
         {% set why_items = why_choose_data.get('items', []) if why_choose_data else [] %}
         <section class="panel why-choose" id="why-choose" data-home-section="why_choose">
             <div class="section__header" data-animate="fade-in">
-                <p class="section__eyebrow">Why Us</p>
-                <h2 class="section__title">Why Choose Done-Well?</h2>
+                <p class="section__eyebrow">{{ site_content.why_us_eyebrow if site_content and site_content.why_us_eyebrow else 'Why Us' }}</p>
+                <h2 class="section__title">{{ site_content.why_us_title if site_content and site_content.why_us_title else 'Why Choose Done-Well?' }}</h2>
             </div>
             <div class="why-choose__grid" data-animate="reveal">
                 {% if domestic_content and domestic_content.trust_body %}
@@ -363,8 +363,8 @@
         <section class="panel who-we-are" id="who-we-are" data-home-section="about">
             <div class="who-we-are__grid" data-animate="grow">
                 <div class="who-we-are__text">
-                    <p class="section__eyebrow">About Us</p>
-                    <h2 class="section__title">Who We Are</h2>
+                    <p class="section__eyebrow">{{ site_content.about_eyebrow if site_content and site_content.about_eyebrow else 'About Us' }}</p>
+                    <h2 class="section__title">{{ site_content.about_title if site_content and site_content.about_title else 'Who We Are' }}</h2>
                     <p class="who-we-are__summary">{{ about_summary[:350] }}{% if about_summary|length > 350 %}...{% endif %}</p>
                     <button class="button button--primary" type="button" data-open-company-profile="profile-story">Read Our Full Story</button>
                 </div>
@@ -394,8 +394,8 @@
         <section class="panel coverage-map" id="areas-we-cover" data-home-section="areas_coverage">
             <div class="coverage-map__grid" data-animate="grow">
                 <div class="coverage-map__content">
-                    <p class="section__eyebrow">Areas We Cover</p>
-                    <h2 class="section__title">Cleaning coverage across your local area</h2>
+                    <p class="section__eyebrow">{{ site_content.coverage_eyebrow if site_content and site_content.coverage_eyebrow else 'Areas We Cover' }}</p>
+                    <h2 class="section__title">{{ site_content.coverage_title if site_content and site_content.coverage_title else 'Cleaning coverage across your local area' }}</h2>
                     <p class="coverage-map__intro">From {{ coverage_base_label }}, we cover up to {{ coverage_radius }} miles for regular and one-time services.</p>
                     <p class="coverage-map__areas"><strong>Towns covered:</strong> {{ areas_text }}</p>
                     {% if operating_bases and operating_bases|length > 0 %}
@@ -421,8 +421,8 @@
         <section class="testimonials" id="testimonials" data-home-section="testimonials">
             <div class="panel">
                 <div class="section__header" data-animate="fade-in">
-                    <p class="section__eyebrow">What Our Clients Say</p>
-                    <h2 class="section__title">A trusted name for homes, offices, and everything in between.</h2>
+                    <p class="section__eyebrow">{{ site_content.testimonials_eyebrow if site_content and site_content.testimonials_eyebrow else 'What Our Clients Say' }}</p>
+                    <h2 class="section__title">{{ site_content.testimonials_title if site_content and site_content.testimonials_title else 'A trusted name for homes, offices, and everything in between.' }}</h2>
                 </div>
                 {% set testimonial_count = testimonials | length %}
                 {% if testimonial_count > 0 %}
@@ -472,9 +472,9 @@
         {% if policies and policies|length > 0 %}
         <section class="panel policy-section" id="policy" data-home-section="policy">
             <div class="section__header" data-animate="fade-in">
-                <p class="section__eyebrow">Our Policies</p>
-                <h2 class="section__title">Transparency You Can Trust</h2>
-                <p class="section__subtitle">We believe in clear communication. Here are our key policies to ensure a smooth experience.</p>
+                <p class="section__eyebrow">{{ site_content.policies_eyebrow if site_content and site_content.policies_eyebrow else 'Our Policies' }}</p>
+                <h2 class="section__title">{{ site_content.policies_title if site_content and site_content.policies_title else 'Transparency You Can Trust' }}</h2>
+                <p class="section__subtitle">{{ site_content.policies_subtitle if site_content and site_content.policies_subtitle else 'We believe in clear communication. Here are our key policies to ensure a smooth experience.' }}</p>
             </div>
             <div class="policy-grid" data-animate="reveal">
                 {% for policy in policies %}
@@ -569,8 +569,8 @@
 
         <section class="panel careers" id="careers" data-home-section="careers">
             <div class="section__header" data-animate="fade-in">
-                <p class="section__eyebrow">Join Our Team</p>
-                <h2 class="section__title">Build a career with {{ company_name }}. We are always looking for dedicated professionals.</h2>
+                <p class="section__eyebrow">{{ site_content.careers_eyebrow if site_content and site_content.careers_eyebrow else 'Join Our Team' }}</p>
+                <h2 class="section__title">{{ site_content.careers_title if site_content and site_content.careers_title else 'Build a career with ' ~ company_name ~ '. We are always looking for dedicated professionals.' }}</h2>
             </div>
             {% if job_positions %}
             {% set job_count = job_positions | length %}
@@ -633,9 +633,9 @@
                 <div class="faq-container">
                     {% set faq_preview_limit = 6 %}
                     <div class="faq-intro" data-animate="fade-in">
-                        <p class="section__eyebrow">Got Questions?</p>
-                        <h2 class="section__title">Frequently Asked<br>Questions</h2>
-                        <p class="faq-intro__desc">Everything you need to know about our cleaning services. Can't find what you're looking for? Feel free to contact us.</p>
+                        <p class="section__eyebrow">{{ site_content.faqs_eyebrow if site_content and site_content.faqs_eyebrow else 'Got Questions?' }}</p>
+                        <h2 class="section__title">{{ site_content.faqs_title if site_content and site_content.faqs_title else 'Frequently Asked Questions' }}</h2>
+                        <p class="faq-intro__desc">{{ site_content.faqs_subtitle if site_content and site_content.faqs_subtitle else "Everything you need to know about our cleaning services. Can't find what you're looking for? Feel free to contact us." }}</p>
                         <div class="faq-intro__stats">
                             <div class="faq-stat">
                                 <span class="faq-stat__number">{{ faqs|length }}</span>
@@ -694,8 +694,8 @@
 
         <section class="panel contact" id="reviews" data-home-section="reviews" {% if quote_background_url %}style="--quote-image:url('{{ quote_background_url }}');"{% endif %}>
             <div class="section__header" data-animate="fade-in">
-                <p class="section__eyebrow">Share Your Experience</p>
-                <h2 class="section__title">We'd love to hear from you! Leave a review about your cleaning experience.</h2>
+                <p class="section__eyebrow">{{ site_content.reviews_eyebrow if site_content and site_content.reviews_eyebrow else 'Share Your Experience' }}</p>
+                <h2 class="section__title">{{ site_content.reviews_title if site_content and site_content.reviews_title else "We'd love to hear from you! Leave a review about your cleaning experience." }}</h2>
             </div>
             <div class="contact__grid">
                 <div class="contact__info" data-animate="grow">

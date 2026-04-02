@@ -598,6 +598,142 @@
                 </div>
             </div>
 
+            <!-- ── HOMEPAGE SECTION HEADINGS ── -->
+
+            <!-- Services Section -->
+            <div class="card">
+                <h2 class="card__title">Services Section</h2>
+                <p class="card__desc">Eyebrow tag and main heading above the service cards.</p>
+                <div class="form-group">
+                    <label for="services_eyebrow">Eyebrow Tag</label>
+                    <input type="text" id="services_eyebrow" name="services_eyebrow" value="{{ site_content.services_eyebrow if site_content and site_content.services_eyebrow else '' }}" placeholder="Our Services">
+                </div>
+                <div class="form-group">
+                    <label for="services_section_title">Main Heading</label>
+                    <textarea id="services_section_title" name="services_section_title" rows="2" placeholder="Professional cleaning tailored to every space — from your home to your business.">{{ site_content.services_section_title if site_content and site_content.services_section_title else '' }}</textarea>
+                </div>
+            </div>
+
+            <!-- Why Us Section -->
+            <div class="card">
+                <h2 class="card__title">Why Us Section</h2>
+                <p class="card__desc">Eyebrow tag and heading for the "Why Choose Us" section.</p>
+                <div class="form-group">
+                    <label for="why_us_eyebrow">Eyebrow Tag</label>
+                    <input type="text" id="why_us_eyebrow" name="why_us_eyebrow" value="{{ site_content.why_us_eyebrow if site_content and site_content.why_us_eyebrow else '' }}" placeholder="Why Us">
+                </div>
+                <div class="form-group">
+                    <label for="why_us_title">Main Heading</label>
+                    <input type="text" id="why_us_title" name="why_us_title" value="{{ site_content.why_us_title if site_content and site_content.why_us_title else '' }}" placeholder="Why Choose Done-Well?">
+                </div>
+            </div>
+
+            <!-- About Us Section -->
+            <div class="card">
+                <h2 class="card__title">About Us Section</h2>
+                <p class="card__desc">Eyebrow tag and heading for the "Who We Are" section.</p>
+                <div class="form-group">
+                    <label for="about_eyebrow">Eyebrow Tag</label>
+                    <input type="text" id="about_eyebrow" name="about_eyebrow" value="{{ site_content.about_eyebrow if site_content and site_content.about_eyebrow else '' }}" placeholder="About Us">
+                </div>
+                <div class="form-group">
+                    <label for="about_title">Main Heading</label>
+                    <input type="text" id="about_title" name="about_title" value="{{ site_content.about_title if site_content and site_content.about_title else '' }}" placeholder="Who We Are">
+                </div>
+            </div>
+
+            <!-- Coverage Section -->
+            <div class="card">
+                <h2 class="card__title">Coverage Section</h2>
+                <p class="card__desc">Eyebrow tag and heading for the coverage map section.</p>
+                <div class="form-group">
+                    <label for="coverage_eyebrow">Eyebrow Tag</label>
+                    <input type="text" id="coverage_eyebrow" name="coverage_eyebrow" value="{{ site_content.coverage_eyebrow if site_content and site_content.coverage_eyebrow else '' }}" placeholder="Areas We Cover">
+                </div>
+                <div class="form-group">
+                    <label for="coverage_title">Main Heading</label>
+                    <input type="text" id="coverage_title" name="coverage_title" value="{{ site_content.coverage_title if site_content and site_content.coverage_title else '' }}" placeholder="Cleaning coverage across your local area">
+                </div>
+            </div>
+
+            <!-- Testimonials Section -->
+            <div class="card">
+                <h2 class="card__title">Testimonials Section</h2>
+                <p class="card__desc">Eyebrow tag and heading for the client reviews section.</p>
+                <div class="form-group">
+                    <label for="testimonials_eyebrow">Eyebrow Tag</label>
+                    <input type="text" id="testimonials_eyebrow" name="testimonials_eyebrow" value="{{ site_content.testimonials_eyebrow if site_content and site_content.testimonials_eyebrow else '' }}" placeholder="What Our Clients Say">
+                </div>
+                <div class="form-group">
+                    <label for="testimonials_title">Main Heading</label>
+                    <textarea id="testimonials_title" name="testimonials_title" rows="2" placeholder="A trusted name for homes, offices, and everything in between.">{{ site_content.testimonials_title if site_content and site_content.testimonials_title else '' }}</textarea>
+                </div>
+            </div>
+
+            <!-- Policies Section -->
+            <div class="card">
+                <h2 class="card__title">Policies Section</h2>
+                <p class="card__desc">Eyebrow tag, heading, and subtitle for the policies section.</p>
+                <div class="form-group">
+                    <label for="policies_eyebrow">Eyebrow Tag</label>
+                    <input type="text" id="policies_eyebrow" name="policies_eyebrow" value="{{ site_content.policies_eyebrow if site_content and site_content.policies_eyebrow else '' }}" placeholder="Our Policies">
+                </div>
+                <div class="form-group">
+                    <label for="policies_title">Main Heading</label>
+                    <input type="text" id="policies_title" name="policies_title" value="{{ site_content.policies_title if site_content and site_content.policies_title else '' }}" placeholder="Transparency You Can Trust">
+                </div>
+                <div class="form-group">
+                    <label for="policies_subtitle">Subtitle</label>
+                    <textarea id="policies_subtitle" name="policies_subtitle" rows="2" placeholder="We believe in clear communication. Here are our key policies to ensure a smooth experience.">{{ site_content.policies_subtitle if site_content and site_content.policies_subtitle else '' }}</textarea>
+                </div>
+            </div>
+
+            <!-- Careers Section -->
+            <div class="card">
+                <h2 class="card__title">Careers Section</h2>
+                <p class="card__desc">Eyebrow tag and heading for the careers/jobs section.</p>
+                <div class="form-group">
+                    <label for="careers_eyebrow">Eyebrow Tag</label>
+                    <input type="text" id="careers_eyebrow" name="careers_eyebrow" value="{{ site_content.careers_eyebrow if site_content and site_content.careers_eyebrow else '' }}" placeholder="Join Our Team">
+                </div>
+                <div class="form-group">
+                    <label for="careers_title">Main Heading</label>
+                    <textarea id="careers_title" name="careers_title" rows="2" placeholder="Build a career with us. We are always looking for dedicated professionals.">{{ site_content.careers_title if site_content and site_content.careers_title else '' }}</textarea>
+                </div>
+            </div>
+
+            <!-- FAQs Section -->
+            <div class="card">
+                <h2 class="card__title">FAQs Section</h2>
+                <p class="card__desc">Eyebrow tag, heading, and intro text for the FAQs section.</p>
+                <div class="form-group">
+                    <label for="faqs_eyebrow">Eyebrow Tag</label>
+                    <input type="text" id="faqs_eyebrow" name="faqs_eyebrow" value="{{ site_content.faqs_eyebrow if site_content and site_content.faqs_eyebrow else '' }}" placeholder="Got Questions?">
+                </div>
+                <div class="form-group">
+                    <label for="faqs_title">Main Heading</label>
+                    <input type="text" id="faqs_title" name="faqs_title" value="{{ site_content.faqs_title if site_content and site_content.faqs_title else '' }}" placeholder="Frequently Asked Questions">
+                </div>
+                <div class="form-group">
+                    <label for="faqs_subtitle">Intro Text</label>
+                    <textarea id="faqs_subtitle" name="faqs_subtitle" rows="2" placeholder="Everything you need to know about our cleaning services.">{{ site_content.faqs_subtitle if site_content and site_content.faqs_subtitle else '' }}</textarea>
+                </div>
+            </div>
+
+            <!-- Reviews Section -->
+            <div class="card">
+                <h2 class="card__title">Reviews Section</h2>
+                <p class="card__desc">Eyebrow tag and heading for the leave-a-review section.</p>
+                <div class="form-group">
+                    <label for="reviews_eyebrow">Eyebrow Tag</label>
+                    <input type="text" id="reviews_eyebrow" name="reviews_eyebrow" value="{{ site_content.reviews_eyebrow if site_content and site_content.reviews_eyebrow else '' }}" placeholder="Share Your Experience">
+                </div>
+                <div class="form-group">
+                    <label for="reviews_title">Main Heading</label>
+                    <textarea id="reviews_title" name="reviews_title" rows="2" placeholder="We'd love to hear from you! Leave a review about your cleaning experience.">{{ site_content.reviews_title if site_content and site_content.reviews_title else '' }}</textarea>
+                </div>
+            </div>
+
             <button type="submit" class="btn btn-primary" id="save-btn">Save All Changes</button>
         </form>
     </div>
@@ -774,7 +910,28 @@
                     phone: document.getElementById('contact_phone').value.trim(),
                     phone_alt: document.getElementById('contact_phone_alt').value.trim(),
                     whatsapp: document.getElementById('contact_whatsapp').value.trim()
-                }
+                },
+                // Homepage section headings
+                services_eyebrow: document.getElementById('services_eyebrow').value.trim(),
+                services_section_title: document.getElementById('services_section_title').value.trim(),
+                why_us_eyebrow: document.getElementById('why_us_eyebrow').value.trim(),
+                why_us_title: document.getElementById('why_us_title').value.trim(),
+                about_eyebrow: document.getElementById('about_eyebrow').value.trim(),
+                about_title: document.getElementById('about_title').value.trim(),
+                coverage_eyebrow: document.getElementById('coverage_eyebrow').value.trim(),
+                coverage_title: document.getElementById('coverage_title').value.trim(),
+                testimonials_eyebrow: document.getElementById('testimonials_eyebrow').value.trim(),
+                testimonials_title: document.getElementById('testimonials_title').value.trim(),
+                policies_eyebrow: document.getElementById('policies_eyebrow').value.trim(),
+                policies_title: document.getElementById('policies_title').value.trim(),
+                policies_subtitle: document.getElementById('policies_subtitle').value.trim(),
+                careers_eyebrow: document.getElementById('careers_eyebrow').value.trim(),
+                careers_title: document.getElementById('careers_title').value.trim(),
+                faqs_eyebrow: document.getElementById('faqs_eyebrow').value.trim(),
+                faqs_title: document.getElementById('faqs_title').value.trim(),
+                faqs_subtitle: document.getElementById('faqs_subtitle').value.trim(),
+                reviews_eyebrow: document.getElementById('reviews_eyebrow').value.trim(),
+                reviews_title: document.getElementById('reviews_title').value.trim()
             };
 
             try {
