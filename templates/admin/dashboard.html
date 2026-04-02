@@ -138,6 +138,22 @@
             color: #93c5fd;
         }
 
+        .nav-group__label {
+            display: block;
+            padding: 0.85rem 0.9rem 0.3rem;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #4b5563;
+        }
+
+        .nav-divider {
+            border: none;
+            border-top: 1px solid rgba(255,255,255,0.07);
+            margin: 0.5rem 0;
+        }
+
         .main-content {
             flex: 1;
             padding: 2rem;
@@ -946,6 +962,20 @@
             color: #6b7280;
         }
 
+        .requests-table .contract-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            background: #ede9fe;
+            color: #5b21b6;
+            margin-left: 0.4rem;
+            vertical-align: middle;
+        }
+
         .requests-table .action-btn {
             padding: 0.35rem 0.75rem;
             border-radius: 0.375rem;
@@ -1507,26 +1537,47 @@
             <button type="button" class="sidebar__toggle" aria-expanded="false" aria-controls="sidebar-nav">Menu</button>
         </div>
         <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
-            <a id="nav-analytics" class="nav-link" onclick="showSection('analytics')">Analytics</a>
-            <a id="nav-requests" class="nav-link active" onclick="showSection('requests')">Requests</a>
-            <a id="nav-services" class="nav-link" onclick="showSection('services')">Service Management</a>
-            <a id="nav-contracts" class="nav-link" onclick="showSection('contracts')">Contracts &amp; Schedules</a>
-            <a id="nav-travel" class="nav-link" onclick="showSection('travel')">Travel Pricing</a>
-            <a id="nav-positions" class="nav-link" onclick="showSection('positions')">Job Positions</a>
-            <a id="nav-testimonials" class="nav-link" onclick="showSection('testimonials')">Testimonials</a>
-            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">Hero Content</a>
-            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
-            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">Quote &amp; Contact</a>
-            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">Domestic Cleaning</a>
-            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
-            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">FAQs</a>
-            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">Policies</a>
-            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
-            <a id="nav-email" class="nav-link" onclick="showSection('email')">Email Settings</a>
-            <a id="nav-payments" class="nav-link" onclick="showSection('payments')">Payments</a>
-            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">Telegram</a>
-            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">AI Assistant</a>
-            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">Chat Conversations</a>
+
+            <!-- Operations -->
+            <span class="nav-group__label">Operations</span>
+            <a id="nav-analytics" class="nav-link" onclick="showSection('analytics')">📊 Analytics</a>
+            <a id="nav-requests" class="nav-link active" onclick="showSection('requests')">📋 Requests</a>
+            <a id="nav-contracts" class="nav-link" onclick="showSection('contracts')">📄 Contracts</a>
+            <a id="nav-payments" class="nav-link" onclick="showSection('payments')">💳 Payments</a>
+
+            <hr class="nav-divider">
+
+            <!-- Services & Bookings -->
+            <span class="nav-group__label">Services</span>
+            <a id="nav-services" class="nav-link" onclick="showSection('services')">🛠 Service Management</a>
+            <a id="nav-travel" class="nav-link" onclick="showSection('travel')">🚗 Travel Pricing</a>
+            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">🏠 Domestic Cleaning</a>
+
+            <hr class="nav-divider">
+
+            <!-- Content -->
+            <span class="nav-group__label">Content</span>
+            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">🖼 Hero Content</a>
+            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">✏️ Site Content</a>
+            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
+            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
+            <a id="nav-testimonials" class="nav-link" onclick="showSection('testimonials')">⭐ Testimonials</a>
+            <a id="nav-positions" class="nav-link" onclick="showSection('positions')">💼 Job Positions</a>
+
+            <hr class="nav-divider">
+
+            <!-- Settings -->
+            <span class="nav-group__label">Settings</span>
+            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">🎨 Brand &amp; Logo</a>
+            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">💬 Quote &amp; Contact</a>
+            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">🔗 Footer</a>
+            <a id="nav-email" class="nav-link" onclick="showSection('email')">📧 Email Settings</a>
+            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">✈️ Telegram</a>
+            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">🤖 AI Assistant</a>
+            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">💬 Chat Conversations</a>
+
+            <hr class="nav-divider">
+
             <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
                 <button type="submit" class="sidebar__logout-button">Log Out</button>
             </form>
@@ -1784,7 +1835,8 @@
                         Request Type
                         <select id="request-type-filter" style="padding: 0.4rem 0.6rem; border-radius: 0.4rem; border: 1px solid var(--border);">
                             <option value="">All</option>
-                            <option value="service">Service</option>
+                            <option value="service">One-Time Service</option>
+                            <option value="contract">Contract</option>
                             <option value="job">Job</option>
                             <option value="general">General</option>
                         </select>
@@ -3793,12 +3845,15 @@
             const paymentStatus = entry.payment_status_label || '—';
             const paymentBadge = entry.payment_badge || 'na';
             const amountDue = formatAmountDue(entry.amount_due);
+            const contractTag = entry.is_contract
+                ? `<span class="contract-tag">📄 Contract${entry.contract_frequency ? ' · ' + escapeHtml(entry.contract_frequency) : ''}</span>`
+                : '';
 
             return `
                 <tr data-request-id="${entry.id}">
                     <td class="text-muted">${dateDisplay}</td>
                     <td class="client-name">${name}</td>
-                    <td class="text-muted">${escapeHtml(typeLabel)}</td>
+                    <td class="text-muted">${escapeHtml(typeLabel)}${contractTag}</td>
                     <td class="text-muted">${escapeHtml(serviceOrPosition)}</td>
                     <td><span class="${getStatusBadgeClass(status)}">${escapeHtml(statusLabel)}</span></td>
                     <td><span class="${getPaymentBadgeClass(paymentBadge)}">${escapeHtml(paymentStatus)}</span></td>
@@ -3849,15 +3904,21 @@
                 return dateB - dateA;
             });
 
+            // Client-side contract filter
+            const activeTypeFilter = (requestTypeFilter && requestTypeFilter.value) || '';
+            const displayRequests = activeTypeFilter === 'contract'
+                ? allRequests.filter(r => r.is_contract)
+                : allRequests;
+
             // Build table HTML
-            if (allRequests.length === 0) {
+            if (displayRequests.length === 0) {
                 requestTableBody.innerHTML = `
                     <tr>
                         <td colspan="8" style="text-align: center; padding: 2rem; color: #6b7280;">No requests found.</td>
                     </tr>
                 `;
             } else {
-                requestTableBody.innerHTML = allRequests.map(createRequestTableRow).join('');
+                requestTableBody.innerHTML = displayRequests.map(createRequestTableRow).join('');
             }
 
             // Update summary counts
@@ -3934,8 +3995,11 @@
             const params = new URLSearchParams();
             const typeValue = (requestTypeFilter && requestTypeFilter.value) || '';
 
-            if (typeValue) {
+            // 'contract' is a frontend-only filter — fetch all services then filter client-side
+            if (typeValue && typeValue !== 'contract') {
                 params.set('request_type', typeValue);
+            } else if (!typeValue) {
+                // fetch all
             }
             params.set('limit', '200');
 

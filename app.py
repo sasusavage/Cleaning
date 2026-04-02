@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, send_file, session, Response
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, send_file, session, Response, g
 import mysql.connector
 import os
 from uuid import uuid4
@@ -65,8 +65,8 @@ def _get_pg_pool():
         return None
     try:
         _pg_pool = psycopg2_pool.ThreadedConnectionPool(
-            minconn=1,
-            maxconn=10,
+            minconn=2,
+            maxconn=20,
             dsn=dsn,
             keepalives=1,
             keepalives_idle=30,
@@ -91,6 +91,18 @@ except ImportError:  # cryptography is optional; fallback handlers will be used
     InvalidToken = Exception
 
 app = Flask(__name__, static_folder='.', static_url_path='')
+
+
+@app.teardown_appcontext
+def _close_leaked_db_conns(exc):
+    """Return any DB connections that weren't explicitly closed back to the pool."""
+    conns = getattr(g, '_db_conns', [])
+    for conn in conns:
+        try:
+            if not getattr(conn, '_closed', False):
+                conn.close()
+        except Exception:
+            pass
 
 
 @app.route('/healthz')
@@ -1480,7 +1492,7 @@ def persist_contract_record(prepared, submission, service_request_id=None):
                 signer_name, terms_agreed, service_day, reminder_enabled, status, metadata
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        if engine == 'postgres':
+        if 'postgres' in engine:
             insert_sql += " RETURNING id"
 
         cursor.execute(
@@ -1497,15 +1509,15 @@ def persist_contract_record(prepared, submission, service_request_id=None):
                 preferred_date,
                 next_reminder_at,
                 signer_name,
-                (True if engine == 'postgres' else (1 if terms_agreed else 0)),
+                (True if 'postgres' in engine else (1 if terms_agreed else 0)),
                 service_day,
-                1 if engine != 'postgres' else True,
+                1 if 'postgres' not in engine else True,
                 'active',
                 json.dumps(metadata)
             )
         )
 
-        contract_id = cursor.fetchone()[0] if engine == 'postgres' else cursor.lastrowid
+        contract_id = cursor.fetchone()[0] if 'postgres' in engine else cursor.lastrowid
         conn.commit()
         return contract_id
     finally:
@@ -2005,6 +2017,7 @@ def get_db_connection():
             def __init__(self, conn, pool_ref):
                 self._conn = conn
                 self._pool = pool_ref
+                self._closed = False
 
             def cursor(self, dictionary=False, *args, **kwargs):
                 if dictionary:
@@ -2017,7 +2030,17 @@ def get_db_connection():
                 return self._conn.commit()
 
             def close(self):
+                if self._closed:
+                    return
+                self._closed = True
                 if self._pool is not None:
+                    try:
+                        # Roll back any open transaction so the connection
+                        # is clean when returned to the pool.
+                        if self._conn.status != 0:  # 0 = STATUS_READY
+                            self._conn.rollback()
+                    except Exception:
+                        pass
                     try:
                         self._conn.reset()
                     except Exception:
@@ -2025,14 +2048,36 @@ def get_db_connection():
                     try:
                         self._pool.putconn(self._conn)
                     except Exception:
-                        self._conn.close()
+                        try:
+                            self._conn.close()
+                        except Exception:
+                            pass
                 else:
-                    self._conn.close()
+                    try:
+                        self._conn.close()
+                    except Exception:
+                        pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                self.close()
+                return False
 
             def __getattr__(self, name):
                 return getattr(self._conn, name)
 
-        return _PGConnWrapper(raw, pool)
+        wrapped = _PGConnWrapper(raw, pool)
+        # Track on Flask g so teardown can close any leaked connections
+        try:
+            if hasattr(g, '_db_conns'):
+                g._db_conns.append(wrapped)
+            else:
+                g._db_conns = [wrapped]
+        except RuntimeError:
+            pass  # Outside request context — no g available
+        return wrapped
 
     # Default: MySQL
     conn = mysql.connector.connect(
@@ -2568,9 +2613,14 @@ def ensure_travel_tables():
         if cursor.fetchone()[0] > 0:
             cursor.execute("UPDATE services SET pricing_model = 'options' WHERE id = %s", (service_id,))
 
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        conn.commit()
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        conn.close()
 
 
 def ensure_faq_table():
@@ -9145,9 +9195,12 @@ def admin_list_requests():
         f"""
            SELECT r.id, r.request_type, r.name, r.email, r.phone, r.subject, r.service_name, r.job_position,
                r.ref_id, r.status, r.source, r.created_at, r.email_sent_admin, r.email_sent_user,
-               sr.total_price AS amount_due, sr.payment_type, sr.is_paid
+               sr.total_price AS amount_due, sr.payment_type, sr.is_paid,
+               CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END AS is_contract,
+               c.frequency AS contract_frequency
            FROM requests r
            LEFT JOIN service_requests sr ON sr.legacy_request_id = r.id
+           LEFT JOIN contracts c ON c.request_id = r.id
         {where_clause}
            ORDER BY r.created_at DESC
         LIMIT %s
@@ -9164,6 +9217,7 @@ def admin_list_requests():
             row['created_at'] = created_at.isoformat()
         row['email_sent_admin'] = bool(row.get('email_sent_admin'))
         row['email_sent_user'] = bool(row.get('email_sent_user'))
+        row['is_contract'] = bool(row.get('is_contract'))
         if (row.get('request_type') or '').lower() == 'service':
             row['amount_due'] = normalize_price_value(row.get('amount_due'))
             row['payment_type'] = normalize_stored_payment_type(row.get('payment_type'))
@@ -9206,9 +9260,12 @@ def admin_list_requests_grouped():
         f"""
          SELECT r.id, r.request_type, r.name, r.email, r.phone, r.subject, r.service_name, r.job_position,
              r.ref_id, r.status, r.source, r.created_at, r.email_sent_admin, r.email_sent_user,
-             sr.total_price AS amount_due, sr.payment_type, sr.is_paid
+             sr.total_price AS amount_due, sr.payment_type, sr.is_paid,
+             CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END AS is_contract,
+             c.frequency AS contract_frequency
          FROM requests r
          LEFT JOIN service_requests sr ON sr.legacy_request_id = r.id
+         LEFT JOIN contracts c ON c.request_id = r.id
         {where_clause}
          ORDER BY r.created_at DESC
         LIMIT %s
@@ -9249,6 +9306,7 @@ def admin_list_requests_grouped():
 
         item['email_sent_admin'] = bool(item.get('email_sent_admin'))
         item['email_sent_user'] = bool(item.get('email_sent_user'))
+        item['is_contract'] = bool(item.get('is_contract'))
         if (item.get('request_type') or '').lower() == 'service':
             item['amount_due'] = normalize_price_value(item.get('amount_due'))
             item['payment_type'] = normalize_stored_payment_type(item.get('payment_type'))

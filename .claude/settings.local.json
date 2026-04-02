@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(python -c \":*)",
-      "Bash(grep -iv \"comment\\\\|//\")"
+      "Bash(grep -iv \"comment\\\\|//\")",
+      "Bash(awk 'NR>=150 && NR<=180')",
+      "Bash(awk 'NR>=100 && NR<=150')",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''app.py''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''app.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")"
     ]
   }
 }
