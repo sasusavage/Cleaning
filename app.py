@@ -11914,12 +11914,19 @@ def services_page():
     except Exception:
         app.logger.exception('Error fetching site settings for services page')
 
+    footer_info = {}
+    try:
+        footer_info = fetch_footer_info() or {}
+    except Exception:
+        app.logger.exception('Error fetching footer info for services page')
+
     return render_template(
         'services.html',
         services=services,
         one_time_services=one_time_services,
         contract_services=contract_services,
-        site_settings=site_settings
+        site_settings=site_settings,
+        footer_info=footer_info
     )
 
 
@@ -11948,11 +11955,18 @@ def service_detail_page(service_id):
     except Exception:
         app.logger.exception('Error fetching domestic flow data for service detail page')
 
+    footer_info = {}
+    try:
+        footer_info = fetch_footer_info() or {}
+    except Exception:
+        app.logger.exception('Error fetching footer info for service detail page')
+
     return render_template(
         'service_detail.html',
         service=service,
         site_settings=site_settings,
-        domestic_cleaning=domestic_cleaning
+        domestic_cleaning=domestic_cleaning,
+        footer_info=footer_info
     )
 
 

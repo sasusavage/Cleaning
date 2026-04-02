@@ -22,6 +22,9 @@
     <div class="shell" id="top">
         <nav class="nav is-sticky">
             <div class="nav__rail">
+                {% set _fp = footer_info.phone if footer_info and footer_info.phone else '' %}
+                {% set _fe = footer_info.email if footer_info and footer_info.email else '' %}
+                {% set _fph = _fp | replace(' ', '') | replace('-', '') | replace('(', '') | replace(')', '') %}
                 <a class="nav__item nav__item--brand" href="{{ url_for('index') }}#top" title="{{ company_name }}">
                     {% if company_logo_url %}
                     <img class="nav__brand-logo" src="{{ company_logo_url }}" alt="{{ company_name }} logo">
@@ -32,6 +35,23 @@
                     <a class="nav__item" href="{{ url_for('index') }}#services"><span class="nav__label">Book Service</span></a>
                     <a class="nav__item" href="{{ url_for('index') }}#reviews"><span class="nav__label">Contact</span></a>
                 </div>
+                {% if _fp or _fe %}
+                <div class="nav__contact">
+                    {% if _fp %}
+                    <a class="nav__contact-item" href="tel:{{ _fph }}">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8a19.79 19.79 0 01-3.07-8.68A2 2 0 012 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+                        {{ _fp }}
+                    </a>
+                    {% endif %}
+                    {% if _fp and _fe %}<span class="nav__contact-sep">·</span>{% endif %}
+                    {% if _fe %}
+                    <a class="nav__contact-item" href="mailto:{{ _fe }}">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        {{ _fe }}
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
                 <button class="nav__toggle" aria-expanded="false" aria-label="Toggle navigation">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
