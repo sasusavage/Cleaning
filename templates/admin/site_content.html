@@ -379,26 +379,48 @@
             <div class="logo">{{ company_name }} Admin</div>
             <button type="button" class="sidebar__toggle" aria-expanded="false" aria-controls="sidebar-nav">Menu</button>
         </div>
-        <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#analytics">Analytics</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">Requests</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">Services</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">Travel Pricing</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">Job Positions</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">Testimonials</a>
-            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">Hero Content</a>
-            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">Brand &amp; Logo</a>
-            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">Quote &amp; Contact</a>
-            <a class="nav-link active" href="{{ url_for('admin_site_content_page') }}">Site Content</a>
-            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">FAQs</a>
-            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">Policies</a>
-            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">Domestic Cleaning</a>
-            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">Footer Settings</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">Email Settings</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">Payments</a>
-            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">Telegram</a>
-            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">AI Assistant</a>
-            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">Chat Conversations</a>
+                <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
+
+            <!-- Operations -->
+            <span class="nav-group__label">Operations</span>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">📊 Analytics</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">📋 Requests</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#contracts">📄 Contracts</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">💳 Payments</a>
+
+            <hr class="nav-divider">
+
+            <!-- Services -->
+            <span class="nav-group__label">Services</span>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">🛠 Service Management</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">🚗 Travel Pricing</a>
+            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">🏠 Domestic Cleaning</a>
+
+            <hr class="nav-divider">
+
+            <!-- Content -->
+            <span class="nav-group__label">Content</span>
+            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">🖼 Hero Content</a>
+            <a class="nav-link active" href="{{ url_for('admin_site_content_page') }}">✏️ Site Content</a>
+            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
+            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">⭐ Testimonials</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">💼 Job Positions</a>
+
+            <hr class="nav-divider">
+
+            <!-- Settings -->
+            <span class="nav-group__label">Settings</span>
+            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">🎨 Brand &amp; Logo</a>
+            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">💬 Quote &amp; Contact</a>
+            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">🔗 Footer</a>
+            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">📧 Email Settings</a>
+            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">✈️ Telegram</a>
+            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">🤖 AI Assistant</a>
+            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">💬 Chat Conversations</a>
+
+            <hr class="nav-divider">
+
             <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
                 <button type="submit" class="sidebar__logout-button">Log Out</button>
             </form>
@@ -898,19 +920,15 @@
                 office_addresses: {
                     london: {
                         name: document.getElementById('office_london_name').value.trim(),
-                        address: document.getElementById('office_london_address').value.trim()
-                    },
+                        address: document.getElementById('office_london_address').value.trim() }},
                     stevenage: {
                         name: document.getElementById('office_stevenage_name').value.trim(),
-                        address: document.getElementById('office_stevenage_address').value.trim()
-                    }
-                },
+                        address: document.getElementById('office_stevenage_address').value.trim() }},
                 contact_info: {
                     email: document.getElementById('contact_email').value.trim(),
                     phone: document.getElementById('contact_phone').value.trim(),
                     phone_alt: document.getElementById('contact_phone_alt').value.trim(),
-                    whatsapp: document.getElementById('contact_whatsapp').value.trim()
-                },
+                    whatsapp: document.getElementById('contact_whatsapp').value.trim() }},
                 // Homepage section headings
                 services_eyebrow: document.getElementById('services_eyebrow').value.trim(),
                 services_section_title: document.getElementById('services_section_title').value.trim(),
@@ -931,15 +949,13 @@
                 faqs_title: document.getElementById('faqs_title').value.trim(),
                 faqs_subtitle: document.getElementById('faqs_subtitle').value.trim(),
                 reviews_eyebrow: document.getElementById('reviews_eyebrow').value.trim(),
-                reviews_title: document.getElementById('reviews_title').value.trim()
-            };
+                reviews_title: document.getElementById('reviews_title').value.trim() }};
 
             try {
                 const res = await fetch('/admin/api/site-content', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+                    body: JSON.stringify(payload) }});
                 const data = await res.json();
                 if (res.ok) {
                     showToast(data.message || 'Site content saved successfully!', 'success');

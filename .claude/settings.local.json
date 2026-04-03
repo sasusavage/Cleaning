@@ -6,7 +6,9 @@
       "Bash(awk 'NR>=150 && NR<=180')",
       "Bash(awk 'NR>=100 && NR<=150')",
       "Bash(python -c \"import ast; ast.parse\\(open\\(''app.py''\\).read\\(\\)\\); print\\(''OK''\\)\")",
-      "Bash(python -c \"import ast; ast.parse\\(open\\(''app.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''app.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(python -:*)",
+      "Bash(head -5 grep -n \"url_for\\(''''admin_logout''''\\)\\\\|url_for\\(''''admin_dashboard''''\\)\" c:/Users/DeLL/OneDrive/Documents/Cleaning/templates/admin/hero_content.html)"
     ]
   }
 }
