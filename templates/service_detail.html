@@ -537,7 +537,12 @@
                         document.querySelectorAll('[data-contract-book]').forEach(function (link) {
                             var base = link.getAttribute('href') || '';
                             if (!base) return;
-                            link.setAttribute('href', base + (base.indexOf('?') === -1 ? '?' : '&') + 'service_day=' + encodeURIComponent(todayName));
+                            var hashIndex = base.indexOf('#');
+                            var hash = hashIndex >= 0 ? base.slice(hashIndex) : '';
+                            var pathAndQuery = hashIndex >= 0 ? base.slice(0, hashIndex) : base;
+                            var separator = pathAndQuery.indexOf('?') === -1 ? '?' : '&';
+                            var nextHref = pathAndQuery + separator + 'service_day=' + encodeURIComponent(todayName) + hash;
+                            link.setAttribute('href', nextHref);
                         });
                     })();
                 </script>
