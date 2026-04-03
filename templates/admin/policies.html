@@ -919,13 +919,13 @@
                         </svg>
                     </div>
                     <div class="policy-icon-preview">
-                        ${getIconSvg(policy.icon) }}
+                        ${getIconSvg(policy.icon)}
                     </div>
                     <div class="policy-content">
                         <h3 class="policy-title">
-                            ${escapeHtml(policy.title) }}
+                            ${escapeHtml(policy.title)}
                         </h3>
-                        <p class="policy-description">${escapeHtml(policy.description) }}</p>
+                        <p class="policy-description">${escapeHtml(policy.description)}</p>
                         <div class="policy-meta">
                             <span class="badge ${policy.is_active ? 'badge-success' : 'badge-warning'}">
                                 ${policy.is_active ? 'Active' : 'Inactive'}
@@ -940,7 +940,7 @@
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                             </svg>
                         </button>
-                        <button class="icon-btn danger" title="Delete" onclick="confirmDelete(${policy.id}, '${escapeHtml(policy.title) }}')">
+                        <button class="icon-btn danger" title="Delete" onclick="confirmDelete(${policy.id}, '${escapeHtml(policy.title)}')">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="3 6 5 6 21 6"></polyline>
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -1009,12 +1009,12 @@
                     response = await fetch(`/admin/api/policies/${editingId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload) }});
+                        body: JSON.stringify(payload) });
                 } else {
                     response = await fetch('/admin/api/policies', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload) }});
+                        body: JSON.stringify(payload) });
                 }
 
                 if (response.ok) {
@@ -1117,7 +1117,7 @@
                 await fetch('/admin/api/policies/reorder', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ order }) }});
+                    body: JSON.stringify({ order }) });
                 loadPolicies();
             } catch (error) {
                 console.error('Reorder error:', error);

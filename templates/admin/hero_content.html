@@ -1390,7 +1390,7 @@
             fetch('/admin/api/homepage-sections/reorder', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ section_keys: sectionKeys }) }})
+                body: JSON.stringify({ section_keys: sectionKeys }) })
             .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
             .then(({ ok, data }) => {
                 if (!ok) {
@@ -1449,7 +1449,7 @@
             const scale = Math.min(1, availableWidth / STAGE_DESIGN_WIDTH);
             const stageH = previewStage.offsetHeight || 620;
             stageWrap.style.setProperty('--stage-scale', scale);
-            stageWrap.style.height = `${Math.round(stageH * scale) }}px`;
+            stageWrap.style.height = `${Math.round(stageH * scale)}px`;
             previewStage.style.transform = `scale(${scale})`;
         }
 
@@ -1589,7 +1589,7 @@
                 title.style.color = titleColor.value;
             }
             if (title && titleSize) {
-                title.style.fontSize = `${clamp(titleSize.value, 34, 84) }}px`;
+                title.style.fontSize = `${clamp(titleSize.value, 34, 84)}px`;
             }
             if (title && titleWeight) {
                 title.style.fontWeight = String(clamp(titleWeight.value, 400, 900));
@@ -1598,7 +1598,7 @@
                 subtitle.style.color = subtitleColor.value;
             }
             if (subtitle && subtitleSize) {
-                subtitle.style.fontSize = `${clamp(subtitleSize.value, 14, 24) }}px`;
+                subtitle.style.fontSize = `${clamp(subtitleSize.value, 14, 24)}px`;
             }
             if (subtitle && subtitleWeight) {
                 subtitle.style.fontWeight = String(clamp(subtitleWeight.value, 300, 900));
@@ -1683,7 +1683,7 @@
                 const nextY = clamp(contentOffsetY.value, -220, 220);
                 contentOffsetX.value = String(Math.round(nextX));
                 contentOffsetY.value = String(Math.round(nextY));
-                previewContentCol.style.transform = `translate(${Math.round(nextX) }}px, ${Math.round(nextY) }}px)`;
+                previewContentCol.style.transform = `translate(${Math.round(nextX)}px, ${Math.round(nextY)}px)`;
             }
 
             if (contentOffsetX) {

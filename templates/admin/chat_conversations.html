@@ -738,7 +738,7 @@
                             <div class="conversation-item__content">
                                 <div class="conversation-item__header">
                                     <span class="conversation-item__id">${s.visitor_name || 'Visitor'}</span>
-                                    <span class="conversation-item__time">${formatDate(s.last_message_at) }}</span>
+                                    <span class="conversation-item__time">${formatDate(s.last_message_at)}</span>
                                 </div>
                                 <div class="conversation-item__preview">${s.first_message || 'No messages'}</div>
                                 <div class="conversation-item__meta">
@@ -777,7 +777,7 @@
                     viewer.classList.add('active');
 
                     document.getElementById('viewerSessionId').textContent = data.session.visitor_name || 'Visitor';
-                    document.getElementById('viewerMeta').textContent = `IP: ${data.session.visitor_ip || 'Unknown'} • Started: ${formatDate(data.session.started_at) }}`;
+                    document.getElementById('viewerMeta').textContent = `IP: ${data.session.visitor_ip || 'Unknown'} • Started: ${formatDate(data.session.started_at)}`;
                     document.getElementById('viewerStatus').textContent = data.session.is_resolved ? 'Resolved' : 'Open';
                     document.getElementById('viewerStatus').className = 'badge ' + (data.session.is_resolved ? 'badge--success' : 'badge--warning');
 
@@ -793,8 +793,8 @@
                             <div class="chat-msg chat-msg--${roleClass}">
                                 <div class="chat-msg__avatar">${avatar}</div>
                                 <div>
-                                    <div class="chat-msg__bubble">${formatMessageContent(m.content) }}</div>
-                                    <div class="chat-msg__time">${formatDate(m.created_at) }}</div>
+                                    <div class="chat-msg__bubble">${formatMessageContent(m.content)}</div>
+                                    <div class="chat-msg__time">${formatDate(m.created_at)}</div>
                                 </div>
                             </div>
                         `;
@@ -824,7 +824,7 @@
             fetch('/admin/api/chat/conversations/' + currentSessionId + '/resolve', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ is_resolved: !isResolved }) }})
+                body: JSON.stringify({ is_resolved: !isResolved }) })
             .then(r => r.json())
             .then(() => {
                 showToast(isResolved ? 'Conversation reopened' : 'Conversation marked as resolved', 'success');
@@ -866,7 +866,7 @@
             fetch('/admin/api/chat/conversations/' + currentSessionId + '/message', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message }) }})
+                body: JSON.stringify({ message }) })
             .then(r => r.json().then(data => ({ ok: r.ok, data })))
             .then(result => {
                 if (!result.ok) {
@@ -936,7 +936,7 @@
                     contact_phone: document.getElementById('contactPhone').value,
                     whatsapp_number: document.getElementById('whatsappNumber').value,
                     is_enabled: true
-                }) }})
+                }) })
             .then(r => r.json())
             .then(() => showToast('Persona settings saved!', 'success'));
         });
@@ -954,12 +954,12 @@
                     list.innerHTML = data.map(e => `
                         <div class="kb-item">
                             <div class="kb-item__content">
-                                <div class="kb-item__title">${escapeHtml(e.title) }}</div>
-                                <div class="kb-item__text">${escapeHtml(e.content.substring(0, 150)) }}...</div>
+                                <div class="kb-item__title">${escapeHtml(e.title)}</div>
+                                <div class="kb-item__text">${escapeHtml(e.content.substring(0, 150))}...</div>
                                 <span class="badge badge--info" style="margin-top: 0.5rem;">${e.category}</span>
                             </div>
                             <div class="kb-item__actions">
-                                <button class="btn" onclick="editKnowledge(${e.id}, '${escapeHtml(e.title) }}', '${escapeHtml(e.content) }}', '${e.category}', '${e.keywords || ''}')">Edit</button>
+                                <button class="btn" onclick="editKnowledge(${e.id}, '${escapeHtml(e.title)}', '${escapeHtml(e.content)}', '${e.category}', '${e.keywords || ''}')">Edit</button>
                                 <button class="btn btn--danger" onclick="deleteKnowledge(${e.id})">Delete</button>
                             </div>
                         </div>
@@ -1012,7 +1012,7 @@
                     category: document.getElementById('kbCategory').value,
                     keywords: document.getElementById('kbKeywords').value,
                     is_active: true
-                }) }})
+                }) })
             .then(r => r.json())
             .then(() => {
                 showToast('Entry saved!', 'success');

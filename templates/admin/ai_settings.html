@@ -698,7 +698,7 @@
                 const res = await fetch('/admin/api/ai/settings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload) }});
+                    body: JSON.stringify(payload) });
                 const data = await res.json();
 
                 if (data.success) {
@@ -756,7 +756,7 @@
                 const res = await fetch('/admin/api/ai/query', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: query }) }});
+                    body: JSON.stringify({ message: query }) });
                 const data = await res.json();
 
                 if (data.success) {
@@ -830,7 +830,7 @@
                 const res = await fetch('/admin/api/telegram/set-webhook', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ base_url: baseUrl }) }});
+                    body: JSON.stringify({ base_url: baseUrl }) });
                 const data = await res.json();
                 
                 if (data.success) {
