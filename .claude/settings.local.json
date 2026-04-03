@@ -8,7 +8,11 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\(''app.py''\\).read\\(\\)\\); print\\(''OK''\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\(''app.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")",
       "Bash(python -:*)",
-      "Bash(head -5 grep -n \"url_for\\(''''admin_logout''''\\)\\\\|url_for\\(''''admin_dashboard''''\\)\" c:/Users/DeLL/OneDrive/Documents/Cleaning/templates/admin/hero_content.html)"
+      "Bash(head -5 grep -n \"url_for\\(''''admin_logout''''\\)\\\\|url_for\\(''''admin_dashboard''''\\)\" c:/Users/DeLL/OneDrive/Documents/Cleaning/templates/admin/hero_content.html)",
+      "Bash(grep -n \"async function load\\\\|fetch\\(''''/admin\\\\|fetch\\(\\\\`/admin\" c:/Users/DeLL/OneDrive/Documents/Cleaning/templates/admin/dashboard.html)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''app.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")",
+      "Bash(py -c \":*)",
+      "Bash(py -m py_compile app.py)"
     ]
   }
 }
