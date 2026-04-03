@@ -2210,7 +2210,6 @@ def ensure_travel_tables():
     global _done_ensure_travel_tables
     if _done_ensure_travel_tables:
         return
-    _done_ensure_travel_tables = True
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -2622,6 +2621,7 @@ def ensure_travel_tables():
 
     try:
         conn.commit()
+        _done_ensure_travel_tables = True
     finally:
         try:
             cursor.close()
@@ -2638,7 +2638,6 @@ def ensure_faq_table():
     global _done_ensure_faq_table
     if _done_ensure_faq_table:
         return
-    _done_ensure_faq_table = True
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -2673,6 +2672,7 @@ def ensure_faq_table():
     conn.commit()
     cursor.close()
     conn.close()
+    _done_ensure_faq_table = True
 
 
 DEFAULT_HOME_PAGE_SECTIONS = [
@@ -2697,7 +2697,6 @@ def ensure_home_page_sections_table():
     global _done_ensure_home_page_sections_table
     if _done_ensure_home_page_sections_table:
         return
-    _done_ensure_home_page_sections_table = True
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -2745,6 +2744,7 @@ def ensure_home_page_sections_table():
     conn.commit()
     cursor.close()
     conn.close()
+    _done_ensure_home_page_sections_table = True
 
 
 def fetch_home_page_sections():
@@ -2803,7 +2803,6 @@ def ensure_policy_table():
     global _done_ensure_policy_table
     if _done_ensure_policy_table:
         return
-    _done_ensure_policy_table = True
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -2862,6 +2861,7 @@ def ensure_policy_table():
     conn.commit()
     cursor.close()
     conn.close()
+    _done_ensure_policy_table = True
 
 
 def fetch_policies_from_db(include_inactive=False):
@@ -2898,7 +2898,6 @@ def ensure_domestic_cleaning_tables():
     global _done_ensure_domestic_cleaning_tables
     if _done_ensure_domestic_cleaning_tables:
         return
-    _done_ensure_domestic_cleaning_tables = True
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -3050,6 +3049,7 @@ def ensure_domestic_cleaning_tables():
     conn.commit()
     cursor.close()
     conn.close()
+    _done_ensure_domestic_cleaning_tables = True
 
 
 def fetch_domestic_cleaning_data(include_inactive=False):
@@ -3280,7 +3280,6 @@ def ensure_residential_contract_service():
     global _done_ensure_residential_contract_service
     if _done_ensure_residential_contract_service:
         return
-    _done_ensure_residential_contract_service = True
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -3340,6 +3339,7 @@ def ensure_residential_contract_service():
     finally:
         cursor.close()
         conn.close()
+    _done_ensure_residential_contract_service = True
 
 
 def _default_domestic_room_cards_seed():
@@ -3602,7 +3602,6 @@ def ensure_chat_tables():
     global _done_ensure_chat_tables
     if _done_ensure_chat_tables:
         return
-    _done_ensure_chat_tables = True
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -3768,6 +3767,7 @@ def ensure_chat_tables():
     conn.commit()
     cursor.close()
     conn.close()
+    _done_ensure_chat_tables = True
 
 
 def fetch_travel_settings():
@@ -3902,7 +3902,6 @@ def ensure_payment_tables():
     global _done_ensure_payment_tables
     if _done_ensure_payment_tables:
         return
-    _done_ensure_payment_tables = True
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -4015,6 +4014,7 @@ def ensure_payment_tables():
     conn.commit()
     cursor.close()
     conn.close()
+    _done_ensure_payment_tables = True
 
 
 def fetch_payment_settings():
@@ -5934,7 +5934,6 @@ def ensure_hero_content_schema():
     global _done_ensure_hero_content_schema
     if _done_ensure_hero_content_schema:
         return
-    _done_ensure_hero_content_schema = True
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -6098,6 +6097,7 @@ def ensure_hero_content_schema():
     conn.commit()
     cursor.close()
     conn.close()
+    _done_ensure_hero_content_schema = True
 
 
 def fetch_hero_badges(include_inactive=False):
@@ -6168,8 +6168,46 @@ def fetch_footer_info():
     return footer
 
 
+_done_ensure_site_content_table = False
+
+
+def ensure_site_content_table():
+    """Create site_content table if it doesn't exist."""
+    global _done_ensure_site_content_table
+    if _done_ensure_site_content_table:
+        return
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    if 'postgres' in engine:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS site_content (
+                section_key VARCHAR(100) PRIMARY KEY,
+                content_text TEXT,
+                content_json TEXT,
+                is_active BOOLEAN DEFAULT TRUE,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+    else:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS site_content (
+                section_key VARCHAR(100) PRIMARY KEY,
+                content_text TEXT,
+                content_json TEXT,
+                is_active TINYINT(1) DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
+    conn.commit()
+    cursor.close()
+    conn.close()
+    _done_ensure_site_content_table = True
+
+
 def fetch_site_content():
     """Fetch all site content sections as a dictionary keyed by section_key."""
+    ensure_site_content_table()
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -9233,6 +9271,8 @@ def analytics_summary():
 @app.route('/admin/api/requests', methods=['GET'])
 @admin_login_required
 def admin_list_requests():
+    ensure_travel_tables()
+    ensure_faq_table()
     status_filter = (request.args.get('status') or '').strip().lower()
     request_type_filter = (request.args.get('request_type') or '').strip().lower()
     limit_param = request.args.get('limit', '100')
@@ -9301,6 +9341,7 @@ def admin_list_requests():
 @app.route('/admin/api/requests/grouped', methods=['GET'])
 @admin_login_required
 def admin_list_requests_grouped():
+    ensure_travel_tables()
     request_type_filter = (request.args.get('request_type') or '').strip().lower()
     limit_param = request.args.get('limit', '200')
 
@@ -9802,6 +9843,7 @@ def admin_site_content_api():
                 UPDATE site_content
                 SET content_text=%s,
                     content_json=%s,
+                    is_active=TRUE,
                     updated_at=CURRENT_TIMESTAMP
                 WHERE section_key=%s
                 """,
@@ -9810,8 +9852,8 @@ def admin_site_content_api():
             if cursor.rowcount == 0:
                 cursor.execute(
                     """
-                    INSERT INTO site_content (section_key, content_text, content_json)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO site_content (section_key, content_text, content_json, is_active)
+                    VALUES (%s, %s, %s, TRUE)
                     """,
                     (section_key, content_text, content_json)
                 )
@@ -9879,8 +9921,8 @@ def admin_team_photo_api():
             if cursor.rowcount == 0:
                 cursor.execute(
                     """
-                    INSERT INTO site_content (section_key, content_text)
-                    VALUES ('team_photo', %s)
+                    INSERT INTO site_content (section_key, content_text, is_active)
+                    VALUES ('team_photo', %s, TRUE)
                     """,
                     (new_path,)
                 )
