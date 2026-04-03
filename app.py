@@ -2202,8 +2202,15 @@ def haversine_distance_miles(lat1, lon1, lat2, lon2):
     return radius_miles * c
 
 
+_done_ensure_travel_tables = False
+
+
 def ensure_travel_tables():
     """Create/upgrade travel settings and operating bases for multi-base pricing."""
+    global _done_ensure_travel_tables
+    if _done_ensure_travel_tables:
+        return
+    _done_ensure_travel_tables = True
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -2623,8 +2630,15 @@ def ensure_travel_tables():
         conn.close()
 
 
+_done_ensure_faq_table = False
+
+
 def ensure_faq_table():
     """Create FAQs table if it doesn't exist."""
+    global _done_ensure_faq_table
+    if _done_ensure_faq_table:
+        return
+    _done_ensure_faq_table = True
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -2675,8 +2689,15 @@ DEFAULT_HOME_PAGE_SECTIONS = [
 ]
 
 
+_done_ensure_home_page_sections_table = False
+
+
 def ensure_home_page_sections_table():
     """Create homepage section ordering table and seed defaults."""
+    global _done_ensure_home_page_sections_table
+    if _done_ensure_home_page_sections_table:
+        return
+    _done_ensure_home_page_sections_table = True
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -2774,8 +2795,15 @@ def save_home_page_section_order(section_keys):
     return fetch_home_page_sections()
 
 
+_done_ensure_policy_table = False
+
+
 def ensure_policy_table():
     """Create policies table if it doesn't exist."""
+    global _done_ensure_policy_table
+    if _done_ensure_policy_table:
+        return
+    _done_ensure_policy_table = True
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -2862,8 +2890,15 @@ def fetch_policies_from_db(include_inactive=False):
     return policies
 
 
+_done_ensure_domestic_cleaning_tables = False
+
+
 def ensure_domestic_cleaning_tables():
     """Create and seed domestic cleaning section tables."""
+    global _done_ensure_domestic_cleaning_tables
+    if _done_ensure_domestic_cleaning_tables:
+        return
+    _done_ensure_domestic_cleaning_tables = True
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -3237,8 +3272,15 @@ def migrate_domestic_to_services():
     app.logger.info('Successfully migrated domestic cleaning data to service id=%s and dropped legacy tables.', new_service_id)
 
 
+_done_ensure_residential_contract_service = False
+
+
 def ensure_residential_contract_service():
     """Guarantee a dedicated Domestic Cleaning contract service exists."""
+    global _done_ensure_residential_contract_service
+    if _done_ensure_residential_contract_service:
+        return
+    _done_ensure_residential_contract_service = True
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -3552,8 +3594,15 @@ def get_domestic_service_record(create_if_missing=True):
     return service
 
 
+_done_ensure_chat_tables = False
+
+
 def ensure_chat_tables():
     """Create tables for public AI chat widget - sessions, messages, and persona settings."""
+    global _done_ensure_chat_tables
+    if _done_ensure_chat_tables:
+        return
+    _done_ensure_chat_tables = True
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -3846,7 +3895,14 @@ def stripe_ready():
     return bool(stripe and stripe_secret_key_valid())
 
 
+_done_ensure_payment_tables = False
+
+
 def ensure_payment_tables():
+    global _done_ensure_payment_tables
+    if _done_ensure_payment_tables:
+        return
+    _done_ensure_payment_tables = True
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -5871,7 +5927,14 @@ def fetch_hero_content():
     return merged
 
 
+_done_ensure_hero_content_schema = False
+
+
 def ensure_hero_content_schema():
+    global _done_ensure_hero_content_schema
+    if _done_ensure_hero_content_schema:
+        return
+    _done_ensure_hero_content_schema = True
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
@@ -7476,6 +7539,7 @@ def delete_service_option(service_id, option_id):
         return jsonify({'error': 'Option not found.'}), 404
     conn.commit()
     cursor.close()
+    conn.close()
     return jsonify({'message': 'Option deleted.'})
 
 
