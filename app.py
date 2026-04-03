@@ -171,17 +171,19 @@ ATTACHMENT_EXTENSIONS = IMAGE_EXTENSIONS | {'pdf', 'doc', 'docx'}
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024  # 10 MB
 FERNET_PREFIX = 'fernet::'
 BASE64_PREFIX = 'base64::'
-REQUEST_STATUSES = {'pending', 'in_progress', 'completed', 'cancelled', 'survey_needed'}
+REQUEST_STATUSES = {'pending', 'in_progress', 'completed', 'cancelled', 'survey_needed', 'draft'}
 REQUEST_STATUS_LABELS = {
     'pending': 'Pending',
     'in_progress': 'In Progress',
     'completed': 'Completed',
     'cancelled': 'Cancelled',
-    'survey_needed': 'Survey Needed'
+    'survey_needed': 'Survey Needed',
+    'draft': 'Draft'
 }
 PREBOOK_DISCOUNT_PERCENT = 10
 PAYMENT_OPTION_PREBOOK = 'prebook_save'
 PAYMENT_OPTION_IN_PERSON = 'pay_in_person'
+STRIPE_PENDING_TO_DRAFT_MINUTES = 10
 
 TRAVEL_CACHE_TTL_SECONDS = 15 * 60
 SESSION_TRAVEL_CACHE_TTL_SECONDS = 10 * 60
@@ -6563,6 +6565,13 @@ class TelegramErrorLogHandler(logging.Handler):
             if not message:
                 return
 
+            suppressed_fragments = (
+                'Invalid Stripe webhook signature',
+                'Exception on /api/payments/stripe/webhook'
+            )
+            if any(fragment in message for fragment in suppressed_fragments):
+                return
+
             fingerprint_source = f"{record.name}|{record.levelno}|{message}"
             fingerprint = hashlib.sha256(fingerprint_source.encode('utf-8', errors='ignore')).hexdigest()
             now = time.time()
@@ -6983,13 +6992,85 @@ def prepare_service_booking(payload):
 
 def finalize_prepared_service_booking(prepared, remote_addr=None, mark_paid=False):
     prepared = prepared or {}
-    submission = process_request_submission(
-        prepared.get('public_payload') or {},
-        uploaded_files=None,
-        remote_addr=remote_addr,
-        extra_metadata={'service_flow': prepared.get('service_metadata') or {}},
-        status_override='survey_needed' if prepared.get('has_survey_request') else None
-    )
+    existing_request_id = prepared.get('existing_request_id')
+
+    if existing_request_id:
+        clean_payload = prepare_request_payload(prepared.get('public_payload') or {}, remote_addr)
+        metadata = clean_payload.get('metadata') or {}
+        metadata.update({'service_flow': prepared.get('service_metadata') or {}})
+        clean_payload['metadata'] = metadata
+        status_value = 'survey_needed' if prepared.get('has_survey_request') else 'pending'
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE requests
+            SET request_type=%s,
+                name=%s,
+                email=%s,
+                phone=%s,
+                subject=%s,
+                service_name=%s,
+                job_position=%s,
+                context_page=%s,
+                status=%s,
+                source=%s,
+                message=%s,
+                metadata=%s,
+                updated_at=CURRENT_TIMESTAMP
+            WHERE id=%s
+            """,
+            (
+                clean_payload.get('request_type'),
+                clean_payload.get('name'),
+                clean_payload.get('email') or None,
+                clean_payload.get('phone') or None,
+                clean_payload.get('subject') or None,
+                clean_payload.get('service_name') or None,
+                clean_payload.get('job_position') or None,
+                clean_payload.get('context_page') or None,
+                status_value,
+                'stripe_checkout_paid',
+                clean_payload.get('message') or None,
+                json.dumps(clean_payload.get('metadata') or {}),
+                existing_request_id
+            )
+        )
+        conn.commit()
+        cursor.close()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM requests WHERE id = %s", (existing_request_id,))
+        request_record = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        if not request_record:
+            raise ValueError('Unable to load provisional request for Stripe finalization.')
+
+        queue_request_notifications(request_record, [])
+        log_analytics_event('request_submission', {
+            'request_type': clean_payload.get('request_type'),
+            'source': 'stripe_checkout_paid',
+            'service_name': clean_payload.get('service_name'),
+            'job_position': clean_payload.get('job_position')
+        })
+
+        submission = {
+            'message': 'Your request has been received.',
+            'request_id': request_record.get('id'),
+            'reference': request_record.get('ref_id'),
+            'status': request_record.get('status'),
+            'emails': {'queued': True}
+        }
+    else:
+        submission = process_request_submission(
+            prepared.get('public_payload') or {},
+            uploaded_files=None,
+            remote_addr=remote_addr,
+            extra_metadata={'service_flow': prepared.get('service_metadata') or {}},
+            status_override='survey_needed' if prepared.get('has_survey_request') else None
+        )
 
     service_request_id = persist_service_request_bundle(
         prepared.get('customer_bundle') or {},
@@ -7036,6 +7117,94 @@ def finalize_prepared_service_booking(prepared, remote_addr=None, mark_paid=Fals
     return submission
 
 
+def create_stripe_pending_request(prepared, tx_id, remote_addr=None):
+    clean_payload = prepare_request_payload(prepared.get('public_payload') or {}, remote_addr)
+    clean_payload['source'] = 'stripe_checkout_pending'
+    metadata = clean_payload.get('metadata') or {}
+    metadata.update({
+        'service_flow': prepared.get('service_metadata') or {},
+        'stripe': {
+            'transaction_id': tx_id,
+            'status': 'checkout_pending'
+        }
+    })
+    clean_payload['metadata'] = metadata
+    request_record, _ = store_request(clean_payload, uploaded_files=None, status_override='pending')
+    return request_record
+
+
+def move_stale_stripe_pending_requests_to_draft(max_age_minutes=STRIPE_PENDING_TO_DRAFT_MINUTES, limit=100):
+    ensure_payment_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    if 'postgres' in engine:
+        cursor.execute(
+            """
+            SELECT tx.id AS tx_id, tx.request_id
+            FROM payment_transactions tx
+            JOIN requests r ON r.id = tx.request_id
+            WHERE tx.request_id IS NOT NULL
+              AND tx.status IN ('initiated', 'checkout_created')
+              AND r.status = 'pending'
+              AND r.source = 'stripe_checkout_pending'
+              AND tx.created_at <= NOW() - (%s * INTERVAL '1 minute')
+            ORDER BY tx.created_at ASC
+            LIMIT %s
+            """,
+            (max_age_minutes, max(1, int(limit)))
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT tx.id AS tx_id, tx.request_id
+            FROM payment_transactions tx
+            JOIN requests r ON r.id = tx.request_id
+            WHERE tx.request_id IS NOT NULL
+              AND tx.status IN ('initiated', 'checkout_created')
+              AND r.status = 'pending'
+              AND r.source = 'stripe_checkout_pending'
+              AND tx.created_at <= DATE_SUB(NOW(), INTERVAL %s MINUTE)
+            ORDER BY tx.created_at ASC
+            LIMIT %s
+            """,
+            (max_age_minutes, max(1, int(limit)))
+        )
+
+    stale_rows = cursor.fetchall() or []
+    if stale_rows:
+        writer = conn.cursor()
+        for row in stale_rows:
+            request_id = row.get('request_id')
+            tx_id = row.get('tx_id')
+            if request_id:
+                writer.execute(
+                    """
+                    UPDATE requests
+                    SET status = 'draft', updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s AND status = 'pending' AND source = 'stripe_checkout_pending'
+                    """,
+                    (request_id,)
+                )
+            if tx_id:
+                writer.execute(
+                    """
+                    UPDATE payment_transactions
+                    SET status = %s,
+                        error_message = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    """,
+                    ('stale_pending', 'Moved to draft after payment timeout window.', tx_id)
+                )
+        conn.commit()
+        writer.close()
+
+    cursor.close()
+    conn.close()
+
+
 @app.route('/api/service-requests', methods=['POST'])
 def create_service_request():
     payload = request.get_json(silent=True) or {}
@@ -7058,6 +7227,8 @@ def create_service_request():
 @app.route('/api/payments/start-checkout', methods=['POST'])
 def start_stripe_checkout():
     payload = request.get_json(silent=True) or {}
+    tx_id = None
+    pending_request = None
     try:
         prepared = prepare_service_booking(payload)
         payment_settings = fetch_payment_settings()
@@ -7110,6 +7281,13 @@ def start_stripe_checkout():
             request_payload=json.dumps(payload),
             prepared_payload=json.dumps(prepared, default=str)
         )
+
+        try:
+            pending_request = create_stripe_pending_request(prepared, tx_id, request.remote_addr)
+            if pending_request and pending_request.get('id'):
+                update_payment_transaction(tx_id, request_id=pending_request.get('id'))
+        except Exception:
+            app.logger.exception('Unable to create provisional request for Stripe transaction %s', tx_id)
         
         app.logger.info(f"start_stripe_checkout - Payment transaction created: tx_id={tx_id}")
 
@@ -7150,7 +7328,8 @@ def start_stripe_checkout():
         update_payment_transaction(
             tx_id,
             checkout_session_id=session_id_val,
-            status='checkout_created'
+            status='checkout_created',
+            request_id=(pending_request or {}).get('id')
         )
 
         return jsonify({
@@ -7158,6 +7337,8 @@ def start_stripe_checkout():
             'checkout_url': session_url_val,
             'session_id': session_id_val,
             'transaction_id': tx_id,
+            'request_id': (pending_request or {}).get('id'),
+            'reference': (pending_request or {}).get('ref_id'),
             'amount_total': payable_total,
             'original_amount': prepared.get('total_with_travel'),
             'discount_amount': prepared.get('prebook_discount_amount'),
@@ -7169,6 +7350,24 @@ def start_stripe_checkout():
     except Exception as exc:
         app.logger.error(f"start_stripe_checkout - Exception occurred: {type(exc).__name__}: {str(exc)}")
         app.logger.exception('start_stripe_checkout - Full traceback:')
+        if tx_id:
+            try:
+                update_payment_transaction(tx_id, status='checkout_failed', error_message=str(exc)[:1500])
+            except Exception:
+                pass
+        if pending_request and pending_request.get('id'):
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE requests SET status = 'draft', source = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                    ('stripe_checkout_failed', pending_request.get('id'))
+                )
+                conn.commit()
+                cursor.close()
+                conn.close()
+            except Exception:
+                pass
         return jsonify({'error': 'Unable to start payment right now.'}), 500
 
 
@@ -7213,6 +7412,9 @@ def process_completed_payment_session(session_obj):
         })
         service_metadata['payment'] = payment_meta
         prepared['service_metadata'] = service_metadata
+
+        if tx.get('request_id'):
+            prepared['existing_request_id'] = tx.get('request_id')
 
         submission = finalize_prepared_service_booking(prepared, remote_addr='stripe-webhook', mark_paid=True)
         update_payment_transaction(
@@ -7273,7 +7475,7 @@ def stripe_webhook_endpoint():
     try:
         event = stripe.Webhook.construct_event(payload, signature, signing_secret)
     except Exception:
-        app.logger.exception('Invalid Stripe webhook signature.')
+        app.logger.warning('Invalid Stripe webhook signature for /api/payments/stripe/webhook.')
         return jsonify({'error': 'Invalid signature'}), 400
 
     event_type = event.get('type')
@@ -9458,6 +9660,7 @@ def analytics_summary():
 def admin_list_requests():
     ensure_travel_tables()
     ensure_faq_table()
+    move_stale_stripe_pending_requests_to_draft()
     status_filter = (request.args.get('status') or '').strip().lower()
     request_type_filter = (request.args.get('request_type') or '').strip().lower()
     limit_param = request.args.get('limit', '100')
@@ -9527,6 +9730,7 @@ def admin_list_requests():
 @admin_login_required
 def admin_list_requests_grouped():
     ensure_travel_tables()
+    move_stale_stripe_pending_requests_to_draft()
     request_type_filter = (request.args.get('request_type') or '').strip().lower()
     limit_param = request.args.get('limit', '200')
 
@@ -9567,6 +9771,7 @@ def admin_list_requests_grouped():
     conn.close()
 
     grouped = {
+        'draft': [],
         'pending': [],
         'in_progress': [],
         'survey_needed': [],
@@ -9636,6 +9841,7 @@ def admin_list_requests_grouped():
     grouped['cancelled_by_month'] = list(monthly_maps['cancelled'].values())
 
     summary_counts = {
+        'draft': len(grouped['draft']),
         'pending': len(grouped['pending']),
         'in_progress': len(grouped['in_progress']),
         'survey_needed': len(grouped['survey_needed']),
@@ -9644,6 +9850,7 @@ def admin_list_requests_grouped():
     }
 
     response_payload = {
+        'draft': grouped['draft'],
         'pending': grouped['pending'],
         'in_progress': grouped['in_progress'],
         'survey_needed': grouped['survey_needed'],
@@ -12943,7 +13150,7 @@ def search_requests_for_telegram(query: str) -> str:
     
     lines = [f"🔍 <b>Search Results for '{query}'</b>\n"]
     for req in results:
-        status_emoji = {'pending': '⏳', 'in_progress': '🔄', 'completed': '✅', 'cancelled': '❌'}.get(req['status'], '📝')
+        status_emoji = {'draft': '🗂️', 'pending': '⏳', 'in_progress': '🔄', 'completed': '✅', 'cancelled': '❌'}.get(req['status'], '📝')
         lines.append(f"{status_emoji} <code>{req['ref_id']}</code> - {req['name']}\n   {req['request_type']} | {req['status']}")
     
     return "\n".join(lines)
@@ -12962,7 +13169,7 @@ def get_request_details_for_telegram(ref_id: str) -> str:
     if not req:
         return f"❌ Request not found: {ref_id}"
     
-    status_emoji = {'pending': '⏳', 'in_progress': '🔄', 'completed': '✅', 'cancelled': '❌', 'survey_needed': '📋'}.get(req['status'], '📝')
+    status_emoji = {'draft': '🗂️', 'pending': '⏳', 'in_progress': '🔄', 'completed': '✅', 'cancelled': '❌', 'survey_needed': '📋'}.get(req['status'], '📝')
     created = req['created_at'].strftime('%d/%m/%Y %H:%M') if req['created_at'] else 'N/A'
     
     return (
@@ -12981,7 +13188,7 @@ def get_request_details_for_telegram(ref_id: str) -> str:
 
 def update_request_for_telegram(ref_id: str, new_status: str) -> str:
     """Update request status via Telegram"""
-    valid_statuses = {'pending', 'in_progress', 'completed', 'cancelled', 'survey_needed'}
+    valid_statuses = {'draft', 'pending', 'in_progress', 'completed', 'cancelled', 'survey_needed'}
     
     if new_status not in valid_statuses:
         return f"❌ Invalid status: {new_status}\n\nValid: {', '.join(valid_statuses)}"
@@ -12996,7 +13203,7 @@ def update_request_for_telegram(ref_id: str, new_status: str) -> str:
     conn.close()
     
     if affected:
-        status_emoji = {'pending': '⏳', 'in_progress': '🔄', 'completed': '✅', 'cancelled': '❌', 'survey_needed': '📋'}.get(new_status, '📝')
+        status_emoji = {'draft': '🗂️', 'pending': '⏳', 'in_progress': '🔄', 'completed': '✅', 'cancelled': '❌', 'survey_needed': '📋'}.get(new_status, '📝')
         return f"✅ Updated!\n\n<code>{ref_id}</code> → {status_emoji} {new_status}"
     
     return f"❌ Request not found: {ref_id}"

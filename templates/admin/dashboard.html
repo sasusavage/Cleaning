@@ -684,6 +684,11 @@
             color: #991b1b;
         }
 
+        .status-pill--draft {
+            background: rgba(100, 116, 139, 0.2);
+            color: #334155;
+        }
+
         .empty-state {
             padding: 1.5rem;
             text-align: center;
@@ -766,6 +771,10 @@
 
         .request-overview__item--survey {
             border-top: 3px solid #dc2626;
+        }
+
+        .request-overview__item--draft {
+            border-top: 3px solid #64748b;
         }
 
         .request-overview__label {
@@ -931,6 +940,11 @@
         .requests-table .status-badge--survey_needed {
             background: #fee2e2;
             color: #991b1b;
+        }
+
+        .requests-table .status-badge--draft {
+            background: #e2e8f0;
+            color: #334155;
         }
 
         .requests-table .payment-badge {
@@ -1846,6 +1860,10 @@
             </div>
             <div class="card">
                 <div class="request-overview">
+                    <div class="request-overview__item request-overview__item--draft">
+                        <span class="request-overview__label">Draft</span>
+                        <span class="request-overview__value" id="requests-summary-draft">0</span>
+                    </div>
                     <div class="request-overview__item request-overview__item--survey">
                         <span class="request-overview__label">Survey Needed</span>
                         <span class="request-overview__value" id="requests-summary-survey_needed">0</span>
@@ -1888,6 +1906,33 @@
                     </div>
                 </div>
                 <div id="requests-empty" class="empty-state" hidden>No requests yet.</div>
+            </div>
+
+            <div class="card" style="margin-top: 1rem;">
+                <div style="padding: 1rem 1rem 0.5rem;">
+                    <h3 style="margin: 0; font-size: 1rem;">Draft Requests</h3>
+                    <p style="margin: 0.3rem 0 0; color: #6b7280; font-size: 0.85rem;">Unpaid Stripe checkouts moved out of active queue.</p>
+                </div>
+                <div class="requests-table-container">
+                    <div style="overflow-x: auto;">
+                        <table class="requests-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Client</th>
+                                    <th>Type</th>
+                                    <th>Service / Position</th>
+                                    <th>Status</th>
+                                    <th>Payment Status</th>
+                                    <th style="text-align: right;">Amount Due</th>
+                                    <th style="text-align: right;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="requests-draft-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="requests-draft-empty" class="empty-state">No draft requests.</div>
             </div>
         </div>
 
@@ -2682,6 +2727,7 @@
                     <label style="font-size: 0.85rem; color: #6b7280; display: flex; flex-direction: column; gap: 0.35rem;">
                         Update Status
                         <select id="request-status-update" style="padding: 0.4rem 0.6rem; border-radius: 0.4rem; border: 1px solid var(--border);">
+                            <option value="draft">Draft</option>
                             <option value="survey_needed">Survey Needed</option>
                             <option value="pending">Pending</option>
                             <option value="in_progress">In Progress</option>
@@ -3383,8 +3429,11 @@
         };
 
         const requestTableBody = document.getElementById('requests-table-body');
+        const requestDraftTableBody = document.getElementById('requests-draft-table-body');
+        const requestDraftEmptyState = document.getElementById('requests-draft-empty');
 
         const requestSummaryCounts = {
+            draft: document.getElementById('requests-summary-draft'),
             survey_needed: document.getElementById('requests-summary-survey_needed'),
             pending: document.getElementById('requests-summary-pending'),
             in_progress: document.getElementById('requests-summary-in_progress'),
@@ -3392,12 +3441,13 @@
             cancelled: document.getElementById('requests-summary-cancelled')
         };
 
-        const REQUEST_STATUS_ORDER = ['survey_needed', 'pending', 'in_progress', 'completed', 'cancelled'];
+        const REQUEST_STATUS_ORDER = ['draft', 'survey_needed', 'pending', 'in_progress', 'completed', 'cancelled'];
 
         let activeRequestId = null;
         let requestCache = {};
 
         const REQUEST_STATUS_LABELS = {
+            draft: 'Draft',
             survey_needed: 'Survey Needed',
             pending: 'Pending',
             in_progress: 'In Progress',
@@ -3406,6 +3456,7 @@
         };
 
         const REQUEST_STATUS_CLASSES = {
+            draft: 'status-pill status-pill--draft',
             survey_needed: 'status-pill status-pill--survey_needed',
             pending: 'status-pill status-pill--pending',
             in_progress: 'status-pill status-pill--in_progress',
@@ -3870,6 +3921,7 @@
 
             // Collect all requests from different groups
             const allRequests = [];
+            const draftList = Array.isArray(groups.draft) ? groups.draft : [];
             
             // Survey needed
             const surveyList = Array.isArray(groups.survey_needed) ? groups.survey_needed : [];
@@ -3903,6 +3955,11 @@
                 const dateB = new Date(b.created_at || 0);
                 return dateB - dateA;
             });
+            draftList.sort((a, b) => {
+                const dateA = new Date(a.created_at || 0);
+                const dateB = new Date(b.created_at || 0);
+                return dateB - dateA;
+            });
 
             // Client-side contract filter
             const activeTypeFilter = (requestTypeFilter && requestTypeFilter.value) || '';
@@ -3921,8 +3978,20 @@
                 requestTableBody.innerHTML = displayRequests.map(createRequestTableRow).join('');
             }
 
+            if (requestDraftTableBody) {
+                if (draftList.length === 0) {
+                    requestDraftTableBody.innerHTML = '';
+                } else {
+                    requestDraftTableBody.innerHTML = draftList.map(createRequestTableRow).join('');
+                }
+            }
+            if (requestDraftEmptyState) {
+                requestDraftEmptyState.hidden = draftList.length > 0;
+            }
+
             // Update summary counts
             const counts = {
+                draft: draftList.length,
                 survey_needed: surveyList.length,
                 pending: pendingList.length,
                 in_progress: inProgressList.length,
@@ -3967,7 +4036,30 @@
                 });
             });
 
+            document.querySelectorAll('#requests-draft-table-body [data-view-request]').forEach(button => {
+                button.addEventListener('click', event => {
+                    const requestId = Number(button.getAttribute('data-view-request'));
+                    if (!Number.isNaN(requestId)) {
+                        event.stopPropagation();
+                        showRequestDetail(requestId);
+                    }
+                });
+            });
+
             document.querySelectorAll('#requests-table-body tr[data-request-id]').forEach(row => {
+                row.addEventListener('click', event => {
+                    if (event.target.closest('[data-view-request]')) {
+                        return;
+                    }
+                    const requestId = Number(row.getAttribute('data-request-id'));
+                    if (!Number.isNaN(requestId)) {
+                        showRequestDetail(requestId);
+                    }
+                });
+                row.style.cursor = 'pointer';
+            });
+
+            document.querySelectorAll('#requests-draft-table-body tr[data-request-id]').forEach(row => {
                 row.addEventListener('click', event => {
                     if (event.target.closest('[data-view-request]')) {
                         return;
