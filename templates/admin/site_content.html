@@ -756,7 +756,7 @@
                 </div>
             </div>
 
-            <button type="submit" class="btn btn-primary" id="save-btn">Save All Changes</button>
+            <button type="button" class="btn btn-primary" id="save-btn">Save All Changes</button>
         </form>
     </div>
 
@@ -899,8 +899,12 @@
             removeTeamPhotoBtn.addEventListener('click', removeTeamPhoto);
         }
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
+        async function saveSiteContent() {
+            if (!form || !saveBtn) {
+                showToast('Save controls are unavailable on this page.', 'error');
+                return;
+            }
+
             saveBtn.disabled = true;
             saveBtn.textContent = 'Saving...';
 
@@ -955,7 +959,8 @@
                 const res = await fetch('/admin/api/site-content', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload) }});
+                    body: JSON.stringify(payload)
+                });
                 const data = await res.json();
                 if (res.ok) {
                     showToast(data.message || 'Site content saved successfully!', 'success');
@@ -968,7 +973,21 @@
                 saveBtn.disabled = false;
                 saveBtn.textContent = 'Save All Changes';
             }
-        });
+        }
+
+        if (form) {
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                saveSiteContent();
+            });
+        }
+
+        if (saveBtn) {
+            saveBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                saveSiteContent();
+            });
+        }
     </script>
 </body>
 </html>
