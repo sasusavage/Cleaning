@@ -436,7 +436,7 @@
             <a href="{{ url_for('admin_dashboard') }}" class="btn btn-back">← Back to Dashboard</a>
         </div>
 
-        <form id="site-content-form" method="post" onsubmit="return false;">
+        <form id="site-content-form" method="post">
             <!-- Landing Intro -->
             <div class="card">
                 <h2 class="card__title">Landing Intro</h2>
@@ -756,8 +756,8 @@
                 </div>
             </div>
 
-            <button type="button" class="btn btn-primary" id="save-btn">Save All Changes</button>
         </form>
+        <button type="button" class="btn btn-primary" id="save-btn">Save All Changes</button>
     </div>
 
     <div id="toast" class="toast" style="display:none;"></div>
@@ -979,6 +979,9 @@
             form.addEventListener('submit', (e) => {
                 e.preventDefault();
                 saveSiteContent();
+            });
+            form.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') e.preventDefault();
             });
         }
 

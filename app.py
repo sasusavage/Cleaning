@@ -9712,8 +9712,13 @@ def admin_list_requests():
         row['is_contract'] = bool(row.get('is_contract'))
         if (row.get('request_type') or '').lower() == 'service':
             row['amount_due'] = normalize_price_value(row.get('amount_due'))
-            row['payment_type'] = normalize_stored_payment_type(row.get('payment_type'))
-            row['is_paid'] = bool(row.get('is_paid'))
+            source = (row.get('source') or '').lower()
+            if row.get('payment_type') is None and 'stripe' in source:
+                row['payment_type'] = 'stripe'
+                row['is_paid'] = source == 'stripe_checkout_paid'
+            else:
+                row['payment_type'] = normalize_stored_payment_type(row.get('payment_type'))
+                row['is_paid'] = bool(row.get('is_paid'))
             row['payment_status_label'] = resolve_payment_status_label(row.get('payment_type'), row.get('is_paid'))
             row['payment_badge'] = resolve_payment_badge(row.get('payment_type'), row.get('is_paid'))
         else:
@@ -9804,8 +9809,14 @@ def admin_list_requests_grouped():
         item['is_contract'] = bool(item.get('is_contract'))
         if (item.get('request_type') or '').lower() == 'service':
             item['amount_due'] = normalize_price_value(item.get('amount_due'))
-            item['payment_type'] = normalize_stored_payment_type(item.get('payment_type'))
-            item['is_paid'] = bool(item.get('is_paid'))
+            # If no service_requests row yet but source shows stripe paid, reflect that
+            source = (item.get('source') or '').lower()
+            if item.get('payment_type') is None and 'stripe' in source:
+                item['payment_type'] = 'stripe'
+                item['is_paid'] = source == 'stripe_checkout_paid'
+            else:
+                item['payment_type'] = normalize_stored_payment_type(item.get('payment_type'))
+                item['is_paid'] = bool(item.get('is_paid'))
             item['payment_status_label'] = resolve_payment_status_label(item.get('payment_type'), item.get('is_paid'))
             item['payment_badge'] = resolve_payment_badge(item.get('payment_type'), item.get('is_paid'))
         else:
@@ -10180,6 +10191,51 @@ def admin_payment_transactions_api():
     except Exception:
         app.logger.exception('Failed to load payment transactions.')
         return jsonify({'error': 'Unable to load transactions right now.'}), 500
+
+
+@app.route('/admin/api/payment-transactions/<int:tx_id>/retry', methods=['POST'])
+@admin_login_required
+def admin_retry_payment_transaction(tx_id):
+    """Re-run finalization for a paid Stripe transaction whose booking failed to persist."""
+    try:
+        tx = fetch_payment_transaction_by_id(tx_id)
+        if not tx:
+            return jsonify({'error': 'Transaction not found.'}), 404
+        if tx.get('status') not in ('paid', 'processing_failed'):
+            return jsonify({'error': f"Cannot retry transaction with status '{tx.get('status')}'. Only 'paid' or 'processing_failed' transactions can be retried."}), 400
+
+        prepared_payload = tx.get('prepared_payload') or '{}'
+        prepared = json.loads(prepared_payload) if prepared_payload else {}
+        if not prepared.get('payment_type_for_db'):
+            prepared['payment_type_for_db'] = 'stripe'
+
+        service_metadata = prepared.get('service_metadata') if isinstance(prepared.get('service_metadata'), dict) else {}
+        payment_meta = service_metadata.get('payment') if isinstance(service_metadata.get('payment'), dict) else {}
+        payment_meta.update({
+            'option': PAYMENT_OPTION_PREBOOK,
+            'payment_type': 'stripe',
+            'is_paid': True,
+            'transaction_id': tx.get('id'),
+            'stripe_checkout_session_id': tx.get('checkout_session_id'),
+            'stripe_payment_intent_id': tx.get('payment_intent_id'),
+        })
+        service_metadata['payment'] = payment_meta
+        prepared['service_metadata'] = service_metadata
+
+        if tx.get('request_id'):
+            prepared['existing_request_id'] = tx.get('request_id')
+
+        submission = finalize_prepared_service_booking(prepared, remote_addr='admin-retry', mark_paid=True)
+        update_payment_transaction(
+            tx_id,
+            status='processed',
+            request_id=submission.get('request_id'),
+            service_request_id=submission.get('service_request_id')
+        )
+        return jsonify({'message': 'Transaction finalized successfully.', 'request_id': submission.get('request_id'), 'service_request_id': submission.get('service_request_id')})
+    except Exception:
+        app.logger.exception('Admin retry failed for transaction %s', tx_id)
+        return jsonify({'error': 'Retry failed. Check server logs for details.'}), 500
 
 
 @app.route('/admin/api/travel-settings', methods=['GET', 'POST'])

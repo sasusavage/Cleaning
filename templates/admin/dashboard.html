@@ -4628,10 +4628,12 @@
                 const customer = tx.customer_name || tx.customer_email || '—';
                 const reqPair = `${tx.request_id || '—'} / ${tx.service_request_id || '—'}`;
                 const created = tx.created_at ? formatDateTime(tx.created_at) : '—';
+                const canRetry = tx.status === 'paid' || tx.status === 'processing_failed';
+                const retryBtn = canRetry ? `<button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;" onclick="retryPaymentTransaction(${tx.id})">Retry</button>` : '';
                 return `
                     <tr>
                         <td>${tx.id ?? '—'}</td>
-                        <td>${escapeHtml(tx.status || '—')}</td>
+                        <td>${escapeHtml(tx.status || '—')} ${retryBtn}</td>
                         <td>${escapeHtml(amount)}</td>
                         <td>${escapeHtml(customer)}</td>
                         <td>${escapeHtml(tx.service_summary || '—')}</td>
@@ -4641,6 +4643,23 @@
                     </tr>
                 `;
             }).join('');
+        }
+
+        async function retryPaymentTransaction(txId) {
+            if (!confirm('Retry finalizing this transaction? This will create a new booking record if one is missing.')) return;
+            try {
+                const res = await fetch(`/admin/api/payment-transactions/${txId}/retry`, { method: 'POST' });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok) {
+                    showToast(data.message || 'Transaction finalized.', 'success');
+                    loadPaymentTransactions();
+                    loadRequests();
+                } else {
+                    showToast(data.error || 'Retry failed.', 'error');
+                }
+            } catch (err) {
+                showToast('Network error during retry.', 'error');
+            }
         }
 
         async function loadPaymentTransactions(showToastOnSuccess = false) {
