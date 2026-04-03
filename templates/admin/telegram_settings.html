@@ -492,6 +492,14 @@
                         </div>
                         <input class="checkbox" type="checkbox" name="notify_login_failure" id="notify_login_failure" value="1" {% if telegram_settings.notify_login_failure %}checked{% endif %}>
                     </label>
+
+                    <label class="toggle-item" for="notify_error_logs">
+                        <div>
+                            <strong>Server error log alerts</strong>
+                            <small>Send Telegram alerts when the app logs runtime errors (rate-limited to reduce spam).</small>
+                        </div>
+                        <input class="checkbox" type="checkbox" name="notify_error_logs" id="notify_error_logs" value="1" {% if telegram_settings.notify_error_logs %}checked{% endif %}>
+                    </label>
                 </div>
 
                 <div class="button-row">

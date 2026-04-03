@@ -5791,7 +5791,8 @@ DEFAULT_TELEGRAM_SETTINGS = {
     'notify_email_success': 1,
     'notify_email_error': 1,
     'notify_admin_login': 1,
-    'notify_login_failure': 1
+    'notify_login_failure': 1,
+    'notify_error_logs': 1
 }
 
 
@@ -6302,24 +6303,82 @@ def _bool_from_db(value):
         return False
 
 
+_done_ensure_telegram_settings_schema = False
+
+
+def ensure_telegram_settings_schema():
+    global _done_ensure_telegram_settings_schema
+    if _done_ensure_telegram_settings_schema:
+        return
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+    if 'postgres' in engine:
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS telegram_settings (
+                id BIGINT PRIMARY KEY,
+                bot_token TEXT,
+                chat_id TEXT,
+                is_active SMALLINT DEFAULT 0,
+                notify_email_success SMALLINT DEFAULT 1,
+                notify_email_error SMALLINT DEFAULT 1,
+                notify_admin_login SMALLINT DEFAULT 1,
+                notify_login_failure SMALLINT DEFAULT 1,
+                notify_error_logs SMALLINT DEFAULT 1,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+            """
+        )
+        cursor.execute("ALTER TABLE telegram_settings ADD COLUMN IF NOT EXISTS notify_error_logs SMALLINT DEFAULT 1")
+    else:
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS telegram_settings (
+                id BIGINT PRIMARY KEY,
+                bot_token TEXT,
+                chat_id VARCHAR(255),
+                is_active TINYINT(1) DEFAULT 0,
+                notify_email_success TINYINT(1) DEFAULT 1,
+                notify_email_error TINYINT(1) DEFAULT 1,
+                notify_admin_login TINYINT(1) DEFAULT 1,
+                notify_login_failure TINYINT(1) DEFAULT 1,
+                notify_error_logs TINYINT(1) DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+            """
+        )
+        cursor.execute("SHOW COLUMNS FROM telegram_settings LIKE %s", ('notify_error_logs',))
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE telegram_settings ADD COLUMN notify_error_logs TINYINT(1) DEFAULT 1")
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    _done_ensure_telegram_settings_schema = True
+
+
 def fetch_telegram_settings():
+    ensure_telegram_settings_schema()
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
-        "SELECT id, bot_token, chat_id, is_active, notify_email_success, notify_email_error, notify_admin_login, notify_login_failure FROM telegram_settings WHERE id = 1"
+        "SELECT id, bot_token, chat_id, is_active, notify_email_success, notify_email_error, notify_admin_login, notify_login_failure, notify_error_logs FROM telegram_settings WHERE id = 1"
     )
     settings = cursor.fetchone()
     if not settings:
         cursor.close()
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO telegram_settings (id, is_active, notify_email_success, notify_email_error, notify_admin_login, notify_login_failure) VALUES (1, 0, 1, 1, 1, 1)"
+            "INSERT INTO telegram_settings (id, is_active, notify_email_success, notify_email_error, notify_admin_login, notify_login_failure, notify_error_logs) VALUES (1, 0, 1, 1, 1, 1, 1)"
         )
         conn.commit()
         cursor.close()
         cursor = conn.cursor(dictionary=True)
         cursor.execute(
-            "SELECT id, bot_token, chat_id, is_active, notify_email_success, notify_email_error, notify_admin_login, notify_login_failure FROM telegram_settings WHERE id = 1"
+            "SELECT id, bot_token, chat_id, is_active, notify_email_success, notify_email_error, notify_admin_login, notify_login_failure, notify_error_logs FROM telegram_settings WHERE id = 1"
         )
         settings = cursor.fetchone()
     cursor.close()
@@ -6337,12 +6396,14 @@ def fetch_telegram_settings():
         'notify_email_success': _bool_from_db(settings.get('notify_email_success')),
         'notify_email_error': _bool_from_db(settings.get('notify_email_error')),
         'notify_admin_login': _bool_from_db(settings.get('notify_admin_login')),
-        'notify_login_failure': _bool_from_db(settings.get('notify_login_failure'))
+        'notify_login_failure': _bool_from_db(settings.get('notify_login_failure')),
+        'notify_error_logs': _bool_from_db(settings.get('notify_error_logs'))
     })
     return normalized
 
 
 def update_telegram_settings(payload):
+    ensure_telegram_settings_schema()
     if not payload:
         raise ValueError('No data provided.')
 
@@ -6353,6 +6414,7 @@ def update_telegram_settings(payload):
     notify_email_error = 1 if str_to_bool(payload.get('notify_email_error')) else 0
     notify_admin_login = 1 if str_to_bool(payload.get('notify_admin_login')) else 0
     notify_login_failure = 1 if str_to_bool(payload.get('notify_login_failure')) else 0
+    notify_error_logs = 1 if str_to_bool(payload.get('notify_error_logs')) else 0
 
     if is_active and (not bot_token or not chat_id):
         raise ValueError('Bot token and chat ID are required when Telegram notifications are active.')
@@ -6371,7 +6433,8 @@ def update_telegram_settings(payload):
                 notify_email_success=%s,
                 notify_email_error=%s,
                 notify_admin_login=%s,
-                notify_login_failure=%s
+                notify_login_failure=%s,
+                notify_error_logs=%s
             WHERE id = 1
             """,
             (
@@ -6381,7 +6444,8 @@ def update_telegram_settings(payload):
                 notify_email_success,
                 notify_email_error,
                 notify_admin_login,
-                notify_login_failure
+                notify_login_failure,
+                notify_error_logs
             )
         )
         conn.commit()
@@ -6446,6 +6510,109 @@ def send_telegram_notification(preference_key, message_lines):
         return False
 
     return True
+
+
+def _fetch_telegram_error_alert_target_quietly():
+    try:
+        ensure_telegram_settings_schema()
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT bot_token, chat_id, is_active, notify_error_logs FROM telegram_settings WHERE id = 1"
+        )
+        row = cursor.fetchone() or {}
+        cursor.close()
+        conn.close()
+
+        is_active = _bool_from_db(row.get('is_active'))
+        notify_enabled = _bool_from_db(row.get('notify_error_logs'))
+        bot_token = (row.get('bot_token') or '').strip()
+        chat_id = (row.get('chat_id') or '').strip()
+        if not (is_active and notify_enabled and bot_token and chat_id):
+            return None
+        return {
+            'bot_token': bot_token,
+            'chat_id': chat_id
+        }
+    except Exception:
+        return None
+
+
+class TelegramErrorLogHandler(logging.Handler):
+    def __init__(self, throttle_seconds=120):
+        super().__init__(level=logging.ERROR)
+        self.throttle_seconds = max(30, int(throttle_seconds or 120))
+        self._last_sent_at = 0.0
+        self._last_fingerprint = ''
+        self._lock = threading.Lock()
+        self._local = threading.local()
+
+    def emit(self, record):
+        if record.levelno < logging.ERROR:
+            return
+        if getattr(self._local, 'in_emit', False):
+            return
+
+        self._local.in_emit = True
+        try:
+            target = _fetch_telegram_error_alert_target_quietly()
+            if not target:
+                return
+
+            message = (record.getMessage() or '').strip()
+            if not message:
+                return
+
+            fingerprint_source = f"{record.name}|{record.levelno}|{message}"
+            fingerprint = hashlib.sha256(fingerprint_source.encode('utf-8', errors='ignore')).hexdigest()
+            now = time.time()
+            with self._lock:
+                if fingerprint == self._last_fingerprint and (now - self._last_sent_at) < self.throttle_seconds:
+                    return
+                self._last_fingerprint = fingerprint
+                self._last_sent_at = now
+
+            lines = [
+                '🚨 Application Error Detected',
+                f"Level: {record.levelname}",
+                f"Logger: {record.name}",
+                f"Location: {os.path.basename(record.pathname)}:{record.lineno}",
+                f"Message: {message[:1000]}"
+            ]
+            if record.exc_info:
+                lines.append('Traceback attached in server logs.')
+
+            text = '\n'.join(lines)
+            if len(text) > 3500:
+                text = text[:3497] + '...'
+
+            url = f"https://api.telegram.org/bot{target['bot_token']}/sendMessage"
+            payload = {
+                'chat_id': target['chat_id'],
+                'text': text,
+                'disable_web_page_preview': True,
+                'disable_notification': False
+            }
+            requests.post(url, json=payload, timeout=5)
+        except Exception:
+            return
+        finally:
+            self._local.in_emit = False
+
+
+_telegram_error_log_handler_attached = False
+
+
+def configure_telegram_error_log_handler():
+    global _telegram_error_log_handler_attached
+    if _telegram_error_log_handler_attached:
+        return
+    try:
+        handler = TelegramErrorLogHandler(throttle_seconds=120)
+        app.logger.addHandler(handler)
+        _telegram_error_log_handler_attached = True
+    except Exception:
+        pass
 
 
 def fetch_admin_user(username):
@@ -11700,7 +11867,8 @@ def admin_telegram_settings():
                 'notify_email_success': str_to_bool(form_values.get('notify_email_success')),
                 'notify_email_error': str_to_bool(form_values.get('notify_email_error')),
                 'notify_admin_login': str_to_bool(form_values.get('notify_admin_login')),
-                'notify_login_failure': str_to_bool(form_values.get('notify_login_failure'))
+                'notify_login_failure': str_to_bool(form_values.get('notify_login_failure')),
+                'notify_error_logs': str_to_bool(form_values.get('notify_error_logs'))
             }
         except Exception:
             app.logger.exception('Failed to update Telegram settings.')
@@ -13453,6 +13621,9 @@ def admin_api_analytics_detailed():
         'geographic': geographic,
         'period_days': days
     })
+
+
+configure_telegram_error_log_handler()
 
 
 if __name__ == '__main__':
