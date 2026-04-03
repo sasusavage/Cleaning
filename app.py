@@ -3895,6 +3895,24 @@ def stripe_ready():
     return bool(stripe and stripe_secret_key_valid())
 
 
+def stripe_object_to_dict(value):
+    if not value:
+        return {}
+    if isinstance(value, dict):
+        return value
+    to_dict_recursive = getattr(value, 'to_dict_recursive', None)
+    if callable(to_dict_recursive):
+        try:
+            converted = to_dict_recursive()
+            return converted if isinstance(converted, dict) else {}
+        except Exception:
+            return {}
+    try:
+        return dict(value)
+    except Exception:
+        return {}
+
+
 _done_ensure_payment_tables = False
 
 
@@ -7065,10 +7083,10 @@ def resolve_stripe_event_object(event, event_type):
         stripe.api_key = stripe_secret_key()
         if event_type.startswith('checkout.session.'):
             session = stripe.checkout.Session.retrieve(related_id)
-            return dict(session) if session else {}
+            return stripe_object_to_dict(session)
         if event_type == 'payment_intent.payment_failed':
             payment_intent = stripe.PaymentIntent.retrieve(related_id)
-            return dict(payment_intent) if payment_intent else {}
+            return stripe_object_to_dict(payment_intent)
     except Exception:
         app.logger.exception('Failed to expand Stripe thin event object for %s', event_type)
 
@@ -7148,7 +7166,7 @@ def payment_callback_success():
             if tx and not (tx.get('request_id') and tx.get('service_request_id')) and stripe_ready():
                 stripe.api_key = stripe_secret_key()
                 session_obj = stripe.checkout.Session.retrieve(session_id)
-                session_data = dict(session_obj) if session_obj else {}
+                session_data = stripe_object_to_dict(session_obj)
                 if (session_data.get('payment_status') or '').lower() == 'paid':
                     process_completed_payment_session(session_data)
         except Exception:
