@@ -3574,3 +3574,6 @@ psycopg2.pool.PoolError: connection pool exhausted
 2026-04-03 01:11:14,001 INFO werkzeug: 127.0.0.1 - - [03/Apr/2026 01:11:14] "GET /admin/api/dashboard/live-stats HTTP/1.1" 200 -
 2026-04-03 01:11:16,773 INFO werkzeug: 127.0.0.1 - - [03/Apr/2026 01:11:16] "GET /admin/api/analytics/live?days=30 HTTP/1.1" 200 -
 2026-04-03 01:12:14,231 INFO werkzeug: 127.0.0.1 - - [03/Apr/2026 01:12:14] "GET /admin/api/dashboard/live-stats HTTP/1.1" 200 -
+2026-04-03 04:20:27,674 INFO werkzeug: 127.0.0.1 - - [03/Apr/2026 04:20:27] "GET / HTTP/1.1" 200 -
+2026-04-03 04:20:28,152 INFO werkzeug: 127.0.0.1 - - [03/Apr/2026 04:20:28] "GET /style.css HTTP/1.1" 200 -
+2026-04-03 04:20:30,800 INFO werkzeug: 127.0.0.1 - - [03/Apr/2026 04:20:30] "GET /script.js HTTP/1.1" 200 -
