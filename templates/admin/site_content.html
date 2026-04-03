@@ -436,7 +436,7 @@
             <a href="{{ url_for('admin_dashboard') }}" class="btn btn-back">← Back to Dashboard</a>
         </div>
 
-        <form id="site-content-form">
+        <form id="site-content-form" method="post" onsubmit="return false;">
             <!-- Landing Intro -->
             <div class="card">
                 <h2 class="card__title">Landing Intro</h2>
@@ -904,52 +904,52 @@
             saveBtn.disabled = true;
             saveBtn.textContent = 'Saving...';
 
+            const g = (id) => document.getElementById(id).value.trim();
             const payload = {
-                landing_intro: document.getElementById('landing_intro').value.trim(),
-                about_summary: document.getElementById('about_summary').value.trim(),
-                company_history: document.getElementById('company_history').value.trim(),
-                green_focus: document.getElementById('green_focus').value.trim(),
-                who_we_are_detail: document.getElementById('who_we_are_detail').value.trim(),
-                mission_statement: document.getElementById('mission_statement').value.trim(),
-                vision_statement: document.getElementById('vision_statement').value.trim(),
-                core_values: document.getElementById('core_values').value.trim(),
-                security_guarantee: document.getElementById('security_guarantee').value.trim(),
-                guarantee_extra: document.getElementById('guarantee_extra').value.trim(),
-                guarantee_bullets: document.getElementById('guarantee_bullets').value.trim(),
-                areas_covered: document.getElementById('areas_covered').value.trim(),
-                office_addresses: {
-                    london: {
-                        name: document.getElementById('office_london_name').value.trim(),
-                        address: document.getElementById('office_london_address').value.trim() }},
-                    stevenage: {
-                        name: document.getElementById('office_stevenage_name').value.trim(),
-                        address: document.getElementById('office_stevenage_address').value.trim() }},
-                contact_info: {
-                    email: document.getElementById('contact_email').value.trim(),
-                    phone: document.getElementById('contact_phone').value.trim(),
-                    phone_alt: document.getElementById('contact_phone_alt').value.trim(),
-                    whatsapp: document.getElementById('contact_whatsapp').value.trim() }},
+                landing_intro: g('landing_intro'),
+                about_summary: g('about_summary'),
+                company_history: g('company_history'),
+                green_focus: g('green_focus'),
+                who_we_are_detail: g('who_we_are_detail'),
+                mission_statement: g('mission_statement'),
+                vision_statement: g('vision_statement'),
+                core_values: g('core_values'),
+                security_guarantee: g('security_guarantee'),
+                guarantee_extra: g('guarantee_extra'),
+                guarantee_bullets: g('guarantee_bullets'),
+                areas_covered: g('areas_covered'),
+                office_addresses: JSON.parse(JSON.stringify({
+                    london: { name: g('office_london_name'), address: g('office_london_address') },
+                    stevenage: { name: g('office_stevenage_name'), address: g('office_stevenage_address') }
+                })),
+                contact_info: JSON.parse(JSON.stringify({
+                    email: g('contact_email'),
+                    phone: g('contact_phone'),
+                    phone_alt: g('contact_phone_alt'),
+                    whatsapp: g('contact_whatsapp')
+                })),
                 // Homepage section headings
-                services_eyebrow: document.getElementById('services_eyebrow').value.trim(),
-                services_section_title: document.getElementById('services_section_title').value.trim(),
-                why_us_eyebrow: document.getElementById('why_us_eyebrow').value.trim(),
-                why_us_title: document.getElementById('why_us_title').value.trim(),
-                about_eyebrow: document.getElementById('about_eyebrow').value.trim(),
-                about_title: document.getElementById('about_title').value.trim(),
-                coverage_eyebrow: document.getElementById('coverage_eyebrow').value.trim(),
-                coverage_title: document.getElementById('coverage_title').value.trim(),
-                testimonials_eyebrow: document.getElementById('testimonials_eyebrow').value.trim(),
-                testimonials_title: document.getElementById('testimonials_title').value.trim(),
-                policies_eyebrow: document.getElementById('policies_eyebrow').value.trim(),
-                policies_title: document.getElementById('policies_title').value.trim(),
-                policies_subtitle: document.getElementById('policies_subtitle').value.trim(),
-                careers_eyebrow: document.getElementById('careers_eyebrow').value.trim(),
-                careers_title: document.getElementById('careers_title').value.trim(),
-                faqs_eyebrow: document.getElementById('faqs_eyebrow').value.trim(),
-                faqs_title: document.getElementById('faqs_title').value.trim(),
-                faqs_subtitle: document.getElementById('faqs_subtitle').value.trim(),
-                reviews_eyebrow: document.getElementById('reviews_eyebrow').value.trim(),
-                reviews_title: document.getElementById('reviews_title').value.trim() }};
+                services_eyebrow: g('services_eyebrow'),
+                services_section_title: g('services_section_title'),
+                why_us_eyebrow: g('why_us_eyebrow'),
+                why_us_title: g('why_us_title'),
+                about_eyebrow: g('about_eyebrow'),
+                about_title: g('about_title'),
+                coverage_eyebrow: g('coverage_eyebrow'),
+                coverage_title: g('coverage_title'),
+                testimonials_eyebrow: g('testimonials_eyebrow'),
+                testimonials_title: g('testimonials_title'),
+                policies_eyebrow: g('policies_eyebrow'),
+                policies_title: g('policies_title'),
+                policies_subtitle: g('policies_subtitle'),
+                careers_eyebrow: g('careers_eyebrow'),
+                careers_title: g('careers_title'),
+                faqs_eyebrow: g('faqs_eyebrow'),
+                faqs_title: g('faqs_title'),
+                faqs_subtitle: g('faqs_subtitle'),
+                reviews_eyebrow: g('reviews_eyebrow'),
+                reviews_title: g('reviews_title')
+            };
 
             try {
                 const res = await fetch('/admin/api/site-content', {
