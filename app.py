@@ -9823,6 +9823,27 @@ def admin_site_content_api():
     conn = get_db_connection()
     cursor = conn.cursor()
     updated_keys = []
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    active_value = 1
+
+    if 'postgres' in engine:
+        try:
+            cursor.execute(
+                """
+                SELECT data_type
+                FROM information_schema.columns
+                WHERE table_schema = current_schema()
+                  AND table_name = 'site_content'
+                  AND column_name = 'is_active'
+                LIMIT 1
+                """
+            )
+            row = cursor.fetchone()
+            data_type = (row[0] or '').strip().lower() if row and len(row) > 0 else ''
+            active_value = True if data_type == 'boolean' else 1
+        except Exception:
+            # Fallback for mixed/legacy schemas; integer is valid for smallint-backed flags.
+            active_value = 1
 
     try:
         for section_key, value in payload.items():
@@ -9843,19 +9864,19 @@ def admin_site_content_api():
                 UPDATE site_content
                 SET content_text=%s,
                     content_json=%s,
-                    is_active=TRUE,
+                    is_active=%s,
                     updated_at=CURRENT_TIMESTAMP
                 WHERE section_key=%s
                 """,
-                (content_text, content_json, section_key)
+                (content_text, content_json, active_value, section_key)
             )
             if cursor.rowcount == 0:
                 cursor.execute(
                     """
                     INSERT INTO site_content (section_key, content_text, content_json, is_active)
-                    VALUES (%s, %s, %s, TRUE)
+                    VALUES (%s, %s, %s, %s)
                     """,
-                    (section_key, content_text, content_json)
+                    (section_key, content_text, content_json, active_value)
                 )
             updated_keys.append(section_key)
 
