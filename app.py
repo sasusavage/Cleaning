@@ -819,9 +819,9 @@ def send_email_via_settings(subject, html_body, text_body, recipients, settings,
     smtp = None
     try:
         if use_ssl:
-            smtp = smtplib.SMTP_SSL(host, port, timeout=15)
+            smtp = smtplib.SMTP_SSL(host, port, timeout=20)
         else:
-            smtp = smtplib.SMTP(host, port, timeout=15)
+            smtp = smtplib.SMTP(host, port, timeout=20)
             smtp.ehlo()
             if use_tls:
                 smtp.starttls()
@@ -829,6 +829,10 @@ def send_email_via_settings(subject, html_body, text_body, recipients, settings,
 
         if username or password:
             smtp.login(username or sender_email, password)
+
+        # Apply socket-level timeout for the entire send operation (covers data + reply wait)
+        if smtp.sock:
+            smtp.sock.settimeout(30)
 
         smtp.send_message(message)
         success_lines = [
@@ -7592,11 +7596,37 @@ def payment_callback_success():
     if session_id:
         try:
             tx = fetch_payment_transaction_by_session(session_id)
-            if tx and not (tx.get('request_id') and tx.get('service_request_id')) and stripe_ready():
+            already_finalized = tx and tx.get('request_id') and tx.get('service_request_id')
+            already_failed = tx and (tx.get('status') or '') == 'processing_failed'
+            if tx and not already_finalized and not already_failed and stripe_ready():
                 stripe.api_key = stripe_secret_key()
                 session_obj = stripe.checkout.Session.retrieve(session_id)
-                session_data = stripe_object_to_dict(session_obj)
-                if (session_data.get('payment_status') or '').lower() == 'paid':
+                # Use getattr directly — stripe_object_to_dict can drop nested fields
+                payment_status = (getattr(session_obj, 'payment_status', None) or '').lower()
+                payment_intent_raw = getattr(session_obj, 'payment_intent', None)
+                payment_intent_id = (
+                    payment_intent_raw if isinstance(payment_intent_raw, str)
+                    else getattr(payment_intent_raw, 'id', None) if payment_intent_raw else None
+                )
+                session_id_val = getattr(session_obj, 'id', None) or session_id
+                app.logger.info(
+                    'Success callback for session %s: payment_status=%s, pi=%s, tx_status=%s',
+                    session_id_val, payment_status, payment_intent_id, tx.get('status')
+                )
+                if payment_status == 'paid':
+                    session_data = {
+                        'id': session_id_val,
+                        'payment_status': payment_status,
+                        'payment_intent': payment_intent_id,
+                    }
+                    process_completed_payment_session(session_data)
+                elif tx.get('status') == 'paid' and not already_finalized:
+                    # Webhook already marked it paid but finalization may not have run
+                    session_data = {
+                        'id': session_id_val,
+                        'payment_status': 'paid',
+                        'payment_intent': payment_intent_id or tx.get('payment_intent_id'),
+                    }
                     process_completed_payment_session(session_data)
         except Exception:
             app.logger.exception('Success callback fallback finalization failed for session %s', session_id)
