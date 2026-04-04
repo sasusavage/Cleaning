@@ -10238,26 +10238,47 @@ def admin_retry_payment_transaction(tx_id):
             is_paid_on_stripe = False
             resolved_payment_intent_id = tx.get('payment_intent_id') or ''
 
-            # Try checkout session first
+            # Try checkout session first — access attributes directly (avoid stripe_object_to_dict issues)
             session_id = tx.get('checkout_session_id')
             if session_id:
                 try:
                     session_obj = stripe.checkout.Session.retrieve(
                         session_id, expand=['payment_intent']
                     )
-                    session_data = stripe_object_to_dict(session_obj)
-                    payment_status = (session_data.get('payment_status') or '').lower()
+                    # Read payment_status directly from the object
+                    payment_status = ''
+                    try:
+                        payment_status = (getattr(session_obj, 'payment_status', None) or session_obj.get('payment_status') or '').lower()
+                    except Exception:
+                        pass
                     if payment_status == 'paid':
                         is_paid_on_stripe = True
-                    # payment_intent may be expanded object or just an ID string
-                    pi_field = session_data.get('payment_intent')
-                    if isinstance(pi_field, dict):
-                        if (pi_field.get('status') or '').lower() == 'succeeded':
-                            is_paid_on_stripe = True
-                        resolved_payment_intent_id = pi_field.get('id') or resolved_payment_intent_id
-                    elif isinstance(pi_field, str) and pi_field:
-                        # Session returned a PI ID but no expanded status — store it and check directly below
-                        resolved_payment_intent_id = pi_field
+
+                    # Get payment_intent — may be a StripeObject, a plain dict, or a string ID
+                    pi_field = None
+                    try:
+                        pi_field = getattr(session_obj, 'payment_intent', None)
+                        if pi_field is None:
+                            pi_field = session_obj.get('payment_intent')
+                    except Exception:
+                        pass
+
+                    if pi_field is not None:
+                        if isinstance(pi_field, str) and pi_field.startswith('pi_'):
+                            resolved_payment_intent_id = pi_field
+                        elif hasattr(pi_field, 'id'):
+                            resolved_payment_intent_id = pi_field.id or resolved_payment_intent_id
+                            try:
+                                if (getattr(pi_field, 'status', None) or '').lower() == 'succeeded':
+                                    is_paid_on_stripe = True
+                            except Exception:
+                                pass
+                        elif isinstance(pi_field, dict):
+                            resolved_payment_intent_id = pi_field.get('id') or resolved_payment_intent_id
+                            if (pi_field.get('status') or '').lower() == 'succeeded':
+                                is_paid_on_stripe = True
+
+                    app.logger.info('Session %s: payment_status=%s pi=%s is_paid=%s', session_id, payment_status, resolved_payment_intent_id, is_paid_on_stripe)
                 except Exception as exc:
                     app.logger.warning('Could not retrieve Stripe session %s: %s', session_id, exc)
 
@@ -10265,33 +10286,40 @@ def admin_retry_payment_transaction(tx_id):
             if not is_paid_on_stripe and resolved_payment_intent_id:
                 try:
                     pi = stripe.PaymentIntent.retrieve(resolved_payment_intent_id)
-                    pi_data = stripe_object_to_dict(pi)
-                    if (pi_data.get('status') or '').lower() == 'succeeded':
+                    pi_status = ''
+                    try:
+                        pi_status = (getattr(pi, 'status', None) or pi.get('status') or '').lower()
+                    except Exception:
+                        pass
+                    if pi_status == 'succeeded':
                         is_paid_on_stripe = True
-                    app.logger.info('PI %s status=%s for tx %s', resolved_payment_intent_id, pi_data.get('status'), tx_id)
+                    app.logger.info('PI %s status=%s is_paid=%s for tx %s', resolved_payment_intent_id, pi_status, is_paid_on_stripe, tx_id)
                 except Exception as exc:
                     app.logger.warning('Could not retrieve Stripe PaymentIntent %s: %s', resolved_payment_intent_id, exc)
 
-            # Last resort: list charges filtered by metadata transaction_id
+            # Last resort: search charges by metadata transaction_id
             if not is_paid_on_stripe:
                 try:
-                    charge_list = stripe.Charge.list(limit=5)
-                    charge_data = stripe_object_to_dict(charge_list)
-                    # Use search if available, otherwise fall back to list+filter
+                    searched = stripe.Charge.search(query=f'metadata["transaction_id"]:"{tx_id}"')
+                    charges = []
                     try:
-                        searched = stripe.Charge.search(query=f'metadata["transaction_id"]:"{tx_id}"')
-                        charge_data = stripe_object_to_dict(searched)
+                        charges = getattr(searched, 'data', None) or searched.get('data') or []
                     except Exception:
                         pass
-                    for ch in (charge_data.get('data') or []):
-                        ch_meta = ch.get('metadata') or {}
-                        if str(ch_meta.get('transaction_id', '')) == str(tx_id):
-                            if ch.get('paid') and (ch.get('status') or '') == 'succeeded':
+                    for ch in charges:
+                        try:
+                            ch_paid = getattr(ch, 'paid', None)
+                            ch_status = (getattr(ch, 'status', None) or '').lower()
+                            ch_pi = getattr(ch, 'payment_intent', None)
+                            if ch_paid and ch_status == 'succeeded':
                                 is_paid_on_stripe = True
-                                resolved_payment_intent_id = ch.get('payment_intent') or resolved_payment_intent_id
+                                if ch_pi and isinstance(ch_pi, str):
+                                    resolved_payment_intent_id = ch_pi
                                 break
+                        except Exception:
+                            pass
                 except Exception as exc:
-                    app.logger.warning('Charge lookup fallback failed for tx %s: %s', tx_id, exc)
+                    app.logger.warning('Charge search fallback failed for tx %s: %s', tx_id, exc)
 
             if not is_paid_on_stripe:
                 return jsonify({'error': 'Payment was not completed on Stripe for this transaction.'}), 400
