@@ -10256,17 +10256,19 @@ def admin_retry_payment_transaction(tx_id):
                             is_paid_on_stripe = True
                         resolved_payment_intent_id = pi_field.get('id') or resolved_payment_intent_id
                     elif isinstance(pi_field, str) and pi_field:
+                        # Session returned a PI ID but no expanded status — store it and check directly below
                         resolved_payment_intent_id = pi_field
                 except Exception as exc:
                     app.logger.warning('Could not retrieve Stripe session %s: %s', session_id, exc)
 
-            # If session didn't confirm, try PaymentIntent directly
+            # If session didn't confirm, try PaymentIntent directly (covers expired sessions that still have a PI)
             if not is_paid_on_stripe and resolved_payment_intent_id:
                 try:
                     pi = stripe.PaymentIntent.retrieve(resolved_payment_intent_id)
                     pi_data = stripe_object_to_dict(pi)
                     if (pi_data.get('status') or '').lower() == 'succeeded':
                         is_paid_on_stripe = True
+                    app.logger.info('PI %s status=%s for tx %s', resolved_payment_intent_id, pi_data.get('status'), tx_id)
                 except Exception as exc:
                     app.logger.warning('Could not retrieve Stripe PaymentIntent %s: %s', resolved_payment_intent_id, exc)
 
