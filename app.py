@@ -3968,6 +3968,9 @@ def ensure_payment_tables():
         )
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_tx_session ON payment_transactions(checkout_session_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_tx_status ON payment_transactions(status)")
+        cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refund_id VARCHAR(255)")
+        cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refund_status VARCHAR(50)")
+        cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ")
         cursor.execute("SELECT COUNT(*) FROM payment_settings")
         if (cursor.fetchone() or [0])[0] == 0:
             cursor.execute(
@@ -10365,6 +10368,65 @@ def admin_retry_payment_transaction(tx_id):
     except Exception:
         app.logger.exception('Admin retry failed for transaction %s', tx_id)
         return jsonify({'error': 'Retry failed. Check server logs for details.'}), 500
+
+
+@app.route('/admin/api/payment-transactions/<int:tx_id>/refund', methods=['POST'])
+@admin_login_required
+def admin_refund_payment_transaction(tx_id):
+    """Issue a full or partial refund for a processed Stripe transaction."""
+    try:
+        tx = fetch_payment_transaction_by_id(tx_id)
+        if not tx:
+            return jsonify({'error': 'Transaction not found.'}), 404
+
+        if tx.get('refund_status') in ('succeeded', 'pending'):
+            return jsonify({'error': 'This transaction has already been refunded.'}), 400
+
+        pi_id = tx.get('payment_intent_id')
+        if not pi_id:
+            return jsonify({'error': 'No PaymentIntent ID on record — cannot issue refund automatically.'}), 400
+
+        if not stripe_ready():
+            return jsonify({'error': 'Stripe is not configured.'}), 500
+
+        stripe.api_key = stripe_secret_key()
+
+        payload = request.get_json(silent=True) or {}
+        amount_pence = None
+        if payload.get('amount'):
+            try:
+                amount_pence = int(round(float(payload['amount']) * 100))
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Invalid refund amount.'}), 400
+
+        refund_kwargs = {'payment_intent': pi_id, 'reason': 'requested_by_customer'}
+        if amount_pence:
+            refund_kwargs['amount'] = amount_pence
+
+        refund_obj = stripe.Refund.create(**refund_kwargs)
+        refund_status = ''
+        refund_id = ''
+        try:
+            refund_status = getattr(refund_obj, 'status', None) or refund_obj.get('status') or ''
+            refund_id = getattr(refund_obj, 'id', None) or refund_obj.get('id') or ''
+        except Exception:
+            pass
+
+        update_payment_transaction(
+            tx_id,
+            refund_id=refund_id,
+            refund_status=refund_status,
+            refunded_at=datetime.now(timezone.utc),
+            status='refunded'
+        )
+
+        return jsonify({'message': f'Refund issued. Status: {refund_status}', 'refund_id': refund_id, 'refund_status': refund_status})
+    except stripe.error.StripeError as exc:
+        msg = getattr(exc, 'user_message', None) or str(exc)
+        return jsonify({'error': f'Stripe error: {msg}'}), 400
+    except Exception:
+        app.logger.exception('Refund failed for tx %s', tx_id)
+        return jsonify({'error': 'Refund failed. Check server logs.'}), 500
 
 
 @app.route('/admin/api/travel-settings', methods=['GET', 'POST'])

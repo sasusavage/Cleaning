@@ -292,6 +292,21 @@
             color: #374151;
             border-color: #e5e7eb;
         }
+        .pill--green {
+            background: #dcfce7;
+            color: #166534;
+            border-color: #86efac;
+        }
+        .pill--yellow {
+            background: #fef9c3;
+            color: #854d0e;
+            border-color: #fde047;
+        }
+        .pill--red {
+            background: #fee2e2;
+            color: #991b1b;
+            border-color: #fca5a5;
+        }
 
         .options-card {
             border: 1px solid var(--border, #e5e7eb);
@@ -2098,6 +2113,8 @@
                                 <th>Checkout Session</th>
                                 <th>Request IDs</th>
                                 <th>Created</th>
+                                <th>Updated</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -2227,6 +2244,7 @@
                             <th>Next Service</th>
                             <th>Next Reminder</th>
                             <th>Status</th>
+                            <th>Created</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -4619,27 +4637,38 @@
             }
             const list = Array.isArray(rows) ? rows : [];
             if (!list.length) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#6b7280;">No transactions yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; color:#6b7280;">No transactions yet.</td></tr>';
                 return;
             }
 
             tbody.innerHTML = list.map(tx => {
                 const amount = (typeof tx.amount_total === 'number') ? `£${tx.amount_total.toFixed(2)} ${String(tx.currency || 'gbp').toUpperCase()}` : '—';
-                const customer = tx.customer_name || tx.customer_email || '—';
+                const customer = tx.customer_name ? `${escapeHtml(tx.customer_name)}${tx.customer_email ? '<br><small style="color:#6b7280;">'+escapeHtml(tx.customer_email)+'</small>' : ''}` : escapeHtml(tx.customer_email || '—');
                 const reqPair = `${tx.request_id || '—'} / ${tx.service_request_id || '—'}`;
                 const created = tx.created_at ? formatDateTime(tx.created_at) : '—';
+                const updated = tx.updated_at ? formatDateTime(tx.updated_at) : '—';
+                const statusBadge = {
+                    processed: 'pill--green', paid: 'pill--green', refunded: 'pill--muted',
+                    checkout_created: 'pill--yellow', stale_pending: 'pill--yellow',
+                    initiated: 'pill--muted', processing_failed: 'pill--red'
+                }[tx.status] || 'pill--muted';
                 const canRetry = ['paid', 'processing_failed', 'checkout_created', 'stale_pending'].includes(tx.status);
-                const retryBtn = canRetry ? `<button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;" onclick="retryPaymentTransaction(${tx.id})">${tx.status === 'checkout_created' || tx.status === 'stale_pending' ? 'Check & Finalize' : 'Retry'}</button>` : '';
+                const canRefund = tx.status === 'processed' && !tx.refund_status;
+                const retryBtn = canRetry ? `<button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;margin-bottom:2px;" onclick="retryPaymentTransaction(${tx.id})">${tx.status === 'checkout_created' || tx.status === 'stale_pending' ? 'Check & Finalize' : 'Retry'}</button>` : '';
+                const refundBtn = canRefund ? `<button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;" onclick="refundPaymentTransaction(${tx.id})">Refund</button>` : '';
+                const refundNote = tx.refund_status ? `<small style="display:block;color:#6b7280;margin-top:2px;">Refund: ${escapeHtml(tx.refund_status)}</small>` : '';
                 return `
                     <tr>
                         <td>${tx.id ?? '—'}</td>
-                        <td>${escapeHtml(tx.status || '—')} ${retryBtn}</td>
-                        <td>${escapeHtml(amount)}</td>
-                        <td>${escapeHtml(customer)}</td>
-                        <td>${escapeHtml(tx.service_summary || '—')}</td>
-                        <td style="font-size:0.82rem; color:#6b7280;">${escapeHtml(tx.checkout_session_id || '—')}</td>
+                        <td><span class="pill ${statusBadge}">${escapeHtml(tx.status || '—')}</span>${refundNote}</td>
+                        <td><strong>${escapeHtml(amount)}</strong></td>
+                        <td>${customer}</td>
+                        <td style="max-width:160px;">${escapeHtml(tx.service_summary || '—')}</td>
+                        <td style="font-size:0.75rem; color:#9ca3af; max-width:120px; overflow:hidden; text-overflow:ellipsis;">${escapeHtml((tx.checkout_session_id || '—').slice(0, 30))}…</td>
                         <td>${escapeHtml(reqPair)}</td>
-                        <td style="white-space:nowrap;">${escapeHtml(created)}</td>
+                        <td style="white-space:nowrap; font-size:0.82rem;">${escapeHtml(created)}</td>
+                        <td style="white-space:nowrap; font-size:0.82rem; color:#6b7280;">${escapeHtml(updated)}</td>
+                        <td style="white-space:nowrap;">${retryBtn}${refundBtn}</td>
                     </tr>
                 `;
             }).join('');
@@ -4683,6 +4712,28 @@
                 } catch (err2) {
                     showToast('Network error during force finalize.', 'error');
                 }
+            }
+        }
+
+        async function refundPaymentTransaction(txId) {
+            const confirm1 = confirm('Issue a FULL refund for this transaction? This will refund the customer via Stripe immediately.\n\nClick OK to proceed, Cancel to abort.');
+            if (!confirm1) return;
+            try {
+                const res = await fetch(`/admin/api/payment-transactions/${txId}/refund`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok) {
+                    showToast(data.message || 'Refund issued successfully.', 'success');
+                    loadPaymentTransactions();
+                    loadRequests();
+                } else {
+                    showToast(data.error || 'Refund failed.', 'error');
+                }
+            } catch (err) {
+                showToast('Network error during refund.', 'error');
             }
         }
 
@@ -5176,37 +5227,43 @@
             if (!tbody) return;
 
             if (!Array.isArray(contracts) || !contracts.length) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:1.1rem; color:#6b7280;">No contracts yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:1.5rem; color:#6b7280;">No contracts yet. Contracts are created when a customer books a recurring (weekly/fortnightly/monthly) cleaning service.</td></tr>';
                 return;
             }
 
             tbody.innerHTML = contracts.map(contract => {
                 const frequency = String(contract.frequency || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || '—';
-                const status = escapeHtml(contract.status || 'active');
+                const status = contract.status || 'active';
+                const statusClass = status === 'active' ? 'pill--green' : status === 'paused' ? 'pill--yellow' : 'pill--muted';
                 const reminderEnabled = Boolean(contract.reminder_enabled);
+                const created = contract.created_at ? formatDateTime(contract.created_at) : '—';
+                const nextService = contract.next_service_date || '—';
+                const nextReminder = contract.next_reminder_at ? formatDateTime(contract.next_reminder_at) : '—';
                 return `
                     <tr>
                         <td>
                             <div style="display:flex; flex-direction:column; gap:0.2rem;">
                                 <strong>${escapeHtml(contract.customer_name || '—')}</strong>
                                 <small style="color:#6b7280;">${escapeHtml(contract.customer_email || '')}</small>
+                                ${contract.customer_phone ? `<small style="color:#6b7280;">${escapeHtml(contract.customer_phone)}</small>` : ''}
                             </div>
                         </td>
                         <td>
                             <div style="display:flex; flex-direction:column; gap:0.2rem;">
                                 <strong>${escapeHtml(contract.signer_name || '—')}</strong>
-                                <small style="color:#6b7280;">${Boolean(contract.terms_agreed) ? 'Signed' : 'Unsigned'}</small>
+                                <small style="color:${Boolean(contract.terms_agreed) ? '#16a34a' : '#ef4444'};">${Boolean(contract.terms_agreed) ? '✓ Signed' : '✗ Unsigned'}</small>
                             </div>
                         </td>
                         <td>${escapeHtml(contract.service_name || '—')}</td>
-                        <td>${escapeHtml(frequency)}</td>
+                        <td><span class="pill pill--muted">${escapeHtml(frequency)}</span></td>
                         <td>${escapeHtml(contract.service_day || '—')}</td>
-                        <td>${escapeHtml(contract.next_service_date || '—')}</td>
-                        <td>${escapeHtml(contract.next_reminder_at || '—')}</td>
+                        <td style="white-space:nowrap;">${escapeHtml(nextService)}</td>
+                        <td style="white-space:nowrap; font-size:0.82rem;">${escapeHtml(nextReminder)}</td>
                         <td>
-                            <span class="pill pill--muted">${status}</span>
-                            ${reminderEnabled ? '<small style="display:block; color:#16a34a; margin-top:0.25rem;">Reminder ON</small>' : '<small style="display:block; color:#ef4444; margin-top:0.25rem;">Reminder OFF</small>'}
+                            <span class="pill ${statusClass}">${escapeHtml(status)}</span>
+                            <small style="display:block; margin-top:0.25rem; color:${reminderEnabled ? '#16a34a' : '#9ca3af'};">${reminderEnabled ? '🔔 Reminder on' : '🔕 Reminder off'}</small>
                         </td>
+                        <td style="white-space:nowrap; font-size:0.82rem; color:#6b7280;">${escapeHtml(created)}</td>
                     </tr>
                 `;
             }).join('');
