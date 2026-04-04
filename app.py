@@ -7483,6 +7483,30 @@ def stripe_webhook_endpoint():
 
     if event_type == 'checkout.session.completed':
         process_completed_payment_session(event_data)
+    elif event_type == 'payment_intent.succeeded':
+        # Fallback: finalize booking via PaymentIntent if checkout.session.completed was missed/failed
+        pi_id = sanitize_text(event_data.get('id'), 255)
+        metadata = event_data.get('metadata') or {}
+        tx_id_raw = metadata.get('transaction_id') if isinstance(metadata, dict) else None
+        tx = None
+        if tx_id_raw:
+            try:
+                tx = fetch_payment_transaction_by_id(int(str(tx_id_raw).strip()))
+            except (TypeError, ValueError):
+                pass
+        if not tx and pi_id:
+            tx = fetch_payment_transaction_by_payment_intent(pi_id)
+        if tx and tx.get('status') not in ('processed', 'paid'):
+            # Build a minimal session-like dict so process_completed_payment_session can run
+            fake_session = {
+                'id': tx.get('checkout_session_id') or '',
+                'payment_intent': pi_id,
+                'payment_status': 'paid',
+            }
+            try:
+                process_completed_payment_session(fake_session)
+            except Exception:
+                app.logger.exception('payment_intent.succeeded fallback finalization failed for pi %s', pi_id)
     elif event_type in ('checkout.session.expired', 'payment_intent.payment_failed'):
         tx = None
         session_id = sanitize_text(event_data.get('id') or event_data.get('checkout_session'), 255)
@@ -10206,26 +10230,57 @@ def admin_retry_payment_transaction(tx_id):
 
         # For checkout_created/stale_pending: check Stripe to see if payment actually completed
         if tx_status in ('checkout_created', 'stale_pending'):
-            session_id = tx.get('checkout_session_id')
-            if not session_id:
-                return jsonify({'error': 'No checkout session ID — cannot verify with Stripe.'}), 400
             if not stripe_ready():
                 return jsonify({'error': 'Stripe is not configured.'}), 500
-            try:
-                stripe.api_key = stripe_secret_key()
-                session_obj = stripe.checkout.Session.retrieve(session_id)
-                session_data = stripe_object_to_dict(session_obj)
-                payment_status = (session_data.get('payment_status') or '').lower()
-            except Exception as exc:
-                return jsonify({'error': f'Could not retrieve session from Stripe: {exc}'}), 502
+            stripe.api_key = stripe_secret_key()
 
-            if payment_status != 'paid':
-                return jsonify({'error': f"Stripe shows payment_status='{payment_status}' — payment was not completed. Cannot finalize."}), 400
+            is_paid_on_stripe = False
+            resolved_payment_intent_id = tx.get('payment_intent_id') or ''
 
-            # Payment was actually made — update local tx status then finalize
-            update_payment_transaction(tx_id, status='paid',
-                                       payment_intent_id=session_data.get('payment_intent') or tx.get('payment_intent_id'))
+            # Try checkout session first
+            session_id = tx.get('checkout_session_id')
+            if session_id:
+                try:
+                    session_obj = stripe.checkout.Session.retrieve(session_id)
+                    session_data = stripe_object_to_dict(session_obj)
+                    payment_status = (session_data.get('payment_status') or '').lower()
+                    if payment_status == 'paid':
+                        is_paid_on_stripe = True
+                    resolved_payment_intent_id = session_data.get('payment_intent') or resolved_payment_intent_id
+                except Exception as exc:
+                    app.logger.warning('Could not retrieve Stripe session %s: %s', session_id, exc)
+
+            # If session didn't confirm, try PaymentIntent directly
+            if not is_paid_on_stripe and resolved_payment_intent_id:
+                try:
+                    pi = stripe.PaymentIntent.retrieve(resolved_payment_intent_id)
+                    pi_data = stripe_object_to_dict(pi)
+                    if (pi_data.get('status') or '').lower() == 'succeeded':
+                        is_paid_on_stripe = True
+                except Exception as exc:
+                    app.logger.warning('Could not retrieve Stripe PaymentIntent %s: %s', resolved_payment_intent_id, exc)
+
+            # Last resort: check by metadata transaction_id via charges search
+            if not is_paid_on_stripe:
+                try:
+                    charges = stripe.Charge.search(query=f'metadata["transaction_id"]:"{tx_id}"')
+                    charge_data = stripe_object_to_dict(charges)
+                    charge_list = charge_data.get('data') or []
+                    for ch in charge_list:
+                        if ch.get('paid') and ch.get('status') == 'succeeded':
+                            is_paid_on_stripe = True
+                            resolved_payment_intent_id = ch.get('payment_intent') or resolved_payment_intent_id
+                            break
+                except Exception as exc:
+                    app.logger.warning('Charge search fallback failed for tx %s: %s', tx_id, exc)
+
+            if not is_paid_on_stripe:
+                return jsonify({'error': 'Payment was not completed on Stripe for this transaction.'}), 400
+
+            # Payment confirmed — update local record and proceed to finalize
+            update_payment_transaction(tx_id, status='paid', payment_intent_id=resolved_payment_intent_id or None)
             tx['status'] = 'paid'
+            tx['payment_intent_id'] = resolved_payment_intent_id or tx.get('payment_intent_id')
             tx_status = 'paid'
 
         if tx_status not in ('paid', 'processing_failed'):
