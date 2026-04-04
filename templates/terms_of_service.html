@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Done-Well Cleaning Limited' %}
+    <title>Terms of Service | {{ company_name }}</title>
+    <meta name="robots" content="noindex">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Termly Consent Manager -->
+    <script src="https://app.termly.io/resource-blocker/419d7b8d-1457-4e96-aaa8-2068fe8f1863?autoBlock=on"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1f2937; margin: 0; padding: 0; }
+        .policy-nav { background: #1e3a5f; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
+        .policy-nav a { color: #fff; text-decoration: none; font-size: 0.9rem; opacity: 0.85; }
+        .policy-nav a:hover { opacity: 1; }
+        .policy-nav .sep { color: #fff; opacity: 0.4; }
+        .policy-wrap { max-width: 860px; margin: 2.5rem auto; padding: 0 1.5rem 4rem; }
+        .policy-card { background: #fff; border-radius: 1rem; padding: 3rem 3.5rem; box-shadow: 0 2px 16px rgba(0,0,0,0.06); }
+        @media (max-width: 600px) { .policy-card { padding: 1.5rem 1.25rem; } }
+        [data-custom-class='body_text'], [data-custom-class='body_text'] * { color: #374151 !important; font-size: 14px !important; font-family: Inter, Arial, sans-serif !important; }
+        [data-custom-class='heading_1'], [data-custom-class='heading_1'] * { color: #1e3a5f !important; font-size: 18px !important; font-family: Inter, Arial, sans-serif !important; }
+        [data-custom-class='heading_2'], [data-custom-class='heading_2'] * { color: #1e3a5f !important; font-size: 15px !important; font-family: Inter, Arial, sans-serif !important; }
+        [data-custom-class='title'] h1 { color: #1e3a5f !important; font-size: 28px !important; margin-top: 0; }
+        [data-custom-class='subtitle'] { color: #6b7280 !important; font-size: 13px !important; }
+        [data-custom-class='link'], [data-custom-class='link'] * { color: #1d4ed8 !important; }
+        h1, h2, h3 { color: #1e3a5f; }
+        a { color: #1d4ed8; }
+    </style>
+</head>
+<body>
+    <nav class="policy-nav">
+        <a href="/">← Back to {{ company_name }}</a>
+        <span class="sep">·</span>
+        <a href="/privacy-policy">Privacy Policy</a>
+        <span class="sep">·</span>
+        <a href="/cookie-policy">Cookie Policy</a>
+    </nav>
+    <div class="policy-wrap">
+        <div class="policy-card">
+            <div name="termly-embed" data-id="terms-of-service" data-type="iframe"></div>
+            <script type="text/javascript">(function(d, s, id) {
+                var js, tjs = d.getElementsByTagName(s)[0];
+                if (d.getElementById(id)) return;
+                js = d.createElement(s); js.id = id;
+                js.src = "https://app.termly.io/embed-policy.min.js";
+                tjs.parentNode.insertBefore(js, tjs);
+            }(document, 'script', 'termly-jssdk'));</script>
+        </div>
+    </div>
+</body>
+</html>

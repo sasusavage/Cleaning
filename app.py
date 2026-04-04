@@ -12631,6 +12631,36 @@ def admin_applications():
     return jsonify(applications)
 
 
+@app.route('/privacy-policy')
+def privacy_policy():
+    site_settings = {}
+    try:
+        site_settings = fetch_brand_settings() or {}
+    except Exception:
+        pass
+    return render_template('privacy_policy.html', site_settings=site_settings)
+
+
+@app.route('/terms-of-service')
+def terms_of_service():
+    site_settings = {}
+    try:
+        site_settings = fetch_brand_settings() or {}
+    except Exception:
+        pass
+    return render_template('terms_of_service.html', site_settings=site_settings)
+
+
+@app.route('/cookie-policy')
+def cookie_policy():
+    site_settings = {}
+    try:
+        site_settings = fetch_brand_settings() or {}
+    except Exception:
+        pass
+    return render_template('cookie_policy.html', site_settings=site_settings)
+
+
 @app.route('/')
 def index():
     services = []
