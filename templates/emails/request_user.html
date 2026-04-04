@@ -34,10 +34,11 @@
                     </tr>
 
                     <!-- Success Banner -->
+                    {% set payment = request.service_flow.payment if request.service_flow and request.service_flow.payment else None %}
                     <tr>
                         <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); background-color: #10b981; padding: 20px 40px; text-align: center;">
-                            <span style="font-size: 32px;">✓</span>
-                            <h2 style="margin: 8px 0 0; font-size: 20px; font-weight: 600; color: #ffffff;">Request Received Successfully</h2>
+                            <span style="font-size: 32px;">{% if payment and payment.is_paid %}💳{% else %}✓{% endif %}</span>
+                            <h2 style="margin: 8px 0 0; font-size: 20px; font-weight: 600; color: #ffffff;">{% if payment and payment.is_paid %}Booking Confirmed — Payment Received{% else %}Request Received Successfully{% endif %}</h2>
                         </td>
                     </tr>
 
@@ -63,24 +64,31 @@
                             </table>
                             {% endif %}
 
-                            {% set payment = request.service_flow.payment if request.service_flow and request.service_flow.payment else None %}
-                            {% if payment and (payment.transaction_id or payment.stripe_checkout_session_id or payment.stripe_payment_intent_id or payment.status_label) %}
+                            {% if payment and (payment.transaction_id or payment.status_label or payment.is_paid) %}
                             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px; background-color: #ecfdf5; border-radius: 12px; border-left: 4px solid #10b981;">
                                 <tr>
                                     <td style="padding: 20px 24px; background-color: #ecfdf5;">
-                                        <p style="margin: 0 0 10px; font-size: 13px; color: #047857; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; background-color: #ecfdf5;">Payment Details</p>
+                                        <p style="margin: 0 0 10px; font-size: 13px; color: #047857; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; background-color: #ecfdf5;">💳 Payment Details</p>
                                         {% if payment.status_label %}
                                         <p style="margin: 0 0 6px; font-size: 14px; color: #065f46; background-color: #ecfdf5;"><strong>Status:</strong> {{ payment.status_label }}</p>
                                         {% endif %}
+                                        {% if payment.payment_type %}
+                                        <p style="margin: 0 0 6px; font-size: 14px; color: #065f46; background-color: #ecfdf5;"><strong>Method:</strong> {{ payment.payment_type | title }}</p>
+                                        {% endif %}
+                                        {% if order_totals and order_totals.final_total is not none and not order_totals.is_survey_request %}
+                                        <p style="margin: 0 0 6px; font-size: 15px; color: #065f46; font-weight: 700; background-color: #ecfdf5;"><strong>Amount Paid:</strong> £{{ '%.2f'|format(order_totals.final_total) }}</p>
+                                        {% endif %}
                                         {% if payment.transaction_id %}
-                                        <p style="margin: 0 0 6px; font-size: 14px; color: #065f46; background-color: #ecfdf5;"><strong>Transaction ID:</strong> {{ payment.transaction_id }}</p>
+                                        <p style="margin: 0 0 6px; font-size: 13px; color: #6b7280; background-color: #ecfdf5;"><strong>Transaction Ref:</strong> #{{ payment.transaction_id }}</p>
                                         {% endif %}
-                                        {% if payment.stripe_checkout_session_id %}
-                                        <p style="margin: 0 0 6px; font-size: 14px; color: #065f46; background-color: #ecfdf5;"><strong>Checkout Session ID:</strong> {{ payment.stripe_checkout_session_id }}</p>
-                                        {% endif %}
-                                        {% if payment.stripe_payment_intent_id %}
-                                        <p style="margin: 0; font-size: 14px; color: #065f46; background-color: #ecfdf5;"><strong>Payment Intent ID:</strong> {{ payment.stripe_payment_intent_id }}</p>
-                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                            {% elif payment and payment.payment_type == 'in_person' %}
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px; background-color: #fef9c3; border-radius: 12px; border-left: 4px solid #f59e0b;">
+                                <tr>
+                                    <td style="padding: 16px 20px; background-color: #fef9c3;">
+                                        <p style="margin: 0; font-size: 14px; color: #92400e; background-color: #fef9c3;">💰 <strong>Payment:</strong> Pay in person on the day of service.</p>
                                     </td>
                                 </tr>
                             </table>

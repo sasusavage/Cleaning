@@ -1296,15 +1296,23 @@ def parse_order_for_email(service_flow):
             'is_survey': is_survey
         })
 
-    # Build totals dict
+    # Build totals dict — map both old-style keys and prepare_service_booking keys
     order_totals = None
     if order_items:
+        # Discount: support both discount_applied/discount_percent AND prebook_discount_amount/prebook_discount_percent
+        discount_amount = totals.get('discount_amount') or totals.get('prebook_discount_amount') or 0
+        discount_percent = totals.get('discount_percent') or totals.get('prebook_discount_percent') or 0
+        discount_applied = bool(totals.get('discount_applied')) or (discount_amount and discount_amount > 0)
+        # Final total: use payable_total (post-discount) if available, else total_with_travel, else amount
+        final_total = totals.get('payable_total') if totals.get('payable_total') is not None else (
+            totals.get('total_with_travel') if totals.get('total_with_travel') is not None else totals.get('amount')
+        )
         order_totals = {
-            'discount_applied': totals.get('discount_applied', False),
-            'discount_percent': totals.get('discount_percent', 0),
-            'discount_amount': totals.get('discount_amount', 0),
+            'discount_applied': discount_applied,
+            'discount_percent': discount_percent,
+            'discount_amount': discount_amount,
             'travel_fee': totals.get('travel_fee'),
-            'final_total': totals.get('total_with_travel') or totals.get('amount'),
+            'final_total': final_total,
             'is_survey_request': totals.get('is_survey_request', False),
             'has_custom_pricing': totals.get('has_custom_pricing', False)
         }
@@ -1738,8 +1746,15 @@ def send_request_notifications(request_record, attachments=None):
             "Thanks for reaching out! We'll get back to you soon.\n\n" +
             build_request_summary_text(context)
         )
+        service_name_for_subject = context.get('service_name') or context.get('request_type') or 'service'
+        payment_info_for_subject = service_flow.get('payment') or {}
+        is_paid_for_subject = bool(payment_info_for_subject.get('is_paid'))
+        if is_paid_for_subject:
+            user_subject = f"Booking confirmed – {service_name_for_subject} (Paid)"
+        else:
+            user_subject = f"We received your request – {service_name_for_subject}"
         result['user_sent'] = send_email_via_settings(
-            subject='We received your request',
+            subject=user_subject,
             html_body=user_html,
             text_body=user_text,
             recipients=[user_email],
@@ -10094,6 +10109,98 @@ def admin_run_contract_reminders_api():
     except Exception:
         app.logger.exception('Failed to run contract reminders manually')
         return jsonify({'error': 'Unable to process reminders right now.'}), 500
+
+
+@app.route('/admin/api/contracts/<int:contract_id>', methods=['PATCH'])
+@admin_login_required
+def admin_update_contract_api(contract_id):
+    """Update contract fields: status, reminder_enabled, next_service_date, next_reminder_at, preferred_time, frequency."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        allowed = ('status', 'reminder_enabled', 'next_service_date', 'next_reminder_at', 'preferred_time', 'frequency')
+        updates = {k: v for k, v in payload.items() if k in allowed}
+        if not updates:
+            return jsonify({'error': 'No valid fields to update.'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        set_parts = [f"{k} = %s" for k in updates]
+        values = list(updates.values())
+        values.append(contract_id)
+        cursor.execute(f"UPDATE contracts SET {', '.join(set_parts)} WHERE id = %s", values)
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Contract updated.'})
+    except Exception:
+        app.logger.exception('Failed to update contract %s', contract_id)
+        return jsonify({'error': 'Unable to update contract.'}), 500
+
+
+@app.route('/admin/api/contracts/<int:contract_id>/remind', methods=['POST'])
+@admin_login_required
+def admin_send_contract_reminder_api(contract_id):
+    """Send an immediate reminder email for a specific contract."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM contracts WHERE id = %s LIMIT 1", (contract_id,))
+        contract = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        if not contract:
+            return jsonify({'error': 'Contract not found.'}), 404
+
+        recipient = sanitize_email(contract.get('customer_email'))
+        if not recipient:
+            return jsonify({'error': 'No email address on this contract.'}), 400
+
+        settings = fetch_email_settings()
+        if not settings or not int(settings.get('is_active') or 0):
+            return jsonify({'error': 'Email is not configured/active.'}), 400
+
+        frequency_label = format_contract_frequency_label(contract.get('frequency')) or 'Recurring'
+        service_date = contract.get('next_service_date') or 'TBC'
+        service_time = contract.get('preferred_time') or '09:00'
+        subject = f"Reminder: {contract.get('service_name') or 'Cleaning service'} — {service_date}"
+        html_body = (
+            f"<p>Hello {contract.get('customer_name') or 'there'},</p>"
+            f"<p>This is a reminder for your {frequency_label.lower()} contract service <strong>{contract.get('service_name') or 'Cleaning service'}</strong>.</p>"
+            f"<p><strong>Scheduled for:</strong> {service_date} at {service_time}</p>"
+            f"<p>If you need to reschedule or have any questions, please reply to this email.</p>"
+            f"<p>Thank you,<br>Done-Well Cleaning Team</p>"
+        )
+        text_body = (
+            f"Hello {contract.get('customer_name') or 'there'},\n\n"
+            f"Reminder for your {frequency_label.lower()} contract service ({contract.get('service_name') or 'Cleaning service'})\n"
+            f"Scheduled for: {service_date} at {service_time}\n\n"
+            "Need to reschedule? Reply to this email.\n\nDone-Well Cleaning Team"
+        )
+        sent = send_email_via_settings(
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            recipients=[recipient],
+            settings=settings,
+            reply_to=settings.get('reply_to') or settings.get('sender_email'),
+            error_context='manual_contract_reminder'
+        )
+
+        if sent:
+            # Update last_reminder_sent_at
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE contracts SET last_reminder_sent_at = CURRENT_TIMESTAMP WHERE id = %s", (contract_id,))
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return jsonify({'message': f'Reminder sent to {recipient}.'})
+        else:
+            return jsonify({'error': 'Email send failed. Check email settings.'}), 500
+    except Exception:
+        app.logger.exception('Failed to send contract reminder for %s', contract_id)
+        return jsonify({'error': 'Unable to send reminder.'}), 500
 
 
 @app.route('/admin/api/requests/<int:request_id>/files/<int:file_id>', methods=['GET'])
