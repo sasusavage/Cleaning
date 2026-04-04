@@ -4646,19 +4646,43 @@
         }
 
         async function retryPaymentTransaction(txId) {
-            if (!confirm('Retry finalizing this transaction? This will create a new booking record if one is missing.')) return;
+            if (!confirm('Check & Finalize: Click OK to automatically verify payment with Stripe and create the booking record.')) return;
+            let data = {};
             try {
-                const res = await fetch(`/admin/api/payment-transactions/${txId}/retry`, { method: 'POST' });
-                const data = await res.json().catch(() => ({}));
+                const res = await fetch(`/admin/api/payment-transactions/${txId}/retry`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                data = await res.json().catch(() => ({}));
                 if (res.ok) {
                     showToast(data.message || 'Transaction finalized.', 'success');
                     loadPaymentTransactions();
                     loadRequests();
-                } else {
-                    showToast(data.error || 'Retry failed.', 'error');
+                    return;
                 }
             } catch (err) {
-                showToast('Network error during retry.', 'error');
+                data = { error: 'Network error.' };
+            }
+            // Auto-check failed — offer force option if admin has verified in Stripe
+            if (confirm(`Auto-check result: ${data.error || 'Could not confirm payment automatically.'}\n\nHave you verified in your Stripe dashboard that this payment SUCCEEDED? Click OK to force-finalize the booking.`)) {
+                try {
+                    const res2 = await fetch(`/admin/api/payment-transactions/${txId}/retry`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ force: true })
+                    });
+                    const data2 = await res2.json().catch(() => ({}));
+                    if (res2.ok) {
+                        showToast(data2.message || 'Transaction force-finalized.', 'success');
+                        loadPaymentTransactions();
+                        loadRequests();
+                    } else {
+                        showToast(data2.error || 'Force finalize failed.', 'error');
+                    }
+                } catch (err2) {
+                    showToast('Network error during force finalize.', 'error');
+                }
             }
         }
 

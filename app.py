@@ -10227,9 +10227,10 @@ def admin_retry_payment_transaction(tx_id):
             return jsonify({'error': 'Transaction not found.'}), 404
 
         tx_status = tx.get('status') or ''
+        force = request.args.get('force') == '1' or (request.get_json(silent=True) or {}).get('force')
 
         # For checkout_created/stale_pending: check Stripe to see if payment actually completed
-        if tx_status in ('checkout_created', 'stale_pending'):
+        if tx_status in ('checkout_created', 'stale_pending') and not force:
             if not stripe_ready():
                 return jsonify({'error': 'Stripe is not configured.'}), 500
             stripe.api_key = stripe_secret_key()
