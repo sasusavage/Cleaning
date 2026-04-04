@@ -2937,10 +2937,35 @@ def ensure_domestic_cleaning_tables():
     global _done_ensure_domestic_cleaning_tables
     if _done_ensure_domestic_cleaning_tables:
         return
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+        _ensure_domestic_cleaning_tables_inner(conn, cursor, engine)
+        _done_ensure_domestic_cleaning_tables = True
+    except Exception:
+        app.logger.exception('ensure_domestic_cleaning_tables failed')
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+    finally:
+        if cursor:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
+
+def _ensure_domestic_cleaning_tables_inner(conn, cursor, engine):
     if engine == 'postgres':
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS domestic_cleaning_content (
@@ -3024,6 +3049,9 @@ def ensure_domestic_cleaning_tables():
             )
         """)
 
+    # Commit DDL separately so tables exist even if seeding fails
+    conn.commit()
+
     cursor.execute("SELECT COUNT(*) FROM domestic_cleaning_content")
     content_count = cursor.fetchone()[0]
     if content_count == 0:
@@ -3086,9 +3114,6 @@ def ensure_domestic_cleaning_tables():
             )
 
     conn.commit()
-    cursor.close()
-    conn.close()
-    _done_ensure_domestic_cleaning_tables = True
 
 
 def fetch_domestic_cleaning_data(include_inactive=False):
