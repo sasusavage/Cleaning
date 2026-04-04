@@ -18,45 +18,50 @@
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f0f4f8; padding: 40px 20px;">
         <tr>
             <td align="center">
-                <table width="100%" cellpadding="0" cellspacing="0" border="0" class="dark-mode-bg" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);">
-                    
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" class="dark-mode-bg" style="max-width: 620px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);">
+
                     <!-- Header -->
                     <tr>
-                        <td style="background-color: #1e3a5f; padding: 32px 40px; text-align: center;">
-                            <h1 style="margin: 0 0 8px; font-size: 28px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px; background-color: #1e3a5f;">Done-Well Cleaning</h1>
-                            <p style="margin: 0; font-size: 14px; color: #ffffff; letter-spacing: 0.5px; opacity: 0.9; background-color: #1e3a5f;">Professional Cleaning Services</p>
+                        <td style="background-color: #1a6fce; padding: 24px 40px; text-align: center;">
+                            {% if logo_url %}
+                            <img src="{{ logo_url }}" alt="Done-Well Cleaning" width="140" border="0" style="display: block; margin: 0 auto 8px; max-height: 70px; width: auto; max-width: 160px;">
+                            {% else %}
+                            <h1 style="margin: 0 0 4px; font-size: 26px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px; background-color: transparent;">Done-Well Cleaning</h1>
+                            <p style="margin: 0; font-size: 13px; color: #ffffff; opacity: 0.85; background-color: transparent;">Professional Cleaning Services · London</p>
+                            {% endif %}
                         </td>
                     </tr>
 
                     <!-- Celebration Banner -->
                     <tr>
-                        <td style="background-color: #10b981; padding: 28px 40px; text-align: center;">
-                            <span style="font-size: 42px;">🎉</span>
-                            <h2 style="margin: 12px 0 0; font-size: 22px; font-weight: 700; color: #ffffff; background-color: #10b981;">Your Quote is Ready!</h2>
+                        <td style="background-color: #2ecc24; padding: 24px 40px; text-align: center;">
+                            <span style="font-size: 36px; display: block; margin-bottom: 8px;">🎉</span>
+                            <h2 style="margin: 0; font-size: 19px; font-weight: 700; color: #ffffff; background-color: transparent;">Your Quote is Ready!</h2>
                         </td>
                     </tr>
 
                     <!-- Main Content -->
                     <tr>
-                        <td class="dark-mode-bg" style="padding: 40px; background-color: #ffffff;">
-                            <p class="dark-mode-text" style="margin: 0 0 20px; font-size: 16px; color: #1f2937; line-height: 1.6; background-color: #ffffff;">
-                                Hi <strong style="color: #1e3a5f;">{{ request.name or 'there' }}</strong>,
+                        <td class="dark-mode-bg" style="padding: 36px 40px; background-color: #ffffff;">
+
+                            <p class="dark-mode-text" style="margin: 0 0 6px; font-size: 16px; color: #1f2937; line-height: 1.6; background-color: #ffffff;">
+                                Hi <strong style="color: #1a6fce;">{{ request.name or 'there' }}</strong>,
                             </p>
-                            <p class="dark-mode-text" style="margin: 0 0 24px; font-size: 15px; color: #4b5563; line-height: 1.7; background-color: #ffffff;">
-                                Great news! We've prepared a personalized quote for you based on your cleaning request. Here are the details:
+                            <p class="dark-mode-text" style="margin: 0 0 28px; font-size: 14px; color: #6b7280; line-height: 1.7; background-color: #ffffff;">
+                                Great news! We've prepared a personalised quote for your cleaning request. Here are the full details:
                             </p>
 
-                            <!-- Quote Amount Box -->
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px;">
+                            <!-- Quote Amount -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px;">
                                 <tr>
                                     <td align="center">
-                                        <table cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 16px; box-shadow: 0 8px 32px rgba(16, 185, 129, 0.3);">
+                                        <table cellpadding="0" cellspacing="0" border="0" style="background-color: #17a81a; border-radius: 14px; box-shadow: 0 6px 24px rgba(23, 168, 26, 0.25);">
                                             <tr>
-                                                <td style="padding: 32px 50px; text-align: center; background-color: #10b981;">
-                                                    <p style="margin: 0 0 8px; font-size: 14px; color: #ffffff; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; opacity: 0.9; background-color: #10b981;">Your Quote</p>
-                                                    <p style="margin: 0; font-size: 48px; font-weight: 800; color: #ffffff; letter-spacing: -1px; background-color: #10b981;">{{ quote_amount or '£0.00' }}</p>
+                                                <td style="padding: 28px 52px; text-align: center; background-color: #17a81a;">
+                                                    <p style="margin: 0 0 6px; font-size: 12px; color: #ffffff; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; opacity: 0.85; background-color: #17a81a;">Your Quote</p>
+                                                    <p style="margin: 0; font-size: 46px; font-weight: 800; color: #ffffff; letter-spacing: -1px; background-color: #17a81a;">{{ quote_amount or '£0.00' }}</p>
                                                     {% if quote_frequency %}
-                                                    <p style="margin: 8px 0 0; font-size: 14px; color: #ffffff; opacity: 0.9; background-color: #10b981;">{{ quote_frequency }}</p>
+                                                    <p style="margin: 8px 0 0; font-size: 14px; color: #ffffff; opacity: 0.9; background-color: #17a81a;">{{ quote_frequency }}</p>
                                                     {% endif %}
                                                 </td>
                                             </tr>
@@ -65,61 +70,78 @@
                                 </tr>
                             </table>
 
-                            <!-- Reference Box -->
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px; background-color: #eff6ff; border-radius: 12px; border-left: 4px solid #1e3a5f;">
+                            <!-- Reference -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 20px; background-color: #eff6ff; border-radius: 10px; border-left: 4px solid #1a6fce;">
                                 <tr>
-                                    <td style="padding: 20px 24px; background-color: #eff6ff;">
-                                        <p style="margin: 0 0 4px; font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; background-color: #eff6ff;">Reference Number</p>
-                                        <p style="margin: 0; font-size: 20px; font-weight: 700; color: #1e3a5f; letter-spacing: 1px; background-color: #eff6ff;">{{ request.ref_id or request.id }}</p>
-                                    </td>
-                                </tr>
-                            </table>
-
-                            <!-- Service Details Card -->
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px; background-color: #f9fafb; border-radius: 12px; border: 1px solid #e5e7eb;">
-                                <tr>
-                                    <td style="padding: 24px; background-color: #f9fafb;">
-                                        <h3 style="margin: 0 0 16px; font-size: 15px; font-weight: 600; color: #1e3a5f; background-color: #f9fafb;">Quote Details</h3>
-                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; background-color: #f9fafb;">
-                                            {% if request.service_name %}
+                                    <td style="padding: 14px 20px; background-color: #eff6ff;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #eff6ff;">
                                             <tr>
-                                                <td style="padding: 10px 0; color: #6b7280; width: 140px; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">Service</td>
-                                                <td class="dark-mode-text" style="padding: 10px 0; color: #1f2937; font-weight: 500; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">{{ request.service_name }}</td>
-                                            </tr>
-                                            {% endif %}
-                                            {% if property_type %}
-                                            <tr>
-                                                <td style="padding: 10px 0; color: #6b7280; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">Property Type</td>
-                                                <td class="dark-mode-text" style="padding: 10px 0; color: #1f2937; font-weight: 500; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">{{ property_type }}</td>
-                                            </tr>
-                                            {% endif %}
-                                            {% if bedrooms %}
-                                            <tr>
-                                                <td style="padding: 10px 0; color: #6b7280; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">Bedrooms</td>
-                                                <td class="dark-mode-text" style="padding: 10px 0; color: #1f2937; font-weight: 500; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">{{ bedrooms }}</td>
-                                            </tr>
-                                            {% endif %}
-                                            {% if bathrooms %}
-                                            <tr>
-                                                <td style="padding: 10px 0; color: #6b7280; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">Bathrooms</td>
-                                                <td class="dark-mode-text" style="padding: 10px 0; color: #1f2937; font-weight: 500; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">{{ bathrooms }}</td>
-                                            </tr>
-                                            {% endif %}
-                                            <tr>
-                                                <td style="padding: 10px 0; color: #6b7280; background-color: #f9fafb;">Valid Until</td>
-                                                <td class="dark-mode-text" style="padding: 10px 0; color: #1f2937; font-weight: 500; background-color: #f9fafb;">{{ quote_valid_until or '30 days from today' }}</td>
+                                                <td style="background-color: #eff6ff;">
+                                                    <p style="margin: 0 0 2px; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; background-color: #eff6ff;">Reference Number</p>
+                                                    <p style="margin: 0; font-size: 19px; font-weight: 700; color: #1a6fce; letter-spacing: 1px; background-color: #eff6ff;">{{ request.ref_id or request.id }}</p>
+                                                </td>
+                                                <td align="right" style="background-color: #eff6ff;">
+                                                    <p style="margin: 0 0 2px; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; background-color: #eff6ff;">Valid Until</p>
+                                                    <p style="margin: 0; font-size: 14px; font-weight: 600; color: #1a6fce; background-color: #eff6ff;">{{ quote_valid_until or '30 days from today' }}</p>
+                                                </td>
                                             </tr>
                                         </table>
                                     </td>
                                 </tr>
                             </table>
 
-                            {% if quote_notes %}
-                            <!-- Quote Notes -->
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px; background-color: #fef3c7; border-radius: 10px; border-left: 4px solid #f59e0b;">
+                            <!-- Quote / Service Details -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 20px; background-color: #f9fafb; border-radius: 10px; border: 1px solid #e5e7eb;">
                                 <tr>
-                                    <td style="padding: 16px 20px; background-color: #fef3c7;">
-                                        <p style="margin: 0 0 4px; font-size: 12px; color: #92400e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; background-color: #fef3c7;">Notes</p>
+                                    <td style="padding: 18px 20px; background-color: #f9fafb;">
+                                        <h3 style="margin: 0 0 14px; font-size: 13px; font-weight: 700; color: #1a6fce; background-color: #f9fafb;">Quote Details</h3>
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; background-color: #f9fafb;">
+                                            {% if request.service_name %}
+                                            <tr>
+                                                <td style="padding: 7px 0; color: #6b7280; width: 140px; border-bottom: 1px solid #e5e7eb; vertical-align: top; background-color: #f9fafb;">Service</td>
+                                                <td class="dark-mode-text" style="padding: 7px 0; color: #1f2937; font-weight: 600; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">{{ request.service_name }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if property_type %}
+                                            <tr>
+                                                <td style="padding: 7px 0; color: #6b7280; border-bottom: 1px solid #e5e7eb; vertical-align: top; background-color: #f9fafb;">Property Type</td>
+                                                <td class="dark-mode-text" style="padding: 7px 0; color: #1f2937; font-weight: 500; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">{{ property_type }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if bedrooms %}
+                                            <tr>
+                                                <td style="padding: 7px 0; color: #6b7280; border-bottom: 1px solid #e5e7eb; vertical-align: top; background-color: #f9fafb;">Bedrooms</td>
+                                                <td class="dark-mode-text" style="padding: 7px 0; color: #1f2937; font-weight: 500; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">{{ bedrooms }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if bathrooms %}
+                                            <tr>
+                                                <td style="padding: 7px 0; color: #6b7280; border-bottom: 1px solid #e5e7eb; vertical-align: top; background-color: #f9fafb;">Bathrooms</td>
+                                                <td class="dark-mode-text" style="padding: 7px 0; color: #1f2937; font-weight: 500; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">{{ bathrooms }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if schedule_info %}
+                                            <tr>
+                                                <td style="padding: 7px 0; color: #6b7280; border-bottom: 1px solid #e5e7eb; vertical-align: top; background-color: #f9fafb;">Schedule</td>
+                                                <td style="padding: 7px 0; color: #1a6fce; font-weight: 600; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">📅 {{ schedule_info }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if location_info and location_info.address %}
+                                            <tr>
+                                                <td style="padding: 7px 0; color: #6b7280; vertical-align: top; background-color: #f9fafb;">Address</td>
+                                                <td class="dark-mode-text" style="padding: 7px 0; color: #1f2937; font-weight: 500; background-color: #f9fafb;">{{ location_info.address }}{% if location_info.postcode %}, {{ location_info.postcode }}{% endif %}</td>
+                                            </tr>
+                                            {% endif %}
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            {% if quote_notes %}
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 20px; background-color: #fef3c7; border-radius: 10px; border-left: 4px solid #f59e0b;">
+                                <tr>
+                                    <td style="padding: 14px 18px; background-color: #fef3c7;">
+                                        <p style="margin: 0 0 4px; font-size: 11px; color: #92400e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; background-color: #fef3c7;">Notes from Our Team</p>
                                         <p style="margin: 0; font-size: 14px; color: #92400e; line-height: 1.6; background-color: #fef3c7;">{{ quote_notes }}</p>
                                     </td>
                                 </tr>
@@ -127,80 +149,56 @@
                             {% endif %}
 
                             <!-- What's Included -->
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px; background-color: #ecfdf5; border-radius: 12px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px; background-color: #edfaee; border-radius: 10px;">
                                 <tr>
-                                    <td style="padding: 24px; background-color: #ecfdf5;">
-                                        <h3 style="margin: 0 0 16px; font-size: 15px; font-weight: 600; color: #047857; background-color: #ecfdf5;">✨ What's Included</h3>
-                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; background-color: #ecfdf5;">
-                                            <tr>
-                                                <td style="padding: 6px 0; background-color: #ecfdf5;">
-                                                    <span style="color: #10b981; font-weight: bold; margin-right: 8px;">✓</span>
-                                                    <span style="color: #065f46;">Professional cleaning team</span>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 6px 0; background-color: #ecfdf5;">
-                                                    <span style="color: #10b981; font-weight: bold; margin-right: 8px;">✓</span>
-                                                    <span style="color: #065f46;">All cleaning products & equipment</span>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 6px 0; background-color: #ecfdf5;">
-                                                    <span style="color: #10b981; font-weight: bold; margin-right: 8px;">✓</span>
-                                                    <span style="color: #065f46;">Full insurance coverage</span>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 6px 0; background-color: #ecfdf5;">
-                                                    <span style="color: #10b981; font-weight: bold; margin-right: 8px;">✓</span>
-                                                    <span style="color: #065f46;">Satisfaction guaranteed</span>
-                                                </td>
-                                            </tr>
+                                    <td style="padding: 18px 20px; background-color: #edfaee;">
+                                        <h3 style="margin: 0 0 12px; font-size: 13px; font-weight: 700; color: #138a18; background-color: #edfaee;">✨ What's Included</h3>
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; background-color: #edfaee;">
+                                            <tr><td style="padding: 5px 0; background-color: #edfaee;"><span style="color: #2ecc24; font-weight: bold; margin-right: 8px;">✓</span><span style="color: #0d6b12;">Professional cleaning team</span></td></tr>
+                                            <tr><td style="padding: 5px 0; background-color: #edfaee;"><span style="color: #2ecc24; font-weight: bold; margin-right: 8px;">✓</span><span style="color: #0d6b12;">All cleaning products &amp; equipment</span></td></tr>
+                                            <tr><td style="padding: 5px 0; background-color: #edfaee;"><span style="color: #2ecc24; font-weight: bold; margin-right: 8px;">✓</span><span style="color: #0d6b12;">Full insurance coverage</span></td></tr>
+                                            <tr><td style="padding: 5px 0; background-color: #edfaee;"><span style="color: #2ecc24; font-weight: bold; margin-right: 8px;">✓</span><span style="color: #0d6b12;">100% satisfaction guaranteed</span></td></tr>
                                         </table>
                                     </td>
                                 </tr>
                             </table>
 
                             <!-- CTA Button -->
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px;">
                                 <tr>
                                     <td align="center">
-                                        <a href="{{ accept_quote_url or '#' }}" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 700; padding: 16px 40px; border-radius: 10px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
-                                            Accept Quote & Book Now
+                                        <a href="{{ accept_quote_url or '#' }}" style="display: inline-block; background-color: #2ecc24; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 700; padding: 16px 42px; border-radius: 10px; box-shadow: 0 4px 14px rgba(46, 204, 36, 0.35);">
+                                            Accept Quote &amp; Book Now
                                         </a>
                                     </td>
                                 </tr>
                             </table>
 
-                            <!-- Help Section -->
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px; background-color: #f3f4f6; border-radius: 10px;">
+                            <!-- Help -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 20px; background-color: #f3f4f6; border-radius: 10px;">
                                 <tr>
-                                    <td style="padding: 16px 20px; background-color: #f3f4f6;">
+                                    <td style="padding: 14px 18px; background-color: #f3f4f6;">
                                         <p style="margin: 0; font-size: 14px; color: #4b5563; line-height: 1.6; background-color: #f3f4f6;">
-                                            <strong style="color: #1f2937;">Have questions?</strong> Simply reply to this email or give us a call. We're here to help!
+                                            <strong style="color: #1f2937;">Have questions?</strong> Reply to this email or call us at <strong style="color: #1a6fce;">(+44) 7795 595867</strong>.
                                         </p>
                                     </td>
                                 </tr>
                             </table>
 
-                            <p class="dark-mode-text" style="margin: 0; font-size: 15px; color: #4b5563; line-height: 1.7; background-color: #ffffff;">
-                                We look forward to making your space sparkle!
-                            </p>
-                            <p class="dark-mode-text" style="margin: 16px 0 0; font-size: 15px; color: #1f2937; background-color: #ffffff;">
+                            <p class="dark-mode-text" style="margin: 0; font-size: 15px; color: #1f2937; background-color: #ffffff;">
                                 Warm regards,<br>
-                                <strong style="color: #1e3a5f;">The Done-Well Team</strong>
+                                <strong style="color: #1a6fce;">The Done-Well Team</strong>
                             </p>
+
                         </td>
                     </tr>
 
                     <!-- Footer -->
                     <tr>
-                        <td style="background-color: #1e293b; padding: 32px 40px; text-align: center;">
-                            <p style="margin: 0 0 8px; font-size: 16px; font-weight: 600; color: #ffffff; background-color: #1e293b;">Done-Well Cleaning Limited</p>
-                            <p style="margin: 0 0 16px; font-size: 13px; color: #94a3b8; background-color: #1e293b;">Professional Cleaning Services Since 2014</p>
-                            <p style="margin: 0; font-size: 12px; color: #64748b; background-color: #1e293b;">
-                                © {{ current_year or '2026' }} Done-Well Cleaning Ltd. All rights reserved.
-                            </p>
+                        <td style="background-color: #1a3a6e; padding: 28px 40px; text-align: center;">
+                            <p style="margin: 0 0 4px; font-size: 15px; font-weight: 600; color: #ffffff; background-color: #1a3a6e;">Done-Well Cleaning Limited</p>
+                            <p style="margin: 0 0 12px; font-size: 12px; color: #94a3b8; background-color: #1a3a6e;">3rd Floor, 86–90 Paul Street, London, EC2A 4NE · info@done-wellcleaninglimited.org</p>
+                            <p style="margin: 0; font-size: 11px; color: #64748b; background-color: #1a3a6e;">© {{ current_year or '2026' }} Done-Well Cleaning Ltd. All rights reserved.</p>
                         </td>
                     </tr>
 

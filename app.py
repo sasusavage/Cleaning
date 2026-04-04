@@ -1690,6 +1690,12 @@ def send_request_notifications(request_record, attachments=None):
     # Parse order items for email templates
     order_items, order_totals, schedule_info, customer_notes, location_info, assigned_base_info = parse_order_for_email(service_flow)
 
+    # Build absolute logo URL for email templates
+    _site = fetch_site_settings() or {}
+    _logo_path = (_site.get('logo_path') or '').strip()
+    _base = _get_app_base_url().rstrip('/')
+    logo_url = f"{_base}/static/{_logo_path}" if _logo_path else None
+
     try:
         admin_html = render_template(
             'emails/request_admin.html',
@@ -1700,7 +1706,8 @@ def send_request_notifications(request_record, attachments=None):
             schedule_info=schedule_info,
             customer_notes=customer_notes,
             location_info=location_info,
-            assigned_base_info=assigned_base_info
+            assigned_base_info=assigned_base_info,
+            logo_url=logo_url
         )
     except Exception:
         app.logger.exception('Failed to render admin email template.')
@@ -1737,7 +1744,8 @@ def send_request_notifications(request_record, attachments=None):
                 order_totals=order_totals,
                 schedule_info=schedule_info,
                 customer_notes=customer_notes,
-                location_info=location_info
+                location_info=location_info,
+                logo_url=logo_url
             )
         except Exception:
             app.logger.exception('Failed to render user confirmation email template.')
@@ -1853,8 +1861,13 @@ def send_status_update_notifications(request_row, previous_status=None):
         'previous_status': previous_status
     }
 
+    _site2 = fetch_site_settings() or {}
+    _logo_path2 = (_site2.get('logo_path') or '').strip()
+    _base2 = _get_app_base_url().rstrip('/')
+    logo_url2 = f"{_base2}/static/{_logo_path2}" if _logo_path2 else None
+
     try:
-        admin_html = render_template('emails/request_status_admin.html', request=context)
+        admin_html = render_template('emails/request_status_admin.html', request=context, logo_url=logo_url2)
     except Exception:
         app.logger.exception('Failed to render admin status update email template.')
         admin_html = None
@@ -1880,7 +1893,7 @@ def send_status_update_notifications(request_row, previous_status=None):
 
     if user_email:
         try:
-            user_html = render_template('emails/request_status_user.html', request=context)
+            user_html = render_template('emails/request_status_user.html', request=context, logo_url=logo_url2)
         except Exception:
             app.logger.exception('Failed to render user status update email template.')
             user_html = None
@@ -1940,6 +1953,11 @@ def send_quote_ready_notification(request_row, quote_amount):
         app.logger.info('No user email for quote ready notification; skipping for request %s', request_row.get('id'))
         return result
 
+    _site3 = fetch_site_settings() or {}
+    _logo_path3 = (_site3.get('logo_path') or '').strip()
+    _base3 = _get_app_base_url().rstrip('/')
+    logo_url3 = f"{_base3}/static/{_logo_path3}" if _logo_path3 else None
+
     # Build email content
     user_subject = f"Your quote is ready - {context.get('quote_formatted')}"
     user_text = (
@@ -1953,7 +1971,7 @@ def send_quote_ready_notification(request_row, quote_amount):
     )
 
     try:
-        user_html = render_template('emails/quote_ready_user.html', request=context)
+        user_html = render_template('emails/quote_ready_user.html', request=context, logo_url=logo_url3)
     except Exception:
         app.logger.warning('Quote ready email template not found; using plain text.')
         user_html = None

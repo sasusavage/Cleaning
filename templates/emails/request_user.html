@@ -20,108 +20,141 @@
     </style>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f0f4f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; -webkit-font-smoothing: antialiased;">
+    {% set payment = request.service_flow.payment if request.service_flow and request.service_flow.payment else None %}
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f0f4f8; padding: 40px 20px;">
         <tr>
             <td align="center">
-                <table width="100%" cellpadding="0" cellspacing="0" border="0" class="dark-mode-bg" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);">
-                    
-                    <!-- Header with Logo -->
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" class="dark-mode-bg" style="max-width: 620px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);">
+
+                    <!-- Header -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 50%, #3d7ab5 100%); background-color: #1e3a5f; padding: 32px 40px; text-align: center;">
-                            <h1 style="margin: 0 0 8px; font-size: 28px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px;">Done-Well Cleaning</h1>
-                            <p style="margin: 0; font-size: 14px; color: #ffffff; letter-spacing: 0.5px; opacity: 0.9;">Professional Cleaning Services</p>
+                        <td style="background-color: #1a6fce; padding: 24px 40px; text-align: center;">
+                            {% if logo_url %}
+                            <img src="{{ logo_url }}" alt="Done-Well Cleaning" width="140" border="0" style="display: block; margin: 0 auto 8px; max-height: 70px; width: auto; max-width: 160px;">
+                            {% else %}
+                            <h1 style="margin: 0 0 4px; font-size: 26px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px; background-color: transparent;">Done-Well Cleaning</h1>
+                            <p style="margin: 0; font-size: 13px; color: #ffffff; opacity: 0.85; background-color: transparent;">Professional Cleaning Services · London</p>
+                            {% endif %}
                         </td>
                     </tr>
 
-                    <!-- Success Banner -->
-                    {% set payment = request.service_flow.payment if request.service_flow and request.service_flow.payment else None %}
+                    <!-- Status Banner -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); background-color: #10b981; padding: 20px 40px; text-align: center;">
-                            <span style="font-size: 32px;">{% if payment and payment.is_paid %}💳{% else %}✓{% endif %}</span>
-                            <h2 style="margin: 8px 0 0; font-size: 20px; font-weight: 600; color: #ffffff;">{% if payment and payment.is_paid %}Booking Confirmed — Payment Received{% else %}Request Received Successfully{% endif %}</h2>
+                        <td style="background-color: {% if payment and payment.is_paid %}#17a81a{% else %}#2ecc24{% endif %}; padding: 22px 40px; text-align: center;">
+                            <span style="font-size: 30px; display: block; margin-bottom: 6px;">{% if payment and payment.is_paid %}💳{% else %}✅{% endif %}</span>
+                            <h2 style="margin: 0; font-size: 19px; font-weight: 700; color: #ffffff; background-color: transparent;">
+                                {% if payment and payment.is_paid %}Booking Confirmed — Payment Received{% else %}Request Received Successfully{% endif %}
+                            </h2>
                         </td>
                     </tr>
 
                     <!-- Main Content -->
                     <tr>
-                        <td class="dark-mode-bg" style="padding: 40px; background-color: #ffffff;">
-                            <p class="dark-mode-text" style="margin: 0 0 20px; font-size: 16px; color: #1f2937; line-height: 1.6; background-color: #ffffff;">
-                                Dear <strong style="color: #1e3a5f;">{{ request.name }}</strong>,
+                        <td class="dark-mode-bg" style="padding: 36px 40px; background-color: #ffffff;">
+
+                            <p class="dark-mode-text" style="margin: 0 0 6px; font-size: 16px; color: #1f2937; line-height: 1.6; background-color: #ffffff;">
+                                Dear <strong style="color: #1a6fce;">{{ request.name }}</strong>,
                             </p>
-                            <p class="dark-mode-text" style="margin: 0 0 24px; font-size: 15px; color: #4b5563; line-height: 1.7; background-color: #ffffff;">
-                                Thank you for choosing Done-Well Cleaning! We have successfully received your <strong style="color: #1e3a5f;">{{ request.request_type }}</strong> request. A member of our team will review your submission and get back to you shortly.
+                            <p class="dark-mode-text" style="margin: 0 0 28px; font-size: 14px; color: #6b7280; line-height: 1.7; background-color: #ffffff;">
+                                {% if payment and payment.is_paid %}
+                                    Your booking is confirmed and payment has been received. We look forward to serving you!
+                                {% else %}
+                                    Thank you for choosing Done-Well Cleaning. We've received your <strong style="color: #1a6fce;">{{ request.service_name or request.request_type }}</strong> request and our team will be in touch shortly.
+                                {% endif %}
                             </p>
 
-                            <!-- Reference Box -->
+                            <!-- Reference Number -->
                             {% if request.ref_id %}
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px; background-color: #eff6ff; border-radius: 12px; border-left: 4px solid #1e3a5f;">
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 20px; background-color: #eff6ff; border-radius: 10px; border-left: 4px solid #1a6fce;">
                                 <tr>
-                                    <td style="padding: 20px 24px; background-color: #eff6ff;">
-                                        <p style="margin: 0 0 4px; font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; background-color: #eff6ff;">Reference Number</p>
-                                        <p style="margin: 0; font-size: 22px; font-weight: 700; color: #1e3a5f; letter-spacing: 1px; background-color: #eff6ff;">{{ request.ref_id }}</p>
+                                    <td style="padding: 14px 20px; background-color: #eff6ff;">
+                                        <p style="margin: 0 0 2px; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; background-color: #eff6ff;">Booking Reference</p>
+                                        <p style="margin: 0; font-size: 20px; font-weight: 700; color: #1a6fce; letter-spacing: 1px; background-color: #eff6ff;">{{ request.ref_id }}</p>
                                     </td>
                                 </tr>
                             </table>
                             {% endif %}
 
-                            {% if payment and (payment.transaction_id or payment.status_label or payment.is_paid) %}
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px; background-color: #ecfdf5; border-radius: 12px; border-left: 4px solid #10b981;">
+                            <!-- Payment Details (Stripe paid) -->
+                            {% if payment and payment.is_paid %}
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 20px; background-color: #edfaee; border-radius: 10px; border-left: 4px solid #2ecc24;">
                                 <tr>
-                                    <td style="padding: 20px 24px; background-color: #ecfdf5;">
-                                        <p style="margin: 0 0 10px; font-size: 13px; color: #047857; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; background-color: #ecfdf5;">💳 Payment Details</p>
-                                        {% if payment.status_label %}
-                                        <p style="margin: 0 0 6px; font-size: 14px; color: #065f46; background-color: #ecfdf5;"><strong>Status:</strong> {{ payment.status_label }}</p>
-                                        {% endif %}
-                                        {% if payment.payment_type %}
-                                        <p style="margin: 0 0 6px; font-size: 14px; color: #065f46; background-color: #ecfdf5;"><strong>Method:</strong> {{ payment.payment_type | title }}</p>
-                                        {% endif %}
-                                        {% if order_totals and order_totals.final_total is not none and not order_totals.is_survey_request %}
-                                        <p style="margin: 0 0 6px; font-size: 15px; color: #065f46; font-weight: 700; background-color: #ecfdf5;"><strong>Amount Paid:</strong> £{{ '%.2f'|format(order_totals.final_total) }}</p>
-                                        {% endif %}
-                                        {% if payment.transaction_id %}
-                                        <p style="margin: 0 0 6px; font-size: 13px; color: #6b7280; background-color: #ecfdf5;"><strong>Transaction Ref:</strong> #{{ payment.transaction_id }}</p>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                            </table>
-                            {% elif payment and payment.payment_type == 'in_person' %}
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px; background-color: #fef9c3; border-radius: 12px; border-left: 4px solid #f59e0b;">
-                                <tr>
-                                    <td style="padding: 16px 20px; background-color: #fef9c3;">
-                                        <p style="margin: 0; font-size: 14px; color: #92400e; background-color: #fef9c3;">💰 <strong>Payment:</strong> Pay in person on the day of service.</p>
-                                    </td>
-                                </tr>
-                            </table>
-                            {% endif %}
-
-                            <!-- Request Summary -->
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px; background-color: #ffffff;">
-                                <tr>
-                                    <td class="dark-mode-bg" style="background-color: #ffffff;">
-                                        <h3 class="dark-mode-text" style="margin: 0 0 16px; font-size: 16px; font-weight: 600; color: #1e3a5f; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; background-color: #ffffff;">
-                                            📋 Request Summary
-                                        </h3>
-                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; background-color: #ffffff;">
+                                    <td style="padding: 16px 20px; background-color: #edfaee;">
+                                        <p style="margin: 0 0 10px; font-size: 12px; color: #138a18; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; background-color: #edfaee;">💳 Payment Confirmed</p>
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; background-color: #edfaee;">
+                                            {% if order_totals and order_totals.final_total is not none and not order_totals.is_survey_request %}
                                             <tr>
-                                                <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #64748b; width: 140px; background-color: #ffffff;">Submitted</td>
-                                                <td class="dark-mode-text" style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #1f2937; font-weight: 500; background-color: #ffffff;">{{ request.created_at }}</td>
+                                                <td style="padding: 4px 0; color: #0d6b12; width: 130px; background-color: #edfaee; font-weight: 600;">Amount Paid</td>
+                                                <td style="padding: 4px 0; color: #138a18; font-size: 18px; font-weight: 700; background-color: #edfaee;">£{{ '%.2f'|format(order_totals.final_total) }}</td>
                                             </tr>
+                                            {% endif %}
+                                            {% if payment.payment_type %}
+                                            <tr>
+                                                <td style="padding: 4px 0; color: #0d6b12; background-color: #edfaee;">Method</td>
+                                                <td style="padding: 4px 0; color: #0d6b12; font-weight: 500; background-color: #edfaee;">{{ payment.payment_type | replace('_', ' ') | title }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if payment.transaction_id %}
+                                            <tr>
+                                                <td style="padding: 4px 0; color: #0d6b12; background-color: #edfaee;">Transaction Ref</td>
+                                                <td style="padding: 4px 0; color: #6b7280; font-size: 12px; background-color: #edfaee;">#{{ payment.transaction_id }}</td>
+                                            </tr>
+                                            {% endif %}
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- In-person payment notice -->
+                            {% elif payment and payment.payment_type == 'in_person' %}
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 20px; background-color: #fef9c3; border-radius: 10px; border-left: 4px solid #f59e0b;">
+                                <tr>
+                                    <td style="padding: 14px 20px; background-color: #fef9c3;">
+                                        <p style="margin: 0; font-size: 14px; color: #92400e; background-color: #fef9c3;">
+                                            💰 <strong>Payment:</strong> You will pay in person on the day of service.
+                                            {% if order_totals and order_totals.final_total is not none and not order_totals.is_survey_request %}
+                                            Amount due: <strong>£{{ '%.2f'|format(order_totals.final_total) }}</strong>
+                                            {% endif %}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                            {% endif %}
+
+                            <!-- Booking Details -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 20px; background-color: #f9fafb; border-radius: 10px; border: 1px solid #e5e7eb;">
+                                <tr>
+                                    <td style="padding: 20px; background-color: #f9fafb;">
+                                        <h3 style="margin: 0 0 14px; font-size: 13px; font-weight: 700; color: #1a6fce; text-transform: uppercase; letter-spacing: 0.6px; background-color: #f9fafb;">📋 Booking Details</h3>
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; background-color: #f9fafb;">
                                             {% if request.service_name %}
                                             <tr>
-                                                <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #64748b; background-color: #ffffff;">Service</td>
-                                                <td class="dark-mode-text" style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #1f2937; font-weight: 500; background-color: #ffffff;">{{ request.service_name }}</td>
+                                                <td style="padding: 7px 0; color: #6b7280; width: 130px; border-bottom: 1px solid #e5e7eb; vertical-align: top; background-color: #f9fafb;">Service</td>
+                                                <td class="dark-mode-text" style="padding: 7px 0; color: #1f2937; font-weight: 600; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">{{ request.service_name }}</td>
                                             </tr>
                                             {% endif %}
                                             {% if request.job_position %}
                                             <tr>
-                                                <td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #64748b; background-color: #ffffff;">Position</td>
-                                                <td class="dark-mode-text" style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; color: #1f2937; font-weight: 500; background-color: #ffffff;">{{ request.job_position }}</td>
+                                                <td style="padding: 7px 0; color: #6b7280; border-bottom: 1px solid #e5e7eb; vertical-align: top; background-color: #f9fafb;">Position</td>
+                                                <td class="dark-mode-text" style="padding: 7px 0; color: #1f2937; font-weight: 500; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">{{ request.job_position }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if schedule_info %}
+                                            <tr>
+                                                <td style="padding: 7px 0; color: #6b7280; border-bottom: 1px solid #e5e7eb; vertical-align: top; background-color: #f9fafb;">Schedule</td>
+                                                <td style="padding: 7px 0; color: #1a6fce; font-weight: 600; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">📅 {{ schedule_info }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if location_info and location_info.address %}
+                                            <tr>
+                                                <td style="padding: 7px 0; color: #6b7280; border-bottom: 1px solid #e5e7eb; vertical-align: top; background-color: #f9fafb;">Address</td>
+                                                <td class="dark-mode-text" style="padding: 7px 0; color: #1f2937; font-weight: 500; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">{{ location_info.address }}{% if location_info.postcode %}, {{ location_info.postcode }}{% endif %}</td>
                                             </tr>
                                             {% endif %}
                                             {% if request.phone %}
                                             <tr>
-                                                <td style="padding: 10px 0; color: #64748b; background-color: #ffffff;">Phone</td>
-                                                <td class="dark-mode-text" style="padding: 10px 0; color: #1f2937; font-weight: 500; background-color: #ffffff;">{{ request.phone }}</td>
+                                                <td style="padding: 7px 0; color: #6b7280; vertical-align: top; background-color: #f9fafb;">Phone</td>
+                                                <td class="dark-mode-text" style="padding: 7px 0; color: #1f2937; font-weight: 500; background-color: #f9fafb;">{{ request.phone }}</td>
                                             </tr>
                                             {% endif %}
                                         </table>
@@ -130,35 +163,27 @@
                             </table>
 
                             {% if order_items %}
-                            <!-- Order Details -->
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px; background-color: #ffffff;">
+                            <!-- Order Summary -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 20px; background-color: #ffffff;">
                                 <tr>
                                     <td class="dark-mode-bg" style="background-color: #ffffff;">
-                                        <h3 class="dark-mode-text" style="margin: 0 0 16px; font-size: 16px; font-weight: 600; color: #1e3a5f; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; background-color: #ffffff;">
-                                            🛒 Your Order
-                                        </h3>
+                                        <h3 class="dark-mode-text" style="margin: 0 0 12px; font-size: 13px; font-weight: 700; color: #1a6fce; text-transform: uppercase; letter-spacing: 0.6px; background-color: #ffffff;">🛒 Your Order</h3>
                                         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden;">
                                             <thead>
-                                                <tr style="background-color: #1e3a5f;">
-                                                    <th style="padding: 14px 16px; text-align: left; color: #ffffff; font-weight: 600; background-color: #1e3a5f;">Service</th>
-                                                    <th style="padding: 14px 16px; text-align: left; color: #ffffff; font-weight: 600; background-color: #1e3a5f;">Details</th>
-                                                    <th style="padding: 14px 16px; text-align: right; color: #ffffff; font-weight: 600; width: 100px; background-color: #1e3a5f;">Price</th>
+                                                <tr style="background-color: #1a6fce;">
+                                                    <th style="padding: 12px 14px; text-align: left; color: #ffffff; font-weight: 600; background-color: #1a6fce;">Service</th>
+                                                    <th style="padding: 12px 14px; text-align: left; color: #ffffff; font-weight: 600; background-color: #1a6fce;">Details</th>
+                                                    <th style="padding: 12px 14px; text-align: right; color: #ffffff; font-weight: 600; width: 90px; background-color: #1a6fce;">Price</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {% for item in order_items %}
                                                 <tr style="background-color: {{ '#ffffff' if loop.index0 % 2 == 0 else '#f8fafc' }};">
-                                                    <td style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #1e3a5f; background-color: {{ '#ffffff' if loop.index0 % 2 == 0 else '#f8fafc' }};">
-                                                        {{ item.service_name }}
-                                                    </td>
-                                                    <td style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb; color: #64748b; white-space: pre-wrap; max-width: 200px; background-color: {{ '#ffffff' if loop.index0 % 2 == 0 else '#f8fafc' }};">
-                                                        {{ item.detail or '—' }}
-                                                    </td>
-                                                    <td style="padding: 14px 16px; text-align: right; border-bottom: 1px solid #e5e7eb; font-weight: 600; background-color: {{ '#ffffff' if loop.index0 % 2 == 0 else '#f8fafc' }};">
-                                                        {% if item.is_survey %}
-                                                        <span style="color: #d97706; font-style: italic;">Quote TBD</span>
-                                                        {% elif item.price is not none %}
-                                                        <span style="color: #059669;">£{{ '%.2f'|format(item.price) }}</span>
+                                                    <td style="padding: 12px 14px; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #1a6fce; background-color: {{ '#ffffff' if loop.index0 % 2 == 0 else '#f8fafc' }};">{{ item.service_name }}</td>
+                                                    <td style="padding: 12px 14px; border-bottom: 1px solid #e5e7eb; color: #64748b; font-size: 13px; background-color: {{ '#ffffff' if loop.index0 % 2 == 0 else '#f8fafc' }};">{{ item.detail or '—' }}</td>
+                                                    <td style="padding: 12px 14px; text-align: right; border-bottom: 1px solid #e5e7eb; font-weight: 600; background-color: {{ '#ffffff' if loop.index0 % 2 == 0 else '#f8fafc' }};">
+                                                        {% if item.is_survey %}<span style="color: #d97706; font-style: italic; font-size: 12px;">Quote TBD</span>
+                                                        {% elif item.price is not none %}<span style="color: #17a81a;">£{{ '%.2f'|format(item.price) }}</span>
                                                         {% else %}—{% endif %}
                                                     </td>
                                                 </tr>
@@ -167,25 +192,25 @@
                                             {% if order_totals %}
                                             <tfoot>
                                                 {% if order_totals.discount_applied %}
-                                                <tr style="background-color: #ecfdf5;">
-                                                    <td colspan="2" style="padding: 12px 16px; text-align: right; color: #059669; font-weight: 500; background-color: #ecfdf5;">Bulk Discount ({{ order_totals.discount_percent }}%)</td>
-                                                    <td style="padding: 12px 16px; text-align: right; color: #059669; font-weight: 600; background-color: #ecfdf5;">-£{{ '%.2f'|format(order_totals.discount_amount) }}</td>
+                                                <tr style="background-color: #edfaee;">
+                                                    <td colspan="2" style="padding: 10px 14px; text-align: right; color: #17a81a; font-weight: 500; font-size: 13px; background-color: #edfaee;">Bulk Discount ({{ order_totals.discount_percent }}%)</td>
+                                                    <td style="padding: 10px 14px; text-align: right; color: #17a81a; font-weight: 700; background-color: #edfaee;">−£{{ '%.2f'|format(order_totals.discount_amount) }}</td>
                                                 </tr>
                                                 {% endif %}
                                                 {% if order_totals.travel_fee and order_totals.travel_fee > 0 %}
                                                 <tr style="background-color: #f8fafc;">
-                                                    <td colspan="2" style="padding: 12px 16px; text-align: right; color: #64748b; font-weight: 500; background-color: #f8fafc;">Travel Fee</td>
-                                                    <td class="dark-mode-text" style="padding: 12px 16px; text-align: right; color: #1f2937; font-weight: 600; background-color: #f8fafc;">£{{ '%.2f'|format(order_totals.travel_fee) }}</td>
+                                                    <td colspan="2" style="padding: 10px 14px; text-align: right; color: #64748b; font-weight: 500; font-size: 13px; background-color: #f8fafc;">Travel Fee</td>
+                                                    <td class="dark-mode-text" style="padding: 10px 14px; text-align: right; color: #1f2937; font-weight: 600; background-color: #f8fafc;">£{{ '%.2f'|format(order_totals.travel_fee) }}</td>
                                                 </tr>
                                                 {% endif %}
                                                 {% if order_totals.final_total is not none and not order_totals.is_survey_request %}
-                                                <tr style="background-color: #1e3a5f;">
-                                                    <td colspan="2" style="padding: 16px; text-align: right; color: #ffffff; font-size: 16px; font-weight: 600; background-color: #1e3a5f;">Total</td>
-                                                    <td style="padding: 16px; text-align: right; color: #ffffff; font-size: 18px; font-weight: 700; background-color: #1e3a5f;">£{{ '%.2f'|format(order_totals.final_total) }}</td>
+                                                <tr style="background-color: #1a6fce;">
+                                                    <td colspan="2" style="padding: 14px; text-align: right; color: #ffffff; font-size: 15px; font-weight: 600; background-color: #1a6fce;">Total{% if payment and payment.is_paid %} Paid{% endif %}</td>
+                                                    <td style="padding: 14px; text-align: right; color: #ffffff; font-size: 17px; font-weight: 700; background-color: #1a6fce;">£{{ '%.2f'|format(order_totals.final_total) }}</td>
                                                 </tr>
                                                 {% elif order_totals.is_survey_request or order_totals.has_custom_pricing %}
                                                 <tr style="background-color: #fef3c7;">
-                                                    <td colspan="3" style="padding: 16px; text-align: center; color: #92400e; font-weight: 500; background-color: #fef3c7;">
+                                                    <td colspan="3" style="padding: 14px; text-align: center; color: #92400e; font-weight: 500; font-size: 13px; background-color: #fef3c7;">
                                                         ⚠️ We'll contact you with a detailed quote
                                                     </td>
                                                 </tr>
@@ -196,88 +221,51 @@
                                     </td>
                                 </tr>
                             </table>
-
-                            {% if schedule_info %}
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px; background-color: #fef3c7; border-radius: 10px; border-left: 4px solid #f59e0b;">
-                                <tr>
-                                    <td style="padding: 16px 20px; background-color: #fef3c7;">
-                                        <p style="margin: 0; font-size: 14px; color: #92400e; background-color: #fef3c7;">
-                                            <strong>📅 Preferred Schedule:</strong> {{ schedule_info }}
-                                        </p>
-                                    </td>
-                                </tr>
-                            </table>
-                            {% endif %}
-                            {% endif %}
-
-                            {% if location_info %}
-                            <!-- Location Info -->
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px; background-color: #ffffff;">
-                                <tr>
-                                    <td class="dark-mode-bg" style="background-color: #ffffff;">
-                                        <h3 class="dark-mode-text" style="margin: 0 0 16px; font-size: 16px; font-weight: 600; color: #1e3a5f; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; background-color: #ffffff;">
-                                            📍 Service Location
-                                        </h3>
-                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #eff6ff; border-radius: 10px; border: 1px solid #bfdbfe;">
-                                            <tr>
-                                                <td style="padding: 20px; background-color: #eff6ff;">
-                                                    {% if location_info.address %}
-                                                    <p class="dark-mode-text" style="margin: 0 0 8px; font-size: 14px; color: #1f2937; background-color: #eff6ff;"><strong>Address:</strong> {{ location_info.address }}</p>
-                                                    {% endif %}
-                                                    {% if location_info.postcode %}
-                                                    <p class="dark-mode-text" style="margin: 0; font-size: 14px; color: #1f2937; background-color: #eff6ff;"><strong>Postcode:</strong> {{ location_info.postcode }}</p>
-                                                    {% endif %}
-                                                </td>
-                                            </tr>
-                                        </table>
-                                    </td>
-                                </tr>
-                            </table>
                             {% endif %}
 
                             <!-- What's Next -->
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px; background-color: #f8fafc; border-radius: 12px;">
+                            {% if not (payment and payment.is_paid) %}
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 20px; background-color: #f8fafc; border-radius: 10px;">
                                 <tr>
-                                    <td style="padding: 24px; background-color: #f8fafc;">
-                                        <h3 style="margin: 0 0 16px; font-size: 16px; font-weight: 600; color: #1e3a5f; background-color: #f8fafc;">What happens next?</h3>
+                                    <td style="padding: 20px; background-color: #f8fafc;">
+                                        <h3 style="margin: 0 0 14px; font-size: 13px; font-weight: 700; color: #1a6fce; background-color: #f8fafc;">What happens next?</h3>
                                         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc;">
-                                            <tr>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #4b5563; background-color: #f8fafc;">
-                                                    <span style="display: inline-block; width: 24px; height: 24px; background-color: #1e3a5f; color: #fff; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; margin-right: 12px;">1</span>
-                                                    Our team will review your request within 24 hours
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #4b5563; background-color: #f8fafc;">
-                                                    <span style="display: inline-block; width: 24px; height: 24px; background-color: #1e3a5f; color: #fff; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; margin-right: 12px;">2</span>
-                                                    We'll contact you to confirm details and schedule
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #4b5563; background-color: #f8fafc;">
-                                                    <span style="display: inline-block; width: 24px; height: 24px; background-color: #1e3a5f; color: #fff; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; margin-right: 12px;">3</span>
-                                                    Sit back and let us handle the rest!
-                                                </td>
-                                            </tr>
+                                            <tr><td style="padding: 6px 0; font-size: 14px; color: #4b5563; background-color: #f8fafc;">
+                                                <span style="display: inline-block; width: 22px; height: 22px; background-color: #1a6fce; color: #fff; border-radius: 50%; text-align: center; line-height: 22px; font-size: 11px; font-weight: 700; margin-right: 10px;">1</span>
+                                                Our team will review your request within 24 hours
+                                            </td></tr>
+                                            <tr><td style="padding: 6px 0; font-size: 14px; color: #4b5563; background-color: #f8fafc;">
+                                                <span style="display: inline-block; width: 22px; height: 22px; background-color: #1a6fce; color: #fff; border-radius: 50%; text-align: center; line-height: 22px; font-size: 11px; font-weight: 700; margin-right: 10px;">2</span>
+                                                We'll contact you to confirm details and schedule
+                                            </td></tr>
+                                            <tr><td style="padding: 6px 0; font-size: 14px; color: #4b5563; background-color: #f8fafc;">
+                                                <span style="display: inline-block; width: 22px; height: 22px; background-color: #1a6fce; color: #fff; border-radius: 50%; text-align: center; line-height: 22px; font-size: 11px; font-weight: 700; margin-right: 10px;">3</span>
+                                                Sit back and let us handle the rest!
+                                            </td></tr>
                                         </table>
                                     </td>
                                 </tr>
                             </table>
+                            {% endif %}
 
-                            <p class="dark-mode-text" style="margin: 0; font-size: 15px; color: #4b5563; line-height: 1.7; background-color: #ffffff;">
-                                If you have any questions, feel free to reply to this email or call us directly.
+                            <!-- Contact line -->
+                            <p class="dark-mode-text" style="margin: 0 0 20px; font-size: 14px; color: #6b7280; line-height: 1.7; background-color: #ffffff;">
+                                If you have any questions, please reply to this email or call us at <strong style="color: #1a6fce;">(+44) 7795 595867</strong>.
                             </p>
+                            <p class="dark-mode-text" style="margin: 0; font-size: 15px; color: #1f2937; background-color: #ffffff;">
+                                Warm regards,<br>
+                                <strong style="color: #1a6fce;">The Done-Well Team</strong>
+                            </p>
+
                         </td>
                     </tr>
 
                     <!-- Footer -->
                     <tr>
-                        <td style="background-color: #1e293b; padding: 32px 40px; text-align: center;">
-                            <p style="margin: 0 0 8px; font-size: 16px; font-weight: 600; color: #ffffff; background-color: #1e293b;">Done-Well Cleaning Limited</p>
-                            <p style="margin: 0 0 16px; font-size: 13px; color: #94a3b8; background-color: #1e293b;">Professional Cleaning Services Since 2014</p>
-                            <p style="margin: 0; font-size: 12px; color: #64748b; background-color: #1e293b;">
-                                © {{ current_year or '2026' }} Done-Well Cleaning Ltd. All rights reserved.
-                            </p>
+                        <td style="background-color: #1a3a6e; padding: 28px 40px; text-align: center;">
+                            <p style="margin: 0 0 4px; font-size: 15px; font-weight: 600; color: #ffffff; background-color: #1a3a6e;">Done-Well Cleaning Limited</p>
+                            <p style="margin: 0 0 12px; font-size: 12px; color: #94a3b8; background-color: #1a3a6e;">3rd Floor, 86–90 Paul Street, London, EC2A 4NE · info@done-wellcleaninglimited.org</p>
+                            <p style="margin: 0; font-size: 11px; color: #64748b; background-color: #1a3a6e;">© {{ current_year or '2026' }} Done-Well Cleaning Ltd. All rights reserved.</p>
                         </td>
                     </tr>
 
