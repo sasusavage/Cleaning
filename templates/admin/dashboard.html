@@ -4628,8 +4628,8 @@
                 const customer = tx.customer_name || tx.customer_email || '—';
                 const reqPair = `${tx.request_id || '—'} / ${tx.service_request_id || '—'}`;
                 const created = tx.created_at ? formatDateTime(tx.created_at) : '—';
-                const canRetry = tx.status === 'paid' || tx.status === 'processing_failed';
-                const retryBtn = canRetry ? `<button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;" onclick="retryPaymentTransaction(${tx.id})">Retry</button>` : '';
+                const canRetry = ['paid', 'processing_failed', 'checkout_created', 'stale_pending'].includes(tx.status);
+                const retryBtn = canRetry ? `<button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;" onclick="retryPaymentTransaction(${tx.id})">${tx.status === 'checkout_created' || tx.status === 'stale_pending' ? 'Check & Finalize' : 'Retry'}</button>` : '';
                 return `
                     <tr>
                         <td>${tx.id ?? '—'}</td>

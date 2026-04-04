@@ -10196,13 +10196,40 @@ def admin_payment_transactions_api():
 @app.route('/admin/api/payment-transactions/<int:tx_id>/retry', methods=['POST'])
 @admin_login_required
 def admin_retry_payment_transaction(tx_id):
-    """Re-run finalization for a paid Stripe transaction whose booking failed to persist."""
+    """Re-run finalization for a Stripe transaction. For checkout_created, checks Stripe first."""
     try:
         tx = fetch_payment_transaction_by_id(tx_id)
         if not tx:
             return jsonify({'error': 'Transaction not found.'}), 404
-        if tx.get('status') not in ('paid', 'processing_failed'):
-            return jsonify({'error': f"Cannot retry transaction with status '{tx.get('status')}'. Only 'paid' or 'processing_failed' transactions can be retried."}), 400
+
+        tx_status = tx.get('status') or ''
+
+        # For checkout_created/stale_pending: check Stripe to see if payment actually completed
+        if tx_status in ('checkout_created', 'stale_pending'):
+            session_id = tx.get('checkout_session_id')
+            if not session_id:
+                return jsonify({'error': 'No checkout session ID — cannot verify with Stripe.'}), 400
+            if not stripe_ready():
+                return jsonify({'error': 'Stripe is not configured.'}), 500
+            try:
+                stripe.api_key = stripe_secret_key()
+                session_obj = stripe.checkout.Session.retrieve(session_id)
+                session_data = stripe_object_to_dict(session_obj)
+                payment_status = (session_data.get('payment_status') or '').lower()
+            except Exception as exc:
+                return jsonify({'error': f'Could not retrieve session from Stripe: {exc}'}), 502
+
+            if payment_status != 'paid':
+                return jsonify({'error': f"Stripe shows payment_status='{payment_status}' — payment was not completed. Cannot finalize."}), 400
+
+            # Payment was actually made — update local tx status then finalize
+            update_payment_transaction(tx_id, status='paid',
+                                       payment_intent_id=session_data.get('payment_intent') or tx.get('payment_intent_id'))
+            tx['status'] = 'paid'
+            tx_status = 'paid'
+
+        if tx_status not in ('paid', 'processing_failed'):
+            return jsonify({'error': f"Cannot finalize transaction with status '{tx_status}'."}), 400
 
         prepared_payload = tx.get('prepared_payload') or '{}'
         prepared = json.loads(prepared_payload) if prepared_payload else {}
