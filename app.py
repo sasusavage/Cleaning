@@ -10241,12 +10241,21 @@ def admin_retry_payment_transaction(tx_id):
             session_id = tx.get('checkout_session_id')
             if session_id:
                 try:
-                    session_obj = stripe.checkout.Session.retrieve(session_id)
+                    session_obj = stripe.checkout.Session.retrieve(
+                        session_id, expand=['payment_intent']
+                    )
                     session_data = stripe_object_to_dict(session_obj)
                     payment_status = (session_data.get('payment_status') or '').lower()
                     if payment_status == 'paid':
                         is_paid_on_stripe = True
-                    resolved_payment_intent_id = session_data.get('payment_intent') or resolved_payment_intent_id
+                    # payment_intent may be expanded object or just an ID string
+                    pi_field = session_data.get('payment_intent')
+                    if isinstance(pi_field, dict):
+                        if (pi_field.get('status') or '').lower() == 'succeeded':
+                            is_paid_on_stripe = True
+                        resolved_payment_intent_id = pi_field.get('id') or resolved_payment_intent_id
+                    elif isinstance(pi_field, str) and pi_field:
+                        resolved_payment_intent_id = pi_field
                 except Exception as exc:
                     app.logger.warning('Could not retrieve Stripe session %s: %s', session_id, exc)
 
@@ -10260,19 +10269,26 @@ def admin_retry_payment_transaction(tx_id):
                 except Exception as exc:
                     app.logger.warning('Could not retrieve Stripe PaymentIntent %s: %s', resolved_payment_intent_id, exc)
 
-            # Last resort: check by metadata transaction_id via charges search
+            # Last resort: list charges filtered by metadata transaction_id
             if not is_paid_on_stripe:
                 try:
-                    charges = stripe.Charge.search(query=f'metadata["transaction_id"]:"{tx_id}"')
-                    charge_data = stripe_object_to_dict(charges)
-                    charge_list = charge_data.get('data') or []
-                    for ch in charge_list:
-                        if ch.get('paid') and ch.get('status') == 'succeeded':
-                            is_paid_on_stripe = True
-                            resolved_payment_intent_id = ch.get('payment_intent') or resolved_payment_intent_id
-                            break
+                    charge_list = stripe.Charge.list(limit=5)
+                    charge_data = stripe_object_to_dict(charge_list)
+                    # Use search if available, otherwise fall back to list+filter
+                    try:
+                        searched = stripe.Charge.search(query=f'metadata["transaction_id"]:"{tx_id}"')
+                        charge_data = stripe_object_to_dict(searched)
+                    except Exception:
+                        pass
+                    for ch in (charge_data.get('data') or []):
+                        ch_meta = ch.get('metadata') or {}
+                        if str(ch_meta.get('transaction_id', '')) == str(tx_id):
+                            if ch.get('paid') and (ch.get('status') or '') == 'succeeded':
+                                is_paid_on_stripe = True
+                                resolved_payment_intent_id = ch.get('payment_intent') or resolved_payment_intent_id
+                                break
                 except Exception as exc:
-                    app.logger.warning('Charge search fallback failed for tx %s: %s', tx_id, exc)
+                    app.logger.warning('Charge lookup fallback failed for tx %s: %s', tx_id, exc)
 
             if not is_paid_on_stripe:
                 return jsonify({'error': 'Payment was not completed on Stripe for this transaction.'}), 400
