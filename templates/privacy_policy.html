@@ -9,26 +9,31 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <!-- Termly Consent Manager -->
     <script src="https://app.termly.io/resource-blocker/419d7b8d-1457-4e96-aaa8-2068fe8f1863?autoBlock=on"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1f2937; margin: 0; padding: 0; }
-        .policy-nav { background: #1e3a5f; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
-        .policy-nav a { color: #fff; text-decoration: none; font-size: 0.9rem; opacity: 0.85; }
-        .policy-nav a:hover { opacity: 1; }
-        .policy-nav .sep { color: #fff; opacity: 0.4; }
-        .policy-wrap { max-width: 860px; margin: 2.5rem auto; padding: 0 1.5rem 4rem; }
-        .policy-card { background: #fff; border-radius: 1rem; padding: 3rem 3.5rem; box-shadow: 0 2px 16px rgba(0,0,0,0.06); }
-        @media (max-width: 600px) { .policy-card { padding: 1.5rem 1.25rem; } }
-        [data-custom-class='body_text'], [data-custom-class='body_text'] * { color: #374151 !important; font-size: 14px !important; font-family: Inter, Arial, sans-serif !important; }
-        [data-custom-class='heading_1'], [data-custom-class='heading_1'] * { color: #1e3a5f !important; font-size: 18px !important; font-family: Inter, Arial, sans-serif !important; }
-        [data-custom-class='heading_2'], [data-custom-class='heading_2'] * { color: #1e3a5f !important; font-size: 15px !important; font-family: Inter, Arial, sans-serif !important; }
-        [data-custom-class='title'] h1 { color: #1e3a5f !important; font-size: 28px !important; margin-top: 0; }
-        [data-custom-class='subtitle'] { color: #6b7280 !important; font-size: 13px !important; }
-        [data-custom-class='link'], [data-custom-class='link'] * { color: #1d4ed8 !important; }
+        *, *::before, *::after { box-sizing: border-box; }
+        body { margin: 0; padding: 0; font-family: 'Inter', Arial, sans-serif; background: #f8fafc; color: #374151; }
+        .policy-nav { background: #1e3a5f; padding: 0.9rem 2rem; display: flex; align-items: center; gap: 0.5rem 1.25rem; flex-wrap: wrap; }
+        .policy-nav a { color: #fff; text-decoration: none; font-size: 0.88rem; opacity: 0.82; transition: opacity 0.15s; }
+        .policy-nav a:hover { opacity: 1; text-decoration: underline; }
+        .policy-nav .sep { color: #fff; opacity: 0.35; }
+        .policy-wrap { max-width: 820px; margin: 2.5rem auto 4rem; padding: 0 1.25rem; }
+        .policy-card { background: #fff; border-radius: 0.875rem; padding: 2.75rem 3rem; box-shadow: 0 2px 18px rgba(0,0,0,0.07); }
+        @media (max-width: 600px) { .policy-card { padding: 1.5rem 1.1rem; } .policy-nav { padding: 0.8rem 1rem; } }
+        /* Override Termly default styles to match brand */
+        [data-custom-class='body'], [data-custom-class='body'] * { background: transparent !important; font-family: 'Inter', Arial, sans-serif !important; }
+        [data-custom-class='title'] h1, [data-custom-class='title'] * { font-family: 'Inter', Arial, sans-serif !important; font-size: 26px !important; color: #1e3a5f !important; margin-top: 0; }
+        [data-custom-class='subtitle'], [data-custom-class='subtitle'] * { font-family: 'Inter', Arial, sans-serif !important; color: #6b7280 !important; font-size: 13px !important; }
+        [data-custom-class='heading_1'] h2, [data-custom-class='heading_1'] * { font-family: 'Inter', Arial, sans-serif !important; font-size: 17px !important; color: #1e3a5f !important; }
+        [data-custom-class='heading_2'] h3, [data-custom-class='heading_2'] * { font-family: 'Inter', Arial, sans-serif !important; font-size: 15px !important; color: #1e3a5f !important; }
+        [data-custom-class='body_text'], [data-custom-class='body_text'] * { color: #4b5563 !important; font-size: 14px !important; font-family: 'Inter', Arial, sans-serif !important; line-height: 1.7 !important; }
+        [data-custom-class='link'], [data-custom-class='link'] * { color: #1d4ed8 !important; font-size: 14px !important; font-family: 'Inter', Arial, sans-serif !important; word-break: break-word !important; }
         h1, h2, h3 { color: #1e3a5f; }
         a { color: #1d4ed8; }
+        ul { padding-left: 1.5rem; }
+        li { margin-bottom: 0.35rem; }
+        /* Hide Termly bdt tags visually */
+        bdt { display: inline; }
     </style>
 </head>
 <body>
@@ -38,17 +43,119 @@
         <a href="/terms-of-service">Terms of Service</a>
         <span class="sep">·</span>
         <a href="/cookie-policy">Cookie Policy</a>
+        <span class="sep">·</span>
+        <a href="#" class="termly-display-preferences">Cookie Preferences</a>
     </nav>
     <div class="policy-wrap">
         <div class="policy-card">
-            <div name="termly-embed" data-id="privacy-policy" data-type="iframe"></div>
-            <script type="text/javascript">(function(d, s, id) {
-                var js, tjs = d.getElementsByTagName(s)[0];
-                if (d.getElementById(id)) return;
-                js = d.createElement(s); js.id = id;
-                js.src = "https://app.termly.io/embed-policy.min.js";
-                tjs.parentNode.insertBefore(js, tjs);
-            }(document, 'script', 'termly-jssdk'));</script>
+<style>
+  [data-custom-class='body'], [data-custom-class='body'] * { background: transparent !important; }
+  [data-custom-class='title'], [data-custom-class='title'] * { font-family: Arial !important; font-size: 26px !important; color: #000000 !important; }
+  [data-custom-class='subtitle'], [data-custom-class='subtitle'] * { font-family: Arial !important; color: #595959 !important; font-size: 14px !important; }
+  [data-custom-class='heading_1'], [data-custom-class='heading_1'] * { font-family: Arial !important; font-size: 19px !important; color: #000000 !important; }
+  [data-custom-class='heading_2'], [data-custom-class='heading_2'] * { font-family: Arial !important; font-size: 17px !important; color: #000000 !important; }
+  [data-custom-class='body_text'], [data-custom-class='body_text'] * { color: #595959 !important; font-size: 14px !important; font-family: Arial !important; }
+  [data-custom-class='link'], [data-custom-class='link'] * { color: #3030F1 !important; font-size: 14px !important; font-family: Arial !important; word-break: break-word !important; }
+</style>
+<div data-custom-class="body">
+<div><strong><span style="font-size: 26px;"><span data-custom-class="title"><h1>PRIVACY POLICY</h1></span></span></strong></div>
+<div><span style="color: rgb(127, 127, 127);"><strong><span style="font-size: 15px;"><span data-custom-class="subtitle">Last updated March 29, 2026</span></span></strong></span></div>
+<div><br></div>
+<div style="line-height: 1.5;"><span style="color: rgb(89, 89, 89); font-size: 15px;"><span data-custom-class="body_text">This Privacy Notice for <strong>Done-Well Cleaning Limited</strong> ("we", "us", or "our"), describes how and why we might access, collect, store, use, and/or share ("process") your personal information when you use our services ("Services"), including when you:</span></span></div>
+<ul>
+<li data-custom-class="body_text" style="line-height: 1.5;"><span style="font-size: 15px; color: rgb(89, 89, 89);">Visit our website at <a target="_blank" data-custom-class="link" href="https://done-wellcleaninglimited.org">https://done-wellcleaninglimited.org</a></span></li>
+<li data-custom-class="body_text" style="line-height: 1.5;"><span style="font-size: 15px;">Use <strong>Cleaning Service</strong>. Done-Well Cleaning Service provides professional, affordable and reliable cleaning service you trust to homes, offices and anything in between.</span></li>
+<li data-custom-class="body_text" style="line-height: 1.5;"><span style="font-size: 15px; color: rgb(89, 89, 89);">Engage with us in other related ways, including any marketing or events</span></li>
+</ul>
+<div style="line-height: 1.5;"><span style="font-size: 15px;"><span data-custom-class="body_text"><strong>Questions or concerns?</strong> Reading this Privacy Notice will help you understand your privacy rights and choices. We are responsible for making decisions about how your personal information is processed. If you do not agree with our policies and practices, please do not use our Services. If you still have any questions or concerns, please contact us at <a target="_blank" data-custom-class="link" href="mailto:info@done-wellcleaninglimited.org">info@done-wellcleaninglimited.org</a>.</span></span></div>
+<div style="line-height: 1.5;"><br></div>
+<div style="line-height: 1.5;"><strong><span data-custom-class="heading_1"><h2>SUMMARY OF KEY POINTS</h2></span></strong></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text"><strong>What personal information do we process?</strong> When you visit, use, or navigate our Services, we may process personal information depending on how you interact with us and the Services, the choices you make, and the products and features you use.</span></div><div style="line-height: 1.5;"><br></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text"><strong>Do we process any sensitive personal information?</strong> We do not process sensitive personal information.</span></div><div style="line-height: 1.5;"><br></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text"><strong>Do we collect any information from third parties?</strong> We do not collect any information from third parties.</span></div><div style="line-height: 1.5;"><br></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text"><strong>How do we process your information?</strong> We process your information to provide, improve, and administer our Services, communicate with you, for security and fraud prevention, and to comply with law. We may also process your information for other purposes with your consent. We process your information only when we have a valid legal reason to do so.</span></div><div style="line-height: 1.5;"><br></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text"><strong>What are your rights?</strong> Depending on where you are located geographically, the applicable privacy law may mean you have certain rights regarding your personal information.</span></div><div style="line-height: 1.5;"><br></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text"><strong>How do you exercise your rights?</strong> The easiest way to exercise your rights is by submitting a <a data-custom-class="link" href="https://app.termly.io/dsar/0a315fc2-b9fe-4579-8cd3-149838c4f5ed" rel="noopener noreferrer" target="_blank">data subject access request</a>, or by contacting us. We will consider and act upon any request in accordance with applicable data protection laws.</span></div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="toc" style="line-height: 1.5;"><strong><span data-custom-class="heading_1"><h2>TABLE OF CONTENTS</h2></span></strong></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#infocollect"><span style="color: rgb(0, 58, 250);">1. WHAT INFORMATION DO WE COLLECT?</span></a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#infouse"><span style="color: rgb(0, 58, 250);">2. HOW DO WE PROCESS YOUR INFORMATION?</span></a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#legalbases"><span style="color: rgb(0, 58, 250);">3. WHAT LEGAL BASES DO WE RELY ON TO PROCESS YOUR PERSONAL INFORMATION?</span></a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#whoshare"><span style="color: rgb(0, 58, 250);">4. WHEN AND WITH WHOM DO WE SHARE YOUR PERSONAL INFORMATION?</span></a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#cookies"><span style="color: rgb(0, 58, 250);">5. DO WE USE COOKIES AND OTHER TRACKING TECHNOLOGIES?</span></a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#inforetain"><span style="color: rgb(0, 58, 250);">6. HOW LONG DO WE KEEP YOUR INFORMATION?</span></a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#infominors"><span style="color: rgb(0, 58, 250);">7. DO WE COLLECT INFORMATION FROM MINORS?</span></a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#privacyrights"><span style="color: rgb(0, 58, 250);">8. WHAT ARE YOUR PRIVACY RIGHTS?</span></a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#DNT"><span style="color: rgb(0, 58, 250);">9. CONTROLS FOR DO-NOT-TRACK FEATURES</span></a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#policyupdates"><span style="color: rgb(0, 58, 250);">10. DO WE MAKE UPDATES TO THIS NOTICE?</span></a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#contact"><span style="color: rgb(0, 58, 250);">11. HOW CAN YOU CONTACT US ABOUT THIS NOTICE?</span></a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#request"><span style="color: rgb(0, 58, 250);">12. HOW CAN YOU REVIEW, UPDATE, OR DELETE THE DATA WE COLLECT FROM YOU?</span></a></div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="infocollect" style="line-height: 1.5;"><strong><span data-custom-class="heading_1"><h2>1. WHAT INFORMATION DO WE COLLECT?</h2></span></strong></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text"><strong>Personal information you disclose to us.</strong> We collect personal information that you voluntarily provide to us when you express an interest in obtaining information about us or our products and Services, when you participate in activities on the Services, or otherwise when you contact us.</span></div><div style="line-height: 1.5;"><br></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text">The personal information we collect may include: names, phone numbers, email addresses, mailing addresses, contact preferences, billing addresses, and debit/credit card numbers.</span></div><div style="line-height: 1.5;"><br></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text"><strong>Sensitive Information.</strong> We do not process sensitive information.</span></div><div style="line-height: 1.5;"><br></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text"><strong>Payment Data.</strong> We may collect data necessary to process your payment if you choose to make purchases, such as your payment instrument number, and the security code associated with your payment instrument. All payment data is handled and stored by <a target="_blank" data-custom-class="link" href="https://stripe.com/gb/privacy">Stripe</a>.</span></div><div style="line-height: 1.5;"><br></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text"><strong>Information automatically collected.</strong> We automatically collect certain information when you visit, use, or navigate the Services. This information does not reveal your specific identity but may include device and usage information, IP address, browser and device characteristics, operating system, language preferences, referring URLs, and other technical information. We also collect information through cookies and similar technologies.</span></div><div style="line-height: 1.5;"><br></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text"><strong>Location Data.</strong> We collect location data such as information about your device's location. You can opt out of allowing us to collect this information by disabling your Location setting on your device.</span></div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="infouse" style="line-height: 1.5;"><strong><span data-custom-class="heading_1"><h2>2. HOW DO WE PROCESS YOUR INFORMATION?</h2></span></strong></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text">We process your personal information for a variety of reasons, including:</span></div>
+<ul>
+<li data-custom-class="body_text" style="line-height: 1.5;">To deliver and facilitate delivery of services to you.</li>
+<li data-custom-class="body_text" style="line-height: 1.5;">To respond to user inquiries and offer support.</li>
+<li data-custom-class="body_text" style="line-height: 1.5;">To send administrative information to you.</li>
+<li data-custom-class="body_text" style="line-height: 1.5;">To fulfil and manage your orders, payments, returns, and exchanges.</li>
+<li data-custom-class="body_text" style="line-height: 1.5;">To request feedback.</li>
+<li data-custom-class="body_text" style="line-height: 1.5;">To send you marketing and promotional communications (you may opt out at any time).</li>
+<li data-custom-class="body_text" style="line-height: 1.5;">To protect our Services, including fraud monitoring and prevention.</li>
+</ul>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="legalbases" style="line-height: 1.5;"><strong><span data-custom-class="heading_1"><h2>3. WHAT LEGAL BASES DO WE RELY ON TO PROCESS YOUR INFORMATION?</h2></span></strong></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text">We only process your personal information when we believe it is necessary and we have a valid legal reason to do so under applicable law, such as: with your consent, to comply with laws, to provide you with services to enter into or fulfil our contractual obligations, to protect your rights, or to fulfil our legitimate business interests.</span></div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="whoshare" style="line-height: 1.5;"><strong><span data-custom-class="heading_1"><h2>4. WHEN AND WITH WHOM DO WE SHARE YOUR PERSONAL INFORMATION?</h2></span></strong></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text">We may share information in the following situations: business transfers, with affiliates, with business partners, and with other users when you share personal information or otherwise interact in public areas of the Services.</span></div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="cookies" style="line-height: 1.5;"><strong><span data-custom-class="heading_1"><h2>5. DO WE USE COOKIES AND OTHER TRACKING TECHNOLOGIES?</h2></span></strong></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text">We may use cookies and similar tracking technologies (like web beacons and pixels) to gather information when you interact with our Services. You can refuse certain cookies by adjusting your browser settings. For more information see our <a href="/cookie-policy" data-custom-class="link">Cookie Policy</a>.</span></div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="inforetain" style="line-height: 1.5;"><strong><span data-custom-class="heading_1"><h2>6. HOW LONG DO WE KEEP YOUR INFORMATION?</h2></span></strong></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text">We will only keep your personal information for as long as it is necessary for the purposes set out in this Privacy Notice, unless a longer retention period is required or permitted by law. When we have no ongoing legitimate business need to process your personal information, we will either delete or anonymise it.</span></div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="infominors" style="line-height: 1.5;"><strong><span data-custom-class="heading_1"><h2>7. DO WE COLLECT INFORMATION FROM MINORS?</h2></span></strong></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text">We do not knowingly collect data from or market to children under 18 years of age. If we learn that personal information from users under 18 has been collected, we will deactivate the account and take reasonable measures to delete such data.</span></div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="privacyrights" style="line-height: 1.5;"><strong><span data-custom-class="heading_1"><h2>8. WHAT ARE YOUR PRIVACY RIGHTS?</h2></span></strong></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text">In some regions (such as the UK and EEA), you have rights that allow you greater access to and control over your personal information. You may review, change, or terminate your account at any time. You have the right to request access to, correction of, or erasure of your personal data, the right to data portability, and the right to object to processing. To exercise these rights, contact us at <a href="mailto:info@done-wellcleaninglimited.org" data-custom-class="link">info@done-wellcleaninglimited.org</a> or submit a <a href="https://app.termly.io/dsar/0a315fc2-b9fe-4579-8cd3-149838c4f5ed" target="_blank" data-custom-class="link">data subject access request</a>.</span></div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="DNT" style="line-height: 1.5;"><strong><span data-custom-class="heading_1"><h2>9. CONTROLS FOR DO-NOT-TRACK FEATURES</h2></span></strong></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text">Most web browsers and some mobile operating systems include a Do-Not-Track ("DNT") feature or setting you can activate to signal your privacy preference. At this time, no uniform technology standard for recognising and implementing DNT signals has been finalised. As such, we do not currently respond to DNT browser signals.</span></div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="policyupdates" style="line-height: 1.5;"><strong><span data-custom-class="heading_1"><h2>10. DO WE MAKE UPDATES TO THIS NOTICE?</h2></span></strong></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text">We may update this Privacy Notice from time to time. The updated version will be indicated by an updated "Last updated" date. We encourage you to review this Privacy Notice frequently to stay informed of how we are protecting your information.</span></div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="contact" style="line-height: 1.5;"><strong><span data-custom-class="heading_1"><h2>11. HOW CAN YOU CONTACT US ABOUT THIS NOTICE?</h2></span></strong></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text">If you have questions or comments about this notice, you may contact us by post at:</span></div>
+<div style="line-height: 1.5;"><br></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text"><strong>Done-Well Cleaning Limited</strong><br>3rd Floor, 86-90 Paul Street<br>London, EC2A 4NE<br>United Kingdom<br>Phone: (+44) 7795 595867<br>Email: <a href="mailto:info@done-wellcleaninglimited.org" data-custom-class="link">info@done-wellcleaninglimited.org</a></span></div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="request" style="line-height: 1.5;"><strong><span data-custom-class="heading_1"><h2>12. HOW CAN YOU REVIEW, UPDATE, OR DELETE THE DATA WE COLLECT FROM YOU?</h2></span></strong></div>
+<div style="line-height: 1.5;"><span data-custom-class="body_text">Based on the applicable laws of your country, you may have the right to request access to the personal information we collect from you, change that information, or delete it. To request to review, update, or delete your personal information, please submit a <a href="https://app.termly.io/dsar/0a315fc2-b9fe-4579-8cd3-149838c4f5ed" target="_blank" data-custom-class="link">data subject access request</a>.</span></div>
+</div>
         </div>
     </div>
 </body>

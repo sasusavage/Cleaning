@@ -9,26 +9,29 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <!-- Termly Consent Manager -->
     <script src="https://app.termly.io/resource-blocker/419d7b8d-1457-4e96-aaa8-2068fe8f1863?autoBlock=on"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1f2937; margin: 0; padding: 0; }
-        .policy-nav { background: #1e3a5f; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
-        .policy-nav a { color: #fff; text-decoration: none; font-size: 0.9rem; opacity: 0.85; }
-        .policy-nav a:hover { opacity: 1; }
-        .policy-nav .sep { color: #fff; opacity: 0.4; }
-        .policy-wrap { max-width: 860px; margin: 2.5rem auto; padding: 0 1.5rem 4rem; }
-        .policy-card { background: #fff; border-radius: 1rem; padding: 3rem 3.5rem; box-shadow: 0 2px 16px rgba(0,0,0,0.06); }
-        @media (max-width: 600px) { .policy-card { padding: 1.5rem 1.25rem; } }
-        [data-custom-class='body_text'], [data-custom-class='body_text'] * { color: #374151 !important; font-size: 14px !important; font-family: Inter, Arial, sans-serif !important; }
-        [data-custom-class='heading_1'], [data-custom-class='heading_1'] * { color: #1e3a5f !important; font-size: 18px !important; font-family: Inter, Arial, sans-serif !important; }
-        [data-custom-class='heading_2'], [data-custom-class='heading_2'] * { color: #1e3a5f !important; font-size: 15px !important; font-family: Inter, Arial, sans-serif !important; }
-        [data-custom-class='title'] h1 { color: #1e3a5f !important; font-size: 28px !important; margin-top: 0; }
-        [data-custom-class='subtitle'] { color: #6b7280 !important; font-size: 13px !important; }
-        [data-custom-class='link'], [data-custom-class='link'] * { color: #1d4ed8 !important; }
+        *, *::before, *::after { box-sizing: border-box; }
+        body { margin: 0; padding: 0; font-family: 'Inter', Arial, sans-serif; background: #f8fafc; color: #374151; }
+        .policy-nav { background: #1e3a5f; padding: 0.9rem 2rem; display: flex; align-items: center; gap: 0.5rem 1.25rem; flex-wrap: wrap; }
+        .policy-nav a { color: #fff; text-decoration: none; font-size: 0.88rem; opacity: 0.82; transition: opacity 0.15s; }
+        .policy-nav a:hover { opacity: 1; text-decoration: underline; }
+        .policy-nav .sep { color: #fff; opacity: 0.35; }
+        .policy-wrap { max-width: 820px; margin: 2.5rem auto 4rem; padding: 0 1.25rem; }
+        .policy-card { background: #fff; border-radius: 0.875rem; padding: 2.75rem 3rem; box-shadow: 0 2px 18px rgba(0,0,0,0.07); }
+        @media (max-width: 600px) { .policy-card { padding: 1.5rem 1.1rem; } .policy-nav { padding: 0.8rem 1rem; } }
+        [data-custom-class='body'], [data-custom-class='body'] * { background: transparent !important; font-family: 'Inter', Arial, sans-serif !important; }
+        [data-custom-class='title'] h1, [data-custom-class='title'] * { font-family: 'Inter', Arial, sans-serif !important; font-size: 26px !important; color: #1e3a5f !important; margin-top: 0; }
+        [data-custom-class='subtitle'], [data-custom-class='subtitle'] * { font-family: 'Inter', Arial, sans-serif !important; color: #6b7280 !important; font-size: 13px !important; }
+        [data-custom-class='heading_1'] h2, [data-custom-class='heading_1'] * { font-family: 'Inter', Arial, sans-serif !important; font-size: 17px !important; color: #1e3a5f !important; }
+        [data-custom-class='heading_2'] h3, [data-custom-class='heading_2'] * { font-family: 'Inter', Arial, sans-serif !important; font-size: 15px !important; color: #1e3a5f !important; }
+        [data-custom-class='body_text'], [data-custom-class='body_text'] * { color: #4b5563 !important; font-size: 14px !important; font-family: 'Inter', Arial, sans-serif !important; line-height: 1.7 !important; }
+        [data-custom-class='link'], [data-custom-class='link'] * { color: #1d4ed8 !important; font-size: 14px !important; font-family: 'Inter', Arial, sans-serif !important; word-break: break-word !important; }
         h1, h2, h3 { color: #1e3a5f; }
         a { color: #1d4ed8; }
+        ul { padding-left: 1.5rem; }
+        li { margin-bottom: 0.35rem; }
+        bdt { display: inline; }
     </style>
 </head>
 <body>
@@ -38,17 +41,155 @@
         <a href="/privacy-policy">Privacy Policy</a>
         <span class="sep">·</span>
         <a href="/cookie-policy">Cookie Policy</a>
+        <span class="sep">·</span>
+        <a href="#" class="termly-display-preferences">Cookie Preferences</a>
     </nav>
     <div class="policy-wrap">
         <div class="policy-card">
-            <div name="termly-embed" data-id="terms-of-service" data-type="iframe"></div>
-            <script type="text/javascript">(function(d, s, id) {
-                var js, tjs = d.getElementsByTagName(s)[0];
-                if (d.getElementById(id)) return;
-                js = d.createElement(s); js.id = id;
-                js.src = "https://app.termly.io/embed-policy.min.js";
-                tjs.parentNode.insertBefore(js, tjs);
-            }(document, 'script', 'termly-jssdk'));</script>
+<div data-custom-class="body">
+<div data-custom-class="title"><h1>TERMS AND CONDITIONS</h1></div>
+<div data-custom-class="subtitle"><strong>Last updated March 29, 2026</strong></div>
+<div style="line-height: 1.5;"><br></div>
+
+<div data-custom-class="heading_1"><h2>AGREEMENT TO OUR LEGAL TERMS</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">We are <strong>Done-Well Cleaning Limited</strong> ("Company", "we", "us", or "our"), a company registered in the United Kingdom at 3rd Floor, 86-90 Paul Street, London, EC2A 4NE.</div>
+<div style="line-height: 1;"><br></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">We operate the website <a target="_blank" data-custom-class="link" href="https://done-wellcleaninglimited.org">https://done-wellcleaninglimited.org</a> (the "Site"), as well as any other related products and services that refer or link to these legal terms (collectively, the "Services").</div>
+<div style="line-height: 1;"><br></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">Done-Well Cleaning Service provides professional, affordable and reliable cleaning service you trust to homes, offices and anything in between.</div>
+<div style="line-height: 1;"><br></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">You can contact us by phone at <strong>(+44) 7795 595867</strong>, email at <a target="_blank" data-custom-class="link" href="mailto:info@done-wellcleaninglimited.org">info@done-wellcleaninglimited.org</a>, or by mail to 319 Ripon Rd, Stevenage, Hertfordshire, SG1 4LT, United Kingdom.</div>
+<div style="line-height: 1;"><br></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">These Legal Terms constitute a legally binding agreement made between you and Done-Well Cleaning Limited, concerning your access to and use of the Services. You agree that by accessing the Services, you have read, understood, and agreed to be bound by all of these Legal Terms. <strong>IF YOU DO NOT AGREE WITH ALL OF THESE LEGAL TERMS, THEN YOU ARE EXPRESSLY PROHIBITED FROM USING THE SERVICES AND YOU MUST DISCONTINUE USE IMMEDIATELY.</strong></div>
+<div style="line-height: 1;"><br></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">We reserve the right to make changes or modifications to these Legal Terms from time to time. We will alert you about any changes by updating the "Last updated" date. It is your responsibility to periodically review these Legal Terms to stay informed of updates.</div>
+<div style="line-height: 1;"><br></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">The Services are intended for users who are at least 13 years of age. If you are a minor, you must have your parent or guardian read and agree to these Legal Terms prior to you using the Services.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div data-custom-class="heading_1"><h2>TABLE OF CONTENTS</h2></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#services" style="color: rgb(0, 58, 250);">1. OUR SERVICES</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#ip" style="color: rgb(0, 58, 250);">2. INTELLECTUAL PROPERTY RIGHTS</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#userreps" style="color: rgb(0, 58, 250);">3. USER REPRESENTATIONS</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#purchases" style="color: rgb(0, 58, 250);">4. PURCHASES AND PAYMENT</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#returnno" style="color: rgb(0, 58, 250);">5. REFUND POLICY</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#prohibited" style="color: rgb(0, 58, 250);">6. PROHIBITED ACTIVITIES</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#ugc" style="color: rgb(0, 58, 250);">7. USER GENERATED CONTRIBUTIONS</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#license" style="color: rgb(0, 58, 250);">8. CONTRIBUTION LICENCE</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#thirdparty" style="color: rgb(0, 58, 250);">9. THIRD-PARTY WEBSITES AND CONTENT</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#sitemanage" style="color: rgb(0, 58, 250);">10. SERVICES MANAGEMENT</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#ppno" style="color: rgb(0, 58, 250);">11. PRIVACY POLICY</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#terms" style="color: rgb(0, 58, 250);">12. TERM AND TERMINATION</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#modifications" style="color: rgb(0, 58, 250);">13. MODIFICATIONS AND INTERRUPTIONS</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#law" style="color: rgb(0, 58, 250);">14. GOVERNING LAW</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#disputes" style="color: rgb(0, 58, 250);">15. DISPUTE RESOLUTION</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#disclaimer" style="color: rgb(0, 58, 250);">16. DISCLAIMER</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#liability" style="color: rgb(0, 58, 250);">17. LIMITATIONS OF LIABILITY</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#indemnification" style="color: rgb(0, 58, 250);">18. INDEMNIFICATION</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#addclause" style="color: rgb(0, 58, 250);">19. CANCELLATION POLICY</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#addclauseb" style="color: rgb(0, 58, 250);">20. PAYMENT TERMS</a></div>
+<div style="line-height: 1.5;"><a data-custom-class="link" href="#contact" style="color: rgb(0, 58, 250);">21. CONTACT US</a></div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="services" data-custom-class="heading_1"><h2>1. OUR SERVICES</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">The information provided when using the Services is not intended for distribution to or use by any person or entity in any jurisdiction or country where such distribution or use would be contrary to law or regulation. Those persons who choose to access the Services from other locations do so on their own initiative and are solely responsible for compliance with local laws.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="ip" data-custom-class="heading_1"><h2>2. INTELLECTUAL PROPERTY RIGHTS</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">We are the owner or the licensee of all intellectual property rights in our Services, including all source code, databases, functionality, software, website designs, audio, video, text, photographs, and graphics (collectively, the "Content"), as well as the trademarks, service marks, and logos contained therein (the "Marks"). Our Content and Marks are protected by copyright and trademark laws around the world.</div>
+<div style="line-height: 1.5;"><br></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">Subject to your compliance with these Legal Terms, we grant you a non-exclusive, non-transferable, revocable licence to access the Services and download or print a copy of any portion of the Content to which you have properly gained access, solely for your personal, non-commercial use or internal business purpose.</div>
+<div style="line-height: 1.5;"><br></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">Any breach of these Intellectual Property Rights will constitute a material breach of our Legal Terms and your right to use our Services will terminate immediately.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="userreps" data-custom-class="heading_1"><h2>3. USER REPRESENTATIONS</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">By using the Services, you represent and warrant that: (1) you have the legal capacity and you agree to comply with these Legal Terms; (2) you are not under the age of 13; (3) you are not a minor in the jurisdiction in which you reside, or if a minor, you have received parental permission to use the Services; (4) you will not access the Services through automated or non-human means; (5) you will not use the Services for any illegal or unauthorised purpose; and (6) your use of the Services will not violate any applicable law or regulation.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="purchases" data-custom-class="heading_1"><h2>4. PURCHASES AND PAYMENT</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">We accept the following forms of payment: Visa, Mastercard, American Express, Discover, Bank Transfer, and Cash Payment.</div>
+<div style="line-height: 1;"><br></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">You agree to provide current, complete, and accurate purchase and account information for all purchases made via the Services. You further agree to promptly update account and payment information, including email address, payment method, and payment card expiration date, so that we can complete your transactions. All payments shall be in Pounds Sterling.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="returnno" data-custom-class="heading_1"><h2>5. REFUND POLICY</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">All sales are final and no refund will be issued unless otherwise agreed in writing.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="prohibited" data-custom-class="heading_1"><h2>6. PROHIBITED ACTIVITIES</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">You may not access or use the Services for any purpose other than that for which we make the Services available. As a user of the Services, you agree not to:</div>
+<ul>
+<li data-custom-class="body_text" style="line-height: 1.5;">Systematically retrieve data or content from the Services to create any collection, compilation, database, or directory without written permission.</li>
+<li data-custom-class="body_text" style="line-height: 1.5;">Trick, defraud, or mislead us and other users, especially in any attempt to learn sensitive account information such as user passwords.</li>
+<li data-custom-class="body_text" style="line-height: 1.5;">Circumvent, disable, or otherwise interfere with security-related features of the Services.</li>
+<li data-custom-class="body_text" style="line-height: 1.5;">Use any information obtained from the Services in order to harass, abuse, or harm another person.</li>
+<li data-custom-class="body_text" style="line-height: 1.5;">Upload or transmit (or attempt to upload or transmit) viruses, Trojan horses, or other material that interferes with any party's uninterrupted use and enjoyment of the Services.</li>
+<li data-custom-class="body_text" style="line-height: 1.5;">Use the Services in a manner inconsistent with any applicable laws or regulations.</li>
+</ul>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="ugc" data-custom-class="heading_1"><h2>7. USER GENERATED CONTRIBUTIONS</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">The Services may invite you to chat, contribute to, or participate in blogs, message boards, or other functionality during which you may create, submit, post, display, or transmit content ("Contributions"). Contributions may be viewable by other users of the Services. By posting Contributions, you grant us the right to use, copy, reproduce, and distribute such Contributions in any form.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="license" data-custom-class="heading_1"><h2>8. CONTRIBUTION LICENCE</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">By posting your Contributions to any part of the Services, you automatically grant us an unrestricted, unlimited, irrevocable, perpetual, non-exclusive, transferable, royalty-free, fully-paid, worldwide right and licence to use, copy, reproduce, distribute, publish, and process your Contributions for any lawful purpose.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="thirdparty" data-custom-class="heading_1"><h2>9. THIRD-PARTY WEBSITES AND CONTENT</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">The Services may contain links to other websites ("Third-Party Websites") as well as articles, photographs, and other content belonging to or originating from third parties. We are not responsible for the content, accuracy, or practices of any Third-Party Websites and we shall not be responsible for any losses or harm caused by your purchase of goods or services through Third-Party Websites.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="sitemanage" data-custom-class="heading_1"><h2>10. SERVICES MANAGEMENT</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">We reserve the right, but not the obligation, to: (1) monitor the Services for violations of these Legal Terms; (2) take appropriate legal action against anyone who violates the law or these Legal Terms; (3) refuse, restrict access to, limit the availability of, or disable any of your Contributions; and (4) otherwise manage the Services in a manner designed to protect our rights and facilitate the proper functioning of the Services.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="ppno" data-custom-class="heading_1"><h2>11. PRIVACY POLICY</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">We care about data privacy and security. Please review our <a href="/privacy-policy" data-custom-class="link">Privacy Policy</a>. By using the Services, you agree to be bound by our Privacy Policy, which is incorporated into these Legal Terms.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="terms" data-custom-class="heading_1"><h2>12. TERM AND TERMINATION</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">These Legal Terms shall remain in full force and effect while you use the Services. We reserve the right to deny access to and use of the Services to any person for any reason at our sole discretion. If we terminate or suspend your account for any reason, you are prohibited from registering and creating a new account under your name or the name of a third party.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="modifications" data-custom-class="heading_1"><h2>13. MODIFICATIONS AND INTERRUPTIONS</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">We reserve the right to change, modify, or remove the contents of the Services at any time or for any reason at our sole discretion without notice. We also reserve the right to modify or discontinue all or part of the Services without notice at any time. We will not be liable to you or any third party for any modification, suspension, or discontinuance of the Services.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="law" data-custom-class="heading_1"><h2>14. GOVERNING LAW</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">These Legal Terms shall be governed by and defined following the laws of the United Kingdom. Done-Well Cleaning Limited and yourself irrevocably consent that the courts of the United Kingdom shall have exclusive jurisdiction to resolve any dispute which may arise in connection with these Legal Terms.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="disputes" data-custom-class="heading_1"><h2>15. DISPUTE RESOLUTION</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">To expedite resolution and control the cost of any dispute, you and the Company agree to first attempt to negotiate any dispute informally for at least thirty (30) days before initiating arbitration. Such informal negotiations commence upon written notice from one party to the other. If informal negotiations fail, the dispute shall be submitted to binding arbitration in the United Kingdom.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="disclaimer" data-custom-class="heading_1"><h2>16. DISCLAIMER</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">THE SERVICES ARE PROVIDED ON AN AS-IS AND AS-AVAILABLE BASIS. YOU AGREE THAT YOUR USE OF THE SERVICES WILL BE AT YOUR SOLE RISK. TO THE FULLEST EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED, IN CONNECTION WITH THE SERVICES AND YOUR USE THEREOF.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="liability" data-custom-class="heading_1"><h2>17. LIMITATIONS OF LIABILITY</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">IN NO EVENT WILL WE OR OUR DIRECTORS, EMPLOYEES, OR AGENTS BE LIABLE TO YOU OR ANY THIRD PARTY FOR ANY INDIRECT, CONSEQUENTIAL, EXEMPLARY, INCIDENTAL, SPECIAL, OR PUNITIVE DAMAGES, INCLUDING LOST PROFIT, LOST REVENUE, LOSS OF DATA, OR OTHER DAMAGES ARISING FROM YOUR USE OF THE SERVICES, EVEN IF WE HAVE BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="indemnification" data-custom-class="heading_1"><h2>18. INDEMNIFICATION</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">You agree to defend, indemnify, and hold us harmless, including our subsidiaries, affiliates, and all of our respective officers, agents, partners, and employees, from and against any loss, damage, liability, claim, or demand, including reasonable legal fees, made by any third party due to or arising out of your use of the Services or breach of these Legal Terms.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="addclause" data-custom-class="heading_1"><h2>19. CANCELLATION POLICY</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">Cancellations must be made at least 24 hours before the scheduled service. Cancellations made less than 24 hours before the scheduled service may be subject to a cancellation fee. To cancel a booking, please contact us at <a href="mailto:info@done-wellcleaninglimited.org" data-custom-class="link">info@done-wellcleaninglimited.org</a> or call (+44) 7795 595867.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="addclauseb" data-custom-class="heading_1"><h2>20. PAYMENT TERMS</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">Payment is due at the time of service unless otherwise agreed in writing. For pre-booked services paid online via Stripe, a discount may be applied as indicated at checkout. We reserve the right to withhold services until payment is confirmed. In the event of non-payment, we reserve the right to pursue recovery through appropriate legal channels.</div>
+<div style="line-height: 1.5;"><br></div>
+
+<div id="contact" data-custom-class="heading_1"><h2>21. CONTACT US</h2></div>
+<div data-custom-class="body_text" style="line-height: 1.5;">In order to resolve a complaint regarding the Services or to receive further information regarding use of the Services, please contact us at:</div>
+<div style="line-height: 1.5;"><br></div>
+<div data-custom-class="body_text" style="line-height: 1.5;"><strong>Done-Well Cleaning Limited</strong><br>3rd Floor, 86-90 Paul Street<br>London, EC2A 4NE<br>United Kingdom<br>Phone: (+44) 7795 595867<br>Email: <a href="mailto:info@done-wellcleaninglimited.org" data-custom-class="link">info@done-wellcleaninglimited.org</a></div>
+</div>
         </div>
     </div>
 </body>

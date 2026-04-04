@@ -9,26 +9,28 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <!-- Termly Consent Manager -->
     <script src="https://app.termly.io/resource-blocker/419d7b8d-1457-4e96-aaa8-2068fe8f1863?autoBlock=on"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1f2937; margin: 0; padding: 0; }
-        .policy-nav { background: #1e3a5f; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
-        .policy-nav a { color: #fff; text-decoration: none; font-size: 0.9rem; opacity: 0.85; }
-        .policy-nav a:hover { opacity: 1; }
-        .policy-nav .sep { color: #fff; opacity: 0.4; }
-        .policy-wrap { max-width: 860px; margin: 2.5rem auto; padding: 0 1.5rem 4rem; }
-        .policy-card { background: #fff; border-radius: 1rem; padding: 3rem 3.5rem; box-shadow: 0 2px 16px rgba(0,0,0,0.06); }
-        @media (max-width: 600px) { .policy-card { padding: 1.5rem 1.25rem; } }
-        [data-custom-class='body_text'], [data-custom-class='body_text'] * { color: #374151 !important; font-size: 14px !important; font-family: Inter, Arial, sans-serif !important; }
-        [data-custom-class='heading_1'], [data-custom-class='heading_1'] * { color: #1e3a5f !important; font-size: 18px !important; font-family: Inter, Arial, sans-serif !important; }
-        [data-custom-class='heading_2'], [data-custom-class='heading_2'] * { color: #1e3a5f !important; font-size: 15px !important; font-family: Inter, Arial, sans-serif !important; }
-        [data-custom-class='title'] h1 { color: #1e3a5f !important; font-size: 28px !important; margin-top: 0; }
-        [data-custom-class='subtitle'] { color: #6b7280 !important; font-size: 13px !important; }
-        [data-custom-class='link'], [data-custom-class='link'] * { color: #1d4ed8 !important; }
-        h1, h2, h3 { color: #1e3a5f; }
+        *, *::before, *::after { box-sizing: border-box; }
+        body { margin: 0; padding: 0; font-family: 'Inter', Arial, sans-serif; background: #f8fafc; color: #374151; }
+        .policy-nav { background: #1e3a5f; padding: 0.9rem 2rem; display: flex; align-items: center; gap: 0.5rem 1.25rem; flex-wrap: wrap; }
+        .policy-nav a { color: #fff; text-decoration: none; font-size: 0.88rem; opacity: 0.82; }
+        .policy-nav a:hover { opacity: 1; text-decoration: underline; }
+        .policy-nav .sep { color: #fff; opacity: 0.35; }
+        .policy-wrap { max-width: 820px; margin: 2.5rem auto 4rem; padding: 0 1.25rem; }
+        .policy-card { background: #fff; border-radius: 0.875rem; padding: 2.75rem 3rem; box-shadow: 0 2px 18px rgba(0,0,0,0.07); }
+        @media (max-width: 600px) { .policy-card { padding: 1.5rem 1.1rem; } .policy-nav { padding: 0.8rem 1rem; } }
+        h1 { color: #1e3a5f; font-size: 26px; margin-top: 0; }
+        h2 { color: #1e3a5f; font-size: 17px; }
+        p, li { color: #4b5563; font-size: 14px; line-height: 1.7; }
         a { color: #1d4ed8; }
+        ul { padding-left: 1.5rem; }
+        li { margin-bottom: 0.35rem; }
+        .subtitle { color: #6b7280; font-size: 13px; font-weight: 600; margin-bottom: 1.5rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 1rem 0; }
+        th { background: #1e3a5f; color: #fff; padding: 0.6rem 0.75rem; text-align: left; }
+        td { padding: 0.55rem 0.75rem; border-bottom: 1px solid #e5e7eb; color: #4b5563; }
+        tr:nth-child(even) td { background: #f9fafb; }
     </style>
 </head>
 <body>
@@ -38,17 +40,56 @@
         <a href="/privacy-policy">Privacy Policy</a>
         <span class="sep">·</span>
         <a href="/terms-of-service">Terms of Service</a>
+        <span class="sep">·</span>
+        <a href="#" class="termly-display-preferences">Cookie Preferences</a>
     </nav>
     <div class="policy-wrap">
         <div class="policy-card">
-            <div name="termly-embed" data-id="cookie-policy" data-type="iframe"></div>
-            <script type="text/javascript">(function(d, s, id) {
-                var js, tjs = d.getElementsByTagName(s)[0];
-                if (d.getElementById(id)) return;
-                js = d.createElement(s); js.id = id;
-                js.src = "https://app.termly.io/embed-policy.min.js";
-                tjs.parentNode.insertBefore(js, tjs);
-            }(document, 'script', 'termly-jssdk'));</script>
+            <h1>COOKIE POLICY</h1>
+            <p class="subtitle">Last updated March 29, 2026</p>
+
+            <p>This Cookie Policy explains how <strong>Done-Well Cleaning Limited</strong> ("we", "us", or "our") uses cookies and similar tracking technologies when you visit our website at <a href="https://done-wellcleaninglimited.org">https://done-wellcleaninglimited.org</a>.</p>
+
+            <h2>What Are Cookies?</h2>
+            <p>Cookies are small data files that are placed on your computer or mobile device when you visit a website. Cookies are widely used by website owners in order to make their websites work, or to work more efficiently, as well as to provide reporting information.</p>
+
+            <h2>Why Do We Use Cookies?</h2>
+            <p>We use first-party and third-party cookies for several reasons. Some cookies are required for technical reasons in order for our website to operate, and we refer to these as "essential" or "strictly necessary" cookies. Other cookies enable us to track and target the interests of our users to enhance the experience on our website. Third parties serve cookies through our website for analytics and other purposes.</p>
+
+            <h2>Types of Cookies We Use</h2>
+            <table>
+                <thead>
+                    <tr><th>Type</th><th>Purpose</th><th>Duration</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Essential</strong></td><td>Required for the website to function (session management, security). Cannot be disabled.</td><td>Session</td></tr>
+                    <tr><td><strong>Analytics</strong></td><td>Help us understand how visitors interact with our website (e.g. page views, traffic sources).</td><td>Up to 2 years</td></tr>
+                    <tr><td><strong>Functional</strong></td><td>Remember your preferences and settings to improve your experience.</td><td>Up to 1 year</td></tr>
+                    <tr><td><strong>Marketing</strong></td><td>Used to deliver relevant advertisements and track campaign effectiveness.</td><td>Up to 90 days</td></tr>
+                </tbody>
+            </table>
+
+            <h2>Third-Party Cookies</h2>
+            <p>In addition to our own cookies, we may also use various third-party cookies to report usage statistics of the website, deliver advertisements on and through the website, and so on. These include:</p>
+            <ul>
+                <li><strong>Stripe</strong> — Payment processing. See <a href="https://stripe.com/gb/privacy" target="_blank">Stripe's Privacy Policy</a>.</li>
+                <li><strong>Google Maps</strong> — Location and travel distance features.</li>
+                <li><strong>Termly</strong> — Cookie consent management.</li>
+            </ul>
+
+            <h2>How Can You Control Cookies?</h2>
+            <p>You have the right to decide whether to accept or reject cookies (other than strictly necessary cookies). You can exercise your cookie rights by clicking on the <a href="#" class="termly-display-preferences">Cookie Preferences</a> link to update your preferences at any time.</p>
+            <p>You can also set or amend your web browser controls to accept or refuse cookies. As the means by which you can refuse cookies through your web browser controls vary from browser to browser, you should visit your browser's help menu for more information.</p>
+
+            <h2>Updates to This Policy</h2>
+            <p>We may update this Cookie Policy from time to time in order to reflect changes to the cookies we use or for other operational, legal, or regulatory reasons. Please therefore re-visit this Cookie Policy regularly to stay informed about our use of cookies and related technologies.</p>
+
+            <h2>Contact Us</h2>
+            <p>If you have any questions about our use of cookies or other technologies, please contact us at:</p>
+            <p><strong>Done-Well Cleaning Limited</strong><br>
+            3rd Floor, 86-90 Paul Street, London, EC2A 4NE<br>
+            Email: <a href="mailto:info@done-wellcleaninglimited.org">info@done-wellcleaninglimited.org</a><br>
+            Phone: (+44) 7795 595867</p>
         </div>
     </div>
 </body>
