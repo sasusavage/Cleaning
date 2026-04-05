@@ -766,6 +766,21 @@
             background: #f9fafb;
             display: grid;
             gap: 0.4rem;
+            cursor: pointer;
+            transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+            user-select: none;
+        }
+        .request-overview__item:hover {
+            background: #eff6ff;
+            border-color: var(--primary);
+        }
+        .request-overview__item.active-filter {
+            background: #eff6ff;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+        }
+        .request-overview__item.active-filter .request-overview__label {
+            color: var(--primary);
         }
 
         .request-overview__item--pending {
@@ -1035,6 +1050,119 @@
             font-weight: 600;
             color: var(--text);
         }
+
+        /* Requests search/filter bar */
+        .requests-filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            flex-wrap: wrap;
+            padding: 0.85rem 1.1rem;
+            border-bottom: 1px solid var(--border);
+            background: #f9fafb;
+        }
+        .requests-filter-bar input[type="search"] {
+            flex: 1 1 180px;
+            min-width: 140px;
+            padding: 0.45rem 0.75rem 0.45rem 2.1rem;
+            border: 1px solid var(--border);
+            border-radius: 0.45rem;
+            font-size: 0.875rem;
+            background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%236b7280' stroke-width='2' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat 0.6rem center;
+            outline: none;
+            transition: border-color 0.18s;
+        }
+        .requests-filter-bar input[type="search"]:focus {
+            border-color: var(--primary);
+        }
+        .requests-filter-bar select {
+            padding: 0.45rem 0.65rem;
+            border: 1px solid var(--border);
+            border-radius: 0.45rem;
+            font-size: 0.875rem;
+            background: #fff;
+            cursor: pointer;
+        }
+        .requests-filter-bar .filter-clear-btn {
+            padding: 0.4rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 0.45rem;
+            background: #fff;
+            color: #6b7280;
+            font-size: 0.8rem;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .requests-filter-bar .filter-clear-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* Quick-action mini buttons in table */
+        .requests-table .row-actions {
+            display: flex;
+            gap: 0.35rem;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+        }
+        .requests-table .row-action-btn {
+            padding: 0.28rem 0.55rem;
+            border-radius: 0.3rem;
+            border: 1px solid transparent;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .requests-table .row-action-btn--view {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+        .requests-table .row-action-btn--view:hover { background: #1d4ed8; }
+        .requests-table .row-action-btn--confirm {
+            background: #dcfce7;
+            color: #166534;
+            border-color: #86efac;
+        }
+        .requests-table .row-action-btn--confirm:hover { background: #bbf7d0; }
+        .requests-table .row-action-btn--complete {
+            background: #dbeafe;
+            color: #1e40af;
+            border-color: #93c5fd;
+        }
+        .requests-table .row-action-btn--complete:hover { background: #bfdbfe; }
+
+        /* Modal tabs */
+        .modal-tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 1.25rem;
+            margin-top: -0.25rem;
+        }
+        .modal-tab {
+            padding: 0.6rem 1.1rem;
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: #6b7280;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            background: none;
+            border-top: none;
+            border-left: none;
+            border-right: none;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .modal-tab:hover { color: var(--primary); }
+        .modal-tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+        .modal-tab-panel { display: none; }
+        .modal-tab-panel.active { display: block; }
 
         .request-board {
             display: flex;
@@ -1859,46 +1987,46 @@
         <div id="requests" class="section active">
             <div class="header" style="gap: 1rem; flex-wrap: wrap;">
                 <h1 class="title">Incoming Requests</h1>
-                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
-                    <label style="font-size: 0.85rem; color: #6b7280; display: flex; flex-direction: column; gap: 0.35rem;">
-                        Request Type
-                        <select id="request-type-filter" style="padding: 0.4rem 0.6rem; border-radius: 0.4rem; border: 1px solid var(--border);">
-                            <option value="">All</option>
-                            <option value="service">One-Time Service</option>
-                            <option value="contract">Contract</option>
-                            <option value="job">Job</option>
-                            <option value="general">General</option>
-                        </select>
-                    </label>
-                    <button class="btn btn-primary" type="button" onclick="loadRequests(true)">Refresh</button>
-                </div>
+                <button class="btn btn-primary" type="button" onclick="loadRequests(true)">Refresh</button>
             </div>
             <div class="card">
-                <div class="request-overview">
-                    <div class="request-overview__item request-overview__item--draft">
+                <div class="request-overview" style="padding: 1rem 1rem 0;" id="request-status-overview">
+                    <div class="request-overview__item request-overview__item--draft" data-status-filter="draft" onclick="setStatusFilter('draft', this)">
                         <span class="request-overview__label">Draft</span>
                         <span class="request-overview__value" id="requests-summary-draft">0</span>
                     </div>
-                    <div class="request-overview__item request-overview__item--survey">
+                    <div class="request-overview__item request-overview__item--survey" data-status-filter="survey_needed" onclick="setStatusFilter('survey_needed', this)">
                         <span class="request-overview__label">Survey Needed</span>
                         <span class="request-overview__value" id="requests-summary-survey_needed">0</span>
                     </div>
-                    <div class="request-overview__item request-overview__item--pending">
+                    <div class="request-overview__item request-overview__item--pending" data-status-filter="pending" onclick="setStatusFilter('pending', this)">
                         <span class="request-overview__label">Pending</span>
                         <span class="request-overview__value" id="requests-summary-pending">0</span>
                     </div>
-                    <div class="request-overview__item request-overview__item--in-progress">
+                    <div class="request-overview__item request-overview__item--in-progress" data-status-filter="in_progress" onclick="setStatusFilter('in_progress', this)">
                         <span class="request-overview__label">In Progress</span>
                         <span class="request-overview__value" id="requests-summary-in_progress">0</span>
                     </div>
-                    <div class="request-overview__item request-overview__item--completed">
+                    <div class="request-overview__item request-overview__item--completed" data-status-filter="completed" onclick="setStatusFilter('completed', this)">
                         <span class="request-overview__label">Completed</span>
                         <span class="request-overview__value" id="requests-summary-completed">0</span>
                     </div>
-                    <div class="request-overview__item request-overview__item--cancelled">
+                    <div class="request-overview__item request-overview__item--cancelled" data-status-filter="cancelled" onclick="setStatusFilter('cancelled', this)">
                         <span class="request-overview__label">Cancelled</span>
                         <span class="request-overview__value" id="requests-summary-cancelled">0</span>
                     </div>
+                </div>
+                <div class="requests-filter-bar">
+                    <input type="search" id="requests-search" placeholder="Search by name, email or reference…" oninput="filterRequestsTable()" autocomplete="off">
+                    <select id="request-type-filter" onchange="filterRequestsTable()">
+                        <option value="">All Types</option>
+                        <option value="service">One-Time Service</option>
+                        <option value="contract">Contract</option>
+                        <option value="job">Job</option>
+                        <option value="general">General</option>
+                    </select>
+                    <button class="filter-clear-btn" type="button" onclick="clearRequestFilters()">✕ Clear filters</button>
+                    <span id="requests-count-label" style="font-size:0.8rem; color:#6b7280; margin-left:auto;"></span>
                 </div>
                 <div id="request-board" class="requests-table-container">
                     <div style="overflow-x: auto;">
@@ -1907,12 +2035,10 @@
                                 <tr>
                                     <th>Date</th>
                                     <th>Client</th>
-                                    <th>Type</th>
-                                    <th>Service / Position</th>
+                                    <th>Service / Type</th>
                                     <th>Status</th>
-                                    <th>Payment Status</th>
-                                    <th style="text-align: right;">Amount Due</th>
-                                    <th style="text-align: right;">Action</th>
+                                    <th>Amount</th>
+                                    <th style="text-align: right;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="requests-table-body">
@@ -1935,12 +2061,10 @@
                                 <tr>
                                     <th>Date</th>
                                     <th>Client</th>
-                                    <th>Type</th>
-                                    <th>Service / Position</th>
+                                    <th>Service / Type</th>
                                     <th>Status</th>
-                                    <th>Payment Status</th>
-                                    <th style="text-align: right;">Amount Due</th>
-                                    <th style="text-align: right;">Action</th>
+                                    <th>Amount</th>
+                                    <th style="text-align: right;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="requests-draft-table-body"></tbody>
@@ -2043,15 +2167,42 @@
             <div class="header" style="gap: 1rem; flex-wrap: wrap; align-items: flex-start;">
                 <div>
                     <h1 class="title" style="margin-bottom: 0.25rem;">Payments</h1>
-                    <p style="margin: 0; color: #6b7280; max-width: 760px;">Configure Stripe checkout behavior and monitor transaction status. API keys are read from environment variables (not stored in the dashboard).</p>
+                    <p style="margin: 0; color: #6b7280; max-width: 760px;">Monitor transactions and configure Stripe checkout behaviour.</p>
                 </div>
                 <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                     <button class="btn btn-primary" type="button" onclick="loadPaymentSettings(true); loadPaymentTransactions(true);">Refresh</button>
                 </div>
             </div>
 
-            <div class="card section-card">
-                <form id="payment-settings-form" style="display:grid; gap: 1rem;">
+            <!-- Revenue summary strip -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 0.85rem; margin-bottom: 1.25rem;">
+                <div style="background:#fff; border-radius:0.75rem; border:1px solid var(--border); padding:1rem 1.25rem;">
+                    <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.08em; color:#6b7280;">Total Collected</div>
+                    <div style="font-size:1.6rem; font-weight:700; color:#16a34a;" id="pay-stat-total">—</div>
+                </div>
+                <div style="background:#fff; border-radius:0.75rem; border:1px solid var(--border); padding:1rem 1.25rem;">
+                    <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.08em; color:#6b7280;">This Month</div>
+                    <div style="font-size:1.6rem; font-weight:700; color:var(--primary);" id="pay-stat-month">—</div>
+                </div>
+                <div style="background:#fff; border-radius:0.75rem; border:1px solid var(--border); padding:1rem 1.25rem;">
+                    <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.08em; color:#6b7280;">Pending / Unpaid</div>
+                    <div style="font-size:1.6rem; font-weight:700; color:#d97706;" id="pay-stat-pending">—</div>
+                </div>
+                <div style="background:#fff; border-radius:0.75rem; border:1px solid var(--border); padding:1rem 1.25rem;">
+                    <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.08em; color:#6b7280;">Transactions</div>
+                    <div style="font-size:1.6rem; font-weight:700; color:var(--text);" id="pay-stat-count">—</div>
+                </div>
+            </div>
+
+            <!-- Stripe config (collapsible) -->
+            <details class="card" style="margin-bottom:1rem;">
+                <summary style="padding:1rem 1.25rem; font-weight:600; cursor:pointer; list-style:none; display:flex; align-items:center; gap:0.5rem;">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+                    Stripe / Payment Settings
+                    <span style="font-size:0.78rem; color:#6b7280; font-weight:400; margin-left:0.5rem;">API keys are read from environment variables</span>
+                </summary>
+                <div style="padding:0 1.25rem 1.25rem;">
+            <form id="payment-settings-form" style="display:grid; gap: 1rem;">
                     <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
                         <label style="display:flex; flex-direction:column; gap:0.35rem;">
                             Currency
@@ -2094,15 +2245,26 @@
                         <button class="btn btn-primary" type="submit">Save Payment Settings</button>
                     </div>
                 </form>
-            </div>
+                </div><!-- /details inner -->
+            </details>
 
             <div class="card" style="padding: 1rem 1.25rem;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; gap:0.75rem; flex-wrap:wrap;">
                     <h3 style="margin:0;">Transactions</h3>
-                    <button class="btn btn-ghost" type="button" onclick="loadPaymentTransactions(true)">Reload</button>
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+                        <input type="search" id="tx-search" placeholder="Search customer / session…" style="padding:0.4rem 0.65rem; border:1px solid var(--border); border-radius:0.4rem; font-size:0.85rem; min-width:180px;" oninput="filterTransactions()">
+                        <select id="tx-status-filter" style="padding:0.4rem 0.6rem; border:1px solid var(--border); border-radius:0.4rem; font-size:0.85rem;" onchange="filterTransactions()">
+                            <option value="">All Statuses</option>
+                            <option value="paid">Paid</option>
+                            <option value="pending">Pending</option>
+                            <option value="in_person">Cash/In-Person</option>
+                            <option value="refunded">Refunded</option>
+                        </select>
+                        <button class="btn btn-ghost" type="button" onclick="loadPaymentTransactions(true)">Reload</button>
+                    </div>
                 </div>
                 <div style="overflow:auto;">
-                    <table id="payment-transactions-table" class="table-compact" style="width:100%; min-width: 960px;">
+                    <table id="payment-transactions-table" class="table-compact" style="width:100%; min-width: 800px;">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -2717,94 +2879,142 @@
 
     <!-- Request Detail Modal -->
     <div id="request-detail-modal" class="modal">
-        <div class="modal-content" style="max-width: 780px;">
+        <div class="modal-content" style="max-width: 820px;">
             <button type="button" class="modal__close" data-close-modal="request-detail-modal" aria-label="Close">&times;</button>
-            <h2 class="title" style="font-size: 1.2rem; margin-top: 0;">Request Detail</h2>
-            <div class="request-detail" style="display: grid; gap: 1.25rem; margin-top: 1rem;">
-                <div style="display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
-                    <div><strong>ID:</strong> <span id="request-detail-id">—</span></div>
-                    <div><strong>Reference:</strong> <span id="request-detail-reference">—</span></div>
-                    <div><strong>Type:</strong> <span id="request-detail-type">—</span></div>
-                    <div><strong>Status:</strong> <span id="request-detail-status">—</span></div>
-                    <div><strong>Name:</strong> <span id="request-detail-name">—</span></div>
-                    <div><strong>Email:</strong> <span id="request-detail-email">—</span></div>
-                    <div><strong>Phone:</strong> <span id="request-detail-phone">—</span></div>
-                    <div><strong>Service:</strong> <span id="request-detail-service">—</span></div>
-                    <div><strong>Position:</strong> <span id="request-detail-position">—</span></div>
-                    <div><strong>Subject:</strong> <span id="request-detail-subject">—</span></div>
-                    <div><strong>Context Page:</strong> <span id="request-detail-context">—</span></div>
-                    <div><strong>Source:</strong> <span id="request-detail-source">—</span></div>
-                    <div><strong>Created:</strong> <span id="request-detail-created">—</span></div>
-                    <div><strong>Updated:</strong> <span id="request-detail-updated">—</span></div>
-                    <div><strong>Admin Email:</strong> <span id="request-detail-email-admin">—</span></div>
-                    <div><strong>User Email:</strong> <span id="request-detail-email-user">—</span></div>
-                    <div><strong>Payment Status:</strong> <span id="request-detail-payment-status">—</span></div>
-                    <div><strong>Amount Due:</strong> <span id="request-detail-amount-due">—</span></div>
-                    <div><strong>Travel Fee:</strong> <span id="request-detail-travel-fee">—</span></div>
-                    <div><strong>Travel Distance:</strong> <span id="request-detail-distance">—</span></div>
-                    <div><strong>Travel Time:</strong> <span id="request-detail-travel-time">—</span></div>
-                    <div><strong>Assigned Base:</strong> <span id="request-detail-base">—</span></div>
+            <h2 class="title" style="font-size: 1.15rem; margin-top: 0; margin-bottom: 0.1rem;">Request Detail</h2>
+            <p style="margin: 0 0 0.75rem; font-size: 0.82rem; color: #6b7280;">Ref: <strong id="request-detail-reference">—</strong> &nbsp;·&nbsp; ID: <span id="request-detail-id">—</span></p>
+
+            <!-- Tabs -->
+            <div class="modal-tabs">
+                <button class="modal-tab active" onclick="switchModalTab('overview', this)" type="button">Overview</button>
+                <button class="modal-tab" onclick="switchModalTab('actions', this)" type="button">Actions &amp; Notes</button>
+                <button class="modal-tab" onclick="switchModalTab('payment', this)" type="button">Payment</button>
+            </div>
+
+            <!-- Overview Tab -->
+            <div id="modal-tab-overview" class="modal-tab-panel active">
+                <div style="display: grid; gap: 1rem;">
+                    <!-- Client info -->
+                    <div style="background: #f9fafb; border: 1px solid var(--border); border-radius: 0.6rem; padding: 1rem;">
+                        <h3 style="margin: 0 0 0.75rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.07em; color: #6b7280;">Client</h3>
+                        <div style="display: grid; gap: 0.4rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); font-size: 0.9rem;">
+                            <div><span style="color:#6b7280;">Name:</span> <strong id="request-detail-name">—</strong></div>
+                            <div><span style="color:#6b7280;">Email:</span> <span id="request-detail-email">—</span></div>
+                            <div><span style="color:#6b7280;">Phone:</span> <span id="request-detail-phone">—</span></div>
+                        </div>
+                    </div>
+                    <!-- Request info -->
+                    <div style="background: #f9fafb; border: 1px solid var(--border); border-radius: 0.6rem; padding: 1rem;">
+                        <h3 style="margin: 0 0 0.75rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.07em; color: #6b7280;">Request</h3>
+                        <div style="display: grid; gap: 0.4rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); font-size: 0.9rem;">
+                            <div><span style="color:#6b7280;">Type:</span> <span id="request-detail-type">—</span></div>
+                            <div><span style="color:#6b7280;">Status:</span> <strong id="request-detail-status">—</strong></div>
+                            <div><span style="color:#6b7280;">Service:</span> <span id="request-detail-service">—</span></div>
+                            <div><span style="color:#6b7280;">Position:</span> <span id="request-detail-position">—</span></div>
+                            <div><span style="color:#6b7280;">Subject:</span> <span id="request-detail-subject">—</span></div>
+                            <div><span style="color:#6b7280;">Source:</span> <span id="request-detail-source">—</span></div>
+                            <div><span style="color:#6b7280;">Context:</span> <span id="request-detail-context">—</span></div>
+                            <div><span style="color:#6b7280;">Created:</span> <span id="request-detail-created">—</span></div>
+                            <div><span style="color:#6b7280;">Updated:</span> <span id="request-detail-updated">—</span></div>
+                        </div>
+                    </div>
+                    <!-- Service Location Section -->
+                    <div id="service-location-section" style="display: none; padding: 1rem; background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%); border: 1px solid #7dd3fc; border-radius: 0.6rem;">
+                        <h3 style="margin: 0 0 0.6rem; font-size: 0.88rem; color: #0369a1; display: flex; align-items: center; gap: 0.5rem;">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            Service Location
+                        </h3>
+                        <div style="display: grid; gap: 0.4rem; font-size: 0.88rem;">
+                            <div><strong>Address:</strong> <span id="request-detail-address">—</span></div>
+                            <div><strong>Area/Postcode:</strong> <span id="request-detail-postcode">—</span></div>
+                            <div id="request-detail-map-container" style="margin-top: 0.4rem; display: none;">
+                                <a id="request-detail-map-link" href="#" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.85rem; background: #0284c7; color: #fff; border-radius: 0.4rem; text-decoration: none; font-weight: 600; font-size: 0.82rem;">
+                                    📍 View on Google Maps
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Travel info -->
+                    <div style="background: #f9fafb; border: 1px solid var(--border); border-radius: 0.6rem; padding: 1rem;">
+                        <h3 style="margin: 0 0 0.65rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.07em; color: #6b7280;">Travel</h3>
+                        <div style="display: grid; gap: 0.4rem; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); font-size: 0.9rem;">
+                            <div><span style="color:#6b7280;">Fee:</span> <span id="request-detail-travel-fee">—</span></div>
+                            <div><span style="color:#6b7280;">Distance:</span> <span id="request-detail-distance">—</span></div>
+                            <div><span style="color:#6b7280;">Time:</span> <span id="request-detail-travel-time">—</span></div>
+                            <div><span style="color:#6b7280;">Base:</span> <span id="request-detail-base">—</span></div>
+                        </div>
+                    </div>
+                    <!-- Order Summary Section (Service Bookings) -->
+                    <div id="order-summary-section" style="display: none;">
+                        <h3 style="margin-top: 0; font-size: 0.88rem; color: #1f3c88; display: flex; align-items: center; gap: 0.5rem;">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Order Summary
+                        </h3>
+                        <div id="order-summary-content" style="background: #f7f9fc; border: 1px solid #e5e9f2; border-radius: 0.6rem; overflow: hidden;"></div>
+                    </div>
+                    <!-- Customer Notes -->
+                    <div>
+                        <h3 style="margin-top: 0; font-size: 0.88rem; color: #374151;">Customer Notes</h3>
+                        <p id="request-detail-message" style="white-space: pre-wrap; background: #f7f9fc; border: 1px solid #e5e9f2; border-radius: 0.6rem; padding: 0.85rem; font-size: 0.9rem; margin: 0;">—</p>
+                    </div>
+                    <!-- Attachments -->
+                    <div>
+                        <h3 style="margin-top: 0; font-size: 0.88rem; color: #374151;">Attachments</h3>
+                        <div id="request-detail-attachments" style="margin: 0; display: grid; gap: 0.5rem;"><div>None</div></div>
+                    </div>
                 </div>
-                <!-- Service Location Section -->
-                <div id="service-location-section" style="display: none; padding: 1rem; background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%); border: 1px solid #7dd3fc; border-radius: 0.6rem;">
-                    <h3 style="margin: 0 0 0.75rem; font-size: 1rem; color: #0369a1; display: flex; align-items: center; gap: 0.5rem;">
-                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                        Service Location
-                    </h3>
-                    <div style="display: grid; gap: 0.5rem; font-size: 0.9rem;">
-                        <div><strong>Address:</strong> <span id="request-detail-address">—</span></div>
-                        <div><strong>Area/Postcode:</strong> <span id="request-detail-postcode">—</span></div>
-                        <div id="request-detail-map-container" style="margin-top: 0.5rem; display: none;">
-                            <a id="request-detail-map-link" href="#" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; background: #0284c7; color: #fff; border-radius: 0.4rem; text-decoration: none; font-weight: 600; font-size: 0.85rem;">
-                                📍 View on Google Maps
-                            </a>
+            </div>
+
+            <!-- Actions & Notes Tab -->
+            <div id="modal-tab-actions" class="modal-tab-panel">
+                <div style="display: grid; gap: 1rem;">
+                    <div style="background: #eff6ff; border: 1px solid #dbeafe; border-radius: 0.6rem; padding: 1rem;">
+                        <h3 style="margin: 0 0 0.75rem; font-size: 0.88rem; color: #1e40af;">Update Status</h3>
+                        <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                            <select id="request-status-update" style="padding: 0.5rem 0.75rem; border-radius: 0.4rem; border: 1px solid #93c5fd; font-size: 0.9rem; flex: 1; min-width: 160px;">
+                                <option value="draft">Draft</option>
+                                <option value="survey_needed">Survey Needed</option>
+                                <option value="pending">Pending</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                            <button class="btn btn-primary" type="button" onclick="saveRequestStatus()">Save Changes</button>
+                            <button class="btn" type="button" onclick="clearRequestDetail()">Close</button>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 style="margin: 0 0 0.5rem; font-size: 0.88rem; color: #374151;">Internal Notes</h3>
+                        <textarea id="request-detail-notes" rows="5" style="width: 100%; border-radius: 0.5rem; border: 1px solid #d1d5db; padding: 0.75rem; font-size: 0.9rem; resize: vertical;"></textarea>
+                    </div>
+                    <div style="background: #f9fafb; border: 1px solid var(--border); border-radius: 0.6rem; padding: 1rem;">
+                        <h3 style="margin: 0 0 0.65rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.07em; color: #6b7280;">Email Status</h3>
+                        <div style="display: grid; gap: 0.4rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); font-size: 0.9rem;">
+                            <div><span style="color:#6b7280;">Admin email:</span> <span id="request-detail-email-admin">—</span></div>
+                            <div><span style="color:#6b7280;">Customer email:</span> <span id="request-detail-email-user">—</span></div>
                         </div>
                     </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; padding: 1rem; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 0.6rem;">
-                    <label style="font-weight: 600; color: #92400e;">Total Cost (£):</label>
-                    <input type="number" id="request-detail-total-cost" step="0.01" min="0" placeholder="0.00" style="padding: 0.5rem 0.75rem; border-radius: 0.4rem; border: 1px solid #d97706; width: 140px; font-size: 1rem; font-weight: 600;">
-                    <span id="request-detail-price-hint" style="font-size: 0.85rem; color: #78350f;"></span>
-                </div>
-                <!-- Order Summary Section (Service Bookings) -->
-                <div id="order-summary-section" style="display: none;">
-                    <h3 style="margin-top: 0; color: #1f3c88; display: flex; align-items: center; gap: 0.5rem;">
-                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                        Order Summary
-                    </h3>
-                    <div id="order-summary-content" style="background: #f7f9fc; border: 1px solid #e5e9f2; border-radius: 0.6rem; overflow: hidden;">
-                        <!-- Table rendered by JavaScript -->
+            </div>
+
+            <!-- Payment Tab -->
+            <div id="modal-tab-payment" class="modal-tab-panel">
+                <div style="display: grid; gap: 1rem;">
+                    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 0.6rem; padding: 1rem;">
+                        <h3 style="margin: 0 0 0.75rem; font-size: 0.88rem; color: #92400e;">Pricing</h3>
+                        <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                            <label style="font-weight: 600; color: #92400e; font-size: 0.9rem;">Total Cost (£):</label>
+                            <input type="number" id="request-detail-total-cost" step="0.01" min="0" placeholder="0.00" style="padding: 0.5rem 0.75rem; border-radius: 0.4rem; border: 1px solid #d97706; width: 140px; font-size: 1rem; font-weight: 600;">
+                            <span id="request-detail-price-hint" style="font-size: 0.85rem; color: #78350f;"></span>
+                        </div>
+                        <p style="margin: 0.75rem 0 0; font-size: 0.82rem; color: #92400e;">Save from the Actions tab after updating the price.</p>
                     </div>
-                </div>
-                <div>
-                    <h3 style="margin-top: 0;">Customer Notes</h3>
-                    <p id="request-detail-message" style="white-space: pre-wrap; background: #f7f9fc; border: 1px solid #e5e9f2; border-radius: 0.6rem; padding: 1rem;">—</p>
-                </div>
-                <div>
-                    <h3 style="margin-top: 0;">Internal Notes</h3>
-                    <textarea id="request-detail-notes" rows="4" style="width: 100%; border-radius: 0.6rem; border: 1px solid #d1d5db; padding: 0.75rem;"></textarea>
-                </div>
-                <div>
-                    <h3 style="margin-top: 0;">Attachments</h3>
-                    <div id="request-detail-attachments" style="margin: 0; display: grid; gap: 0.5rem;">
-                        <div>None</div>
-                    </div>
-                </div>
-                <div style="display: flex; gap: 0.75rem; justify-content: flex-end; flex-wrap: wrap;">
-                    <label style="font-size: 0.85rem; color: #6b7280; display: flex; flex-direction: column; gap: 0.35rem;">
-                        Update Status
-                        <select id="request-status-update" style="padding: 0.4rem 0.6rem; border-radius: 0.4rem; border: 1px solid var(--border);">
-                            <option value="draft">Draft</option>
-                            <option value="survey_needed">Survey Needed</option>
-                            <option value="pending">Pending</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                            <option value="cancelled">Cancelled</option>
-                        </select>
-                    </label>
-                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                        <button class="btn" type="button" onclick="clearRequestDetail()">Close</button>
-                        <button class="btn btn-primary" type="button" onclick="saveRequestStatus()">Save</button>
+                    <div style="background: #f9fafb; border: 1px solid var(--border); border-radius: 0.6rem; padding: 1rem;">
+                        <h3 style="margin: 0 0 0.75rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.07em; color: #6b7280;">Payment Status</h3>
+                        <div style="display: grid; gap: 0.4rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); font-size: 0.9rem;">
+                            <div><span style="color:#6b7280;">Status:</span> <strong id="request-detail-payment-status">—</strong></div>
+                            <div><span style="color:#6b7280;">Amount Due:</span> <strong id="request-detail-amount-due">—</strong></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3958,27 +4168,111 @@
             const statusLabel = REQUEST_STATUS_LABELS[status] || status;
             const typeLabel = REQUEST_TYPE_LABELS[(entry.request_type || '').toLowerCase()] || (entry.request_type || '—');
             const name = entry.name ? escapeHtml(entry.name) : '—';
+            const email = entry.email ? escapeHtml(entry.email) : '';
             const serviceOrPosition = entry.service_name || entry.job_position || '—';
             const dateDisplay = formatDateShort(entry.created_at);
-            const paymentStatus = entry.payment_status_label || '—';
-            const paymentBadge = entry.payment_badge || 'na';
             const amountDue = formatAmountDue(entry.amount_due);
             const contractTag = entry.is_contract
-                ? `<span class="contract-tag">📄 Contract${entry.contract_frequency ? ' · ' + escapeHtml(entry.contract_frequency) : ''}</span>`
+                ? `<span class="contract-tag">📄${entry.contract_frequency ? ' ' + escapeHtml(entry.contract_frequency) : ''}</span>`
                 : '';
 
+            // Quick action buttons based on status
+            let quickBtns = '';
+            if (status === 'pending' || status === 'survey_needed') {
+                quickBtns += `<button class="row-action-btn row-action-btn--confirm" type="button" onclick="event.stopPropagation(); quickStatusChange(${entry.id}, 'in_progress')" title="Mark In Progress">▶</button>`;
+            }
+            if (status === 'in_progress') {
+                quickBtns += `<button class="row-action-btn row-action-btn--complete" type="button" onclick="event.stopPropagation(); quickStatusChange(${entry.id}, 'completed')" title="Mark Complete">✓</button>`;
+            }
+
             return `
-                <tr data-request-id="${entry.id}">
-                    <td class="text-muted">${dateDisplay}</td>
-                    <td class="client-name">${name}</td>
-                    <td class="text-muted">${escapeHtml(typeLabel)}${contractTag}</td>
-                    <td class="text-muted">${escapeHtml(serviceOrPosition)}</td>
+                <tr data-request-id="${entry.id}" data-status="${status}" data-name="${name.toLowerCase()}" data-email="${email.toLowerCase()}" data-type="${(entry.request_type || '').toLowerCase()}">
+                    <td class="text-muted" style="white-space:nowrap;">${dateDisplay}</td>
+                    <td>
+                        <div class="client-name">${name}</div>
+                        ${email ? `<div class="text-muted" style="font-size:0.78rem;">${email}</div>` : ''}
+                    </td>
+                    <td class="text-muted">${escapeHtml(serviceOrPosition)}<br><span style="font-size:0.75rem; color:#9ca3af;">${escapeHtml(typeLabel)}${contractTag}</span></td>
                     <td><span class="${getStatusBadgeClass(status)}">${escapeHtml(statusLabel)}</span></td>
-                    <td><span class="${getPaymentBadgeClass(paymentBadge)}">${escapeHtml(paymentStatus)}</span></td>
-                    <td class="text-muted" style="text-align:right; font-weight:600;">${escapeHtml(amountDue)}</td>
-                    <td style="text-align: right;"><button class="action-btn" type="button" data-view-request="${entry.id}">Manage</button></td>
+                    <td class="text-muted" style="font-weight:600; white-space:nowrap;">${escapeHtml(amountDue)}</td>
+                    <td style="text-align: right;">
+                        <div class="row-actions">
+                            ${quickBtns}
+                            <button class="row-action-btn row-action-btn--view" type="button" data-view-request="${entry.id}">View</button>
+                        </div>
+                    </td>
                 </tr>
             `;
+        }
+
+        // Active status filter for the overview cards
+        let activeStatusFilter = null;
+
+        function setStatusFilter(status, clickedEl) {
+            const overview = document.getElementById('request-status-overview');
+            if (!overview) return;
+            const allCards = overview.querySelectorAll('.request-overview__item');
+
+            if (activeStatusFilter === status) {
+                // Deselect
+                activeStatusFilter = null;
+                allCards.forEach(c => c.classList.remove('active-filter'));
+            } else {
+                activeStatusFilter = status;
+                allCards.forEach(c => c.classList.remove('active-filter'));
+                if (clickedEl) clickedEl.classList.add('active-filter');
+            }
+            filterRequestsTable();
+        }
+
+        function filterRequestsTable() {
+            const searchVal = (document.getElementById('requests-search')?.value || '').toLowerCase().trim();
+            const typeVal = (document.getElementById('request-type-filter')?.value || '').toLowerCase();
+            const rows = document.querySelectorAll('#requests-table-body tr[data-request-id]');
+            let visible = 0;
+            rows.forEach(row => {
+                const rowStatus = (row.dataset.status || '');
+                const rowName = (row.dataset.name || '');
+                const rowEmail = (row.dataset.email || '');
+                const rowType = (row.dataset.type || '');
+                const refText = row.textContent.toLowerCase();
+
+                const statusMatch = !activeStatusFilter || rowStatus === activeStatusFilter;
+                const typeMatch = !typeVal || (typeVal === 'contract' ? row.textContent.includes('📄') : rowType === typeVal);
+                const searchMatch = !searchVal || rowName.includes(searchVal) || rowEmail.includes(searchVal) || refText.includes(searchVal);
+
+                if (statusMatch && typeMatch && searchMatch) {
+                    row.style.display = '';
+                    visible++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            const countLabel = document.getElementById('requests-count-label');
+            if (countLabel) countLabel.textContent = `${visible} shown`;
+        }
+
+        function clearRequestFilters() {
+            const searchEl = document.getElementById('requests-search');
+            const typeEl = document.getElementById('request-type-filter');
+            if (searchEl) searchEl.value = '';
+            if (typeEl) typeEl.value = '';
+            activeStatusFilter = null;
+            const overview = document.getElementById('request-status-overview');
+            if (overview) overview.querySelectorAll('.request-overview__item').forEach(c => c.classList.remove('active-filter'));
+            filterRequestsTable();
+        }
+
+        function quickStatusChange(requestId, newStatus) {
+            updateRequestStatusInline(requestId, newStatus, null, null);
+        }
+
+        function switchModalTab(tabName, btn) {
+            document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.modal-tab-panel').forEach(p => p.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            const panel = document.getElementById('modal-tab-' + tabName);
+            if (panel) panel.classList.add('active');
         }
 
         function renderRequestTable(groups = {}) {
@@ -4090,6 +4384,9 @@
 
             // Bind click events for table rows
             bindRequestTableEvents();
+
+            // Re-apply active filters after re-render
+            filterRequestsTable();
         }
 
         function bindRequestTableEvents() {
@@ -4679,12 +4976,49 @@
             }
         }
 
+        let allTransactionRows = [];
+
+        function updatePaymentStats(list) {
+            let total = 0, month = 0, pending = 0;
+            const now = new Date();
+            list.forEach(tx => {
+                const amt = typeof tx.amount_total === 'number' ? tx.amount_total : 0;
+                const isPaid = ['paid', 'processed'].includes(tx.status);
+                const isThisMonth = tx.created_at && new Date(tx.created_at).getMonth() === now.getMonth() && new Date(tx.created_at).getFullYear() === now.getFullYear();
+                if (isPaid) { total += amt; if (isThisMonth) month += amt; }
+                if (['checkout_created', 'stale_pending', 'pending'].includes(tx.status)) pending += amt;
+            });
+            const fmt = v => v > 0 ? `£${v.toFixed(2)}` : '£0.00';
+            const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+            setEl('pay-stat-total', fmt(total));
+            setEl('pay-stat-month', fmt(month));
+            setEl('pay-stat-pending', fmt(pending));
+            setEl('pay-stat-count', list.length);
+        }
+
+        function filterTransactions() {
+            const search = (document.getElementById('tx-search')?.value || '').toLowerCase();
+            const statusF = (document.getElementById('tx-status-filter')?.value || '').toLowerCase();
+            const tbody = paymentTransactionsTable?.querySelector('tbody');
+            if (!tbody) return;
+            tbody.querySelectorAll('tr').forEach(row => {
+                const text = row.textContent.toLowerCase();
+                const statusCell = row.querySelector('td:nth-child(2)');
+                const statusText = (statusCell?.textContent || '').toLowerCase();
+                const matchSearch = !search || text.includes(search);
+                const matchStatus = !statusF || statusText.includes(statusF);
+                row.style.display = matchSearch && matchStatus ? '' : 'none';
+            });
+        }
+
         function renderPaymentTransactions(rows = []) {
             const tbody = paymentTransactionsTable ? paymentTransactionsTable.querySelector('tbody') : null;
             if (!tbody) {
                 return;
             }
             const list = Array.isArray(rows) ? rows : [];
+            allTransactionRows = list;
+            updatePaymentStats(list);
             if (!list.length) {
                 tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; color:#6b7280;">No transactions yet.</td></tr>';
                 return;
@@ -4838,7 +5172,7 @@
         }
 
         if (requestTypeFilter) {
-            requestTypeFilter.addEventListener('change', () => loadRequests());
+            requestTypeFilter.addEventListener('change', () => filterRequestsTable());
         }
 
         if (emailSettingsForm) {

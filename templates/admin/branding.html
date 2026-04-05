@@ -268,6 +268,87 @@
             justify-content: flex-end;
         }
 
+        /* Drag-and-drop upload zone */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 0.75rem;
+            padding: 2rem 1.5rem;
+            text-align: center;
+            background: #f9fafb;
+            cursor: pointer;
+            transition: border-color 0.18s, background 0.18s;
+            position: relative;
+        }
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: var(--primary);
+            background: #eff6ff;
+        }
+        .drop-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+        .drop-zone__icon { font-size: 2rem; margin-bottom: 0.5rem; }
+        .drop-zone__text { font-size: 0.9rem; color: #6b7280; }
+        .drop-zone__text strong { color: var(--primary); }
+        .drop-zone__hint { font-size: 0.78rem; color: #9ca3af; margin-top: 0.25rem; }
+        .drop-zone__filename { font-size: 0.85rem; color: var(--primary); margin-top: 0.5rem; font-weight: 600; }
+
+        /* Logo in context preview */
+        .logo-context-preview {
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            margin-top: 1rem;
+        }
+        .logo-context-preview__label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #9ca3af;
+            padding: 0.5rem 1rem 0.35rem;
+            background: #f9fafb;
+            border-bottom: 1px solid var(--border);
+        }
+        .logo-context-preview__nav {
+            background: #111827;
+            padding: 0.9rem 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .logo-context-preview__nav img {
+            max-height: 44px;
+            width: auto;
+            max-width: 180px;
+            object-fit: contain;
+        }
+        .logo-context-preview__nav-items {
+            display: flex;
+            gap: 1.5rem;
+        }
+        .logo-context-preview__nav-items span {
+            color: #9ca3af;
+            font-size: 0.8rem;
+        }
+        .logo-context-preview__email {
+            background: #1a6fce;
+            padding: 1rem 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .logo-context-preview__email img {
+            max-height: 44px;
+            width: auto;
+            max-width: 160px;
+            object-fit: contain;
+        }
+        .logo-context-preview__email-text { color: rgba(255,255,255,0.85); font-size: 0.8rem; }
+
         @media (max-width: 1024px) {
             body {
                 flex-direction: column;
@@ -449,24 +530,39 @@
             <section>
                 <h2 class="section-title">Logo</h2>
                 <div class="form-group">
-                    <label for="logo">Upload Logo</label>
-                    <input id="logo" type="file" name="logo" accept="image/png,image/jpeg,image/jpg,image/webp">
                     <input type="hidden" name="existing_logo" value="{{ site_settings.logo_path or '' }}">
-                    <small>Recommended size: at least 240px wide PNG or WEBP with transparent background.</small>
+                    <div class="drop-zone" id="logo-drop-zone">
+                        <input id="logo" type="file" name="logo" accept="image/png,image/jpeg,image/jpg,image/webp">
+                        <div class="drop-zone__icon">🖼️</div>
+                        <div class="drop-zone__text"><strong>Click to browse</strong> or drag &amp; drop your logo here</div>
+                        <div class="drop-zone__hint">PNG or WEBP with transparent background recommended · Min 240px wide</div>
+                        <div class="drop-zone__filename" id="logo-filename"></div>
+                    </div>
                 </div>
 
                 {% if site_settings.logo_path %}
                 <div class="form-group">
                     <label style="display: flex; align-items: center; gap: 0.5rem;">
-                        <input type="checkbox" name="remove_logo" value="1">
+                        <input type="checkbox" name="remove_logo" value="1" id="remove-logo-cb">
                         Remove current logo
                     </label>
                 </div>
-                <div class="logo-preview">
-                    <strong>Current Logo</strong>
-                    <img src="{{ site_settings.logo_path | media_url }}" alt="Current logo" loading="lazy">
-                </div>
                 {% endif %}
+
+                <!-- Logo in context preview -->
+                <div class="logo-context-preview" id="logo-context-preview">
+                    <div class="logo-context-preview__label">Preview — how your logo appears</div>
+                    <div class="logo-context-preview__nav">
+                        <img id="logo-preview-img" src="{{ site_settings.logo_path | media_url if site_settings.logo_path else '' }}" alt="Logo preview" {% if not site_settings.logo_path %}style="display:none"{% endif %}>
+                        <div class="logo-context-preview__nav-items">
+                            <span>Home</span><span>Services</span><span>Contact</span>
+                        </div>
+                    </div>
+                    <div class="logo-context-preview__email">
+                        <img id="logo-preview-email" src="{{ site_settings.logo_path | media_url if site_settings.logo_path else '' }}" alt="Logo in email" {% if not site_settings.logo_path %}style="display:none"{% endif %}>
+                        <div class="logo-context-preview__email-text">Email header preview</div>
+                    </div>
+                </div>
             </section>
 
             <div class="form-actions">
@@ -476,6 +572,48 @@
     </div>
 
     <script>
+        // Logo drag-and-drop and live preview
+        (function() {
+            const dropZone = document.getElementById('logo-drop-zone');
+            const fileInput = document.getElementById('logo');
+            const filename = document.getElementById('logo-filename');
+            const previewNav = document.getElementById('logo-preview-img');
+            const previewEmail = document.getElementById('logo-preview-email');
+            const removeCb = document.getElementById('remove-logo-cb');
+
+            function updatePreview(file) {
+                if (!file) return;
+                const url = URL.createObjectURL(file);
+                if (previewNav) { previewNav.src = url; previewNav.style.display = ''; }
+                if (previewEmail) { previewEmail.src = url; previewEmail.style.display = ''; }
+                if (filename) filename.textContent = '✓ ' + file.name;
+                if (removeCb) removeCb.checked = false;
+            }
+
+            if (fileInput) {
+                fileInput.addEventListener('change', () => {
+                    if (fileInput.files[0]) updatePreview(fileInput.files[0]);
+                });
+            }
+
+            if (dropZone) {
+                dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+                dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+                dropZone.addEventListener('drop', e => {
+                    e.preventDefault();
+                    dropZone.classList.remove('drag-over');
+                    const file = e.dataTransfer.files[0];
+                    if (file && fileInput) {
+                        // Transfer to file input via DataTransfer
+                        const dt = new DataTransfer();
+                        dt.items.add(file);
+                        fileInput.files = dt.files;
+                        updatePreview(file);
+                    }
+                });
+            }
+        })();
+
         const sidebar = document.querySelector('.sidebar');
         const sidebarToggle = document.querySelector('.sidebar__toggle');
         const sidebarLinks = document.querySelectorAll('.sidebar__nav .nav-link');

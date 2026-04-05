@@ -362,6 +362,33 @@
             font-weight: 500;
         }
 
+        /* Sort order buttons */
+        .sort-btn {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 0.25rem;
+            width: 22px;
+            height: 18px;
+            font-size: 0.6rem;
+            color: #6b7280;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            line-height: 1;
+            transition: background 0.15s, color 0.15s;
+        }
+        .sort-btn:hover:not(:disabled) {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+        .sort-btn:disabled {
+            opacity: 0.3;
+            cursor: default;
+        }
+
         .status-badge {
             display: inline-flex;
             align-items: center;
@@ -895,10 +922,18 @@
         function buildCategoryFilter() {
             const categoryFilter = document.getElementById('faq-category-filter');
             const selected = categoryFilter.value;
-            const categories = Array.from(new Set(faqs.map(faq => (faq.category || 'General').trim()).filter(Boolean))).sort();
 
-            categoryFilter.innerHTML = '<option value="all">All Categories</option>' + categories
-                .map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)
+            // Count per category
+            const countMap = {};
+            faqs.forEach(faq => {
+                const cat = (faq.category || 'General').trim();
+                countMap[cat] = (countMap[cat] || 0) + 1;
+            });
+            const categories = Object.keys(countMap).sort();
+            const total = faqs.length;
+
+            categoryFilter.innerHTML = `<option value="all">All Categories (${total})</option>` + categories
+                .map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)} (${countMap[category]})</option>`)
                 .join('');
 
             if (selected && Array.from(categoryFilter.options).some(option => option.value === selected)) {
@@ -975,19 +1010,32 @@
 
             results.textContent = `Showing ${start + 1}-${end} of ${total} filtered FAQs (${faqs.length} total)`;
 
-            container.innerHTML = pageFaqs.map(faq => `
+            const searchQuery = document.getElementById('faq-search').value.trim().toLowerCase();
+
+            container.innerHTML = pageFaqs.map((faq, idx) => {
+                const globalIdx = faqs.indexOf(faq);
+                const isFirst = globalIdx === 0;
+                const isLast = globalIdx === faqs.length - 1;
+                const questionHtml = highlightText(escapeHtml(faq.question), searchQuery);
+                const answerText = expandedFaqIds.has(faq.id) ? faq.answer : (faq.answer || '').slice(0, 180) + ((faq.answer || '').length > 180 ? '...' : '');
+                const answerHtml = highlightText(escapeHtml(answerText).replace(/\n/g, '<br>'), searchQuery);
+                return `
                 <div class="faq-item ${faq.is_active ? '' : 'inactive'}" data-id="${faq.id}">
                     <div class="faq-item__header">
                         <div class="faq-item__left">
-                            <span class="faq-item__order">${faq.sort_order || 0}</span>
-                            <h3 class="faq-item__question">${escapeHtml(faq.question)}</h3>
+                            <div style="display:flex;flex-direction:column;gap:2px;margin-right:0.4rem;">
+                                <button type="button" class="sort-btn" title="Move up" onclick="moveFaq(${faq.id}, -1)" ${isFirst ? 'disabled' : ''}>▲</button>
+                                <span class="faq-item__order" title="Sort order">${faq.sort_order || 0}</span>
+                                <button type="button" class="sort-btn" title="Move down" onclick="moveFaq(${faq.id}, 1)" ${isLast ? 'disabled' : ''}>▼</button>
+                            </div>
+                            <h3 class="faq-item__question">${questionHtml}</h3>
                         </div>
                         <div class="faq-item__actions">
                             <button class="btn btn-secondary btn-sm" onclick="editFaq(${faq.id})">Edit</button>
                             <button class="btn btn-danger btn-sm" onclick="deleteFaq(${faq.id})">Delete</button>
                         </div>
                     </div>
-                    <p class="faq-item__answer">${expandedFaqIds.has(faq.id) ? formatFaqAnswerFull(faq.answer) : formatFaqAnswerPreview(faq.answer)}</p>
+                    <p class="faq-item__answer">${answerHtml}</p>
                     ${shouldShowToggle(faq.answer) ? `<button class="faq-item__toggle" type="button" onclick="toggleFaqAnswer(${faq.id})">${expandedFaqIds.has(faq.id) ? 'Show less' : 'Read more'}</button>` : ''}
                     <div class="faq-item__meta">
                         <span class="faq-item__category">${escapeHtml(faq.category || 'General')}</span>
@@ -997,7 +1045,7 @@
                         <span>ID: ${faq.id}</span>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
 
             renderFaqPagination(total, start + 1, end);
         }
@@ -1066,6 +1114,56 @@
             const div = document.createElement('div');
             div.textContent = text || '';
             return div.innerHTML;
+        }
+
+        function highlightText(html, query) {
+            if (!query) return html;
+            // Highlight in escaped HTML — safe since we escaped already
+            const escapedQuery = escapeHtml(query).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            return html.replace(new RegExp(`(${escapedQuery})`, 'gi'), '<mark style="background:#fef08a; border-radius:2px; padding:0 1px;">$1</mark>');
+        }
+
+        async function moveFaq(faqId, direction) {
+            // direction: -1 = up, 1 = down
+            const idx = faqs.findIndex(f => f.id === faqId);
+            if (idx < 0) return;
+            const swapIdx = idx + direction;
+            if (swapIdx < 0 || swapIdx >= faqs.length) return;
+
+            const faqA = faqs[idx];
+            const faqB = faqs[swapIdx];
+
+            // Swap sort_order values
+            const orderA = faqA.sort_order || 0;
+            const orderB = faqB.sort_order || 0;
+
+            try {
+                await Promise.all([
+                    fetch(`/admin/api/faqs/${faqA.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...faqA, sort_order: orderB })
+                    }),
+                    fetch(`/admin/api/faqs/${faqB.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...faqB, sort_order: orderA })
+                    })
+                ]);
+                // Update local state
+                faqA.sort_order = orderB;
+                faqB.sort_order = orderA;
+                // Re-sort
+                faqs.sort((a, b) => {
+                    const oa = Number.isFinite(Number(a.sort_order)) ? Number(a.sort_order) : 0;
+                    const ob = Number.isFinite(Number(b.sort_order)) ? Number(b.sort_order) : 0;
+                    if (oa !== ob) return oa - ob;
+                    return (a.question || '').localeCompare(b.question || '');
+                });
+                applyFaqFilters();
+            } catch (err) {
+                showToast('Failed to reorder FAQs', 'error');
+            }
         }
 
         function openModal(faq = null) {

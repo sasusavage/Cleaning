@@ -371,9 +371,80 @@
                 font-size: 0.9rem;
             }
         }
+
+        /* Collapsible card sections */
+        .card details { margin: 0; }
+        .card details > summary {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            cursor: pointer;
+            list-style: none;
+            padding: 0;
+            user-select: none;
+        }
+        .card details > summary::-webkit-details-marker { display: none; }
+        .card details > summary .card__title {
+            margin: 0;
+            flex: 1;
+        }
+        .card details > summary .card__desc {
+            margin: 0;
+            font-size: 0.8rem;
+        }
+        .card details > summary .summary-chevron {
+            font-size: 1rem;
+            color: #6b7280;
+            transition: transform 0.2s;
+            flex-shrink: 0;
+        }
+        .card details[open] > summary .summary-chevron { transform: rotate(180deg); }
+        .card details > summary + * { margin-top: 0.85rem; }
+        .card details .card__desc { margin-bottom: 0.65rem; }
+
+        /* Sticky save bar */
+        .sticky-save-bar {
+            position: sticky;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border-top: 1px solid var(--border);
+            padding: 0.85rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            z-index: 100;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
+        }
+        .sticky-save-bar .unsaved-indicator {
+            font-size: 0.85rem;
+            color: #d97706;
+            font-weight: 600;
+            display: none;
+        }
+        .sticky-save-bar.has-changes .unsaved-indicator { display: block; }
+
+        /* Unsaved nav warning */
+        .unsaved-nav-banner {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            background: #fef3c7;
+            border-bottom: 2px solid #f59e0b;
+            padding: 0.65rem 1.25rem;
+            font-size: 0.88rem;
+            color: #92400e;
+            font-weight: 500;
+            z-index: 500;
+            text-align: center;
+        }
+        body.has-unsaved-changes .unsaved-nav-banner { display: block; }
     </style>
 </head>
 <body>
+    <div class="unsaved-nav-banner">⚠️ You have unsaved changes — save before leaving this page.</div>
     <div class="sidebar">
         <div class="sidebar__header">
             <div class="logo">{{ company_name }} Admin</div>
@@ -757,7 +828,10 @@
             </div>
 
         </form>
-        <button type="button" class="btn btn-primary" id="save-btn">Save All Changes</button>
+    </div>
+    <div class="sticky-save-bar" id="sticky-save-bar">
+        <span class="unsaved-indicator">● Unsaved changes</span>
+        <button type="button" class="btn btn-primary" id="save-btn" style="min-width:160px;">Save All Changes</button>
     </div>
 
     <div id="toast" class="toast" style="display:none;"></div>
@@ -964,6 +1038,7 @@
                 const data = await res.json();
                 if (res.ok) {
                     showToast(data.message || 'Site content saved successfully!', 'success');
+                    if (typeof markSaved === 'function') markSaved();
                 } else {
                     showToast(data.error || 'Failed to save.', 'error');
                 }
@@ -991,6 +1066,98 @@
                 saveSiteContent();
             });
         }
+
+        // Make card sections collapsible
+        (function makeCardsCollapsible() {
+            document.querySelectorAll('#site-content-form .card').forEach((card, i) => {
+                const titleEl = card.querySelector('.card__title');
+                if (!titleEl) return;
+
+                // Create a header button
+                const header = document.createElement('div');
+                header.className = 'card-collapse-header';
+                header.style.cssText = 'display:flex; align-items:center; gap:0.5rem; cursor:pointer; padding-bottom:0.75rem; margin-bottom:0.75rem; border-bottom:1px solid var(--border); user-select:none;';
+                const chevron = document.createElement('span');
+                chevron.textContent = '▾';
+                chevron.style.cssText = 'font-size:0.9rem; color:#6b7280; transition:transform 0.2s; flex-shrink:0;';
+
+                // Move title into header
+                titleEl.style.margin = '0; flex:1;';
+                titleEl.parentNode.insertBefore(header, titleEl);
+                header.appendChild(titleEl);
+                header.appendChild(chevron);
+
+                // Wrap remaining content (everything after header) in collapsible div
+                const body = document.createElement('div');
+                body.className = 'card-collapse-body';
+                // Collect remaining siblings
+                const siblings = [];
+                let next = header.nextSibling;
+                while (next) {
+                    siblings.push(next);
+                    next = next.nextSibling;
+                }
+                siblings.forEach(s => body.appendChild(s));
+                card.appendChild(body);
+
+                // First 3 open, rest collapsed
+                if (i >= 3) {
+                    body.style.display = 'none';
+                    chevron.style.transform = 'rotate(-90deg)';
+                }
+
+                header.addEventListener('click', () => {
+                    const isOpen = body.style.display !== 'none';
+                    body.style.display = isOpen ? 'none' : '';
+                    chevron.style.transform = isOpen ? 'rotate(-90deg)' : '';
+                });
+            });
+        })();
+
+        // Unsaved changes tracking
+        let hasUnsavedChanges = false;
+        const stickyBar = document.getElementById('sticky-save-bar');
+
+        function markChanged() {
+            if (!hasUnsavedChanges) {
+                hasUnsavedChanges = true;
+                document.body.classList.add('has-unsaved-changes');
+                if (stickyBar) stickyBar.classList.add('has-changes');
+            }
+        }
+
+        function markSaved() {
+            hasUnsavedChanges = false;
+            document.body.classList.remove('has-unsaved-changes');
+            if (stickyBar) stickyBar.classList.remove('has-changes');
+        }
+
+
+        if (form) {
+            form.addEventListener('input', markChanged);
+            form.addEventListener('change', markChanged);
+        }
+
+        window.addEventListener('beforeunload', (e) => {
+            if (hasUnsavedChanges) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+
+        // Allow nav links to save before leaving
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                if (hasUnsavedChanges) {
+                    const confirmed = confirm('You have unsaved changes. Leave without saving?');
+                    if (!confirmed) {
+                        e.preventDefault();
+                    } else {
+                        markSaved();
+                    }
+                }
+            });
+        });
     </script>
 </body>
 </html>
