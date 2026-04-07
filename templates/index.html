@@ -470,104 +470,37 @@
             </div>
         </section>
 
-        <!-- Company Policy Section -->
-        {% if policies and policies|length > 0 %}
+        <!-- Terms & Conditions Section (lightweight link cards) -->
         <section class="panel policy-section" id="policy" data-home-section="policy">
             <div class="section__header" data-animate="fade-in">
                 <p class="section__eyebrow">{{ site_content.policies_eyebrow if site_content and site_content.policies_eyebrow else 'Our Policies' }}</p>
                 <h2 class="section__title">{{ site_content.policies_title if site_content and site_content.policies_title else 'Transparency You Can Trust' }}</h2>
-                <p class="section__subtitle">{{ site_content.policies_subtitle if site_content and site_content.policies_subtitle else 'We believe in clear communication. Here are our key policies to ensure a smooth experience.' }}</p>
+                <p class="section__subtitle">{{ site_content.policies_subtitle if site_content and site_content.policies_subtitle else 'We believe in clear communication and transparency - Here are our key service terms to ensure a smooth experience.' }}</p>
             </div>
-            <div class="policy-grid" data-animate="reveal">
-                {% for policy in policies %}
-                <div class="policy-card">
-                    <div class="policy-card__icon">
-                        {% if policy.icon == 'shield-check' %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                            <path d="M9 12l2 2 4-4"></path>
-                        </svg>
-                        {% elif policy.icon == 'clock' %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <polyline points="12 6 12 12 16 14"></polyline>
-                        </svg>
-                        {% elif policy.icon == 'credit-card' %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                            <line x1="1" y1="10" x2="23" y2="10"></line>
-                        </svg>
-                        {% elif policy.icon == 'clock-alert' %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path>
-                            <path d="M12 6v6l4 2"></path>
-                            <path d="M12 18h.01"></path>
-                        </svg>
-                        {% elif policy.icon == 'shield' %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                        </svg>
-                        {% elif policy.icon == 'users' %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="9" cy="7" r="4"></circle>
-                            <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path>
-                        </svg>
-                        {% elif policy.icon == 'lock' %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                        {% elif policy.icon == 'file-text' %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                            <polyline points="14 2 14 8 20 8"></polyline>
-                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                        </svg>
-                        {% elif policy.icon == 'check-circle' %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                        {% elif policy.icon == 'home' %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                        </svg>
-                        {% elif policy.icon == 'star' %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-                        </svg>
-                        {% elif policy.icon == 'award' %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="8" r="7"></circle>
-                            <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
-                        </svg>
-                        {% elif policy.icon == 'phone' %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                        {% elif policy.icon == 'calendar' %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                            <line x1="16" y1="2" x2="16" y2="6"></line>
-                            <line x1="8" y1="2" x2="8" y2="6"></line>
-                            <line x1="3" y1="10" x2="21" y2="10"></line>
-                        </svg>
-                        {% elif policy.icon == 'thumbs-up' %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
-                        </svg>
-                        {% else %}
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                        </svg>
-                        {% endif %}
+            <div class="policy-grid policy-grid--compact" data-animate="reveal">
+                <a href="/terms-of-service" class="policy-link-card">
+                    <div class="policy-link-card__icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                     </div>
-                    <h3 class="policy-card__title">{{ policy.title }}</h3>
-                    <p class="policy-card__text">{{ policy.description }}</p>
-                </div>
-                {% endfor %}
+                    <span class="policy-link-card__title">Terms &amp; Conditions</span>
+                    <svg class="policy-link-card__arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </a>
+                <a href="/privacy-policy" class="policy-link-card">
+                    <div class="policy-link-card__icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+                    </div>
+                    <span class="policy-link-card__title">Privacy Policy</span>
+                    <svg class="policy-link-card__arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </a>
+                <a href="/cookie-policy" class="policy-link-card">
+                    <div class="policy-link-card__icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="8" cy="9" r="1" fill="currentColor"/><circle cx="15" cy="7" r="1" fill="currentColor"/><circle cx="14" cy="14" r="1" fill="currentColor"/><circle cx="9.5" cy="14.5" r="0.75" fill="currentColor"/></svg>
+                    </div>
+                    <span class="policy-link-card__title">Cookie Policy</span>
+                    <svg class="policy-link-card__arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </a>
             </div>
         </section>
-        {% endif %}
 
         <section class="panel careers" id="careers" data-home-section="careers">
             <div class="section__header" data-animate="fade-in">
@@ -766,9 +699,7 @@
                     {% if faqs and faqs|length > 0 %}
                     <li><a href="#faqs">FAQs</a></li>
                     {% endif %}
-                    {% if policies and policies|length > 0 %}
-                    <li><a href="#policy">Our Policies</a></li>
-                    {% endif %}
+                    <li><a href="/terms-of-service">Terms &amp; Conditions</a></li>
                     <li><a href="#careers">Join the Team</a></li>
                     <li><a href="#reviews">Leave a Review</a></li>
                 </ul>
@@ -835,11 +766,9 @@
             <p style="margin-top:0.5rem; font-size:0.8rem;">
                 <a href="/privacy-policy" style="color:inherit; opacity:0.7; text-decoration:underline;">Privacy Policy</a>
                 &nbsp;·&nbsp;
-                <a href="/terms-of-service" style="color:inherit; opacity:0.7; text-decoration:underline;">Terms of Service</a>
+                <a href="/terms-of-service" style="color:inherit; opacity:0.7; text-decoration:underline;">Terms &amp; Conditions</a>
                 &nbsp;·&nbsp;
                 <a href="/cookie-policy" style="color:inherit; opacity:0.7; text-decoration:underline;">Cookie Policy</a>
-                &nbsp;·&nbsp;
-                <a href="#" onclick="if(window.Termly)window.Termly.initialize();return false;" style="color:inherit; opacity:0.7; text-decoration:underline;">Cookie Preferences</a>
             </p>
         </div>
     </footer>

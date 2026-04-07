@@ -224,7 +224,8 @@ class TelegramBotAI:
             try:
                 return self.commands[command]['handler'](chat_id, args, username)
             except Exception as e:
-                logger.error(f"Command error: {e}")
+                import traceback as _tb
+                logger.error(f"Command error: {e}\n{_tb.format_exc()}")
                 return f"❌ Error executing command: {str(e)}"
         
         return f"❓ Unknown command: /{command}\nUse /help to see available commands."
@@ -250,8 +251,12 @@ class TelegramBotAI:
                 return f"❌ {result.get('message', 'AI error')}"
                 
         except Exception as e:
-            logger.error(f"AI query error: {e}")
-            return f"❌ AI error: {str(e)}"
+            import traceback as _tb
+            tb_str = _tb.format_exc()
+            logger.error(f"AI query error: {e}\n{tb_str}")
+            # Surface the first informative line to the user
+            err_line = next((l.strip() for l in tb_str.splitlines() if l.strip() and not l.startswith('Traceback')), str(e))
+            return f"❌ AI error: {err_line}"
     
     def _log_command(self, chat_id: str, username: str, text: str):
         """Log command to database"""

@@ -3864,8 +3864,8 @@ def upsert_travel_settings(payload):
     price_per_minute = normalize_price_value(payload.get('price_per_minute'))
     extended_price_per_minute = normalize_price_value(payload.get('extended_price_per_minute'))
     max_service_radius_miles = normalize_price_value(payload.get('max_service_radius_miles'))
-    enable_travel_pricing = bool(str_to_bool(payload.get('enable_travel_pricing')))
-    ask_for_postcode = bool(str_to_bool(payload.get('ask_for_postcode')))
+    enable_travel_pricing = int(bool(str_to_bool(payload.get('enable_travel_pricing'))))
+    ask_for_postcode = int(bool(str_to_bool(payload.get('ask_for_postcode'))))
 
     if price_per_minute is None:
         price_per_minute = 0

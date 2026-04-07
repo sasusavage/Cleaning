@@ -710,7 +710,7 @@
             <!-- Why Us Section -->
             <div class="card">
                 <h2 class="card__title">Why Us Section</h2>
-                <p class="card__desc">Eyebrow tag and heading for the "Why Choose Us" section.</p>
+                <p class="card__desc">Eyebrow tag, heading, and the feature cards for the "Why Choose Us" section.</p>
                 <div class="form-group">
                     <label for="why_us_eyebrow">Eyebrow Tag</label>
                     <input type="text" id="why_us_eyebrow" name="why_us_eyebrow" value="{{ site_content.why_us_eyebrow if site_content and site_content.why_us_eyebrow else '' }}" placeholder="Why Us">
@@ -718,6 +718,16 @@
                 <div class="form-group">
                     <label for="why_us_title">Main Heading</label>
                     <input type="text" id="why_us_title" name="why_us_title" value="{{ site_content.why_us_title if site_content and site_content.why_us_title else '' }}" placeholder="Why Choose Done-Well?">
+                </div>
+
+                <div class="form-group">
+                    <label>Feature Cards</label>
+                    <p class="form-hint" style="margin-bottom:0.75rem;">Add up to 6 cards. Each card needs a title, description, and icon name.</p>
+                    <div id="why-cards-list" style="display:flex;flex-direction:column;gap:0.75rem;"></div>
+                    <button type="button" class="btn btn--outline" style="margin-top:0.75rem;" onclick="addWhyCard()">+ Add Card</button>
+                    <p class="form-hint" style="margin-top:0.5rem;">
+                        Icon options: <code>shield-check</code>, <code>leaf</code>, <code>badge-check</code>, <code>calendar-x</code>, <code>users</code>, <code>star</code>
+                    </p>
                 </div>
             </div>
 
@@ -1011,6 +1021,7 @@
                 services_section_title: g('services_section_title'),
                 why_us_eyebrow: g('why_us_eyebrow'),
                 why_us_title: g('why_us_title'),
+                why_choose_us: { items: collectWhyCards() },
                 about_eyebrow: g('about_eyebrow'),
                 about_title: g('about_title'),
                 coverage_eyebrow: g('coverage_eyebrow'),
@@ -1158,6 +1169,61 @@
                 }
             });
         });
+
+        // ── Why Choose Us card editor ──────────────────────────────────────
+        const WHY_ICONS = ['shield-check','leaf','badge-check','calendar-x','users','star','award','phone','lock','check-circle'];
+
+        function addWhyCard(data) {
+            const list = document.getElementById('why-cards-list');
+            const idx = list.children.length;
+            const row = document.createElement('div');
+            row.className = 'why-card-row';
+            row.style.cssText = 'display:grid;grid-template-columns:1fr 1.5fr 1fr auto;gap:0.5rem;align-items:start;background:var(--bg,#f3f4f6);padding:0.75rem;border-radius:0.5rem;';
+            row.innerHTML = `
+                <div>
+                    <label style="font-size:0.8rem;color:var(--muted,#6b7280);display:block;margin-bottom:0.25rem;">Title</label>
+                    <input class="wc-title" type="text" value="${escAdm(data && data.title || '')}" placeholder="e.g. Vetted & Insured" style="width:100%;padding:0.5rem;border:1px solid var(--border,#e5e7eb);border-radius:0.4rem;font-size:0.9rem;">
+                </div>
+                <div>
+                    <label style="font-size:0.8rem;color:var(--muted,#6b7280);display:block;margin-bottom:0.25rem;">Description</label>
+                    <textarea class="wc-desc" rows="2" placeholder="Short description…" style="width:100%;padding:0.5rem;border:1px solid var(--border,#e5e7eb);border-radius:0.4rem;font-size:0.9rem;resize:vertical;">${escAdm(data && data.description || '')}</textarea>
+                </div>
+                <div>
+                    <label style="font-size:0.8rem;color:var(--muted,#6b7280);display:block;margin-bottom:0.25rem;">Icon</label>
+                    <select class="wc-icon" style="width:100%;padding:0.5rem;border:1px solid var(--border,#e5e7eb);border-radius:0.4rem;font-size:0.9rem;">
+                        ${WHY_ICONS.map(i => `<option value="${i}"${data && data.icon === i ? ' selected' : ''}>${i}</option>`).join('')}
+                    </select>
+                </div>
+                <button type="button" title="Remove" onclick="this.closest('.why-card-row').remove();markChanged();" style="margin-top:1.35rem;padding:0.45rem 0.6rem;border:none;background:none;cursor:pointer;color:#ef4444;font-size:1.1rem;">✕</button>
+            `;
+            row.querySelectorAll('input,textarea,select').forEach(el => el.addEventListener('input', markChanged));
+            list.appendChild(row);
+        }
+
+        function collectWhyCards() {
+            return Array.from(document.querySelectorAll('.why-card-row')).map(row => ({
+                title: row.querySelector('.wc-title').value.trim(),
+                description: row.querySelector('.wc-desc').value.trim(),
+                icon: row.querySelector('.wc-icon').value
+            })).filter(c => c.title);
+        }
+
+        function escAdm(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        // Seed existing items from server-rendered data
+        (function seedWhyCards() {
+            const raw = {{ (site_content.why_choose_us | tojson) if site_content and site_content.why_choose_us else '{}' }};
+            const items = Array.isArray(raw) ? raw : (raw && raw.items ? raw.items : []);
+            if (items.length) {
+                items.forEach(item => addWhyCard(item));
+            } else {
+                // Seed one empty card as a prompt
+                addWhyCard();
+            }
+        })();
+        // ──────────────────────────────────────────────────────────────────
     </script>
 </body>
 </html>

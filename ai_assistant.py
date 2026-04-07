@@ -581,7 +581,7 @@ RESPONSE STYLE:
             {"role": "system", "content": system_context},
             {"role": "user", "content": user_message}
         ]
-        
+
         # Add conversation history if available
         if chat_id:
             history = self._get_conversation_history(chat_id, limit=5)
@@ -589,6 +589,23 @@ RESPONSE STYLE:
                 # Insert history before user message
                 for hist in history:
                     messages.insert(-1, {"role": hist['role'], "content": hist['content']})
+
+        # Token guard: keep total estimated tokens under 7000 (leave headroom for completion).
+        # Rough estimate: 1 token ≈ 4 chars. Trim oldest non-system history messages first.
+        TOKEN_LIMIT = 7000
+        CHARS_PER_TOKEN = 4
+        char_budget = TOKEN_LIMIT * CHARS_PER_TOKEN
+        total_chars = sum(len(m.get('content') or '') for m in messages)
+        if total_chars > char_budget:
+            # Trim history messages (indices 1 .. len-2 are history; last is current user msg)
+            while total_chars > char_budget and len(messages) > 2:
+                removed = messages.pop(1)  # remove oldest history entry
+                total_chars -= len(removed.get('content') or '')
+            # If the user message itself is huge, truncate it
+            if total_chars > char_budget:
+                max_user_chars = char_budget - len(messages[0].get('content') or '')
+                if max_user_chars > 200:
+                    messages[-1]['content'] = messages[-1]['content'][:max_user_chars]
         
         try:
             # Call AI based on provider - use tools for Groq
