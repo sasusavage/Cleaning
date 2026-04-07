@@ -536,7 +536,7 @@ class AIAssistant:
 
         # Add conversation history if available
         if chat_id:
-            history = self._get_conversation_history(chat_id, limit=5)
+            history = self._get_conversation_history(chat_id, limit=3)
             if history:
                 # Insert history before user message
                 for hist in history:
@@ -544,8 +544,8 @@ class AIAssistant:
 
         # Token guard: keep total estimated tokens under 7000 (leave headroom for completion).
         # Rough estimate: 1 token ≈ 4 chars. Trim oldest non-system history messages first.
-        TOKEN_LIMIT = 7000
-        CHARS_PER_TOKEN = 4
+        TOKEN_LIMIT = 6000
+        CHARS_PER_TOKEN = 3
         char_budget = TOKEN_LIMIT * CHARS_PER_TOKEN
         total_chars = sum(len(m.get('content') or '') for m in messages)
         if total_chars > char_budget:

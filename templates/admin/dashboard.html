@@ -3615,24 +3615,35 @@
             }
         }
 
-        // Period change handler
-        document.getElementById('analytics-period')?.addEventListener('change', () => {
+        // Period change handler — refresh both charts and live metric cards
+        document.getElementById('analytics-period')?.addEventListener('change', async () => {
+            const period = document.getElementById('analytics-period').value;
+            const label = document.getElementById('analytics-period').selectedOptions[0]?.text || '';
+            const periodLabel = document.getElementById('revenue-period-label');
+            if (periodLabel) periodLabel.textContent = label;
             loadChartData();
+            const liveData = await fetchLiveAnalytics();
+            applyLiveAnalytics(liveData);
         });
 
         async function refreshAnalytics(showToastOnSuccess = true) {
             try {
+                // Load charts and live period metrics in parallel
+                const [, liveData] = await Promise.all([
+                    loadChartData(),
+                    fetchLiveAnalytics()
+                ]);
+                applyLiveAnalytics(liveData);
+
+                // Also fetch static summary for most_viewed_service / peak_traffic_time
                 const res = await fetch('/admin/api/analytics/summary');
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    throw new Error(err.error || 'Unable to fetch analytics summary.');
+                if (res.ok) {
+                    const summary = await res.json();
+                    setAnalyticsField('most_viewed_service', summary.most_viewed_service || '—');
+                    setAnalyticsField('peak_traffic_time', summary.peak_traffic_time || '—');
+                    renderAnalyticsEvents(summary.recent_events || []);
                 }
-                const data = await res.json();
-                applyAnalyticsSummary(data);
-                
-                // Also load chart data
-                await loadChartData();
-                
+
                 if (showToastOnSuccess) {
                     showToast('Analytics updated.', 'success', 2400);
                 }

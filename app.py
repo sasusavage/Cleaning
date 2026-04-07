@@ -1697,8 +1697,7 @@ def send_request_notifications(request_record, attachments=None):
     # Build absolute logo URL for email templates
     _site = fetch_site_settings() or {}
     _logo_path = (_site.get('logo_path') or '').strip()
-    _base = _get_app_base_url().rstrip('/')
-    logo_url = f"{_base}/static/{_logo_path}" if _logo_path else None
+    logo_url = _build_logo_url(_logo_path) or None
 
     try:
         admin_html = render_template(
@@ -1867,8 +1866,7 @@ def send_status_update_notifications(request_row, previous_status=None):
 
     _site2 = fetch_site_settings() or {}
     _logo_path2 = (_site2.get('logo_path') or '').strip()
-    _base2 = _get_app_base_url().rstrip('/')
-    logo_url2 = f"{_base2}/static/{_logo_path2}" if _logo_path2 else None
+    logo_url2 = _build_logo_url(_logo_path2) or None
 
     try:
         admin_html = render_template('emails/request_status_admin.html', request=context, logo_url=logo_url2)
@@ -1959,8 +1957,7 @@ def send_quote_ready_notification(request_row, quote_amount):
 
     _site3 = fetch_site_settings() or {}
     _logo_path3 = (_site3.get('logo_path') or '').strip()
-    _base3 = _get_app_base_url().rstrip('/')
-    logo_url3 = f"{_base3}/static/{_logo_path3}" if _logo_path3 else None
+    logo_url3 = _build_logo_url(_logo_path3) or None
 
     # Build email content
     user_subject = f"Your quote is ready - {context.get('quote_formatted')}"
@@ -3926,6 +3923,24 @@ def _get_app_base_url():
     except RuntimeError:
         pass
     return 'http://127.0.0.1:5000'
+
+
+def _build_logo_url(logo_path: str) -> str:
+    """Return an absolute URL for logo_path suitable for email <img> tags.
+    Handles three cases:
+      1. Already an absolute URL (Cloudinary / http) — return as-is.
+      2. Relative path starting with 'static/' — prepend base URL only.
+      3. Bare path (e.g. 'uploads/brand/x.jpg') — prepend base + '/static/'.
+    """
+    if not logo_path:
+        return ''
+    p = logo_path.strip()
+    if p.startswith('http://') or p.startswith('https://'):
+        return p
+    base = _get_app_base_url().rstrip('/')
+    if p.startswith('static/'):
+        return f"{base}/{p}"
+    return f"{base}/static/{p}"
 
 
 def stripe_secret_key():
@@ -6606,13 +6621,50 @@ def _fetch_telegram_error_alert_target_quietly():
 
 
 class TelegramErrorLogHandler(logging.Handler):
-    def __init__(self, throttle_seconds=120):
+    def __init__(self, throttle_seconds=120, health_report_hours=6):
         super().__init__(level=logging.ERROR)
         self.throttle_seconds = max(30, int(throttle_seconds or 120))
+        self.health_report_hours = max(1, int(health_report_hours or 6))
         self._last_sent_at = 0.0
         self._last_fingerprint = ''
         self._lock = threading.Lock()
         self._local = threading.local()
+        self._last_error_at = 0.0          # tracks when last real error occurred
+        self._health_reported_at = 0.0     # tracks when last "all clear" was sent
+        self._health_timer = None
+
+    def _schedule_health_report(self):
+        """Schedule a health report if no further errors arrive within the window."""
+        if self._health_timer is not None:
+            self._health_timer.cancel()
+        interval = self.health_report_hours * 3600
+        self._health_timer = threading.Timer(interval, self._send_health_report)
+        self._health_timer.daemon = True
+        self._health_timer.start()
+
+    def _send_health_report(self):
+        try:
+            target = _fetch_telegram_error_alert_target_quietly()
+            if not target:
+                return
+            now = time.time()
+            hours = self.health_report_hours
+            text = (
+                f"✅ System Health Report\n"
+                f"No errors logged in the past {hours} hour{'s' if hours != 1 else ''}.\n"
+                f"All systems appear healthy."
+            )
+            url = f"https://api.telegram.org/bot{target['bot_token']}/sendMessage"
+            requests.post(url, json={
+                'chat_id': target['chat_id'],
+                'text': text,
+                'disable_web_page_preview': True,
+                'disable_notification': True
+            }, timeout=5)
+            with self._lock:
+                self._health_reported_at = now
+        except Exception:
+            pass
 
     def emit(self, record):
         if record.levelno < logging.ERROR:
@@ -6630,9 +6682,9 @@ class TelegramErrorLogHandler(logging.Handler):
             if not message:
                 return
 
+            # Only suppress invalid signature noise — webhook errors are real now
             suppressed_fragments = (
                 'Invalid Stripe webhook signature',
-                'Exception on /api/payments/stripe/webhook'
             )
             if any(fragment in message for fragment in suppressed_fragments):
                 return
@@ -6645,6 +6697,7 @@ class TelegramErrorLogHandler(logging.Handler):
                     return
                 self._last_fingerprint = fingerprint
                 self._last_sent_at = now
+                self._last_error_at = now
 
             lines = [
                 '🚨 Application Error Detected',
@@ -6668,6 +6721,9 @@ class TelegramErrorLogHandler(logging.Handler):
                 'disable_notification': False
             }
             requests.post(url, json=payload, timeout=5)
+
+            # Reschedule health report — it fires only if no new errors arrive
+            self._schedule_health_report()
         except Exception:
             return
         finally:
@@ -6682,8 +6738,10 @@ def configure_telegram_error_log_handler():
     if _telegram_error_log_handler_attached:
         return
     try:
-        handler = TelegramErrorLogHandler(throttle_seconds=120)
+        handler = TelegramErrorLogHandler(throttle_seconds=120, health_report_hours=6)
+        # Attach to both app logger and root logger to catch errors from all modules
         app.logger.addHandler(handler)
+        logging.getLogger().addHandler(handler)
         _telegram_error_log_handler_attached = True
     except Exception:
         pass
@@ -10219,7 +10277,12 @@ def admin_update_contract_api(contract_id):
             return jsonify({'error': 'No valid fields to update.'}), 400
 
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
+
+        # Fetch current contract so we can detect schedule changes and get contact info
+        cursor.execute("SELECT * FROM contracts WHERE id = %s LIMIT 1", (contract_id,))
+        existing = cursor.fetchone() or {}
+
         set_parts = [f"{k} = %s" for k in updates]
         values = list(updates.values())
         values.append(contract_id)
@@ -10227,6 +10290,48 @@ def admin_update_contract_api(contract_id):
         conn.commit()
         cursor.close()
         conn.close()
+
+        # Send reschedule email if next_service_date changed
+        rescheduled = (
+            'next_service_date' in updates
+            and str(updates['next_service_date']) != str(existing.get('next_service_date') or '')
+        )
+        if rescheduled:
+            try:
+                recipient = sanitize_email(existing.get('customer_email'))
+                email_settings = fetch_email_settings()
+                if recipient and email_settings and int(email_settings.get('is_active') or 0):
+                    new_date = updates['next_service_date']
+                    new_time = updates.get('preferred_time') or existing.get('preferred_time') or '09:00'
+                    service_name = existing.get('service_name') or 'Cleaning service'
+                    cust_name = existing.get('customer_name') or 'there'
+                    frequency_label = format_contract_frequency_label(existing.get('frequency')) or 'Recurring'
+                    subject = f"Your {service_name} has been rescheduled"
+                    html_body = (
+                        f"<p>Hello {cust_name},</p>"
+                        f"<p>Your {frequency_label.lower()} contract service <strong>{service_name}</strong> has been rescheduled.</p>"
+                        f"<p><strong>New date:</strong> {new_date} at {new_time}</p>"
+                        f"<p>If you have any questions or need to make further changes, please reply to this email.</p>"
+                        f"<p>Thank you,<br>Done-Well Cleaning Team</p>"
+                    )
+                    text_body = (
+                        f"Hello {cust_name},\n\n"
+                        f"Your {frequency_label.lower()} contract service ({service_name}) has been rescheduled.\n"
+                        f"New date: {new_date} at {new_time}\n\n"
+                        "Questions? Reply to this email.\n\nDone-Well Cleaning Team"
+                    )
+                    send_email_via_settings(
+                        subject=subject,
+                        html_body=html_body,
+                        text_body=text_body,
+                        recipients=[recipient],
+                        settings=email_settings,
+                        reply_to=email_settings.get('reply_to') or email_settings.get('sender_email'),
+                        error_context='contract_reschedule_notification'
+                    )
+            except Exception:
+                app.logger.exception('Failed to send contract reschedule email for contract %s', contract_id)
+
         return jsonify({'message': 'Contract updated.'})
     except Exception:
         app.logger.exception('Failed to update contract %s', contract_id)
