@@ -994,6 +994,14 @@
                         </div>
                         {% endif %}
                         <div class="flow-summary__totals">
+                            <div class="flow-summary__line" id="flow-summary-subtotal-row" style="display:none;">
+                                <span>Services Subtotal (before discount)</span>
+                                <strong id="flow-summary-services-subtotal">—</strong>
+                            </div>
+                            <div class="flow-summary__line" id="flow-summary-discount-row" style="display:none; color:#166534;">
+                                <span id="flow-summary-discount-label">Discount</span>
+                                <strong id="flow-summary-discount-amount" style="color:#166534;">—</strong>
+                            </div>
                             <div class="flow-summary__line">
                                 <span>Services Subtotal</span>
                                 <strong id="flow-summary-services-total">—</strong>

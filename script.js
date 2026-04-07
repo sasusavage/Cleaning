@@ -2502,15 +2502,20 @@ document.addEventListener("DOMContentLoaded", function () {
                     discountAmount = subtotal * (percent / 100);
                 }
                 var total = subtotal - discountAmount;
-                badge.textContent = discountAmount > 0 ? "Bulk Discount Applied: -" + formatPrice(discountAmount) : "";
-                badge.style.display = discountAmount > 0 ? "block" : "none";
+                if (discountAmount > 0) {
+                    badge.innerHTML = "✓ Bulk Discount Applied: <span style='text-decoration:line-through; opacity:0.7; margin:0 0.5rem;'>" + formatPrice(subtotal) + "</span> → <strong>" + formatPrice(total) + "</strong> <span style='color:#15803d;'>(-" + formatPrice(discountAmount) + ")</span>";
+                    badge.style.display = "block";
+                } else {
+                    badge.textContent = "";
+                    badge.style.display = "none";
+                }
 
                 var payload = {
                     optionId: null,
                     optionLabel: "Custom selection",
                     optionDetails: detailLines.join(", ") + (discountAmount > 0 ? " • " + percent + "% off" : ""),
                     price: total,
-                    priceDisplay: formatPrice(total),
+                    priceDisplay: discountAmount > 0 ? formatPrice(subtotal) + " → " + formatPrice(total) : formatPrice(total),
                     modelType: "itemized",
                     payload: {
                         type: "itemized",
@@ -3058,6 +3063,35 @@ document.addEventListener("DOMContentLoaded", function () {
             }, 0);
             var hasCustom = selections.some(function (selection) { return typeof selection.price !== "number" || Number.isNaN(selection.price); });
             var hasSurvey = selections.some(function (selection) { return selection.payload && selection.payload.is_survey_request; });
+
+            // Show discount breakdown rows if any selection has a bulk/item discount
+            var totalDiscount = selections.reduce(function (sum, sel) {
+                return sum + (sel.payload && typeof sel.payload.discount_amount === "number" ? sel.payload.discount_amount : 0);
+            }, 0);
+            var totalSubtotalBeforeDiscount = selections.reduce(function (sum, sel) {
+                return sum + (sel.payload && typeof sel.payload.subtotal === "number" ? sel.payload.subtotal : (typeof sel.price === "number" ? sel.price : 0));
+            }, 0);
+            var discountRowEl = document.getElementById("flow-summary-discount-row");
+            var discountAmtEl = document.getElementById("flow-summary-discount-amount");
+            var discountLabelEl = document.getElementById("flow-summary-discount-label");
+            var subtotalRowEl = document.getElementById("flow-summary-subtotal-row");
+            var subtotalAmtEl = document.getElementById("flow-summary-services-subtotal");
+            if (totalDiscount > 0 && discountRowEl && discountAmtEl && subtotalRowEl && subtotalAmtEl) {
+                var discountPercent = selections.reduce(function (p, sel) {
+                    return p || (sel.payload && sel.payload.discount_percent) || 0;
+                }, 0);
+                subtotalRowEl.style.display = "flex";
+                subtotalAmtEl.textContent = formatPrice(totalSubtotalBeforeDiscount);
+                discountRowEl.style.display = "flex";
+                discountAmtEl.textContent = "-" + formatPrice(totalDiscount);
+                if (discountLabelEl && discountPercent) {
+                    discountLabelEl.textContent = discountPercent + "% Bulk Discount";
+                }
+            } else {
+                if (subtotalRowEl) subtotalRowEl.style.display = "none";
+                if (discountRowEl) discountRowEl.style.display = "none";
+            }
+
             setSubmitButtonLabel(hasSurvey);
             updateSummaryTotals(total, hasCustom, "", hasSurvey);
             if (askForPostcode) {
