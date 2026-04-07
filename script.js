@@ -3420,8 +3420,8 @@ document.addEventListener("DOMContentLoaded", function () {
         if (flowChoiceBrowse) {
             flowChoiceBrowse.addEventListener("click", function () {
                 hideChoicePrompt();
-                // Start from the beginning of the service queue
-                currentServiceIndex = 0;
+                // Advance to the next service in the queue (not back to 0)
+                currentServiceIndex = Math.min(currentServiceIndex + 1, serviceQueue.length - 1);
                 setActiveStep(1);
                 renderServiceStep();
             });

@@ -7529,88 +7529,107 @@ def resolve_stripe_event_object(event, event_type):
 
 @app.route('/api/payments/stripe/webhook', methods=['POST'])
 def stripe_webhook_endpoint():
+    # CRITICAL: Always return 200 to Stripe, even on config/processing errors.
+    # Returning non-200 causes Stripe to retry and eventually disable the endpoint.
+
     if not stripe_ready():
-        return jsonify({'error': 'Stripe is not configured. STRIPE_SECRET_KEY must start with sk_.'}), 500
+        app.logger.error('Stripe webhook received but Stripe is not configured (missing secret key).')
+        return jsonify({'received': True}), 200
+
     signing_secret = stripe_webhook_secret()
     if not stripe_webhook_secret_valid():
-        return jsonify({'error': 'Stripe webhook secret is missing or invalid. Expected prefix: whsec_.'}), 500
+        app.logger.error('Stripe webhook received but webhook secret (whsec_) is not configured.')
+        return jsonify({'received': True}), 200
 
     payload = request.get_data()
     signature = request.headers.get('Stripe-Signature', '')
     try:
         event = stripe.Webhook.construct_event(payload, signature, signing_secret)
     except Exception:
+        # Signature mismatch — likely a forged/replayed request. Return 400 is correct here
+        # as this is NOT a Stripe delivery failure; it's an invalid request we should reject.
         app.logger.warning('Invalid Stripe webhook signature for /api/payments/stripe/webhook.')
         return jsonify({'error': 'Invalid signature'}), 400
 
     event_type = event.get('type')
-    event_data = resolve_stripe_event_object(event, event_type)
+    try:
+        event_data = resolve_stripe_event_object(event, event_type)
 
-    if event_type == 'checkout.session.completed':
-        process_completed_payment_session(event_data)
-    elif event_type == 'payment_intent.succeeded':
-        # Fallback: finalize booking via PaymentIntent if checkout.session.completed was missed/failed
-        pi_id = sanitize_text(event_data.get('id'), 255)
-        metadata = event_data.get('metadata') or {}
-        tx_id_raw = metadata.get('transaction_id') if isinstance(metadata, dict) else None
-        tx = None
-        if tx_id_raw:
-            try:
-                tx = fetch_payment_transaction_by_id(int(str(tx_id_raw).strip()))
-            except (TypeError, ValueError):
-                pass
-        if not tx and pi_id:
-            tx = fetch_payment_transaction_by_payment_intent(pi_id)
-        if tx and tx.get('status') not in ('processed', 'paid'):
-            # Build a minimal session-like dict so process_completed_payment_session can run
-            fake_session = {
-                'id': tx.get('checkout_session_id') or '',
-                'payment_intent': pi_id,
-                'payment_status': 'paid',
-            }
-            try:
-                process_completed_payment_session(fake_session)
-            except Exception:
-                app.logger.exception('payment_intent.succeeded fallback finalization failed for pi %s', pi_id)
-    elif event_type in ('checkout.session.expired', 'payment_intent.payment_failed'):
-        tx = None
-        session_id = sanitize_text(event_data.get('id') or event_data.get('checkout_session'), 255)
-        payment_intent_id = ''
+        if event_type == 'checkout.session.completed':
+            process_completed_payment_session(event_data)
 
-        if event_type == 'checkout.session.expired':
-            tx = fetch_payment_transaction_by_session(session_id)
-        else:
-            payment_intent_id = sanitize_text(event_data.get('id') or event_data.get('payment_intent'), 255)
-            if payment_intent_id:
-                tx = fetch_payment_transaction_by_payment_intent(payment_intent_id)
-
+        elif event_type == 'payment_intent.succeeded':
+            # Fallback: finalize booking via PaymentIntent if checkout.session.completed was missed/failed
+            pi_id = sanitize_text(event_data.get('id'), 255)
             metadata = event_data.get('metadata') or {}
             tx_id_raw = metadata.get('transaction_id') if isinstance(metadata, dict) else None
-            if not tx and tx_id_raw:
+            tx = None
+            if tx_id_raw:
                 try:
-                    tx_id = int(str(tx_id_raw).strip())
-                    tx = fetch_payment_transaction_by_id(tx_id)
+                    tx = fetch_payment_transaction_by_id(int(str(tx_id_raw).strip()))
                 except (TypeError, ValueError):
-                    tx = None
+                    pass
+            if not tx and pi_id:
+                tx = fetch_payment_transaction_by_payment_intent(pi_id)
+            if tx and tx.get('status') not in ('processed', 'paid'):
+                fake_session = {
+                    'id': tx.get('checkout_session_id') or '',
+                    'payment_intent': pi_id,
+                    'payment_status': 'paid',
+                }
+                process_completed_payment_session(fake_session)
 
-            if not tx and session_id:
+        elif event_type in ('checkout.session.expired', 'payment_intent.payment_failed'):
+            tx = None
+            session_id = sanitize_text(event_data.get('id') or event_data.get('checkout_session'), 255)
+            payment_intent_id = ''
+
+            if event_type == 'checkout.session.expired':
                 tx = fetch_payment_transaction_by_session(session_id)
+            else:
+                payment_intent_id = sanitize_text(event_data.get('id') or event_data.get('payment_intent'), 255)
+                if payment_intent_id:
+                    tx = fetch_payment_transaction_by_payment_intent(payment_intent_id)
 
-        if tx:
-            error_message = ''
-            if event_type == 'payment_intent.payment_failed':
-                last_error = event_data.get('last_payment_error') or {}
-                if isinstance(last_error, dict):
-                    error_message = sanitize_text(last_error.get('message'), 1500)
+                metadata = event_data.get('metadata') or {}
+                tx_id_raw = metadata.get('transaction_id') if isinstance(metadata, dict) else None
+                if not tx and tx_id_raw:
+                    try:
+                        tx_id = int(str(tx_id_raw).strip())
+                        tx = fetch_payment_transaction_by_id(tx_id)
+                    except (TypeError, ValueError):
+                        tx = None
 
-            update_payment_transaction(
-                tx.get('id'),
-                status='failed',
-                payment_intent_id=payment_intent_id or tx.get('payment_intent_id'),
-                error_message=error_message or tx.get('error_message')
-            )
+                if not tx and session_id:
+                    tx = fetch_payment_transaction_by_session(session_id)
 
-    return jsonify({'received': True})
+            if tx:
+                error_message = ''
+                if event_type == 'payment_intent.payment_failed':
+                    last_error = event_data.get('last_payment_error') or {}
+                    if isinstance(last_error, dict):
+                        error_message = sanitize_text(last_error.get('message'), 1500)
+
+                update_payment_transaction(
+                    tx.get('id'),
+                    status='failed',
+                    payment_intent_id=payment_intent_id or tx.get('payment_intent_id'),
+                    error_message=error_message or tx.get('error_message')
+                )
+
+        elif event_type == 'charge.succeeded':
+            # Acknowledged — no action needed; checkout.session.completed handles booking finalization
+            pass
+
+        else:
+            # Unrecognised event type — log and acknowledge
+            app.logger.info('Stripe webhook: unhandled event type %s (acknowledged OK)', event_type)
+
+    except Exception:
+        # Log the full traceback but still return 200 so Stripe doesn't retry/disable
+        app.logger.exception('Stripe webhook processing error for event type %s', event_type)
+
+    return jsonify({'received': True}), 200
 
 
 @app.route('/payment/callback/success', methods=['GET'])
