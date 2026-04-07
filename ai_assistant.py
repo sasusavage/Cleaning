@@ -383,115 +383,65 @@ class AIAssistant:
      
         return True, "Ready"
     
-    def get_system_context(self) -> str:
-        """Build system context with current data"""
-        conn = self._get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        
-        # Get request summary
-        cursor.execute("""
-            SELECT 
-                status,
-                COUNT(*) as count
-            FROM requests
-            GROUP BY status
-        """)
-        request_stats = {row['status']: row['count'] for row in cursor.fetchall()}
-        
-        # Get today's stats
-        start_today, end_today = self._day_bounds_utc()
-        cursor.execute("""
-            SELECT 
-                request_type,
-                COUNT(*) as count
-            FROM requests
-            WHERE created_at >= %s AND created_at < %s
-            GROUP BY request_type
-        """, (start_today, end_today))
-        today_stats = {row['request_type']: row['count'] for row in cursor.fetchall()}
-        
-        # Get services list
-        cursor.execute("SELECT id, name, title, price, is_active FROM services")
-        services = cursor.fetchall()
-        
-        # Get recent requests
-        cursor.execute("""
-            SELECT id, ref_id, name, request_type, status, service_name, created_at
-            FROM requests
-            ORDER BY created_at DESC
-            LIMIT 10
-        """)
-        recent_requests = cursor.fetchall()
-        
-        cursor.close()
-        conn.close()
-        
-        # Format context
-        context = f"""You are the AI assistant for Done-Well Cleaners, a professional cleaning service business.
-You're chatting with the business owner/admin via Telegram. Be friendly, conversational, and proactive.
+    # Keywords that warrant injecting live business data into the system prompt
+    _BUSINESS_KEYWORDS = (
+        'pending', 'request', 'booking', 'summary', 'report', 'revenue',
+        'service', 'customer', 'status', 'today', 'completed', 'cancel',
+        'analytics', 'stats', 'how are', 'show', 'list', 'search', 'find',
+        'mark', 'update', 'note', 'email', 'disable', 'enable', 'history',
+        'ref-', 'ref ', 'invoice', 'payment', 'job', 'application',
+    )
 
-🕐 CURRENT TIME: {datetime.now().strftime('%A, %d %B %Y at %H:%M')}
+    def _needs_business_context(self, message: str) -> bool:
+        """Return True if the message is a business query needing live DB data."""
+        lower = message.lower()
+        return any(kw in lower for kw in self._BUSINESS_KEYWORDS)
 
-📊 LIVE BUSINESS SNAPSHOT:
-┌─ REQUESTS STATUS
-│  🟡 Pending: {request_stats.get('pending', 0)} {"⚠️ NEEDS ATTENTION" if request_stats.get('pending', 0) > 5 else ""}
-│  🔵 In Progress: {request_stats.get('in_progress', 0)}
-│  🟢 Completed: {request_stats.get('completed', 0)}
-│  🟠 Survey Needed: {request_stats.get('survey_needed', 0)}
-│  ⚪ Cancelled: {request_stats.get('cancelled', 0)}
-│
-└─ TODAY'S ACTIVITY
-   • Service Requests: {today_stats.get('service', 0)}
-   • Job Applications: {today_stats.get('job', 0)}
-   • General Inquiries: {today_stats.get('general', 0)}
-   • Total Today: {sum(today_stats.values())}
+    def get_system_context(self, include_live_data: bool = False) -> str:
+        """Build system context. Live DB data only injected when actually needed."""
+        now_str = datetime.now().strftime('%A, %d %B %Y at %H:%M')
 
-🧹 SERVICES ({len([s for s in services if s['is_active']])} active / {len(services)} total):
-"""
-        for svc in services[:10]:
-            emoji = "✅" if svc['is_active'] else "⏸️"
-            price = f"£{svc['price']}" if svc['price'] else "Quote"
-            context += f"  {emoji} [{svc['id']}] {svc['name'] or svc['title']} - {price}\n"
-        
-        if recent_requests:
-            context += f"\n📋 RECENT REQUESTS:\n"
-            for req in recent_requests[:5]:
-                created = req['created_at'].strftime('%d/%m %H:%M') if req['created_at'] else ''
-                status_emoji = {'pending': '🟡', 'in_progress': '🔵', 'completed': '🟢', 'survey_needed': '🟠', 'cancelled': '⚪'}.get(req['status'], '⚪')
-                context += f"  {status_emoji} {req['ref_id']} - {req['name']} ({req['request_type']}) - {created}\n"
-        
-        context += """
-🛠️ WHAT I CAN DO FOR YOU:
+        base = (
+            f"You are the AI assistant for Done-Well Cleaners, a professional cleaning service.\n"
+            f"You are chatting with the business owner/admin via Telegram.\n"
+            f"Be friendly, concise, and helpful. Current time: {now_str}.\n"
+            f"You can look up requests, update statuses, search customers, and run reports.\n"
+            f"Keep replies short — this is a chat interface."
+        )
 
-📖 INFORMATION & REPORTS:
-• "How are we doing today?" - Get daily summary
-• "Show pending requests" - List items needing attention
-• "Search for [name/email/phone]" - Find specific customers
-• "Get details for [REF-ID]" - Full request information
-• "Revenue report for last 30 days" - Financial insights
-• "Top services this month" - Popular services analysis
-• "Analytics summary" - Website traffic & conversions
+        if not include_live_data:
+            return base
 
-✏️ TAKE ACTIONS:
-• "Mark [REF-ID] as completed" - Update request status
-• "Add note to [REF-ID]: [your note]" - Add admin notes
-• "Email customer [REF-ID] about [topic]" - Send customer email
-• "Disable [service name]" - Toggle services on/off
-• "Show customer history for [email]" - See all requests from a customer
+        # Only fetch DB data when the user is asking a business question
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor(dictionary=True)
 
-💡 TIPS:
-• I remember our conversation, so you can follow up naturally
-• I'll proactively suggest actions when relevant
-• Just ask naturally - I understand context!
+            cursor.execute("SELECT status, COUNT(*) as count FROM requests GROUP BY status")
+            request_stats = {row['status']: row['count'] for row in cursor.fetchall()}
 
-RESPONSE STYLE:
-- Be conversational and friendly, like a helpful colleague
-- Use emojis sparingly to make messages scannable
-- Provide actionable insights, not just data
-- If something needs attention, proactively mention it
-- Keep responses concise but complete
-"""
-        return context
+            start_today, end_today = self._day_bounds_utc()
+            cursor.execute(
+                "SELECT COUNT(*) as count FROM requests WHERE created_at >= %s AND created_at < %s",
+                (start_today, end_today)
+            )
+            today_row = cursor.fetchone()
+            today_total = today_row['count'] if today_row else 0
+
+            cursor.close()
+            conn.close()
+
+            pending = request_stats.get('pending', 0)
+            attention = " ⚠️ NEEDS ATTENTION" if pending > 5 else ""
+            snapshot = (
+                f"\nLIVE SNAPSHOT — Pending:{pending}{attention} | "
+                f"In Progress:{request_stats.get('in_progress', 0)} | "
+                f"Completed:{request_stats.get('completed', 0)} | "
+                f"Today:{today_total}"
+            )
+            return base + snapshot
+        except Exception:
+            return base
     
     def _call_groq(self, messages: List[Dict]) -> str:
         """Call Groq API with streaming (no tools)"""
@@ -575,8 +525,10 @@ RESPONSE STYLE:
         if not ready:
             return {"success": False, "message": error, "action": None}
         
-        # Build messages
-        system_context = self.get_system_context()
+        # Build messages — only inject live DB data if the message is a business query
+        system_context = self.get_system_context(
+            include_live_data=self._needs_business_context(user_message)
+        )
         messages = [
             {"role": "system", "content": system_context},
             {"role": "user", "content": user_message}
