@@ -1214,13 +1214,16 @@
 
         // Seed existing items from server-rendered data
         (function seedWhyCards() {
-            const raw = {{ (site_content.why_choose_us | tojson) if site_content and site_content.why_choose_us else '{}' }};
-            const items = Array.isArray(raw) ? raw : (raw && raw.items ? raw.items : []);
+            {% if site_content and site_content.get('why_choose_us') %}
+            const raw = {{ site_content.get('why_choose_us') | tojson }};
+            {% else %}
+            const raw = null;
+            {% endif %}
+            const items = raw && Array.isArray(raw.items) ? raw.items : (Array.isArray(raw) ? raw : []);
             if (items.length) {
-                items.forEach(item => addWhyCard(item));
+                items.forEach(function(item) { addWhyCard(item); });
             } else {
-                // Seed one empty card as a prompt
-                addWhyCard();
+                addWhyCard(); // one empty card as starting point
             }
         })();
         // ──────────────────────────────────────────────────────────────────
