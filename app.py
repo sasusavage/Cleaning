@@ -7545,13 +7545,17 @@ def stripe_webhook_endpoint():
     signature = request.headers.get('Stripe-Signature', '')
     try:
         event = stripe.Webhook.construct_event(payload, signature, signing_secret)
+        # Newer Stripe SDK returns a StripeObject, not a plain dict — convert immediately
+        # so all downstream code can use plain .get() / dict access safely.
+        if not isinstance(event, dict):
+            event = json.loads(payload)
     except Exception:
         # Signature mismatch — likely a forged/replayed request. Return 400 is correct here
         # as this is NOT a Stripe delivery failure; it's an invalid request we should reject.
         app.logger.warning('Invalid Stripe webhook signature for /api/payments/stripe/webhook.')
         return jsonify({'error': 'Invalid signature'}), 400
 
-    event_type = event.get('type')
+    event_type = event.get('type', '')
     try:
         event_data = resolve_stripe_event_object(event, event_type)
 
