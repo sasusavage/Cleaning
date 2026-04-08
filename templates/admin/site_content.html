@@ -1257,26 +1257,33 @@
             return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
 
-        // Seed existing Why Choose Us cards — fetch fresh from API for reliability
+        // Default Why Choose Us cards matching the live homepage
+        const WHY_DEFAULTS = [
+            { title: 'Vetted & Insured',       description: 'All cleaners are DBS checked, fully insured and professionally trained.',          icon: 'shield-check' },
+            { title: 'Eco-Friendly Products',   description: 'We use green cleaning products to reduce your carbon footprint.',                   icon: 'leaf' },
+            { title: 'Satisfaction Guarantee',  description: 'Not happy? Tell us within 24 hours and we will redo it free.',                      icon: 'badge-check' },
+            { title: 'No Contracts',            description: 'Book only when you need us. No annual sign-ups required.',                          icon: 'calendar-x' }
+        ];
+
+        // Seed existing Why Choose Us cards — fetch from API, fall back to live defaults
         (function seedWhyCards() {
             fetch('/admin/api/site-content')
                 .then(r => r.json())
                 .then(function(content) {
                     const list = document.getElementById('why-cards-list');
                     if (!list) return;
-                    list.innerHTML = ''; // clear any placeholder
+                    list.innerHTML = '';
                     const raw = content && content.why_choose_us;
                     const items = (raw && Array.isArray(raw.items)) ? raw.items
                                 : (Array.isArray(raw) ? raw : []);
-                    if (items.length) {
-                        items.forEach(function(item) { addWhyCard(item); });
-                    } else {
-                        addWhyCard(); // one empty card as starting point
-                    }
+                    const source = items.length ? items : WHY_DEFAULTS;
+                    source.forEach(function(item) { addWhyCard(item); });
                 })
                 .catch(function() {
                     const list = document.getElementById('why-cards-list');
-                    if (list && list.children.length === 0) addWhyCard();
+                    if (!list) return;
+                    list.innerHTML = '';
+                    WHY_DEFAULTS.forEach(function(item) { addWhyCard(item); });
                 });
         })();
         // ──────────────────────────────────────────────────────────────────
@@ -1285,17 +1292,83 @@
             const editor = document.getElementById('tos-editor');
             if (!editor) return;
 
-            // Load saved content or fall back to empty
-            {% if site_content and site_content.get('terms_of_service') %}
-            const tosData = {{ site_content.get('terms_of_service') | tojson }};
-            {% else %}
-            const tosData = null;
-            {% endif %}
+            // Built-in default T&C content (mirrors the live /terms-of-service page)
+            const TOS_DEFAULT = `<h1>TERMS AND CONDITIONS</h1>
+<p><strong>Last updated March 29, 2026</strong></p>
+<h2>AGREEMENT TO OUR LEGAL TERMS</h2>
+<p>We are <strong>Done-Well Cleaning Limited</strong> ("Company", "we", "us", or "our"), a company registered in the United Kingdom at 3rd Floor, 86-90 Paul Street, London, EC2A 4NE.</p>
+<p>We operate the website <a href="https://done-wellcleaninglimited.org">https://done-wellcleaninglimited.org</a> (the "Site"), as well as any other related products and services that refer or link to these legal terms (collectively, the "Services").</p>
+<p>Done-Well Cleaning Service provides professional, affordable and reliable cleaning service you trust to homes, offices and anything in between.</p>
+<p>You can contact us by phone at <strong>(+44) 7795 595867</strong>, email at <a href="mailto:info@done-wellcleaninglimited.org">info@done-wellcleaninglimited.org</a>, or by mail to 319 Ripon Rd, Stevenage, Hertfordshire, SG1 4LT, United Kingdom.</p>
+<p>These Legal Terms constitute a legally binding agreement made between you and Done-Well Cleaning Limited, concerning your access to and use of the Services. You agree that by accessing the Services, you have read, understood, and agreed to be bound by all of these Legal Terms. <strong>IF YOU DO NOT AGREE WITH ALL OF THESE LEGAL TERMS, THEN YOU ARE EXPRESSLY PROHIBITED FROM USING THE SERVICES AND YOU MUST DISCONTINUE USE IMMEDIATELY.</strong></p>
+<p>We reserve the right to make changes or modifications to these Legal Terms from time to time. We will alert you about any changes by updating the "Last updated" date. It is your responsibility to periodically review these Legal Terms to stay informed of updates.</p>
+<p>The Services are intended for users who are at least 13 years of age. If you are a minor, you must have your parent or guardian read and agree to these Legal Terms prior to you using the Services.</p>
+<h2>1. OUR SERVICES</h2>
+<p>The information provided when using the Services is not intended for distribution to or use by any person or entity in any jurisdiction or country where such distribution or use would be contrary to law or regulation.</p>
+<h2>2. INTELLECTUAL PROPERTY RIGHTS</h2>
+<p>We are the owner or the licensee of all intellectual property rights in our Services, including all source code, databases, functionality, software, website designs, audio, video, text, photographs, and graphics (collectively, the "Content"), as well as the trademarks, service marks, and logos contained therein (the "Marks"). Our Content and Marks are protected by copyright and trademark laws around the world.</p>
+<p>Subject to your compliance with these Legal Terms, we grant you a non-exclusive, non-transferable, revocable licence to access the Services and download or print a copy of any portion of the Content to which you have properly gained access, solely for your personal, non-commercial use or internal business purpose.</p>
+<p>Any breach of these Intellectual Property Rights will constitute a material breach of our Legal Terms and your right to use our Services will terminate immediately.</p>
+<h2>3. USER REPRESENTATIONS</h2>
+<p>By using the Services, you represent and warrant that: (1) you have the legal capacity and you agree to comply with these Legal Terms; (2) you are not under the age of 13; (3) you are not a minor in the jurisdiction in which you reside, or if a minor, you have received parental permission to use the Services; (4) you will not access the Services through automated or non-human means; (5) you will not use the Services for any illegal or unauthorised purpose; and (6) your use of the Services will not violate any applicable law or regulation.</p>
+<h2>4. PURCHASES AND PAYMENT</h2>
+<p>We accept the following forms of payment: Visa, Mastercard, American Express, Discover, Bank Transfer, and Cash Payment.</p>
+<p>You agree to provide current, complete, and accurate purchase and account information for all purchases made via the Services. All payments shall be in Pounds Sterling.</p>
+<h2>5. REFUND POLICY</h2>
+<p>All sales are final and no refund will be issued unless otherwise agreed in writing.</p>
+<h2>6. PROHIBITED ACTIVITIES</h2>
+<p>You may not access or use the Services for any purpose other than that for which we make the Services available. As a user of the Services, you agree not to:</p>
+<ul>
+<li>Systematically retrieve data or content from the Services to create any collection, compilation, database, or directory without written permission.</li>
+<li>Trick, defraud, or mislead us and other users, especially in any attempt to learn sensitive account information such as user passwords.</li>
+<li>Circumvent, disable, or otherwise interfere with security-related features of the Services.</li>
+<li>Use any information obtained from the Services in order to harass, abuse, or harm another person.</li>
+<li>Upload or transmit viruses, Trojan horses, or other material that interferes with any party's use of the Services.</li>
+<li>Use the Services in a manner inconsistent with any applicable laws or regulations.</li>
+</ul>
+<h2>7. USER GENERATED CONTRIBUTIONS</h2>
+<p>The Services may invite you to chat, contribute to, or participate in blogs, message boards, or other functionality during which you may create, submit, post, display, or transmit content ("Contributions"). By posting Contributions, you grant us the right to use, copy, reproduce, and distribute such Contributions in any form.</p>
+<h2>8. CONTRIBUTION LICENCE</h2>
+<p>By posting your Contributions to any part of the Services, you automatically grant us an unrestricted, unlimited, irrevocable, perpetual, non-exclusive, transferable, royalty-free, fully-paid, worldwide right and licence to use, copy, reproduce, distribute, publish, and process your Contributions for any lawful purpose.</p>
+<h2>9. THIRD-PARTY WEBSITES AND CONTENT</h2>
+<p>The Services may contain links to other websites ("Third-Party Websites"). We are not responsible for the content, accuracy, or practices of any Third-Party Websites and we shall not be responsible for any losses or harm caused by your purchase of goods or services through Third-Party Websites.</p>
+<h2>10. SERVICES MANAGEMENT</h2>
+<p>We reserve the right, but not the obligation, to: (1) monitor the Services for violations of these Legal Terms; (2) take appropriate legal action against anyone who violates the law or these Legal Terms; (3) refuse, restrict access to, limit the availability of, or disable any of your Contributions; and (4) otherwise manage the Services in a manner designed to protect our rights.</p>
+<h2>11. PRIVACY POLICY</h2>
+<p>We care about data privacy and security. Please review our <a href="/privacy-policy">Privacy Policy</a>. By using the Services, you agree to be bound by our Privacy Policy, which is incorporated into these Legal Terms.</p>
+<h2>12. TERM AND TERMINATION</h2>
+<p>These Legal Terms shall remain in full force and effect while you use the Services. We reserve the right to deny access to and use of the Services to any person for any reason at our sole discretion.</p>
+<h2>13. MODIFICATIONS AND INTERRUPTIONS</h2>
+<p>We reserve the right to change, modify, or remove the contents of the Services at any time or for any reason at our sole discretion without notice. We will not be liable to you or any third party for any modification, suspension, or discontinuance of the Services.</p>
+<h2>14. GOVERNING LAW</h2>
+<p>These Legal Terms shall be governed by and defined following the laws of the United Kingdom. Done-Well Cleaning Limited and yourself irrevocably consent that the courts of the United Kingdom shall have exclusive jurisdiction to resolve any dispute which may arise in connection with these Legal Terms.</p>
+<h2>15. DISPUTE RESOLUTION</h2>
+<p>To expedite resolution and control the cost of any dispute, you and the Company agree to first attempt to negotiate any dispute informally for at least thirty (30) days before initiating arbitration. If informal negotiations fail, the dispute shall be submitted to binding arbitration in the United Kingdom.</p>
+<h2>16. DISCLAIMER</h2>
+<p>THE SERVICES ARE PROVIDED ON AN AS-IS AND AS-AVAILABLE BASIS. YOU AGREE THAT YOUR USE OF THE SERVICES WILL BE AT YOUR SOLE RISK. TO THE FULLEST EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED, IN CONNECTION WITH THE SERVICES AND YOUR USE THEREOF.</p>
+<h2>17. LIMITATIONS OF LIABILITY</h2>
+<p>IN NO EVENT WILL WE OR OUR DIRECTORS, EMPLOYEES, OR AGENTS BE LIABLE TO YOU OR ANY THIRD PARTY FOR ANY INDIRECT, CONSEQUENTIAL, EXEMPLARY, INCIDENTAL, SPECIAL, OR PUNITIVE DAMAGES, INCLUDING LOST PROFIT, LOST REVENUE, LOSS OF DATA, OR OTHER DAMAGES ARISING FROM YOUR USE OF THE SERVICES.</p>
+<h2>18. INDEMNIFICATION</h2>
+<p>You agree to defend, indemnify, and hold us harmless, including our subsidiaries, affiliates, and all of our respective officers, agents, partners, and employees, from and against any loss, damage, liability, claim, or demand, including reasonable legal fees, made by any third party due to or arising out of your use of the Services or breach of these Legal Terms.</p>
+<h2>19. CANCELLATION POLICY</h2>
+<p>Cancellations must be made at least 24 hours before the scheduled service. Cancellations made less than 24 hours before the scheduled service may be subject to a cancellation fee. To cancel a booking, please contact us at <a href="mailto:info@done-wellcleaninglimited.org">info@done-wellcleaninglimited.org</a> or call (+44) 7795 595867.</p>
+<h2>20. PAYMENT TERMS</h2>
+<p>Payment is due at the time of service unless otherwise agreed in writing. For pre-booked services paid online via Stripe, a discount may be applied as indicated at checkout. We reserve the right to withhold services until payment is confirmed. In the event of non-payment, we reserve the right to pursue recovery through appropriate legal channels.</p>
+<h2>21. CONTACT US</h2>
+<p>In order to resolve a complaint regarding the Services or to receive further information regarding use of the Services, please contact us at:</p>
+<p><strong>Done-Well Cleaning Limited</strong><br>3rd Floor, 86-90 Paul Street<br>London, EC2A 4NE<br>United Kingdom<br>Phone: (+44) 7795 595867<br>Email: <a href="mailto:info@done-wellcleaninglimited.org">info@done-wellcleaninglimited.org</a></p>`;
 
-            if (tosData && tosData.html && tosData.html.trim()) {
-                editor.innerHTML = tosData.html;
-            }
-            // else leave empty — the public page falls back to the built-in static content
+            // Load from API first, fall back to built-in default
+            fetch('/admin/api/site-content')
+                .then(r => r.json())
+                .then(function(content) {
+                    const saved = content && content.terms_of_service;
+                    const html = (saved && saved.html && saved.html.trim()) ? saved.html : TOS_DEFAULT;
+                    editor.innerHTML = html;
+                })
+                .catch(function() {
+                    editor.innerHTML = TOS_DEFAULT;
+                });
 
             // Toolbar buttons
             document.querySelectorAll('.tos-fmt-btn').forEach(btn => {
@@ -1322,8 +1395,8 @@
 
             // Reset to default
             document.getElementById('tos-reset-btn')?.addEventListener('click', () => {
-                if (!confirm('Reset to the built-in default Terms & Conditions? This will clear your custom text.')) return;
-                editor.innerHTML = '';
+                if (!confirm('Reset to the built-in default Terms & Conditions?')) return;
+                editor.innerHTML = TOS_DEFAULT;
                 markChanged();
             });
 
