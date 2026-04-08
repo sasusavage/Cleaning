@@ -1257,19 +1257,27 @@
             return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
 
-        // Seed existing items from server-rendered data
+        // Seed existing Why Choose Us cards — fetch fresh from API for reliability
         (function seedWhyCards() {
-            {% if site_content and site_content.get('why_choose_us') %}
-            const raw = {{ site_content.get('why_choose_us') | tojson }};
-            {% else %}
-            const raw = null;
-            {% endif %}
-            const items = raw && Array.isArray(raw.items) ? raw.items : (Array.isArray(raw) ? raw : []);
-            if (items.length) {
-                items.forEach(function(item) { addWhyCard(item); });
-            } else {
-                addWhyCard(); // one empty card as starting point
-            }
+            fetch('/admin/api/site-content')
+                .then(r => r.json())
+                .then(function(content) {
+                    const list = document.getElementById('why-cards-list');
+                    if (!list) return;
+                    list.innerHTML = ''; // clear any placeholder
+                    const raw = content && content.why_choose_us;
+                    const items = (raw && Array.isArray(raw.items)) ? raw.items
+                                : (Array.isArray(raw) ? raw : []);
+                    if (items.length) {
+                        items.forEach(function(item) { addWhyCard(item); });
+                    } else {
+                        addWhyCard(); // one empty card as starting point
+                    }
+                })
+                .catch(function() {
+                    const list = document.getElementById('why-cards-list');
+                    if (list && list.children.length === 0) addWhyCard();
+                });
         })();
         // ──────────────────────────────────────────────────────────────────
         // Terms & Conditions Editor
