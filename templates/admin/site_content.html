@@ -208,6 +208,24 @@
             color: #6b7280;
             margin-top: 0.35rem;
         }
+        .tos-fmt-btn {
+            padding: 0.3rem 0.65rem;
+            border-radius: 0.4rem;
+            border: 1px solid #d1d5db;
+            background: #f9fafb;
+            font-size: 0.82rem;
+            cursor: pointer;
+            color: #374151;
+            line-height: 1.4;
+        }
+        .tos-fmt-btn:hover { background: #e5e7eb; }
+        #tos-editor:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        #tos-editor h1, #tos-editor h2 { color: #1e3a5f; font-size: 1.05rem; margin: 1.1rem 0 0.4rem; }
+        #tos-editor h3 { color: #1e3a5f; font-size: 0.95rem; margin: 0.9rem 0 0.3rem; }
+        #tos-editor p { margin: 0 0 0.6rem; }
+        #tos-editor ul { padding-left: 1.4rem; margin: 0.4rem 0 0.7rem; }
+        #tos-editor li { margin-bottom: 0.25rem; }
+        #tos-editor hr { border: none; border-top: 1px solid #e5e7eb; margin: 1rem 0; }
         .btn {
             display: inline-flex;
             align-items: center;
@@ -837,6 +855,32 @@
                 </div>
             </div>
 
+            <!-- Terms & Conditions Editor -->
+            <div class="card" id="terms-card">
+                <h2 class="card__title">📜 Terms &amp; Conditions</h2>
+                <p class="card__desc">Edit the content shown on the <a href="/terms-of-service" target="_blank" style="color:var(--primary);">Terms of Service page</a>. Supports basic HTML formatting. Leave blank to show the built-in default content.</p>
+
+                <!-- Formatting toolbar -->
+                <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.5rem;">
+                    <button type="button" class="tos-fmt-btn" data-cmd="bold" title="Bold" style="font-weight:700;">B</button>
+                    <button type="button" class="tos-fmt-btn" data-cmd="italic" title="Italic" style="font-style:italic;">I</button>
+                    <button type="button" class="tos-fmt-btn" data-cmd="underline" title="Underline" style="text-decoration:underline;">U</button>
+                    <button type="button" class="tos-fmt-btn" data-cmd="h2" title="Heading">H2</button>
+                    <button type="button" class="tos-fmt-btn" data-cmd="h3" title="Sub-heading">H3</button>
+                    <button type="button" class="tos-fmt-btn" data-cmd="ul" title="Bullet list">• List</button>
+                    <button type="button" class="tos-fmt-btn" data-cmd="p" title="Paragraph">¶ Para</button>
+                    <button type="button" class="tos-fmt-btn" data-cmd="hr" title="Horizontal rule" style="margin-left:0.5rem;">― HR</button>
+                    <button type="button" id="tos-reset-btn" title="Reset to built-in default" style="margin-left:auto;padding:0.3rem 0.75rem;border-radius:0.4rem;border:1px solid #d1d5db;background:#f9fafb;font-size:0.8rem;cursor:pointer;color:#6b7280;">↺ Reset to default</button>
+                </div>
+
+                <div id="tos-editor"
+                     contenteditable="true"
+                     spellcheck="true"
+                     style="min-height:420px;border:1px solid var(--border);border-radius:0.5rem;padding:1.25rem 1.5rem;background:#fff;font-size:0.9rem;line-height:1.7;overflow-y:auto;max-height:640px;outline:none;font-family:inherit;">
+                </div>
+                <p class="form-hint" style="margin-top:0.5rem;">Changes are saved when you click <strong>Save All Changes</strong>.</p>
+            </div>
+
         </form>
     </div>
     <div class="sticky-save-bar" id="sticky-save-bar">
@@ -1037,7 +1081,8 @@
                 faqs_title: g('faqs_title'),
                 faqs_subtitle: g('faqs_subtitle'),
                 reviews_eyebrow: g('reviews_eyebrow'),
-                reviews_title: g('reviews_title')
+                reviews_title: g('reviews_title'),
+                terms_of_service: { html: (document.getElementById('tos-editor')?.innerHTML || '').trim() }
             };
 
             try {
@@ -1225,6 +1270,57 @@
             } else {
                 addWhyCard(); // one empty card as starting point
             }
+        })();
+        // ──────────────────────────────────────────────────────────────────
+        // Terms & Conditions Editor
+        (function initTosEditor() {
+            const editor = document.getElementById('tos-editor');
+            if (!editor) return;
+
+            // Load saved content or fall back to empty
+            {% if site_content and site_content.get('terms_of_service') %}
+            const tosData = {{ site_content.get('terms_of_service') | tojson }};
+            {% else %}
+            const tosData = null;
+            {% endif %}
+
+            if (tosData && tosData.html && tosData.html.trim()) {
+                editor.innerHTML = tosData.html;
+            }
+            // else leave empty — the public page falls back to the built-in static content
+
+            // Toolbar buttons
+            document.querySelectorAll('.tos-fmt-btn').forEach(btn => {
+                btn.addEventListener('mousedown', (e) => {
+                    e.preventDefault(); // keep focus in editor
+                    editor.focus();
+                    const cmd = btn.dataset.cmd;
+                    if (cmd === 'h2') {
+                        document.execCommand('formatBlock', false, 'h2');
+                    } else if (cmd === 'h3') {
+                        document.execCommand('formatBlock', false, 'h3');
+                    } else if (cmd === 'p') {
+                        document.execCommand('formatBlock', false, 'p');
+                    } else if (cmd === 'ul') {
+                        document.execCommand('insertUnorderedList');
+                    } else if (cmd === 'hr') {
+                        document.execCommand('insertHorizontalRule');
+                    } else {
+                        document.execCommand(cmd);
+                    }
+                    markChanged();
+                });
+            });
+
+            // Reset to default
+            document.getElementById('tos-reset-btn')?.addEventListener('click', () => {
+                if (!confirm('Reset to the built-in default Terms & Conditions? This will clear your custom text.')) return;
+                editor.innerHTML = '';
+                markChanged();
+            });
+
+            // Track changes
+            editor.addEventListener('input', markChanged);
         })();
         // ──────────────────────────────────────────────────────────────────
     </script>

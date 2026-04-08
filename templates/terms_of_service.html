@@ -46,6 +46,12 @@
     </nav>
     <div class="policy-wrap">
         <div class="policy-card">
+{% set _tos = site_settings.get('_terms_content') if site_settings else None %}
+{% if _tos and _tos.strip() %}
+<div data-custom-class="body">
+{{ _tos | safe }}
+</div>
+{% else %}
 <div data-custom-class="body">
 <div data-custom-class="title"><h1>TERMS AND CONDITIONS</h1></div>
 <div data-custom-class="subtitle"><strong>Last updated March 29, 2026</strong></div>
@@ -190,6 +196,7 @@
 <div style="line-height: 1.5;"><br></div>
 <div data-custom-class="body_text" style="line-height: 1.5;"><strong>Done-Well Cleaning Limited</strong><br>3rd Floor, 86-90 Paul Street<br>London, EC2A 4NE<br>United Kingdom<br>Phone: (+44) 7795 595867<br>Email: <a href="mailto:info@done-wellcleaninglimited.org" data-custom-class="link">info@done-wellcleaninglimited.org</a></div>
 </div>
+{% endif %}
         </div>
     </div>
 </body>

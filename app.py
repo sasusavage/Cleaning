@@ -12836,7 +12836,7 @@ def admin_applications():
 def privacy_policy():
     site_settings = {}
     try:
-        site_settings = fetch_brand_settings() or {}
+        site_settings = fetch_site_settings() or {}
     except Exception:
         pass
     return render_template('privacy_policy.html', site_settings=site_settings)
@@ -12846,7 +12846,13 @@ def privacy_policy():
 def terms_of_service():
     site_settings = {}
     try:
-        site_settings = fetch_brand_settings() or {}
+        site_settings = fetch_site_settings() or {}
+        content = fetch_site_content() or {}
+        tos_data = content.get('terms_of_service')
+        if isinstance(tos_data, dict):
+            site_settings['_terms_content'] = tos_data.get('html', '')
+        elif isinstance(tos_data, str):
+            site_settings['_terms_content'] = tos_data
     except Exception:
         pass
     return render_template('terms_of_service.html', site_settings=site_settings)
@@ -12856,7 +12862,7 @@ def terms_of_service():
 def cookie_policy():
     site_settings = {}
     try:
-        site_settings = fetch_brand_settings() or {}
+        site_settings = fetch_site_settings() or {}
     except Exception:
         pass
     return render_template('cookie_policy.html', site_settings=site_settings)
