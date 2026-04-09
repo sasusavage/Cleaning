@@ -4844,6 +4844,8 @@ def normalize_service_category(value):
     normalized = (normalized or '').strip().lower().replace('-', '_').replace(' ', '_')
     if normalized in {'contract', 'contract_based', 'contracted'}:
         return 'contract'
+    if normalized == 'hybrid':
+        return 'hybrid'
     return 'one_time'
 
 
@@ -5045,7 +5047,14 @@ def fetch_services_from_db(include_inactive=False):
         created_at = row.get('created_at')
         updated_at = row.get('updated_at')
         service_id = row.get('id')
-        is_contract = bool(row.get('is_contract')) or normalize_service_category(row.get('service_category')) == 'contract'
+        _raw_cat = normalize_service_category(row.get('service_category'))
+        is_contract = bool(row.get('is_contract')) or _raw_cat == 'contract'
+        # Hybrid: stored as is_contract=True but category='hybrid' — preserve that
+        if _raw_cat == 'hybrid':
+            _svc_category = 'hybrid'
+            is_contract = True  # hybrid still gets contract pricing plans
+        else:
+            _svc_category = 'contract' if is_contract else _raw_cat
         services[service_id] = {
             'id': service_id,
             'title': row.get('title'),
@@ -5055,7 +5064,7 @@ def fetch_services_from_db(include_inactive=False):
             'price': normalize_price_value(row.get('price')),
             'discount_threshold': normalize_price_value(row.get('discount_threshold')),
             'discount_percent': normalize_price_value(row.get('discount_percent')),
-            'service_category': 'contract' if is_contract else normalize_service_category(row.get('service_category')),
+            'service_category': _svc_category,
             'is_contract': is_contract,
             'contract_pricing_plans': parse_contract_pricing_plans(row.get('contract_pricing_plans')),
             'contract_section_title': row.get('contract_section_title') or '',
@@ -6894,7 +6903,12 @@ def prepare_service_booking(payload):
     selections, subtotal, has_custom, pricing_details = resolve_service_selections(selections_raw)
     has_survey_request = any(item.get('is_survey_request') for item in selections)
     selected_categories = sorted({normalize_service_category(item.get('service_category')) for item in selections})
-    has_contract_service = 'contract' in selected_categories
+    # Hybrid services only become contract-based if the customer chose a frequency
+    _contract_frequency_raw = normalize_contract_frequency(
+        (payload.get('schedule') or {}).get('contract_frequency') or payload.get('contract_frequency')
+    )
+    has_hybrid_service = 'hybrid' in selected_categories
+    has_contract_service = 'contract' in selected_categories or (has_hybrid_service and bool(_contract_frequency_raw))
 
     user_postcode = sanitize_text(payload.get('postcode'), 255)
     if user_postcode:
@@ -6927,7 +6941,7 @@ def prepare_service_booking(payload):
     parsed_date = parse_preferred_date(preferred_date_raw)
     if preferred_date_raw and not parsed_date:
         raise ValueError('Please choose a valid preferred date.')
-    if has_contract_service and not contract_frequency:
+    if has_contract_service and not contract_frequency and not has_hybrid_service:
         raise ValueError('Please choose a contract frequency for contract-based services.')
 
     notes = sanitize_text(payload.get('notes') or schedule_data.get('notes'), 1000)
@@ -7768,7 +7782,12 @@ def add_service():
         raw_discount_threshold = request.form.get('discount_threshold')
         raw_discount_percent = request.form.get('discount_percent')
         is_contract = str_to_bool(request.form.get('is_contract', '0'))
-        service_category = 'contract' if is_contract else normalize_service_category(request.form.get('service_category'))
+        _raw_sc = normalize_service_category(request.form.get('service_category'))
+        if _raw_sc == 'hybrid':
+            service_category = 'hybrid'
+            is_contract = True  # hybrid gets contract pricing plans
+        else:
+            service_category = 'contract' if is_contract else _raw_sc
         pricing_model = (request.form.get('pricing_model') or 'simple').strip().lower()
         is_active = str_to_bool(request.form.get('is_active', '1'))
 
@@ -7883,7 +7902,12 @@ def edit_service(service_id):
         raw_discount_threshold = request.form.get('discount_threshold')
         raw_discount_percent = request.form.get('discount_percent')
         is_contract = str_to_bool(request.form.get('is_contract', '0'))
-        service_category = 'contract' if is_contract else normalize_service_category(request.form.get('service_category'))
+        _raw_sc = normalize_service_category(request.form.get('service_category'))
+        if _raw_sc == 'hybrid':
+            service_category = 'hybrid'
+            is_contract = True  # hybrid gets contract pricing plans
+        else:
+            service_category = 'contract' if is_contract else _raw_sc
         pricing_model = (request.form.get('pricing_model') or '').strip().lower()
         existing_image = request.form.get('existing_image', '')
         is_active = str_to_bool(request.form.get('is_active', '1'))
@@ -13034,8 +13058,8 @@ def index():
 
     try:
         services = fetch_services_from_db()
-        one_time_services = [svc for svc in services if not svc.get('is_contract')]
-        contract_services = [svc for svc in services if svc.get('is_contract')]
+        one_time_services = [svc for svc in services if not svc.get('is_contract') or svc.get('service_category') == 'hybrid']
+        contract_services = [svc for svc in services if svc.get('is_contract') and svc.get('service_category') != 'hybrid']
     except Exception:
         app.logger.exception('Error fetching services for index page')
 
@@ -13209,8 +13233,8 @@ def services_page():
 
     try:
         services = fetch_services_from_db(include_inactive=False)
-        one_time_services = [svc for svc in services if not svc.get('is_contract')]
-        contract_services = [svc for svc in services if svc.get('is_contract')]
+        one_time_services = [svc for svc in services if not svc.get('is_contract') or svc.get('service_category') == 'hybrid']
+        contract_services = [svc for svc in services if svc.get('is_contract') and svc.get('service_category') != 'hybrid']
     except Exception:
         app.logger.exception('Error fetching services for services page')
 

@@ -2878,15 +2878,25 @@
                 </div>
 
                 <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
-                        <span>Contract-Based Service</span>
-                        <label class="toggle-switch" style="position: relative; display: inline-block; width: 48px; height: 26px; margin: 0;">
-                            <input type="checkbox" id="service-is-contract" name="is_contract" value="1" onchange="toggleServiceConfigFields()" style="opacity: 0; width: 0; height: 0;">
-                            <span class="toggle-slider" style="position: absolute; cursor: pointer; inset: 0; background: #d1d5db; border-radius: 26px; transition: 0.3s;"></span>
+                    <label style="font-weight: 600; display: block; margin-bottom: 0.4rem;">Service Type</label>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <label style="flex: 1; min-width: 120px; cursor: pointer;">
+                            <input type="radio" name="service_category" id="scat-one-time" value="one_time" onchange="toggleServiceConfigFields()" style="margin-right: 0.35rem;" checked>
+                            <strong>One-Time</strong>
+                            <span style="display:block; font-size:0.8rem; color:#6b7280; margin-left:1.2rem;">Single booking, no frequency picker</span>
                         </label>
-                    </label>
-                    <p style="margin: 0.35rem 0 0; font-size: 0.85rem; color: #6b7280;">Enable for recurring services (Weekly/Fortnightly/Monthly plans). Customers see a residential-style detail page with room cards and pricing plans.</p>
-                    <input type="hidden" id="service-category" name="service_category" value="one_time">
+                        <label style="flex: 1; min-width: 120px; cursor: pointer;">
+                            <input type="radio" name="service_category" id="scat-contract" value="contract" onchange="toggleServiceConfigFields()" style="margin-right: 0.35rem;">
+                            <strong>Contract</strong>
+                            <span style="display:block; font-size:0.8rem; color:#6b7280; margin-left:1.2rem;">Recurring only — frequency required at checkout</span>
+                        </label>
+                        <label style="flex: 1; min-width: 120px; cursor: pointer;">
+                            <input type="radio" name="service_category" id="scat-hybrid" value="hybrid" onchange="toggleServiceConfigFields()" style="margin-right: 0.35rem;">
+                            <strong>Hybrid</strong>
+                            <span style="display:block; font-size:0.8rem; color:#6b7280; margin-left:1.2rem;">One-time or recurring — customer chooses at checkout</span>
+                        </label>
+                    </div>
+                    <input type="hidden" id="service-is-contract" name="is_contract" value="0">
                 </div>
 
                 <div id="service-config-contract-pricing" class="form-group" style="display: none; padding: 1rem; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 0.6rem;">
@@ -6995,17 +7005,18 @@
         // Toggle visibility of service config fields based on pricing model
         function toggleServiceConfigFields() {
             const pricingModel = document.getElementById('service-pricing-model').value;
-            const isContract = document.getElementById('service-is-contract')?.checked || false;
+            const selectedCat = (document.querySelector('input[name="service_category"]:checked') || {}).value || 'one_time';
+            const isContractLike = selectedCat === 'contract' || selectedCat === 'hybrid';
+            // Sync hidden is_contract field (backend expects it for contract/hybrid)
+            const isContractHidden = document.getElementById('service-is-contract');
+            if (isContractHidden) isContractHidden.value = isContractLike ? '1' : '0';
+
             const tenancyConfig = document.getElementById('service-config-tenancy');
             const multiselectConfig = document.getElementById('service-config-multiselect');
             const discountConfig = document.getElementById('service-config-discount');
             const contractPricingConfig = document.getElementById('service-config-contract-pricing');
             const contractIntroConfig = document.getElementById('service-config-contract-intro');
             const roomCardsConfig = document.getElementById('service-config-room-cards');
-            const categoryHidden = document.getElementById('service-category');
-
-            // Sync hidden category field
-            if (categoryHidden) categoryHidden.value = isContract ? 'contract' : 'one_time';
 
             // Hide all config sections first
             if (tenancyConfig) tenancyConfig.style.display = 'none';
@@ -7015,7 +7026,7 @@
             if (contractIntroConfig) contractIntroConfig.style.display = 'none';
             if (roomCardsConfig) roomCardsConfig.style.display = 'none';
 
-            if (isContract) {
+            if (isContractLike) {
                 if (contractPricingConfig) contractPricingConfig.style.display = 'block';
                 if (contractIntroConfig) contractIntroConfig.style.display = 'block';
                 if (roomCardsConfig) roomCardsConfig.style.display = 'block';
@@ -7095,13 +7106,11 @@
                     const model = service.pricing_model || service.pricing_type || 'simple';
                     pricingModelSelect.value = model;
                 }
-                // is_contract toggle
-                if (isContractToggle) {
-                    isContractToggle.checked = isTruthyValue(service.is_contract) || String(service.service_category || '').toLowerCase() === 'contract';
-                }
-                if (categoryHidden) {
-                    categoryHidden.value = (isTruthyValue(service.is_contract) || String(service.service_category || '').toLowerCase() === 'contract') ? 'contract' : 'one_time';
-                }
+                // Set service type radio button
+                const existingCat = String(service.service_category || '').toLowerCase();
+                const catRadio = document.querySelector(`input[name="service_category"][value="${existingCat}"]`)
+                    || document.getElementById('scat-one-time');
+                if (catRadio) catRadio.checked = true;
                 const contractPlans = Array.isArray(service.contract_pricing_plans) ? service.contract_pricing_plans : [];
                 const weekly = contractPlans.find(p => p && p.key === 'weekly');
                 const fortnightly = contractPlans.find(p => p && p.key === 'fortnightly');
@@ -7204,6 +7213,8 @@
                 document.getElementById('service-modal-title').innerText = 'Add Service';
                 submitBtn.innerText = 'Add Service';
                 setImagePreviewFromPath('service-image-preview', '');
+                const defaultCat = document.getElementById('scat-one-time');
+                if (defaultCat) defaultCat.checked = true;
             }
 
             // Toggle config field visibility
@@ -7217,8 +7228,9 @@
             const formData = new FormData(form);
             formData.delete('is_active');
             formData.set('is_active', document.getElementById('service-active').checked ? '1' : '0');
-            formData.delete('is_contract');
-            formData.set('is_contract', document.getElementById('service-is-contract').checked ? '1' : '0');
+            // is_contract is synced by toggleServiceConfigFields via the hidden input
+            const selectedCat = (document.querySelector('input[name="service_category"]:checked') || {}).value || 'one_time';
+            formData.set('is_contract', (selectedCat === 'contract' || selectedCat === 'hybrid') ? '1' : '0');
 
             const url = id ? `/api/services/edit/${id}` : '/api/services/add';
             const method = id ? 'PUT' : 'POST';

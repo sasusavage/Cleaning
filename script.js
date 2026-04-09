@@ -1109,12 +1109,32 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         };
 
+        var hasHybridSelections = function (selectionList) {
+            var list = Array.isArray(selectionList) ? selectionList : getOrderedSelections();
+            return list.some(function (selection) {
+                return String((selection && selection.serviceCategory) || "one_time").toLowerCase() === "hybrid";
+            });
+        };
+
         var updateContractFrequencyVisibility = function () {
             if (!flowContractFrequencyRow) {
                 return;
             }
-            var shouldShow = hasContractSelections();
+            var isContract = hasContractSelections();
+            var isHybrid = hasHybridSelections();
+            var shouldShow = isContract || isHybrid;
+            var frequencyRequired = isContract && !isHybrid; // hybrid: optional; pure contract: required
+
             flowContractFrequencyRow.hidden = !shouldShow;
+
+            // For hybrid, show a hint that frequency is optional
+            var freqHint = flowContractFrequencyRow.querySelector('.form-hint');
+            if (freqHint) {
+                freqHint.textContent = isHybrid && !isContract
+                    ? "Optional — choose a frequency to set up a recurring contract, or leave blank for a one-time booking."
+                    : "Only required for contract-based services.";
+            }
+
             if (flowContractSignerRow) {
                 flowContractSignerRow.hidden = !shouldShow;
             }
@@ -1122,7 +1142,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 flowContractTermsRow.hidden = !shouldShow;
             }
             if (flowContractFrequencyInput) {
-                flowContractFrequencyInput.required = shouldShow;
+                flowContractFrequencyInput.required = frequencyRequired;
                 if (!shouldShow) {
                     flowContractFrequencyInput.value = "";
                     flowState.schedule.contract_frequency = "";
@@ -1134,7 +1154,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
             }
             if (flowContractSignerInput) {
-                flowContractSignerInput.required = shouldShow;
+                // Signer only required if they actually chose a frequency (for hybrid) or it's contract
+                flowContractSignerInput.required = frequencyRequired || (isHybrid && !!flowContractFrequencyInput && !!flowContractFrequencyInput.value);
             }
         };
 
@@ -3561,7 +3582,11 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         handleFieldChange(flowDateInput, function (value) { flowState.schedule.preferred_date = value; });
         handleFieldChange(flowTimeInput, function (value) { flowState.schedule.preferred_time = value; });
-        handleFieldChange(flowContractFrequencyInput, function (value) { flowState.schedule.contract_frequency = value; });
+        handleFieldChange(flowContractFrequencyInput, function (value) {
+            flowState.schedule.contract_frequency = value;
+            // Re-evaluate signer/terms required state when frequency changes (relevant for hybrid)
+            updateContractFrequencyVisibility();
+        });
         handleFieldChange(flowContractSignerInput, function (value) { flowState.contract.signer_name = value; });
         handleFieldChange(flowNotesInput, function (value) { flowState.notes = value; });
         if (flowContractTermsInput) {
