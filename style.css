@@ -4639,6 +4639,11 @@ body {
     min-height: 360px;
 }
 
+.coverage-map__marker {
+    cursor: pointer;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
 .coverage-map__media iframe {
     width: 100%;
     height: 380px;

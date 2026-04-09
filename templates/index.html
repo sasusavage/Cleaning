@@ -20,12 +20,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <!-- Termly Consent Manager -->
     <script src="https://app.termly.io/resource-blocker/419d7b8d-1457-4e96-aaa8-2068fe8f1863?autoBlock=on"></script>
-    <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-        crossorigin=""
-    >
+    <link rel="stylesheet" href="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps.css">
 </head>
 <body>
     <div class="preloader" id="preloader" aria-live="polite" role="status">
@@ -417,7 +412,8 @@
                         id="coverage-zones-map"
                         class="coverage-zones-map"
                         data-coverage-bases='{{ coverage_ns.map_bases | tojson | safe }}'
-                        data-coverage-radius='{{ coverage_radius }}'>
+                        data-coverage-radius='{{ coverage_radius }}'
+                        data-tomtom-key='{{ (travel_settings.tomtom_api_key if travel_settings and travel_settings.tomtom_api_key else "") | e }}'>
                     </div>
                 </div>
             </div>
@@ -1407,129 +1403,122 @@
     <script>
         window.HOME_SECTION_ORDER = {{ home_section_order | tojson }};
     </script>
-    <script
-        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-        crossorigin="">
-    </script>
+    <script src="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps-web.min.js"></script>
     <script>
         (function initCoverageZonesMap() {
             var mapEl = document.getElementById('coverage-zones-map');
             if (!mapEl) return;
 
+            var apiKey = mapEl.getAttribute('data-tomtom-key') || '';
             var rawBases = mapEl.getAttribute('data-coverage-bases') || '[]';
             var radiusMiles = Number(mapEl.getAttribute('data-coverage-radius') || 20);
             var bases = [];
-            var map = null;
 
-            try {
-                bases = JSON.parse(rawBases);
-            } catch (error) {
-                bases = [];
-            }
+            try { bases = JSON.parse(rawBases); } catch (e) { bases = []; }
 
-            if (!window.L) {
-                return;
-            }
-            map = L.map(mapEl, { scrollWheelZoom: false, center: [52.3, -1.5], zoom: 7 });
+            if (!apiKey || !window.tt) return;
 
-            var tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 18,
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            var map = tt.map({
+                key: apiKey,
+                container: 'coverage-zones-map',
+                center: [-0.5, 52.3],
+                zoom: 7,
+                style: 'tomtom://vector/1/basic-main'
             });
-            tileLayer.addTo(map);
-            // Force Leaflet to measure the container after DOM paint
-            setTimeout(function () { map.invalidateSize(); }, 100);
+
+            map.addControl(new tt.NavigationControl({ showZoom: true, showCompass: false }));
 
             var radiusMeters = Math.max(1, radiusMiles) * 1609.34;
-            var normalizedBases = Array.isArray(bases) ? bases.map(function (base) {
-                return {
-                    name: base && base.name ? base.name : 'Operating Base',
-                    postcode: base && base.postcode ? String(base.postcode) : '',
-                    lat: base && base.lat != null ? Number(base.lat) : null,
-                    lng: base && base.lng != null ? Number(base.lng) : null
-                };
+
+            var normalizedBases = Array.isArray(bases) ? bases.filter(function (b) {
+                return b && Number.isFinite(Number(b.lat)) && Number.isFinite(Number(b.lng));
+            }).map(function (b) {
+                return { name: b.name || 'Base', postcode: b.postcode || '', lat: Number(b.lat), lng: Number(b.lng) };
             }) : [];
 
-            var geocodeBase = async function (base) {
-                if (Number.isFinite(base.lat) && Number.isFinite(base.lng)) {
-                    base._hadCoords = true;
-                    return base;
-                }
-                if (!base.postcode) {
-                    return base;
-                }
+            // If no coords, try TomTom geocode per postcode
+            var geocodeWithTomTom = async function (postcode) {
                 try {
-                    var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=gb&q=' + encodeURIComponent(base.postcode);
-                    var response = await fetch(url, { headers: { 'Accept': 'application/json' } });
-                    if (!response.ok) {
-                        return base;
-                    }
-                    var results = await response.json();
-                    if (Array.isArray(results) && results.length > 0) {
-                        base.lat = Number(results[0].lat);
-                        base.lng = Number(results[0].lon);
-                    }
-                } catch (error) {
-                }
-                return base;
+                    var url = 'https://api.tomtom.com/search/2/geocode/' + encodeURIComponent(postcode) + '.json?key=' + apiKey + '&countrySet=GB&limit=1';
+                    var res = await fetch(url);
+                    if (!res.ok) return null;
+                    var data = await res.json();
+                    var pos = data && data.results && data.results[0] && data.results[0].position;
+                    return pos ? { lat: pos.lat, lng: pos.lon } : null;
+                } catch (e) { return null; }
             };
 
-            var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
-
-            var renderZones = async function () {
-                var resolvedBases = [];
-                for (var i = 0; i < normalizedBases.length; i += 1) {
-                    var resolved = await geocodeBase(normalizedBases[i]);
-                    if (Number.isFinite(resolved.lat) && Number.isFinite(resolved.lng)) {
-                        resolvedBases.push(resolved);
-                    }
-                    // Nominatim rate limit: 1 req/sec
-                    if (i < normalizedBases.length - 1 && !resolved._hadCoords) {
-                        await sleep(1100);
+            var buildBases = async function () {
+                var allBases = Array.isArray(bases) ? bases : [];
+                var resolved = [];
+                for (var i = 0; i < allBases.length; i++) {
+                    var b = allBases[i];
+                    if (!b) continue;
+                    var lat = Number(b.lat), lng = Number(b.lng);
+                    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                        resolved.push({ name: b.name || 'Base', postcode: b.postcode || '', lat: lat, lng: lng });
+                    } else if (b.postcode) {
+                        var coords = await geocodeWithTomTom(b.postcode);
+                        if (coords) resolved.push({ name: b.name || 'Base', postcode: b.postcode || '', lat: coords.lat, lng: coords.lng });
                     }
                 }
+                return resolved;
+            };
 
-                if (!resolvedBases.length) {
-                    // No coords — show UK overview so the map isn't blank
-                    map.setView([52.3, -1.5], 7);
-                    return;
-                }
+            map.on('load', function () {
+                buildBases().then(function (resolvedBases) {
+                    if (!resolvedBases.length) return;
 
-                var bounds = [];
-                resolvedBases.forEach(function (base) {
-                    var marker = L.marker([base.lat, base.lng]).addTo(map);
-                    marker.bindPopup('<strong>' + base.name + '</strong>' + (base.postcode ? '<br>' + base.postcode : ''));
+                    // Add radius fill circles as GeoJSON layers
+                    var features = resolvedBases.map(function (base, idx) {
+                        // Approximate circle as polygon (64 points)
+                        var coords = [];
+                        var R = 6371000;
+                        var lat0 = base.lat * Math.PI / 180;
+                        var lng0 = base.lng * Math.PI / 180;
+                        for (var a = 0; a <= 360; a += 6) {
+                            var angle = a * Math.PI / 180;
+                            var dLat = (radiusMeters / R) * Math.cos(angle);
+                            var dLng = (radiusMeters / R) * Math.sin(angle) / Math.cos(lat0);
+                            coords.push([(base.lng + dLng * 180 / Math.PI), (base.lat + dLat * 180 / Math.PI)]);
+                        }
+                        return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: { idx: idx } };
+                    });
 
-                    var zone = L.circle([base.lat, base.lng], {
-                        radius: radiusMeters,
-                        color: '#2563eb',
-                        fillColor: '#60a5fa',
-                        fillOpacity: 0.18,
-                        weight: 2
-                    }).addTo(map);
-                    bounds.push(zone.getBounds());
+                    map.addLayer({
+                        id: 'coverage-fill',
+                        type: 'fill',
+                        source: { type: 'geojson', data: { type: 'FeatureCollection', features: features } },
+                        paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.15 }
+                    });
+                    map.addLayer({
+                        id: 'coverage-outline',
+                        type: 'line',
+                        source: 'coverage-fill',
+                        paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-opacity': 0.6 }
+                    });
+
+                    // Add markers
+                    resolvedBases.forEach(function (base) {
+                        var el = document.createElement('div');
+                        el.className = 'coverage-map__marker';
+                        el.innerHTML = '<svg width="28" height="36" viewBox="0 0 28 36" fill="none"><path d="M14 0C6.27 0 0 6.27 0 14c0 9.63 14 22 14 22S28 23.63 28 14C28 6.27 21.73 0 14 0z" fill="#16a34a"/><circle cx="14" cy="14" r="6" fill="#fff"/></svg>';
+                        new tt.Marker({ element: el, anchor: 'bottom' })
+                            .setLngLat([base.lng, base.lat])
+                            .setPopup(new tt.Popup({ offset: 30 }).setHTML('<strong>' + base.name + '</strong>' + (base.postcode ? '<br><small>' + base.postcode + '</small>' : '')))
+                            .addTo(map);
+                    });
+
+                    // Fit bounds to all zones
+                    var lngs = resolvedBases.map(function (b) { return b.lng; });
+                    var lats = resolvedBases.map(function (b) { return b.lat; });
+                    var degOffset = (radiusMeters / 111320);
+                    var bounds = [
+                        [Math.min.apply(null, lngs) - degOffset * 1.5, Math.min.apply(null, lats) - degOffset],
+                        [Math.max.apply(null, lngs) + degOffset * 1.5, Math.max.apply(null, lats) + degOffset]
+                    ];
+                    map.fitBounds(bounds, { padding: 40, maxZoom: 11 });
                 });
-
-                if (bounds.length === 1) {
-                    map.fitBounds(bounds[0], { padding: [18, 18] });
-                } else {
-                    var merged = bounds[0];
-                    for (var j = 1; j < bounds.length; j += 1) {
-                        merged.extend(bounds[j]);
-                    }
-                    map.fitBounds(merged, { padding: [18, 18] });
-                }
-
-                setTimeout(function () {
-                    map.invalidateSize();
-                }, 220);
-            };
-
-            renderZones();
-            window.addEventListener('resize', function () {
-                if (!map) return;
-                map.invalidateSize();
             });
         })();
     </script>
