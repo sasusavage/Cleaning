@@ -13219,7 +13219,15 @@ def sitemap_xml():
 @app.route('/robots.txt', methods=['GET'])
 def robots_txt():
     sitemap_url = _public_url(url_for('sitemap_xml'))
-    body = f"User-agent: *\nAllow: /\n\nSitemap: {sitemap_url}\n"
+    body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /admin/\n"
+        "Disallow: /api/\n"
+        "Disallow: /payment/\n"
+        "\n"
+        f"Sitemap: {sitemap_url}\n"
+    )
     return Response(body, mimetype='text/plain')
 
 
