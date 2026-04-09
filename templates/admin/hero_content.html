@@ -1499,6 +1499,13 @@
             let startOffsetY = 0;
             let xMin = -400, xMax = 400, yMin = -300, yMax = 300;
 
+            function getStageScale() {
+                if (!previewStage) return 1;
+                const t = previewStage.style.transform;
+                const m = t.match(/scale\(([^)]+)\)/);
+                return m ? (parseFloat(m[1]) || 1) : 1;
+            }
+
             dragHandle.addEventListener('pointerdown', (event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -1509,18 +1516,14 @@
                 startOffsetX = Number(xInput.value) || 0;
                 startOffsetY = Number(yInput.value) || 0;
 
-                // Compute bounds from the live stage size so items can't escape it
-                // Stage is CSS-scaled, so divide screen-px by scale to get logical-px bounds
-                const currentScale = parseFloat(previewStage ? previewStage.style.transform.replace('scale(', '').replace(')', '') : '1') || 1;
+                const currentScale = getStageScale();
                 if (previewStage) {
                     const stageRect = previewStage.getBoundingClientRect();
                     const itemRect = item.getBoundingClientRect();
-                    // Convert screen-px distances to logical stage pixels
                     xMin = Math.round((stageRect.left - itemRect.left) / currentScale + startOffsetX) + 8;
                     xMax = Math.round((stageRect.right - itemRect.right) / currentScale + startOffsetX) - 8;
                     yMin = Math.round((stageRect.top - itemRect.top) / currentScale + startOffsetY) + 8;
                     yMax = Math.round((stageRect.bottom - itemRect.bottom) / currentScale + startOffsetY) - 8;
-                    // Ensure min <= max (can happen if item is larger than stage)
                     if (xMin > xMax) { const mid = (xMin + xMax) / 2; xMin = mid; xMax = mid; }
                     if (yMin > yMax) { const mid = (yMin + yMax) / 2; yMin = mid; yMax = mid; }
                 } else {
@@ -1530,17 +1533,15 @@
                     yMax = Number(yInput.max) || 300;
                 }
 
-                item.setPointerCapture(event.pointerId);
+                dragHandle.setPointerCapture(event.pointerId);
                 item.classList.add('is-drag-active');
                 document.body.classList.add('is-preview-dragging');
             });
 
-            item.addEventListener('pointermove', (event) => {
-                if (!isDragging) {
-                    return;
-                }
+            dragHandle.addEventListener('pointermove', (event) => {
+                if (!isDragging) return;
                 event.preventDefault();
-                const scale = parseFloat(previewStage ? previewStage.style.transform.replace('scale(', '').replace(')', '') : '1') || 1;
+                const scale = getStageScale();
                 const nextX = clamp(startOffsetX + (event.clientX - startX) / scale, xMin, xMax);
                 const nextY = clamp(startOffsetY + (event.clientY - startY) / scale, yMin, yMax);
                 xInput.value = String(Math.round(nextX));
@@ -1551,13 +1552,13 @@
             function endDrag(event) {
                 if (!isDragging) return;
                 isDragging = false;
-                item.releasePointerCapture(event.pointerId);
+                dragHandle.releasePointerCapture(event.pointerId);
                 item.classList.remove('is-drag-active');
                 document.body.classList.remove('is-preview-dragging');
             }
 
-            item.addEventListener('pointerup', endDrag);
-            item.addEventListener('pointercancel', endDrag);
+            dragHandle.addEventListener('pointerup', endDrag);
+            dragHandle.addEventListener('pointercancel', endDrag);
         }
 
         function applyPreviewStyleControls() {
