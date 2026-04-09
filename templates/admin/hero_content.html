@@ -338,14 +338,14 @@
             border-radius: 0.75rem;
             border: 1px solid rgba(15, 23, 42, 0.12);
             /* JS will set --stage-scale and --stage-height as CSS custom properties */
-            height: calc(620px * var(--stage-scale, 1));
+            height: calc(650px * var(--stage-scale, 1));
         }
 
         .hero-editor__stage {
             position: relative;
             /* Fixed desktop width — same as live hero max-width */
             width: 1280px;
-            min-height: 620px;
+            min-height: 650px;
             transform-origin: top left;
             transform: scale(var(--stage-scale, 1));
             border-radius: 0.75rem;
@@ -355,7 +355,7 @@
             grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
             align-items: end;
             gap: 2.5rem;
-            padding: 6rem 3rem 3rem;
+            padding: 6rem 3rem 5.5rem;
         }
 
         .hero-editor__stage::before {
