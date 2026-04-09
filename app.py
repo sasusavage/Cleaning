@@ -7738,8 +7738,6 @@ def payment_callback_success():
         except Exception:
             app.logger.exception('Success callback fallback finalization failed for session %s', session_id)
 
-    if session_id:
-        return redirect(f"{target}?payment=success&session_id={urllib.parse.quote(session_id)}")
     return redirect(f"{target}?payment=success")
 
 

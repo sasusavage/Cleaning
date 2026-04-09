@@ -1465,40 +1465,33 @@
                 return resolved;
             };
 
+            function buildCircleFeatures(resolvedBases) {
+                return resolvedBases.map(function (base) {
+                    var coords = [];
+                    var R = 6371000;
+                    var lat0 = base.lat * Math.PI / 180;
+                    for (var a = 0; a <= 360; a += 5) {
+                        var angle = a * Math.PI / 180;
+                        var dLat = (radiusMeters / R) * Math.cos(angle);
+                        var dLng = (radiusMeters / R) * Math.sin(angle) / Math.cos(lat0);
+                        coords.push([base.lng + dLng * 180 / Math.PI, base.lat + dLat * 180 / Math.PI]);
+                    }
+                    return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} };
+                });
+            }
+
             map.on('load', function () {
                 buildBases().then(function (resolvedBases) {
                     if (!resolvedBases.length) return;
 
-                    // Add radius fill circles as GeoJSON layers
-                    var features = resolvedBases.map(function (base, idx) {
-                        // Approximate circle as polygon (64 points)
-                        var coords = [];
-                        var R = 6371000;
-                        var lat0 = base.lat * Math.PI / 180;
-                        var lng0 = base.lng * Math.PI / 180;
-                        for (var a = 0; a <= 360; a += 6) {
-                            var angle = a * Math.PI / 180;
-                            var dLat = (radiusMeters / R) * Math.cos(angle);
-                            var dLng = (radiusMeters / R) * Math.sin(angle) / Math.cos(lat0);
-                            coords.push([(base.lng + dLng * 180 / Math.PI), (base.lat + dLat * 180 / Math.PI)]);
-                        }
-                        return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: { idx: idx } };
-                    });
+                    var geojson = { type: 'geojson', data: { type: 'FeatureCollection', features: buildCircleFeatures(resolvedBases) } };
 
-                    map.addLayer({
-                        id: 'coverage-fill',
-                        type: 'fill',
-                        source: { type: 'geojson', data: { type: 'FeatureCollection', features: features } },
-                        paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.15 }
-                    });
-                    map.addLayer({
-                        id: 'coverage-outline',
-                        type: 'line',
-                        source: 'coverage-fill',
-                        paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-opacity': 0.6 }
-                    });
+                    // Add source then reference by ID in both layers
+                    map.addSource('coverage-zones', geojson);
+                    map.addLayer({ id: 'coverage-fill', type: 'fill', source: 'coverage-zones', paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.15 } });
+                    map.addLayer({ id: 'coverage-outline', type: 'line', source: 'coverage-zones', paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-opacity': 0.7 } });
 
-                    // Add markers
+                    // Markers
                     resolvedBases.forEach(function (base) {
                         var el = document.createElement('div');
                         el.className = 'coverage-map__marker';
@@ -1509,17 +1502,27 @@
                             .addTo(map);
                     });
 
-                    // Fit bounds to all zones
+                    // Fit bounds
                     var lngs = resolvedBases.map(function (b) { return b.lng; });
                     var lats = resolvedBases.map(function (b) { return b.lat; });
-                    var degOffset = (radiusMeters / 111320);
-                    var bounds = [
-                        [Math.min.apply(null, lngs) - degOffset * 1.5, Math.min.apply(null, lats) - degOffset],
-                        [Math.max.apply(null, lngs) + degOffset * 1.5, Math.max.apply(null, lats) + degOffset]
-                    ];
-                    map.fitBounds(bounds, { padding: 40, maxZoom: 11 });
+                    var degOffset = radiusMeters / 111320;
+                    map.fitBounds(
+                        [[Math.min.apply(null, lngs) - degOffset * 1.5, Math.min.apply(null, lats) - degOffset],
+                         [Math.max.apply(null, lngs) + degOffset * 1.5, Math.max.apply(null, lats) + degOffset]],
+                        { padding: 40, maxZoom: 11 }
+                    );
+
+                    // Force resize in case container was hidden during init
+                    setTimeout(function () { map.resize(); }, 200);
                 });
             });
+
+            // Resize when section scrolls into view
+            if (window.IntersectionObserver) {
+                new IntersectionObserver(function (entries) {
+                    if (entries[0].isIntersecting) { map.resize(); }
+                }, { threshold: 0.1 }).observe(mapEl);
+            }
         })();
     </script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
