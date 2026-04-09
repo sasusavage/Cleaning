@@ -9732,6 +9732,143 @@ def admin_analytics_live():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/admin/api/analytics/kpis', methods=['GET'])
+@admin_login_required
+def admin_analytics_kpis():
+    """Business KPIs: active contracts, all-time revenue, avg booking, pending quotes, due this week."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+        # Active contracts
+        cursor.execute("SELECT COUNT(*) AS cnt FROM contracts WHERE status = 'active'")
+        active_contracts = (cursor.fetchone() or {}).get('cnt') or 0
+
+        # All-time paid revenue
+        cursor.execute("SELECT COALESCE(SUM(total_price), 0) AS total FROM service_requests WHERE is_paid = TRUE")
+        total_revenue = float((cursor.fetchone() or {}).get('total') or 0)
+
+        # Average booking value (paid, non-zero)
+        cursor.execute("SELECT COALESCE(AVG(total_price), 0) AS avg_val FROM service_requests WHERE is_paid = TRUE AND total_price > 0")
+        avg_booking = float((cursor.fetchone() or {}).get('avg_val') or 0)
+
+        # Pending quotes
+        cursor.execute("SELECT COUNT(*) AS cnt FROM service_requests WHERE status IN ('pending', 'quote_ready')")
+        pending_quotes = (cursor.fetchone() or {}).get('cnt') or 0
+
+        # Contracts due this week
+        if engine == 'postgres':
+            cursor.execute("SELECT COUNT(*) AS cnt FROM contracts WHERE next_service_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'")
+        else:
+            cursor.execute("SELECT COUNT(*) AS cnt FROM contracts WHERE next_service_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)")
+        due_week = (cursor.fetchone() or {}).get('cnt') or 0
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'active_contracts': int(active_contracts),
+            'total_revenue_alltime': round(total_revenue, 2),
+            'avg_booking_value': round(avg_booking, 2),
+            'pending_quotes': int(pending_quotes),
+            'contracts_due_week': int(due_week),
+        })
+    except Exception as e:
+        app.logger.exception('Error in admin_analytics_kpis')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/api/analytics/ai-summary', methods=['POST'])
+@admin_login_required
+def admin_analytics_ai_summary():
+    """Generate a plain-English AI summary of current analytics data."""
+    try:
+        days = 30
+        if request.is_json:
+            days = int(request.json.get('days', 30))
+        days = max(1, min(90, days))
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+
+        # AI settings
+        cursor.execute("SELECT * FROM ai_settings WHERE id = 1")
+        ai_settings = cursor.fetchone() or {}
+        api_key = (ai_settings.get('api_key') or '').strip()
+        model = (ai_settings.get('model') or 'openai/gpt-oss-20b').strip()
+
+        if not api_key:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'AI not configured. Add an API key in AI settings.'}), 503
+
+        # Gather snapshot data
+        if engine == 'postgres':
+            cursor.execute(f"SELECT COUNT(*) AS cnt FROM analytics WHERE event_type = 'homepage_visit' AND created_at >= NOW() - INTERVAL '{days} days'")
+        else:
+            cursor.execute(f"SELECT COUNT(*) AS cnt FROM analytics WHERE event_type = 'homepage_visit' AND created_at >= DATE_SUB(NOW(), INTERVAL {days} DAY)")
+        visits = (cursor.fetchone() or {}).get('cnt') or 0
+
+        if engine == 'postgres':
+            cursor.execute(f"SELECT COUNT(*) AS cnt, COALESCE(SUM(total_price),0) AS rev FROM service_requests WHERE created_at >= NOW() - INTERVAL '{days} days'")
+        else:
+            cursor.execute(f"SELECT COUNT(*) AS cnt, COALESCE(SUM(total_price),0) AS rev FROM service_requests WHERE created_at >= DATE_SUB(NOW(), INTERVAL {days} DAY)")
+        row = cursor.fetchone() or {}
+        bookings = int(row.get('cnt') or 0)
+        period_revenue = float(row.get('rev') or 0)
+
+        cursor.execute("SELECT COALESCE(SUM(total_price), 0) AS total FROM service_requests WHERE is_paid = TRUE")
+        alltime_revenue = float((cursor.fetchone() or {}).get('total') or 0)
+
+        cursor.execute("SELECT COUNT(*) AS cnt FROM contracts WHERE status = 'active'")
+        active_contracts = int((cursor.fetchone() or {}).get('cnt') or 0)
+
+        cursor.execute("SELECT COUNT(*) AS cnt FROM service_requests WHERE status IN ('pending', 'quote_ready')")
+        pending_quotes = int((cursor.fetchone() or {}).get('cnt') or 0)
+
+        cursor.execute("SELECT service_name, COUNT(*) AS cnt FROM service_requests GROUP BY service_name ORDER BY cnt DESC LIMIT 1")
+        top_row = cursor.fetchone()
+        top_service = top_row.get('service_name', 'Unknown') if top_row else 'Unknown'
+
+        conversion_rate = round((bookings / visits * 100), 1) if visits > 0 else 0
+
+        cursor.close()
+        conn.close()
+
+        snapshot = {
+            'period_days': days,
+            'visits': int(visits),
+            'bookings': bookings,
+            'period_revenue_gbp': round(period_revenue, 2),
+            'alltime_revenue_gbp': round(alltime_revenue, 2),
+            'active_contracts': active_contracts,
+            'pending_quotes': pending_quotes,
+            'top_service': top_service,
+            'conversion_rate_pct': conversion_rate,
+        }
+
+        prompt = (
+            f"You are a business analyst for Done-Well Cleaning Limited, a UK cleaning company. "
+            f"Write a 3-4 sentence plain-English summary for the business owner based on this {days}-day analytics snapshot. "
+            f"Be specific with numbers. Mention what's going well and any areas of concern. "
+            f"Data: {json.dumps(snapshot)}\n\nReply with the summary only, no headings or bullet points."
+        )
+
+        summary = call_groq_api(api_key, model, [{"role": "user", "content": prompt}])
+
+        return jsonify({
+            'summary': summary,
+            'snapshot': snapshot,
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+        })
+
+    except Exception as e:
+        app.logger.exception('Error in admin_analytics_ai_summary')
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/admin/api/analytics/summary', methods=['GET'])
 @admin_login_required
 def analytics_summary():

@@ -1683,6 +1683,159 @@
                 right: 0.75rem;
             }
         }
+
+        /* ===== ANALYTICS REDESIGN ===== */
+        .analytics-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #0f172a;
+            color: #f8fafc;
+            padding: 1.5rem 2rem;
+            border-radius: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .analytics-header__title { font-size: 1.4rem; font-weight: 700; margin: 0; color: #f8fafc; }
+        .analytics-header__sub { font-size: 0.78rem; color: #94a3b8; margin-top: 0.2rem; display: block; }
+        .analytics-header__controls { display: flex; gap: 0.75rem; align-items: center; }
+        .analytics-period-select {
+            padding: 0.45rem 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid #334155;
+            background: #1e293b;
+            color: #f8fafc;
+            font-size: 0.88rem;
+            font-family: inherit;
+        }
+
+        .kpi-section { margin-bottom: 1.5rem; }
+        .kpi-section__label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #6b7280;
+            margin: 0 0 0.65rem;
+        }
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+            gap: 0.875rem;
+        }
+        .kpi-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 0.875rem;
+            padding: 1.1rem 1.1rem 0.9rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+            position: relative;
+            overflow: hidden;
+            transition: box-shadow 0.15s, transform 0.15s;
+        }
+        .kpi-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.07); transform: translateY(-1px); }
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            border-radius: 0.875rem 0.875rem 0 0;
+        }
+        .kpi-card--blue::before   { background: #2563eb; }
+        .kpi-card--violet::before { background: #7c3aed; }
+        .kpi-card--green::before  { background: #059669; }
+        .kpi-card--emerald::before{ background: #10b981; }
+        .kpi-card--amber::before  { background: #d97706; }
+        .kpi-card--red::before    { background: #dc2626; }
+        .kpi-card--indigo::before { background: #4f46e5; }
+        .kpi-card__icon { font-size: 1.2rem; line-height: 1; margin-top: 0.1rem; flex-shrink: 0; width: 1.75rem; text-align: center; }
+        .kpi-card__body { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; flex: 1; }
+        .kpi-card__value { font-size: 1.6rem; font-weight: 700; color: #111827; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .kpi-card__label { font-size: 0.74rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .kpi-card__trend { font-size: 0.72rem; font-weight: 600; margin-top: 0.1rem; }
+        .kpi-card__trend--up   { color: #059669; }
+        .kpi-card__trend--down { color: #dc2626; }
+
+        .charts-row { display: grid; gap: 1.25rem; margin-bottom: 1.25rem; }
+        .charts-row--2-1 { grid-template-columns: 2fr 1fr; }
+        .charts-row--1-1 { grid-template-columns: 1fr 1fr; }
+        .charts-row--3   { grid-template-columns: 1fr 1fr 1fr; }
+        .chart-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 0.875rem;
+            padding: 1.25rem 1.5rem;
+        }
+        .chart-card__title { font-size: 0.9rem; font-weight: 600; color: #374151; margin: 0 0 1rem; }
+        .chart-card__canvas { position: relative; height: 260px; }
+        .chart-card--short .chart-card__canvas { height: 200px; }
+        .chart-card--tall  .chart-card__canvas { height: 300px; }
+
+        .revenue-kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.875rem; margin-bottom: 1rem; }
+        .revenue-kpi {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 0.75rem;
+            padding: 0.9rem 1rem;
+            text-align: center;
+        }
+        .revenue-kpi__value { font-size: 1.3rem; font-weight: 700; color: #059669; display: block; }
+        .revenue-kpi__label { font-size: 0.72rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.2rem; display: block; }
+
+        .funnel-row { display: flex; gap: 0.5rem; align-items: stretch; margin-bottom: 0.75rem; flex-wrap: wrap; }
+        .funnel-step {
+            flex: 1 1 100px;
+            background: #f9fafb;
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 0.85rem 0.75rem;
+            text-align: center;
+            position: relative;
+        }
+        .funnel-step__value { font-size: 1.3rem; font-weight: 700; color: #111827; display: block; }
+        .funnel-step__label { font-size: 0.7rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.2rem; display: block; }
+        .funnel-step__rate  { font-size: 0.72rem; color: #059669; font-weight: 600; margin-top: 0.25rem; display: block; }
+
+        .ai-summary-card {
+            border: 1px solid #c7d2fe;
+            background: linear-gradient(135deg, #f8faff 0%, #fff 100%);
+            border-radius: 0.875rem;
+            padding: 1.5rem;
+            margin-bottom: 1.25rem;
+        }
+        .ai-summary-card__header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+        .ai-summary-card__title { font-size: 1rem; font-weight: 700; margin: 0; color: #1f2937; }
+        .ai-summary-card__sub { font-size: 0.78rem; color: #6b7280; margin: 0.2rem 0 0; }
+        .ai-summary-card__placeholder { color: #9ca3af; font-style: italic; font-size: 0.9rem; margin: 0; }
+        .ai-summary-card__text { color: #1f2937; font-size: 0.95rem; line-height: 1.75; margin: 0; }
+        .ai-summary-card__footer { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); font-size: 0.75rem; color: #9ca3af; }
+        .ai-summary-card--loading .ai-summary-card__body {
+            background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+            background-size: 400% 100%;
+            animation: analytics-shimmer 1.4s infinite;
+            border-radius: 0.5rem;
+            height: 4.5rem;
+        }
+        @keyframes analytics-shimmer {
+            0%   { background-position: 100% 0; }
+            100% { background-position: -100% 0; }
+        }
+
+        .section-divider { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #6b7280; margin: 1.5rem 0 0.75rem; }
+
+        @media (max-width: 900px) {
+            .charts-row--2-1, .charts-row--1-1, .charts-row--3 { grid-template-columns: 1fr; }
+            .revenue-kpi-row { grid-template-columns: repeat(2, 1fr); }
+            .analytics-header { padding: 1rem 1.25rem; }
+        }
+        @media (max-width: 600px) {
+            .kpi-row { grid-template-columns: repeat(2, 1fr); }
+            .revenue-kpi-row { grid-template-columns: repeat(2, 1fr); }
+            .funnel-row { gap: 0.35rem; }
+        }
     </style>
 </head>
 
@@ -1757,230 +1910,304 @@
 
         <!-- Analytics Section -->
         <div id="analytics" class="section">
-            <div class="header" style="flex-wrap: wrap; gap: 1rem;">
-                <h1 class="title">Analytics Overview</h1>
-                <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-                    <select id="analytics-period" style="padding: 0.5rem 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border); font-size: 0.9rem;">
+
+            <!-- Dark header bar -->
+            <div class="analytics-header">
+                <div>
+                    <h1 class="analytics-header__title">Analytics</h1>
+                    <span class="analytics-header__sub" id="analytics-last-updated">Loading…</span>
+                </div>
+                <div class="analytics-header__controls">
+                    <select id="analytics-period" class="analytics-period-select">
                         <option value="7">Last 7 days</option>
                         <option value="14">Last 14 days</option>
                         <option value="30" selected>Last 30 days</option>
                         <option value="60">Last 60 days</option>
                         <option value="90">Last 90 days</option>
                     </select>
-                    <button class="btn btn-primary" type="button" onclick="refreshAnalytics()">Refresh</button>
-                </div>
-            </div>
-            
-            <!-- Key Metrics Cards -->
-            <div class="card">
-                <div class="analytics-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
-                    <div class="analytics-card" style="border-left: 4px solid #2563eb;">
-                        <span class="analytics-card__value" data-analytics-field="visits">--</span>
-                        <span class="analytics-card__label">Total Visitors</span>
-                    </div>
-                    <div class="analytics-card" style="border-left: 4px solid #7c3aed;">
-                        <span class="analytics-card__value" data-analytics-field="service_views">--</span>
-                        <span class="analytics-card__label">Service Views</span>
-                    </div>
-                    <div class="analytics-card" style="border-left: 4px solid #059669;">
-                        <span class="analytics-card__value" data-analytics-field="bookings">--</span>
-                        <span class="analytics-card__label">Bookings</span>
-                    </div>
-                    <div class="analytics-card" style="border-left: 4px solid #d97706;">
-                        <span class="analytics-card__value" data-analytics-field="job_applications">--</span>
-                        <span class="analytics-card__label">Job Applications</span>
-                    </div>
-                    <div class="analytics-card" style="border-left: 4px solid #dc2626;">
-                        <span class="analytics-card__value" data-analytics-field="contact_submissions">--</span>
-                        <span class="analytics-card__label">Contact Forms</span>
-                    </div>
-                    <div class="analytics-card" style="border-left: 4px solid #10b981; background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), transparent);">
-                        <span class="analytics-card__value" style="color: #059669;" data-analytics-field="conversion_rate">--%</span>
-                        <span class="analytics-card__label">Conversion Rate</span>
-                    </div>
+                    <button class="btn btn-primary" type="button" onclick="refreshAnalytics()">↻ Refresh</button>
                 </div>
             </div>
 
-            <!-- Charts Row -->
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
-                <div class="card">
-                    <h2 class="title" style="font-size: 1.1rem; margin-bottom: 1rem;">📈 Traffic & Requests Trend</h2>
-                    <div style="position: relative; height: 280px;">
-                        <canvas id="trafficChart"></canvas>
+            <!-- Row 1: Traffic & Engagement KPIs -->
+            <div class="kpi-section">
+                <p class="kpi-section__label">Traffic & Engagement — <span id="revenue-period-label">Last 30 days</span></p>
+                <div class="kpi-row">
+                    <div class="kpi-card kpi-card--blue">
+                        <div class="kpi-card__icon">👁️</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" data-analytics-field="visits">--</span>
+                            <span class="kpi-card__label">Visitors</span>
+                        </div>
                     </div>
-                </div>
-                <div class="card">
-                    <h2 class="title" style="font-size: 1.1rem; margin-bottom: 1rem;">📊 Request Status</h2>
-                    <div style="position: relative; height: 280px;">
-                        <canvas id="statusChart"></canvas>
+                    <div class="kpi-card kpi-card--violet">
+                        <div class="kpi-card__icon">🔍</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" data-analytics-field="service_views">--</span>
+                            <span class="kpi-card__label">Service Views</span>
+                        </div>
                     </div>
-                </div>
-            </div>
-
-            <!-- Second Charts Row -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
-                <div class="card">
-                    <h2 class="title" style="font-size: 1.1rem; margin-bottom: 1rem;">🏆 Top Services</h2>
-                    <div style="position: relative; height: 220px;">
-                        <canvas id="servicesChart"></canvas>
+                    <div class="kpi-card kpi-card--green">
+                        <div class="kpi-card__icon">📋</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" data-analytics-field="bookings">--</span>
+                            <span class="kpi-card__label">Bookings</span>
+                        </div>
                     </div>
-                </div>
-                <div class="card">
-                    <h2 class="title" style="font-size: 1.1rem; margin-bottom: 1rem;">⏰ Peak Hours</h2>
-                    <div style="position: relative; height: 220px;">
-                        <canvas id="hourlyChart"></canvas>
+                    <div class="kpi-card kpi-card--amber">
+                        <div class="kpi-card__icon">💼</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" data-analytics-field="job_applications">--</span>
+                            <span class="kpi-card__label">Job Applications</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card kpi-card--red">
+                        <div class="kpi-card__icon">✉️</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" data-analytics-field="contact_submissions">--</span>
+                            <span class="kpi-card__label">Contact Forms</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card kpi-card--emerald">
+                        <div class="kpi-card__icon">🎯</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" data-analytics-field="conversion_rate">--%</span>
+                            <span class="kpi-card__label">Conversion Rate</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Revenue Analytics Section -->
-            <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(37, 99, 235, 0.05));">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <h2 class="title" style="font-size: 1.1rem; margin: 0;">💰 Revenue Analytics</h2>
-                    <span style="font-size: 0.8rem; color: #6b7280;" id="revenue-period-label">Last 30 days</span>
-                </div>
-                <div class="analytics-grid" style="grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
-                    <div class="analytics-card" style="border-left: 4px solid #10b981; text-align: center;">
-                        <span class="analytics-card__value" style="color: #059669; font-size: 1.5rem;" id="revenue-period">£0</span>
-                        <span class="analytics-card__label">Period Revenue</span>
+            <!-- Row 2: Business Health KPIs -->
+            <div class="kpi-section">
+                <p class="kpi-section__label">Business Health</p>
+                <div class="kpi-row">
+                    <div class="kpi-card kpi-card--green">
+                        <div class="kpi-card__icon">£</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" id="kpi-alltime-revenue">--</span>
+                            <span class="kpi-card__label">All-Time Revenue</span>
+                        </div>
                     </div>
-                    <div class="analytics-card" style="border-left: 4px solid #2563eb; text-align: center;">
-                        <span class="analytics-card__value" style="color: #2563eb; font-size: 1.5rem;" id="revenue-today">£0</span>
-                        <span class="analytics-card__label">Today</span>
+                    <div class="kpi-card kpi-card--emerald">
+                        <div class="kpi-card__icon">≈</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" id="kpi-avg-booking">--</span>
+                            <span class="kpi-card__label">Avg Booking Value</span>
+                        </div>
                     </div>
-                    <div class="analytics-card" style="border-left: 4px solid #7c3aed; text-align: center;">
-                        <span class="analytics-card__value" style="color: #7c3aed; font-size: 1.5rem;" id="revenue-week">£0</span>
-                        <span class="analytics-card__label">This Week</span>
+                    <div class="kpi-card kpi-card--violet">
+                        <div class="kpi-card__icon">🔄</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" id="kpi-active-contracts">--</span>
+                            <span class="kpi-card__label">Active Contracts</span>
+                        </div>
                     </div>
-                    <div class="analytics-card" style="border-left: 4px solid #d97706; text-align: center;">
-                        <span class="analytics-card__value" style="color: #d97706; font-size: 1.5rem;" id="revenue-month">£0</span>
-                        <span class="analytics-card__label">This Month</span>
+                    <div class="kpi-card kpi-card--amber">
+                        <div class="kpi-card__icon">⏳</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" id="kpi-pending-quotes">--</span>
+                            <span class="kpi-card__label">Pending Quotes</span>
+                        </div>
                     </div>
-                </div>
-                <div style="position: relative; height: 250px;">
-                    <canvas id="revenueChart"></canvas>
+                    <div class="kpi-card kpi-card--red">
+                        <div class="kpi-card__icon">📅</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" id="kpi-due-week">--</span>
+                            <span class="kpi-card__label">Due This Week</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Advanced Analytics Row -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
-                <!-- Conversion Funnel -->
-                <div class="card">
-                    <h2 class="title" style="font-size: 1.1rem; margin-bottom: 1rem;">🎯 Conversion Funnel</h2>
-                    <div id="funnel-container" style="padding: 1rem;">
-                        <div class="funnel-step" style="background: linear-gradient(90deg, rgba(37, 99, 235, 0.2), transparent); padding: 0.75rem 1rem; margin-bottom: 0.5rem; border-radius: 0.5rem; display: flex; justify-content: space-between;">
-                            <span>👁️ Visits</span>
-                            <strong id="funnel-visits">0</strong>
+            <!-- Revenue strip -->
+            <div class="revenue-kpi-row">
+                <div class="revenue-kpi">
+                    <span class="revenue-kpi__value" id="revenue-period">£0</span>
+                    <span class="revenue-kpi__label">Period Revenue</span>
+                </div>
+                <div class="revenue-kpi">
+                    <span class="revenue-kpi__value" id="revenue-today">£0</span>
+                    <span class="revenue-kpi__label">Today</span>
+                </div>
+                <div class="revenue-kpi">
+                    <span class="revenue-kpi__value" id="revenue-week">£0</span>
+                    <span class="revenue-kpi__label">This Week</span>
+                </div>
+                <div class="revenue-kpi">
+                    <span class="revenue-kpi__value" id="revenue-month">£0</span>
+                    <span class="revenue-kpi__label">This Month</span>
+                </div>
+            </div>
+
+            <!-- AI Summary Card -->
+            <div class="ai-summary-card" id="ai-summary-card">
+                <div class="ai-summary-card__header">
+                    <div>
+                        <h2 class="ai-summary-card__title">🧠 AI Business Summary</h2>
+                        <p class="ai-summary-card__sub">Plain-English insight generated from your analytics data</p>
+                    </div>
+                    <button class="btn btn-primary" id="generate-ai-summary-btn" onclick="generateAiSummary()" type="button">Generate Summary</button>
+                </div>
+                <div class="ai-summary-card__body" id="ai-summary-body">
+                    <p class="ai-summary-card__placeholder">Click "Generate Summary" to get an AI-written overview of your business performance.</p>
+                </div>
+                <div class="ai-summary-card__footer" id="ai-summary-footer" hidden>
+                    Generated at <span id="ai-summary-timestamp">—</span>
+                </div>
+            </div>
+
+            <!-- Charts Row 1: Traffic + Status -->
+            <p class="section-divider">Traffic & Requests</p>
+            <div class="charts-row charts-row--2-1">
+                <div class="chart-card">
+                    <h3 class="chart-card__title">Traffic & Requests Trend</h3>
+                    <div class="chart-card__canvas"><canvas id="trafficChart"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3 class="chart-card__title">Request Status Breakdown</h3>
+                    <div class="chart-card__canvas"><canvas id="statusChart"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Charts Row 2: Top Services + Peak Hours -->
+            <div class="charts-row charts-row--1-1">
+                <div class="chart-card chart-card--short">
+                    <h3 class="chart-card__title">Top Services</h3>
+                    <div class="chart-card__canvas"><canvas id="servicesChart"></canvas></div>
+                </div>
+                <div class="chart-card chart-card--short">
+                    <h3 class="chart-card__title">Peak Activity Hours</h3>
+                    <div class="chart-card__canvas"><canvas id="hourlyChart"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Revenue Chart -->
+            <p class="section-divider">Revenue</p>
+            <div class="charts-row">
+                <div class="chart-card chart-card--tall">
+                    <h3 class="chart-card__title">Revenue Trend</h3>
+                    <div class="chart-card__canvas"><canvas id="revenueChart"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Funnel + Day of Week -->
+            <p class="section-divider">Conversion & Performance</p>
+            <div class="charts-row charts-row--1-1">
+                <div class="chart-card">
+                    <h3 class="chart-card__title">Conversion Funnel</h3>
+                    <div class="funnel-row">
+                        <div class="funnel-step" style="border-top: 3px solid #2563eb;">
+                            <span class="funnel-step__value" id="funnel-visits">0</span>
+                            <span class="funnel-step__label">Visits</span>
                         </div>
-                        <div class="funnel-step" style="background: linear-gradient(90deg, rgba(124, 58, 237, 0.2), transparent); padding: 0.75rem 1rem; margin-bottom: 0.5rem; border-radius: 0.5rem; margin-left: 1rem; display: flex; justify-content: space-between;">
-                            <span>🔍 Service Views</span>
-                            <strong id="funnel-views">0</strong>
+                        <div class="funnel-step" style="border-top: 3px solid #7c3aed;">
+                            <span class="funnel-step__value" id="funnel-views">0</span>
+                            <span class="funnel-step__label">Service Views</span>
+                            <span class="funnel-step__rate" id="funnel-view-rate"></span>
                         </div>
-                        <div class="funnel-step" style="background: linear-gradient(90deg, rgba(217, 119, 6, 0.2), transparent); padding: 0.75rem 1rem; margin-bottom: 0.5rem; border-radius: 0.5rem; margin-left: 2rem; display: flex; justify-content: space-between;">
-                            <span>📝 Quote Requests</span>
-                            <strong id="funnel-requests">0</strong>
+                        <div class="funnel-step" style="border-top: 3px solid #d97706;">
+                            <span class="funnel-step__value" id="funnel-requests">0</span>
+                            <span class="funnel-step__label">Quotes</span>
                         </div>
-                        <div class="funnel-step" style="background: linear-gradient(90deg, rgba(16, 185, 129, 0.2), transparent); padding: 0.75rem 1rem; margin-bottom: 0.5rem; border-radius: 0.5rem; margin-left: 3rem; display: flex; justify-content: space-between;">
-                            <span>✅ Confirmed</span>
-                            <strong id="funnel-confirmed">0</strong>
+                        <div class="funnel-step" style="border-top: 3px solid #10b981;">
+                            <span class="funnel-step__value" id="funnel-confirmed">0</span>
+                            <span class="funnel-step__label">Confirmed</span>
                         </div>
-                        <div class="funnel-step" style="background: linear-gradient(90deg, rgba(5, 150, 105, 0.3), transparent); padding: 0.75rem 1rem; border-radius: 0.5rem; margin-left: 4rem; display: flex; justify-content: space-between;">
-                            <span>🏆 Completed</span>
-                            <strong id="funnel-completed">0</strong>
-                        </div>
-                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); display: flex; gap: 1rem; justify-content: center;">
-                            <span style="font-size: 0.85rem; color: #6b7280;">View→Request: <strong id="funnel-view-rate">0%</strong></span>
-                            <span style="font-size: 0.85rem; color: #6b7280;">Overall: <strong id="funnel-completion-rate">0%</strong></span>
+                        <div class="funnel-step" style="border-top: 3px solid #059669;">
+                            <span class="funnel-step__value" id="funnel-completed">0</span>
+                            <span class="funnel-step__label">Completed</span>
+                            <span class="funnel-step__rate" id="funnel-completion-rate"></span>
                         </div>
                     </div>
                 </div>
-
-                <!-- Day of Week Analysis -->
-                <div class="card">
-                    <h2 class="title" style="font-size: 1.1rem; margin-bottom: 1rem;">📅 Day of Week Performance</h2>
-                    <div style="position: relative; height: 250px;">
-                        <canvas id="dayOfWeekChart"></canvas>
-                    </div>
+                <div class="chart-card">
+                    <h3 class="chart-card__title">Day of Week Performance</h3>
+                    <div class="chart-card__canvas chart-card--short"><canvas id="dayOfWeekChart"></canvas></div>
                 </div>
             </div>
 
             <!-- Service Performance & Geographic -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
-                <div class="card">
-                    <h2 class="title" style="font-size: 1.1rem; margin-bottom: 1rem;">📊 Service Performance</h2>
+            <div class="charts-row charts-row--1-1">
+                <div class="chart-card">
+                    <h3 class="chart-card__title">Service Performance</h3>
                     <div id="service-performance-container">
-                        <table class="analytics-table" style="width: 100%;">
-                            <thead>
-                                <tr>
-                                    <th style="text-align: left;">Service</th>
-                                    <th style="text-align: center;">Requests</th>
-                                    <th style="text-align: center;">Completed</th>
-                                    <th style="text-align: right;">Revenue</th>
-                                </tr>
-                            </thead>
-                            <tbody id="service-performance-body">
-                                <tr><td colspan="4" style="text-align: center; color: #6b7280;">Loading...</td></tr>
-                            </tbody>
+                        <table class="analytics-table">
+                            <thead><tr><th>Service</th><th style="text-align:center;">Requests</th><th style="text-align:center;">Completed</th><th style="text-align:right;">Revenue</th></tr></thead>
+                            <tbody id="service-performance-body"><tr><td colspan="4" style="text-align:center;color:#6b7280;">Loading…</td></tr></tbody>
                         </table>
                     </div>
                 </div>
-
-                <div class="card">
-                    <h2 class="title" style="font-size: 1.1rem; margin-bottom: 1rem;">🗺️ Geographic Distribution</h2>
+                <div class="chart-card">
+                    <h3 class="chart-card__title">Geographic Distribution</h3>
                     <div id="geographic-container">
-                        <table class="analytics-table" style="width: 100%;">
-                            <thead>
-                                <tr>
-                                    <th style="text-align: left;">Area</th>
-                                    <th style="text-align: center;">Requests</th>
-                                    <th style="text-align: right;">Revenue</th>
-                                </tr>
-                            </thead>
-                            <tbody id="geographic-body">
-                                <tr><td colspan="3" style="text-align: center; color: #6b7280;">Loading...</td></tr>
-                            </tbody>
+                        <table class="analytics-table">
+                            <thead><tr><th>Area</th><th style="text-align:center;">Requests</th><th style="text-align:right;">Revenue</th></tr></thead>
+                            <tbody id="geographic-body"><tr><td colspan="3" style="text-align:center;color:#6b7280;">Loading…</td></tr></tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
-            <!-- Today's Summary -->
-            <div class="card">
-                <h2 class="title" style="font-size: 1.1rem; margin-bottom: 1rem;">📅 Today's Summary</h2>
-                <ul class="analytics-summary">
-                    <li><strong>Visits</strong><span data-analytics-field="today.visits">--</span></li>
-                    <li><strong>Service Views</strong><span data-analytics-field="today.service_views">--</span></li>
-                    <li><strong>Bookings</strong><span data-analytics-field="today.bookings">--</span></li>
-                    <li><strong>Job Applications</strong><span data-analytics-field="today.job_applications">--</span></li>
-                    <li><strong>Contact Submissions</strong><span data-analytics-field="today.contact_submissions">--</span></li>
-                </ul>
+            <!-- Today's Summary + Quick Info -->
+            <p class="section-divider">Today</p>
+            <div class="kpi-section">
+                <div class="kpi-row">
+                    <div class="kpi-card kpi-card--blue">
+                        <div class="kpi-card__icon">👁️</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" data-analytics-field="today.visits">--</span>
+                            <span class="kpi-card__label">Visits Today</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card kpi-card--violet">
+                        <div class="kpi-card__icon">🔍</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" data-analytics-field="today.service_views">--</span>
+                            <span class="kpi-card__label">Service Views</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card kpi-card--green">
+                        <div class="kpi-card__icon">📋</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" data-analytics-field="today.bookings">--</span>
+                            <span class="kpi-card__label">Bookings</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card kpi-card--amber">
+                        <div class="kpi-card__icon">💼</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" data-analytics-field="today.job_applications">--</span>
+                            <span class="kpi-card__label">Job Applications</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card kpi-card--indigo">
+                        <div class="kpi-card__icon">⭐</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" data-analytics-field="most_viewed_service">--</span>
+                            <span class="kpi-card__label">Top Service</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card kpi-card--emerald">
+                        <div class="kpi-card__icon">⏰</div>
+                        <div class="kpi-card__body">
+                            <span class="kpi-card__value" data-analytics-field="peak_traffic_time">--</span>
+                            <span class="kpi-card__label">Peak Hour</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <!-- Quick Info Row -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-                <div class="card">
-                    <h2 class="title" style="font-size: 1.1rem; margin-bottom: 0.5rem;">🌟 Most Requested Service</h2>
-                    <p style="font-size: 1.25rem; font-weight: 600; color: var(--primary); margin: 0;" data-analytics-field="most_viewed_service">--</p>
-                </div>
-                <div class="card">
-                    <h2 class="title" style="font-size: 1.1rem; margin-bottom: 0.5rem;">⏱️ Peak Traffic Hour</h2>
-                    <p style="font-size: 1.25rem; font-weight: 600; color: var(--primary); margin: 0;" data-analytics-field="peak_traffic_time">--</p>
-                </div>
-            </div>
-
-            <div class="card" style="margin-top: 1.5rem;">
-                <h2 class="title" style="font-size: 1.1rem; margin-bottom: 1rem;">📋 Recent Events</h2>
+            <!-- Recent Events -->
+            <div class="chart-card">
+                <h3 class="chart-card__title">Recent Events</h3>
                 <table class="analytics-table">
-                    <thead>
-                        <tr>
-                            <th>Event</th>
-                            <th>Recorded At</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th>Event</th><th>Recorded At</th></tr></thead>
                     <tbody id="analytics-events"></tbody>
                 </table>
                 <div id="analytics-events-empty" class="empty-state" hidden>No recent analytics events.</div>
             </div>
+
         </div>
 
         <!-- Requests Section -->
@@ -3631,7 +3858,8 @@
                 // Load charts and live period metrics in parallel
                 const [, liveData] = await Promise.all([
                     loadChartData(),
-                    fetchLiveAnalytics()
+                    fetchLiveAnalytics(),
+                    loadKpis()
                 ]);
                 applyLiveAnalytics(liveData);
 
@@ -3644,12 +3872,67 @@
                     renderAnalyticsEvents(summary.recent_events || []);
                 }
 
+                const tsEl = document.getElementById('analytics-last-updated');
+                if (tsEl) tsEl.textContent = 'Updated ' + new Date().toLocaleTimeString();
+
                 if (showToastOnSuccess) {
                     showToast('Analytics updated.', 'success', 2400);
                 }
             } catch (error) {
                 console.error(error);
                 showToast('Failed to refresh analytics.', 'error');
+            }
+        }
+
+        async function loadKpis() {
+            try {
+                const res = await fetch('/admin/api/analytics/kpis', { credentials: 'same-origin' });
+                if (!res.ok) return;
+                const d = await res.json();
+                const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+                set('kpi-active-contracts', d.active_contracts ?? '—');
+                set('kpi-alltime-revenue', d.total_revenue_alltime != null ? '£' + d.total_revenue_alltime.toLocaleString('en-GB', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—');
+                set('kpi-avg-booking', d.avg_booking_value != null ? '£' + d.avg_booking_value.toLocaleString('en-GB', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—');
+                set('kpi-pending-quotes', d.pending_quotes ?? '—');
+                set('kpi-due-week', d.contracts_due_week ?? '—');
+            } catch (err) {
+                console.error('KPI load error:', err);
+            }
+        }
+
+        async function generateAiSummary() {
+            const btn = document.getElementById('generate-ai-summary-btn');
+            const card = document.getElementById('ai-summary-card');
+            const bodyEl = document.getElementById('ai-summary-body');
+            const footerEl = document.getElementById('ai-summary-footer');
+            const tsEl = document.getElementById('ai-summary-timestamp');
+            if (!btn || !bodyEl) return;
+
+            btn.disabled = true;
+            btn.textContent = 'Generating…';
+            if (card) card.classList.add('ai-summary-card--loading');
+            bodyEl.innerHTML = '<p class="ai-summary-card__placeholder">Analysing your data…</p>';
+
+            try {
+                const period = document.getElementById('analytics-period')?.value || '30';
+                const res = await fetch('/admin/api/analytics/ai-summary', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ days: parseInt(period) })
+                });
+                if (!res.ok) throw new Error('Server error ' + res.status);
+                const data = await res.json();
+                bodyEl.innerHTML = '<p class="ai-summary-card__text">' + (data.summary || 'No summary returned.').replace(/\n/g, '<br>') + '</p>';
+                if (footerEl) footerEl.hidden = false;
+                if (tsEl) tsEl.textContent = new Date(data.generated_at).toLocaleTimeString();
+            } catch (err) {
+                bodyEl.innerHTML = '<p class="ai-summary-card__placeholder" style="color:#ef4444">Failed to generate summary. Please try again.</p>';
+                console.error('AI summary error:', err);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '✦ Generate Summary';
+                if (card) card.classList.remove('ai-summary-card--loading');
             }
         }
 

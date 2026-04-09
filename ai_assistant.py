@@ -127,6 +127,20 @@ class AIAssistant:
                 "name": "get_system_logs",
                 "description": "Get recent system activity and error summary",
                 "parameters": {"type": "object", "properties": {}, "required": []}
+            }},
+            {"type": "function", "function": {
+                "name": "get_analytics_summary",
+                "description": "Get website traffic and booking analytics for a given period",
+                "parameters": {"type": "object", "properties": {
+                    "days": {"type": "integer", "description": "Number of days to look back (default 7)"}
+                }, "required": []}
+            }},
+            {"type": "function", "function": {
+                "name": "get_ai_business_summary",
+                "description": "Generate an AI-written plain-English summary of business performance covering revenue, bookings, traffic, and trends",
+                "parameters": {"type": "object", "properties": {
+                    "days": {"type": "integer", "description": "Number of days to analyse (default 30)"}
+                }, "required": []}
             }}
         ]
     
@@ -483,6 +497,8 @@ class AIAssistant:
                 return self._action_get_customer_history(params)
             elif tool_name == 'get_system_logs':
                 return self._action_get_system_logs(params)
+            elif tool_name == 'get_ai_business_summary':
+                return self._action_get_ai_business_summary(params)
             else:
                 return {"success": False, "message": f"Unknown tool: {tool_name}"}
         except Exception as e:
@@ -529,6 +545,9 @@ class AIAssistant:
                 return self._format_request_list(data, msg)
             elif tool_name == 'get_analytics_summary':
                 return self._format_analytics(data)
+            elif tool_name == 'get_ai_business_summary':
+                summary = result.get('summary', '')
+                return f"\n\n🧠 *AI Business Summary*\n\n{summary}" if summary else f"\n\n✅ {msg}"
             else:
                 # Generic formatting for other tools
                 return f"\n\n✅ {msg}"
@@ -1155,6 +1174,37 @@ class AIAssistant:
             }
         }
     
+    def _action_get_ai_business_summary(self, params: Dict = None) -> Dict:
+        """Generate an AI-written plain-English business summary via Groq"""
+        days = params.get('days', 30) if params else 30
+        # Gather analytics snapshot
+        analytics = self._action_get_analytics_summary({'days': days})
+        revenue = self._action_get_revenue_report({'days': days})
+        a = analytics.get('data', {})
+        r = revenue.get('data', {})
+        prompt = (
+            f"You are a business analyst for Done Well Cleaning Limited, a UK cleaning company. "
+            f"Write a concise, plain-English summary (3-5 sentences) of business performance for the last {days} days. "
+            f"Data: visits={a.get('visits',0)}, service views={a.get('service_views',0)}, "
+            f"total bookings={a.get('total_requests',0)}, completed={a.get('completed',0)}, "
+            f"pending={a.get('pending',0)}, conversion rate={a.get('conversion_rate',0)}%, "
+            f"period revenue=£{r.get('total_revenue',0):,.2f}, today=£{r.get('today_revenue',0):,.2f}. "
+            f"Be encouraging but honest. Mention any standout figures."
+        )
+        try:
+            client = Groq(api_key=self.api_key)
+            completion = client.chat.completions.create(
+                model=self.model or "openai/gpt-oss-20b",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_completion_tokens=400,
+                stream=False
+            )
+            summary = completion.choices[0].message.content.strip()
+        except Exception as e:
+            summary = f"Unable to generate AI summary: {str(e)}"
+        return {"success": True, "message": "AI summary generated", "summary": summary}
+
     def _action_get_top_services(self, params: Dict = None) -> Dict:
         """Get top performing services"""
         days = params.get('days', 30) if params else 30
