@@ -9828,9 +9828,9 @@ def admin_analytics_ai_summary():
         cursor.execute("SELECT COUNT(*) AS cnt FROM service_requests WHERE status IN ('pending', 'quote_ready')")
         pending_quotes = int((cursor.fetchone() or {}).get('cnt') or 0)
 
-        cursor.execute("SELECT service_name, COUNT(*) AS cnt FROM service_requests GROUP BY service_name ORDER BY cnt DESC LIMIT 1")
+        cursor.execute("SELECT service_name, COUNT(*) AS cnt FROM requests WHERE service_name IS NOT NULL GROUP BY service_name ORDER BY cnt DESC LIMIT 1")
         top_row = cursor.fetchone()
-        top_service = top_row.get('service_name', 'Unknown') if top_row else 'Unknown'
+        top_service = (top_row.get('service_name') or 'Unknown') if top_row else 'Unknown'
 
         conversion_rate = round((bookings / visits * 100), 1) if visits > 0 else 0
 
