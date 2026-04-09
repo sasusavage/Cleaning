@@ -122,6 +122,11 @@ class AIAssistant:
                     "email": {"type": "string"},
                     "phone": {"type": "string"}
                 }, "required": []}
+            }},
+            {"type": "function", "function": {
+                "name": "get_system_logs",
+                "description": "Get recent system activity and error summary",
+                "parameters": {"type": "object", "properties": {}, "required": []}
             }}
         ]
     
@@ -214,7 +219,7 @@ class AIAssistant:
     _BUSINESS_KEYWORDS = (
         'pending', 'request', 'booking', 'summary', 'report', 'revenue',
         'service', 'customer', 'status', 'today', 'completed', 'cancel',
-        'analytics', 'stats', 'how are', 'show', 'list', 'search', 'find',
+        'analytics', 'stats', 'how are', 'show', 'list', 'search', 'find', 'log', 'error',
         'mark', 'update', 'note', 'email', 'disable', 'enable', 'history',
         'ref-', 'ref ', 'invoice', 'payment', 'job', 'application',
     )
@@ -476,6 +481,8 @@ class AIAssistant:
                 return self._action_list_services(params)
             elif tool_name == 'get_customer_history':
                 return self._action_get_customer_history(params)
+            elif tool_name == 'get_system_logs':
+                return self._action_get_system_logs(params)
             else:
                 return {"success": False, "message": f"Unknown tool: {tool_name}"}
         except Exception as e:
@@ -1355,6 +1362,68 @@ class AIAssistant:
             "data": requests
         }
     
+    def _action_get_system_logs(self, params: Dict = None) -> Dict:
+        """Return a brief summary of recent system activity and errors from the DB."""
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            engine = self.db_engine
+
+            # Recent requests in last 24h
+            if engine == 'postgres':
+                cursor.execute("""
+                    SELECT status, COUNT(*) as cnt FROM requests
+                    WHERE created_at >= NOW() - INTERVAL '24 hours'
+                    GROUP BY status ORDER BY cnt DESC
+                """)
+            else:
+                cursor.execute("""
+                    SELECT status, COUNT(*) as cnt FROM requests
+                    WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                    GROUP BY status ORDER BY cnt DESC
+                """)
+            recent = {r['status']: r['cnt'] for r in cursor.fetchall()}
+
+            # Total requests
+            cursor.execute("SELECT COUNT(*) as total FROM requests")
+            total = cursor.fetchone()['total']
+
+            # Check for telegram_error_log table
+            errors_summary = None
+            try:
+                if engine == 'postgres':
+                    cursor.execute("""
+                        SELECT message, created_at FROM telegram_error_log
+                        ORDER BY created_at DESC LIMIT 5
+                    """)
+                else:
+                    cursor.execute("""
+                        SELECT message, created_at FROM telegram_error_log
+                        ORDER BY created_at DESC LIMIT 5
+                    """)
+                rows = cursor.fetchall()
+                if rows:
+                    errors_summary = [f"[{r['created_at']}] {str(r['message'])[:120]}" for r in rows]
+            except Exception:
+                errors_summary = None
+
+            cursor.close()
+            conn.close()
+
+            lines = [f"System snapshot (last 24h):"]
+            for status, cnt in recent.items():
+                lines.append(f"  {status}: {cnt}")
+            lines.append(f"All-time total requests: {total}")
+            if errors_summary:
+                lines.append("Recent logged errors:")
+                lines.extend(f"  {e}" for e in errors_summary)
+            else:
+                lines.append("No error log table found — check Render logs for details.")
+
+            return {"success": True, "message": "\n".join(lines)}
+        except Exception as e:
+            return {"success": False, "message": f"Could not fetch system logs: {e}"}
+
     def _get_conversation_history(self, chat_id: str, limit: int = 5) -> List[Dict]:
         """Get recent conversation history"""
         try:
