@@ -8,12 +8,59 @@
     {% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
     {% set page_title_text = hero.title if hero else 'Professional Cleaning Services' %}
     <title>{{ page_title_text or 'Professional Cleaning Services' }} | {{ company_name }}</title>
-    <meta name="description" content="Reliable, affordable residential and commercial cleaning services. {{ company_name }} delivers spotless spaces with flexible scheduling and tailored packages.">
+    {% set _site_url = 'https://done-wellcleaninglimited.org' %}
+    {% set _meta_desc = 'Professional residential and commercial cleaning in Stevenage, Hertfordshire and surrounding areas. Fully vetted, insured cleaners. Get a free quote today.' %}
+    {% set _og_image = company_logo_url if company_logo_url else (_site_url ~ '/favicon/apple-touch-icon.png') %}
+    <meta name="description" content="{{ _meta_desc }}">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="{{ _site_url }}/">
+
+    <!-- Open Graph (Facebook, WhatsApp, Google) -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ _site_url }}/">
+    <meta property="og:title" content="{{ company_name }} — Professional Cleaning Services">
+    <meta property="og:description" content="{{ _meta_desc }}">
+    <meta property="og:image" content="{{ _og_image }}">
+    <meta property="og:locale" content="en_GB">
+    <meta property="og:site_name" content="{{ company_name }}">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ company_name }} — Professional Cleaning Services">
+    <meta name="twitter:description" content="{{ _meta_desc }}">
+    <meta name="twitter:image" content="{{ _og_image }}">
+
+    <!-- Favicon -->
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('favicon_asset', filename='apple-touch-icon.png') }}">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('favicon_asset', filename='favicon-32x32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('favicon_asset', filename='favicon-16x16.png') }}">
     <link rel="manifest" href="{{ url_for('favicon_asset', filename='site.webmanifest') }}">
     <link rel="shortcut icon" href="{{ url_for('favicon') }}">
+
+    <!-- JSON-LD Structured Data (helps Google rich results) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "LocalBusiness",
+      "name": "{{ company_name }}",
+      "url": "{{ _site_url }}",
+      "logo": "{{ _og_image }}",
+      "image": "{{ _og_image }}",
+      "description": "{{ _meta_desc }}",
+      "telephone": "{{ footer_phone }}",
+      "email": "{{ footer_email }}",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Stevenage",
+        "addressRegion": "Hertfordshire",
+        "addressCountry": "GB"
+      },
+      "areaServed": ["Stevenage", "Enfield", "Barnet", "Hatfield", "St Albans", "Watford", "Luton", "Hitchin", "Letchworth", "Welwyn Garden City"],
+      "priceRange": "££",
+      "openingHours": "Mo-Fr 08:00-18:00",
+      "sameAs": []
+    }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600&display=swap" rel="stylesheet">
