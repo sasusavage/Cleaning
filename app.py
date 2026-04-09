@@ -2941,15 +2941,10 @@ def ensure_domestic_cleaning_tables():
         cursor = conn.cursor()
         engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
         _ensure_domestic_cleaning_tables_inner(conn, cursor, engine)
-        _done_ensure_domestic_cleaning_tables = True
     except Exception:
         app.logger.exception('ensure_domestic_cleaning_tables failed')
-        if conn:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
     finally:
+        _done_ensure_domestic_cleaning_tables = True  # don't retry on every request
         if cursor:
             try:
                 cursor.close()
@@ -3118,14 +3113,20 @@ def fetch_domestic_cleaning_data(include_inactive=False):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    _empty = {'content': {}, 'cards': [], 'pricing': []}
 
-    if include_inactive:
-        cursor.execute("SELECT * FROM domestic_cleaning_content ORDER BY id ASC LIMIT 1")
-    else:
-        if engine == 'postgres':
-            cursor.execute("SELECT * FROM domestic_cleaning_content WHERE is_active = TRUE ORDER BY id ASC LIMIT 1")
+    try:
+        if include_inactive:
+            cursor.execute("SELECT * FROM domestic_cleaning_content ORDER BY id ASC LIMIT 1")
         else:
-            cursor.execute("SELECT * FROM domestic_cleaning_content WHERE is_active = 1 ORDER BY id ASC LIMIT 1")
+            if engine == 'postgres':
+                cursor.execute("SELECT * FROM domestic_cleaning_content WHERE is_active = TRUE ORDER BY id ASC LIMIT 1")
+            else:
+                cursor.execute("SELECT * FROM domestic_cleaning_content WHERE is_active = 1 ORDER BY id ASC LIMIT 1")
+    except Exception:
+        cursor.close()
+        conn.close()
+        return _empty
     content_row = cursor.fetchone() or {}
 
     if include_inactive:
@@ -6738,7 +6739,7 @@ def configure_telegram_error_log_handler():
     if _telegram_error_log_handler_attached:
         return
     try:
-        handler = TelegramErrorLogHandler(throttle_seconds=120, health_report_hours=6)
+        handler = TelegramErrorLogHandler(throttle_seconds=120, health_report_hours=1)
         # Attach to both app logger and root logger to catch errors from all modules
         app.logger.addHandler(handler)
         logging.getLogger().addHandler(handler)

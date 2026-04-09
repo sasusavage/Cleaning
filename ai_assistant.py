@@ -49,253 +49,80 @@ class AIAssistant:
         self._load_settings()
     
     def _define_tools(self) -> List[Dict]:
-        """Define the tools/functions available for the AI to call"""
+        """Define tools available to the AI (kept compact to save tokens)."""
         return [
-            {
-                "type": "function",
-                "function": {
-                    "name": "search_requests",
-                    "description": "Search for customer requests by name, email, reference ID, or status",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "Search term - can be customer name, email, or reference ID"
-                            },
-                            "status": {
-                                "type": ["string", "null"],
-                                "enum": ["pending", "in_progress", "completed", "cancelled", "survey_needed", None],
-                                "description": "Optional status filter"
-                            }
-                        },
-                        "required": ["query"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "update_request_status",
-                    "description": "Update the status of a request",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "ref_id": {
-                                "type": "string",
-                                "description": "The request reference ID (e.g., REQ-XXXXXX)"
-                            },
-                            "status": {
-                                "type": "string",
-                                "enum": ["pending", "in_progress", "completed", "cancelled", "survey_needed"],
-                                "description": "The new status"
-                            }
-                        },
-                        "required": ["ref_id", "status"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "add_request_note",
-                    "description": "Add an admin note to a request",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "ref_id": {
-                                "type": "string",
-                                "description": "The request reference ID"
-                            },
-                            "note": {
-                                "type": "string",
-                                "description": "The note text to add"
-                            }
-                        },
-                        "required": ["ref_id", "note"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_request_details",
-                    "description": "Get full details of a specific request",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "ref_id": {
-                                "type": "string",
-                                "description": "The request reference ID"
-                            }
-                        },
-                        "required": ["ref_id"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_daily_report",
-                    "description": "Get today's business report including request counts and status breakdown",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_pending_requests",
-                    "description": "Get all pending requests that need attention",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_revenue_report",
-                    "description": "Get revenue report for a specified period",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "days": {
-                                "type": "integer",
-                                "description": "Number of days to include in report (default 30)"
-                            }
-                        },
-                        "required": []
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_top_services",
-                    "description": "Get the top performing services",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "days": {
-                                "type": "integer",
-                                "description": "Number of days to analyze (default 30)"
-                            },
-                            "limit": {
-                                "type": "integer",
-                                "description": "Number of services to return (default 5)"
-                            }
-                        },
-                        "required": []
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "send_customer_email",
-                    "description": "Send an email to a customer about their request",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "ref_id": {
-                                "type": "string",
-                                "description": "The request reference ID"
-                            },
-                            "subject": {
-                                "type": "string",
-                                "description": "Email subject line"
-                            },
-                            "message": {
-                                "type": "string",
-                                "description": "Email message body (plain text)"
-                            }
-                        },
-                        "required": ["ref_id", "subject", "message"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_analytics_summary",
-                    "description": "Get website analytics and conversion metrics",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "days": {
-                                "type": "integer",
-                                "description": "Number of days to analyze (default 7)"
-                            }
-                        },
-                        "required": []
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "toggle_service",
-                    "description": "Enable or disable a service",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "service_id": {
-                                "type": "integer",
-                                "description": "The service ID"
-                            },
-                            "active": {
-                                "type": "boolean",
-                                "description": "True to enable, False to disable"
-                            }
-                        },
-                        "required": ["service_id", "active"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "list_services",
-                    "description": "List all services with their status and pricing",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "active_only": {
-                                "type": "boolean",
-                                "description": "If true, only show active services"
-                            }
-                        },
-                        "required": []
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_customer_history",
-                    "description": "Get all requests from a specific customer by email or phone",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "email": {
-                                "type": "string",
-                                "description": "Customer email address"
-                            },
-                            "phone": {
-                                "type": "string",
-                                "description": "Customer phone number"
-                            }
-                        },
-                        "required": []
-                    }
-                }
-            }
+            {"type": "function", "function": {
+                "name": "search_requests",
+                "description": "Search requests by name/email/ref/status",
+                "parameters": {"type": "object", "properties": {
+                    "query": {"type": "string"},
+                    "status": {"type": ["string", "null"], "enum": ["pending", "in_progress", "completed", "cancelled", "survey_needed", None]}
+                }, "required": ["query"]}
+            }},
+            {"type": "function", "function": {
+                "name": "update_request_status",
+                "description": "Update a request status",
+                "parameters": {"type": "object", "properties": {
+                    "ref_id": {"type": "string"},
+                    "status": {"type": "string", "enum": ["pending", "in_progress", "completed", "cancelled", "survey_needed"]}
+                }, "required": ["ref_id", "status"]}
+            }},
+            {"type": "function", "function": {
+                "name": "add_request_note",
+                "description": "Add admin note to a request",
+                "parameters": {"type": "object", "properties": {
+                    "ref_id": {"type": "string"},
+                    "note": {"type": "string"}
+                }, "required": ["ref_id", "note"]}
+            }},
+            {"type": "function", "function": {
+                "name": "get_request_details",
+                "description": "Get full details of a request",
+                "parameters": {"type": "object", "properties": {
+                    "ref_id": {"type": "string"}
+                }, "required": ["ref_id"]}
+            }},
+            {"type": "function", "function": {
+                "name": "get_daily_report",
+                "description": "Today's request counts and status breakdown",
+                "parameters": {"type": "object", "properties": {}, "required": []}
+            }},
+            {"type": "function", "function": {
+                "name": "get_pending_requests",
+                "description": "List all pending requests",
+                "parameters": {"type": "object", "properties": {}, "required": []}
+            }},
+            {"type": "function", "function": {
+                "name": "get_revenue_report",
+                "description": "Revenue report",
+                "parameters": {"type": "object", "properties": {
+                    "days": {"type": "integer"}
+                }, "required": []}
+            }},
+            {"type": "function", "function": {
+                "name": "send_customer_email",
+                "description": "Send email to customer",
+                "parameters": {"type": "object", "properties": {
+                    "ref_id": {"type": "string"},
+                    "subject": {"type": "string"},
+                    "message": {"type": "string"}
+                }, "required": ["ref_id", "subject", "message"]}
+            }},
+            {"type": "function", "function": {
+                "name": "list_services",
+                "description": "List services",
+                "parameters": {"type": "object", "properties": {
+                    "active_only": {"type": "boolean"}
+                }, "required": []}
+            }},
+            {"type": "function", "function": {
+                "name": "get_customer_history",
+                "description": "Get customer request history by email or phone",
+                "parameters": {"type": "object", "properties": {
+                    "email": {"type": "string"},
+                    "phone": {"type": "string"}
+                }, "required": []}
+            }}
         ]
     
     def _get_db_connection(self):
@@ -481,7 +308,7 @@ class AIAssistant:
             "model": self.model or "openai/gpt-oss-20b",
             "messages": messages,
             "temperature": self.temperature,
-            "max_completion_tokens": self.max_tokens,
+            "max_completion_tokens": min(self.max_tokens, 600),
             "top_p": 1,
             "stream": False
         }
@@ -542,22 +369,25 @@ class AIAssistant:
                 for hist in history:
                     messages.insert(-1, {"role": hist['role'], "content": hist['content']})
 
-        # Token guard: keep total estimated tokens under 7000 (leave headroom for completion).
-        # Rough estimate: 1 token ≈ 4 chars. Trim oldest non-system history messages first.
-        TOKEN_LIMIT = 6000
+        # Token guard: tools schema ~1500 tokens, system ~120, leave 512 for reply.
+        # Hard cap input at 5500 tokens → ~16500 chars at 3 chars/token.
+        TOKEN_LIMIT = 5500
         CHARS_PER_TOKEN = 3
         char_budget = TOKEN_LIMIT * CHARS_PER_TOKEN
         total_chars = sum(len(m.get('content') or '') for m in messages)
+        # Strip all history first if over budget
+        if total_chars > char_budget and len(messages) > 2:
+            messages = [messages[0], messages[-1]]
+            total_chars = sum(len(m.get('content') or '') for m in messages)
+        # Trim individual history messages if still over
+        while total_chars > char_budget and len(messages) > 2:
+            removed = messages.pop(1)
+            total_chars -= len(removed.get('content') or '')
+        # Truncate user message as last resort
         if total_chars > char_budget:
-            # Trim history messages (indices 1 .. len-2 are history; last is current user msg)
-            while total_chars > char_budget and len(messages) > 2:
-                removed = messages.pop(1)  # remove oldest history entry
-                total_chars -= len(removed.get('content') or '')
-            # If the user message itself is huge, truncate it
-            if total_chars > char_budget:
-                max_user_chars = char_budget - len(messages[0].get('content') or '')
-                if max_user_chars > 200:
-                    messages[-1]['content'] = messages[-1]['content'][:max_user_chars]
+            max_user_chars = char_budget - len(messages[0].get('content') or '')
+            if max_user_chars > 200:
+                messages[-1]['content'] = messages[-1]['content'][:max_user_chars]
         
         try:
             # Call AI based on provider - use tools for Groq

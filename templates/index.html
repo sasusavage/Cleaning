@@ -39,6 +39,11 @@
     <div class="glow glow--top" aria-hidden="true"></div>
     <div class="glow glow--bottom" aria-hidden="true"></div>
 
+    {# Define nav contact vars early so they're available before <main> #}
+    {% set footer_phone = footer_info.phone if footer_info and footer_info.phone else '' %}
+    {% set footer_email = footer_info.email if footer_info and footer_info.email else '' %}
+    {% set footer_phone_href = footer_phone | replace(' ', '') | replace('-', '') | replace('(', '') | replace(')', '') %}
+
     <nav class="nav" data-animate="fade-in">
         <div class="nav__rail">
             <a class="nav__item nav__item--brand" href="#top" title="{{ company_name }}">
