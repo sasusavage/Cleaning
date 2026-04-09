@@ -404,6 +404,57 @@
         .btn--danger:hover { background: #dc2626; }
         .btn--success { background: var(--success); color: white; border-color: var(--success); }
 
+        /* Train AI panel */
+        .train-panel {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .train-panel.open { display: flex; }
+        .train-panel__box {
+            background: white;
+            border-radius: 0.75rem;
+            width: 90%;
+            max-width: 560px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .train-panel__header { display: flex; justify-content: space-between; align-items: center; }
+        .train-panel__title { font-size: 1rem; font-weight: 700; margin: 0; }
+        .train-panel__close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--muted); }
+        .train-panel__q {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            font-size: 0.85rem;
+            color: #166534;
+        }
+        .train-panel__q strong { display: block; margin-bottom: 0.25rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .train-panel__label { font-weight: 600; font-size: 0.85rem; }
+        .train-panel__hint { font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; }
+        .train-btn {
+            margin-top: 0.35rem;
+            padding: 0.2rem 0.55rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            border: 1px solid rgba(99,102,241,0.35);
+            background: rgba(99,102,241,0.08);
+            color: #4f46e5;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .train-btn:hover { background: rgba(99,102,241,0.18); }
+
         /* Persona Settings Tab */
         .persona-section { padding: 1.5rem; }
         .form-group { margin-bottom: 1.25rem; }
@@ -733,6 +784,36 @@
         </div>
     </main>
 
+    <!-- Train AI Modal -->
+    <div class="train-panel" id="trainPanel">
+        <div class="train-panel__box">
+            <div class="train-panel__header">
+                <h3 class="train-panel__title">🧠 Train AI from this conversation</h3>
+                <button class="train-panel__close" onclick="closeTrainPanel()">✕</button>
+            </div>
+            <div>
+                <div class="train-panel__q">
+                    <strong>Visitor asked:</strong>
+                    <span id="trainQuestion"></span>
+                </div>
+            </div>
+            <div>
+                <label class="train-panel__label" for="trainTitle">Knowledge Entry Title</label>
+                <p class="train-panel__hint">Short summary of what this covers</p>
+                <input type="text" id="trainTitle" class="form-group input" style="width:100%; padding:0.6rem 0.85rem; border:1px solid var(--border); border-radius:0.5rem; font-family:inherit; font-size:0.9rem; margin-top:0.35rem;">
+            </div>
+            <div>
+                <label class="train-panel__label" for="trainAnswer">Correct Answer for AI to Learn</label>
+                <p class="train-panel__hint">Edit the AI's response below so it's accurate. The AI will use this in future conversations.</p>
+                <textarea id="trainAnswer" style="width:100%; min-height:130px; padding:0.65rem 0.85rem; border:1px solid var(--border); border-radius:0.5rem; font-family:inherit; font-size:0.9rem; resize:vertical; margin-top:0.35rem;"></textarea>
+            </div>
+            <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+                <button class="btn" onclick="closeTrainPanel()">Cancel</button>
+                <button class="btn btn--primary" onclick="saveTraining()">Save to Knowledge Base</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Knowledge Entry Modal -->
     <div class="modal" id="knowledgeModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
         <div style="background: white; padding: 1.5rem; border-radius: 0.75rem; width: 90%; max-width: 500px;">
@@ -941,19 +1022,27 @@
                     document.getElementById('viewerStatus').className = 'badge ' + (data.session.is_resolved ? 'badge--success' : 'badge--warning');
 
                     const msgs = document.getElementById('chatViewerMessages');
-                    msgs.innerHTML = data.messages.map(m => {
+                    const allMsgs = data.messages;
+                    msgs.innerHTML = allMsgs.map((m, idx) => {
                         const roleClass = m.role === 'user' ? 'user' : (m.role === 'admin' ? 'admin' : 'assistant');
                         const avatar = roleClass === 'user'
                             ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
                             : roleClass === 'admin'
                                 ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1l3 5h5l-4 4 1.5 6L12 13l-5.5 3 1.5-6-4-4h5z"/></svg>'
                                 : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/></svg>';
+                        // Find previous user message for context
+                        const prevUser = roleClass === 'assistant'
+                            ? allMsgs.slice(0, idx).reverse().find(x => x.role === 'user')
+                            : null;
+                        const trainBtn = roleClass === 'assistant'
+                            ? `<button class="train-btn" onclick="openTrainPanel(${JSON.stringify(prevUser ? prevUser.content : '')}, ${JSON.stringify(m.content)})">🧠 Train AI</button>`
+                            : '';
                         return `
                             <div class="chat-msg chat-msg--${roleClass}">
                                 <div class="chat-msg__avatar">${avatar}</div>
                                 <div>
                                     <div class="chat-msg__bubble">${formatMessageContent(m.content)}</div>
-                                    <div class="chat-msg__time">${formatDate(m.created_at)}</div>
+                                    <div class="chat-msg__time">${formatDate(m.created_at)}${trainBtn}</div>
                                 </div>
                             </div>
                         `;
@@ -1172,6 +1261,52 @@
                 closeKnowledgeModal();
                 loadKnowledge();
             });
+        });
+
+        // Train AI panel
+        window.openTrainPanel = function(question, aiAnswer) {
+            document.getElementById('trainQuestion').textContent = question || '(no prior message)';
+            // Auto-generate a title from the first ~60 chars of the question
+            const autoTitle = question ? question.substring(0, 60).trim() + (question.length > 60 ? '…' : '') : 'AI Training Entry';
+            document.getElementById('trainTitle').value = autoTitle;
+            document.getElementById('trainAnswer').value = aiAnswer || '';
+            document.getElementById('trainPanel').classList.add('open');
+            setTimeout(() => document.getElementById('trainAnswer').focus(), 100);
+        };
+
+        window.closeTrainPanel = function() {
+            document.getElementById('trainPanel').classList.remove('open');
+        };
+
+        window.saveTraining = function() {
+            const title = document.getElementById('trainTitle').value.trim();
+            const answer = document.getElementById('trainAnswer').value.trim();
+            const question = document.getElementById('trainQuestion').textContent.trim();
+            if (!title || !answer) { showToast('Title and answer are required', 'error'); return; }
+
+            // Build content as Q&A so the AI has full context
+            const content = question && question !== '(no prior message)'
+                ? `Q: ${question}\n\nA: ${answer}`
+                : answer;
+
+            fetch('/admin/api/chat/knowledge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, content, category: 'Training', keywords: '', is_active: true })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) { showToast(data.error, 'error'); return; }
+                showToast('✅ Saved to knowledge base — AI will use this going forward', 'success');
+                closeTrainPanel();
+                loadKnowledge();
+            })
+            .catch(() => showToast('Failed to save', 'error'));
+        };
+
+        // Close train panel on backdrop click
+        document.getElementById('trainPanel').addEventListener('click', function(e) {
+            if (e.target === this) closeTrainPanel();
         });
 
         // Initialize
