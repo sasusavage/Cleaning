@@ -544,13 +544,32 @@
                     <a class="button button--primary" href="#quote">Areas We Cover</a>
                 </div>
                 <div class="coverage-map__media" aria-label="Service coverage map">
+                    {% set _tomtom_key = (travel_settings.tomtom_api_key if travel_settings and travel_settings.tomtom_api_key else '') %}
+                    {% if _tomtom_key %}
                     <div
                         id="coverage-zones-map"
                         class="coverage-zones-map"
                         data-coverage-bases='{{ coverage_ns.map_bases | tojson | safe }}'
                         data-coverage-radius='{{ coverage_radius }}'
-                        data-tomtom-key='{{ (travel_settings.tomtom_api_key if travel_settings and travel_settings.tomtom_api_key else "") | e }}'>
+                        data-tomtom-key='{{ _tomtom_key | e }}'>
                     </div>
+                    {% else %}
+                    {# No API key — use a free OpenStreetMap iframe centred on first base or Stevenage #}
+                    {% set _map_lat = (coverage_base.latitude | string) if coverage_base and coverage_base.latitude else '51.9021' %}
+                    {% set _map_lng = (coverage_base.longitude | string) if coverage_base and coverage_base.longitude else '-0.2060' %}
+                    {% set _map_zoom = '10' %}
+                    <div class="coverage-zones-map" style="border-radius:1rem;overflow:hidden;border:1px solid #e5e7eb;">
+                        <iframe
+                            src="https://www.openstreetmap.org/export/embed.html?bbox={{ ((_map_lng | float) - 0.35) }},{{ ((_map_lat | float) - 0.25) }},{{ ((_map_lng | float) + 0.35) }},{{ ((_map_lat | float) + 0.25) }}&amp;layer=mapnik&amp;marker={{ _map_lat }},{{ _map_lng }}"
+                            width="100%"
+                            height="100%"
+                            style="border:none;min-height:360px;display:block;"
+                            loading="lazy"
+                            title="Service coverage area map"
+                            referrerpolicy="no-referrer">
+                        </iframe>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </section>
