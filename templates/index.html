@@ -1571,27 +1571,46 @@
 
             try { bases = JSON.parse(rawBases); } catch (e) { bases = []; }
 
-            if (!apiKey || !window.tt) return;
+            if (!window.tt) return;
 
-            var map = tt.map({
-                key: apiKey,
-                container: 'coverage-zones-map',
-                center: [-0.5, 52.3],
-                zoom: 7,
-                style: 'tomtom://vector/1/basic-main'
+            // Fallback to OSM iframe if TomTom fails or no key
+            function fallbackToOSM() {
+                var lat = 51.9021, lng = -0.2060;
+                if (bases && bases[0]) {
+                    var b = bases[0];
+                    if (Number.isFinite(Number(b.lat))) lat = Number(b.lat);
+                    if (Number.isFinite(Number(b.lng))) lng = Number(b.lng);
+                }
+                mapEl.innerHTML = '<iframe src="https://www.openstreetmap.org/export/embed.html?bbox=' +
+                    (lng-0.35) + ',' + (lat-0.25) + ',' + (lng+0.35) + ',' + (lat+0.25) +
+                    '&layer=mapnik&marker=' + lat + ',' + lng +
+                    '" style="width:100%;height:100%;min-height:360px;border:none;display:block;" loading="lazy" title="Service coverage area map" referrerpolicy="no-referrer"></iframe>';
+            }
+
+            if (!apiKey) { fallbackToOSM(); return; }
+
+            var map;
+            try {
+                map = tt.map({
+                    key: apiKey,
+                    container: 'coverage-zones-map',
+                    center: [-0.2060, 51.9021],
+                    zoom: 9,
+                    style: 'tomtom://vector/1/basic-main'
+                });
+            } catch(e) { fallbackToOSM(); return; }
+
+            map.on('error', function(e) {
+                if (e && e.error && (String(e.error).includes('401') || String(e.error).includes('403') || String(e.error).includes('Unauthorized'))) {
+                    fallbackToOSM();
+                }
             });
 
             map.addControl(new tt.NavigationControl({ showZoom: true, showCompass: false }));
 
             var radiusMeters = Math.max(1, radiusMiles) * 1609.34;
 
-            var normalizedBases = Array.isArray(bases) ? bases.filter(function (b) {
-                return b && Number.isFinite(Number(b.lat)) && Number.isFinite(Number(b.lng));
-            }).map(function (b) {
-                return { name: b.name || 'Base', postcode: b.postcode || '', lat: Number(b.lat), lng: Number(b.lng) };
-            }) : [];
-
-            // If no coords, try TomTom geocode per postcode
+            // Geocode a postcode via TomTom Search API
             var geocodeWithTomTom = async function (postcode) {
                 try {
                     var url = 'https://api.tomtom.com/search/2/geocode/' + encodeURIComponent(postcode) + '.json?key=' + apiKey + '&countrySet=GB&limit=1';
@@ -1610,12 +1629,16 @@
                     var b = allBases[i];
                     if (!b) continue;
                     var lat = Number(b.lat), lng = Number(b.lng);
-                    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                    if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
                         resolved.push({ name: b.name || 'Base', postcode: b.postcode || '', lat: lat, lng: lng });
                     } else if (b.postcode) {
                         var coords = await geocodeWithTomTom(b.postcode);
                         if (coords) resolved.push({ name: b.name || 'Base', postcode: b.postcode || '', lat: coords.lat, lng: coords.lng });
                     }
+                }
+                // If still nothing, default to Stevenage
+                if (!resolved.length) {
+                    resolved.push({ name: 'Stevenage', postcode: 'SG1 4LT', lat: 51.9021, lng: -0.2060 });
                 }
                 return resolved;
             };
@@ -1637,16 +1660,12 @@
 
             map.on('load', function () {
                 buildBases().then(function (resolvedBases) {
-                    if (!resolvedBases.length) return;
-
                     var geojson = { type: 'geojson', data: { type: 'FeatureCollection', features: buildCircleFeatures(resolvedBases) } };
 
-                    // Add source then reference by ID in both layers
                     map.addSource('coverage-zones', geojson);
                     map.addLayer({ id: 'coverage-fill', type: 'fill', source: 'coverage-zones', paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.15 } });
                     map.addLayer({ id: 'coverage-outline', type: 'line', source: 'coverage-zones', paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-opacity': 0.7 } });
 
-                    // Markers
                     resolvedBases.forEach(function (base) {
                         var el = document.createElement('div');
                         el.className = 'coverage-map__marker';
@@ -1657,7 +1676,6 @@
                             .addTo(map);
                     });
 
-                    // Fit bounds
                     var lngs = resolvedBases.map(function (b) { return b.lng; });
                     var lats = resolvedBases.map(function (b) { return b.lat; });
                     var degOffset = radiusMeters / 111320;
@@ -1667,7 +1685,6 @@
                         { padding: 40, maxZoom: 11 }
                     );
 
-                    // Force resize in case container was hidden during init
                     setTimeout(function () { map.resize(); }, 200);
                 });
             });
