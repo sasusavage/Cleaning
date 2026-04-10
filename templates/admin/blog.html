@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Admin' %}
+    <title>Blog Posts | {{ company_name }} Admin</title>
+    <meta name="robots" content="noindex,nofollow">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        :root { --primary: #16a34a; --primary-dark: #15803d; --border: #e5e7eb; --bg: #f8fafc; --card: #fff; }
+        body { margin: 0; font-family: 'Inter', Arial, sans-serif; background: var(--bg); color: #1f2937; min-height: 100vh; }
+
+        /* Layout */
+        .layout { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+        .sidebar { background: #1e3a5f; color: #fff; padding: 1.5rem 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+        .sidebar__brand { padding: 0 1.25rem 1.25rem; font-weight: 700; font-size: 1rem; color: #a7f3d0; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 1rem; }
+        .sidebar__link { display: block; padding: 0.55rem 1.25rem; color: rgba(255,255,255,0.75); font-size: 0.88rem; text-decoration: none; transition: background 0.15s, color 0.15s; }
+        .sidebar__link:hover, .sidebar__link.active { background: rgba(255,255,255,0.08); color: #fff; }
+        .sidebar__sep { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 0.5rem 0; }
+
+        /* Main */
+        .main { padding: 2rem; max-width: 1100px; }
+        .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.75rem; }
+        .page-header h1 { margin: 0; font-size: 1.4rem; }
+
+        /* Buttons */
+        .btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.55rem 1.1rem; border-radius: 0.5rem; font-size: 0.88rem; font-weight: 600; cursor: pointer; border: none; transition: background 0.15s; }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-ghost { background: transparent; border: 1px solid var(--border); color: #374151; }
+        .btn-ghost:hover { background: #f3f4f6; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-sm { padding: 0.35rem 0.7rem; font-size: 0.8rem; }
+
+        /* Table */
+        .card { background: var(--card); border-radius: 0.75rem; box-shadow: 0 1px 4px rgba(0,0,0,0.07); overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        th { text-align: left; padding: 0.75rem 1rem; background: #f9fafb; border-bottom: 1px solid var(--border); color: #374151; font-weight: 600; }
+        td { padding: 0.75rem 1rem; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #fafafa; }
+
+        .badge { display: inline-block; padding: 0.2rem 0.55rem; border-radius: 2rem; font-size: 0.72rem; font-weight: 600; }
+        .badge-green { background: #dcfce7; color: #166534; }
+        .badge-gray  { background: #f3f4f6; color: #6b7280; }
+
+        .empty { text-align: center; padding: 3rem 1rem; color: #9ca3af; }
+
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; align-items: center; justify-content: center; padding: 1rem; }
+        .modal-overlay.open { display: flex; }
+        .modal { background: #fff; border-radius: 0.75rem; width: 100%; max-width: 720px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+        .modal__header { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); }
+        .modal__title { font-size: 1rem; font-weight: 700; margin: 0; }
+        .modal__close { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: #6b7280; line-height: 1; padding: 0; }
+        .modal__body { padding: 1.5rem; }
+        .modal__footer { padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 0.75rem; }
+
+        /* Form */
+        .form-row { margin-bottom: 1rem; }
+        .form-row label { display: block; font-size: 0.83rem; font-weight: 600; color: #374151; margin-bottom: 0.35rem; }
+        .form-row input[type=text], .form-row input[type=file], .form-row textarea, .form-row select {
+            width: 100%; padding: 0.55rem 0.75rem; border: 1px solid var(--border); border-radius: 0.45rem; font-size: 0.88rem; font-family: inherit; outline: none; transition: border-color 0.15s;
+        }
+        .form-row input:focus, .form-row textarea:focus { border-color: var(--primary); }
+        .form-row textarea { resize: vertical; }
+        .form-row small { font-size: 0.78rem; color: #6b7280; margin-top: 0.25rem; display: block; }
+        .form-row--check { display: flex; align-items: center; gap: 0.5rem; }
+        .form-row--check label { margin: 0; font-size: 0.9rem; }
+        .form-row--check input { width: auto; }
+
+        .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: #1f2937; color: #fff; padding: 0.75rem 1.25rem; border-radius: 0.5rem; font-size: 0.88rem; z-index: 2000; opacity: 0; transition: opacity 0.3s; }
+        .toast.show { opacity: 1; }
+        .toast.success { background: #15803d; }
+        .toast.error { background: #dc2626; }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="sidebar__brand">{{ company_name }}</div>
+        <a class="sidebar__link" href="{{ url_for('admin_dashboard') }}">← Dashboard</a>
+        <hr class="sidebar__sep">
+        <a class="sidebar__link" href="{{ url_for('admin_hero_content_page') }}">🖼 Hero Content</a>
+        <a class="sidebar__link" href="{{ url_for('admin_site_content_page') }}">✏️ Site Content</a>
+        <a class="sidebar__link active" href="{{ url_for('admin_blog_page') }}">📝 Blog Posts</a>
+        <a class="sidebar__link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
+        <a class="sidebar__link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
+    </aside>
+
+    <main class="main">
+        <div class="page-header">
+            <h1>📝 Blog Posts</h1>
+            <button class="btn btn-primary" onclick="openModal()">+ New Post</button>
+        </div>
+
+        <div class="card">
+            {% if posts %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Status</th>
+                        <th>Tags</th>
+                        <th>Published</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="posts-tbody">
+                    {% for post in posts %}
+                    <tr id="row-{{ post.id }}">
+                        <td><strong>{{ post.title }}</strong><br><span style="font-size:0.78rem;color:#9ca3af;">/blog/{{ post.slug }}</span></td>
+                        <td>
+                            {% if post.is_published %}
+                            <span class="badge badge-green">Published</span>
+                            {% else %}
+                            <span class="badge badge-gray">Draft</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ post.tags or '—' }}</td>
+                        <td>{{ post.published_at.strftime('%d %b %Y') if post.published_at and post.published_at.strftime is defined else (post.published_at or '—') }}</td>
+                        <td style="white-space:nowrap;">
+                            <button class="btn btn-ghost btn-sm" onclick="editPost({{ post.id }})">Edit</button>
+                            <a class="btn btn-ghost btn-sm" href="/blog/{{ post.slug }}" target="_blank">View</a>
+                            <button class="btn btn-danger btn-sm" onclick="deletePost({{ post.id }}, '{{ post.title | replace("'","\\'")|e }}')">Delete</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty" id="empty-state">
+                <p>No blog posts yet.</p>
+                <button class="btn btn-primary" onclick="openModal()">Write your first post</button>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+</div>
+
+<!-- Edit/Create Modal -->
+<div class="modal-overlay" id="post-modal">
+    <div class="modal">
+        <div class="modal__header">
+            <h2 class="modal__title" id="modal-title">New Post</h2>
+            <button class="modal__close" onclick="closeModal()">&times;</button>
+        </div>
+        <form id="post-form" enctype="multipart/form-data">
+            <input type="hidden" id="post-id" value="">
+            <div class="modal__body">
+                <div class="form-row">
+                    <label>Title *</label>
+                    <input type="text" id="f-title" name="title" required placeholder="e.g. 5 Tips for a Spotless Kitchen">
+                </div>
+                <div class="form-row">
+                    <label>Slug (URL)</label>
+                    <input type="text" id="f-slug" name="slug" placeholder="auto-generated from title">
+                    <small>Leave blank to auto-generate. e.g. 5-tips-for-a-spotless-kitchen</small>
+                </div>
+                <div class="form-row">
+                    <label>Excerpt (shown on listing page)</label>
+                    <textarea id="f-excerpt" name="excerpt" rows="2" placeholder="Brief summary..."></textarea>
+                </div>
+                <div class="form-row">
+                    <label>Content (HTML supported) *</label>
+                    <textarea id="f-content" name="content" rows="12" required placeholder="<p>Your article content here...</p>"></textarea>
+                    <small>You can use HTML tags: &lt;h2&gt;, &lt;p&gt;, &lt;ul&gt;, &lt;strong&gt;, &lt;a&gt;, &lt;img&gt;, &lt;blockquote&gt;</small>
+                </div>
+                <div class="form-row">
+                    <label>Featured Image</label>
+                    <input type="file" id="f-image" name="image" accept="image/*">
+                    <img id="f-image-preview" src="" alt="" style="max-width:200px; margin-top:0.5rem; border-radius:0.4rem; display:none;">
+                </div>
+                <div class="form-row">
+                    <label>Image Alt Text (for SEO &amp; accessibility)</label>
+                    <input type="text" id="f-image-alt" name="image_alt" placeholder="Describe the image">
+                </div>
+                <div class="form-row">
+                    <label>Tags (comma-separated)</label>
+                    <input type="text" id="f-tags" name="tags" placeholder="tips, cleaning, kitchen">
+                </div>
+                <div class="form-row">
+                    <label>Meta Description (for Google, max 320 chars)</label>
+                    <textarea id="f-meta" name="meta_description" rows="2" maxlength="320" placeholder="Short description for search engines..."></textarea>
+                </div>
+                <div class="form-row form-row--check">
+                    <input type="checkbox" id="f-published" name="is_published" value="1">
+                    <label for="f-published">Publish immediately</label>
+                </div>
+            </div>
+            <div class="modal__footer">
+                <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="save-btn">Save Post</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    var editingId = null;
+
+    function showToast(msg, type) {
+        var t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = 'toast show ' + (type || '');
+        setTimeout(function() { t.className = 'toast'; }, 3000);
+    }
+
+    function openModal(id) {
+        editingId = id || null;
+        document.getElementById('post-id').value = '';
+        document.getElementById('modal-title').textContent = id ? 'Edit Post' : 'New Post';
+        document.getElementById('post-form').reset();
+        document.getElementById('f-image-preview').style.display = 'none';
+        if (!id) {
+            document.getElementById('post-modal').classList.add('open');
+            return;
+        }
+        fetch('/admin/api/blog/posts/' + id)
+            .then(function(r) { return r.json(); })
+            .then(function(p) {
+                document.getElementById('post-id').value = p.id;
+                document.getElementById('f-title').value = p.title || '';
+                document.getElementById('f-slug').value = p.slug || '';
+                document.getElementById('f-excerpt').value = p.excerpt || '';
+                document.getElementById('f-content').value = p.content || '';
+                document.getElementById('f-image-alt').value = p.image_alt || '';
+                document.getElementById('f-tags').value = p.tags || '';
+                document.getElementById('f-meta').value = p.meta_description || '';
+                document.getElementById('f-published').checked = !!p.is_published;
+                if (p.image_path) {
+                    var prev = document.getElementById('f-image-preview');
+                    prev.src = '/' + p.image_path;
+                    prev.style.display = 'block';
+                }
+                document.getElementById('post-modal').classList.add('open');
+            })
+            .catch(function() { showToast('Failed to load post', 'error'); });
+    }
+
+    function editPost(id) { openModal(id); }
+
+    function closeModal() {
+        document.getElementById('post-modal').classList.remove('open');
+    }
+
+    document.getElementById('post-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var btn = document.getElementById('save-btn');
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+
+        var id = document.getElementById('post-id').value;
+        var fd = new FormData(this);
+        fd.set('is_published', document.getElementById('f-published').checked ? '1' : '0');
+
+        var url = id ? '/admin/api/blog/posts/' + id : '/admin/api/blog/posts';
+        var method = id ? 'PUT' : 'POST';
+
+        try {
+            var res = await fetch(url, { method: method, body: fd });
+            var data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Save failed');
+            showToast('Post saved!', 'success');
+            closeModal();
+            setTimeout(function() { location.reload(); }, 800);
+        } catch(err) {
+            showToast(err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save Post';
+        }
+    });
+
+    async function deletePost(id, title) {
+        if (!confirm('Delete "' + title + '"? This cannot be undone.')) return;
+        try {
+            var res = await fetch('/admin/api/blog/posts/' + id, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Delete failed');
+            var row = document.getElementById('row-' + id);
+            if (row) row.remove();
+            showToast('Post deleted', 'success');
+        } catch(err) {
+            showToast('Delete failed', 'error');
+        }
+    }
+
+    // Auto-preview image
+    document.getElementById('f-image').addEventListener('change', function() {
+        var file = this.files[0];
+        if (!file) return;
+        var prev = document.getElementById('f-image-preview');
+        prev.src = URL.createObjectURL(file);
+        prev.style.display = 'block';
+    });
+
+    // Close on overlay click
+    document.getElementById('post-modal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+</script>
+</body>
+</html>

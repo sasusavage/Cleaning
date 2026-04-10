@@ -637,14 +637,14 @@ document.addEventListener("DOMContentLoaded", function () {
             // Hide preloader as soon as DOM is interactive — don't wait for images/fonts
             if (document.readyState === "loading") {
                 document.addEventListener("DOMContentLoaded", function () {
-                    window.setTimeout(finalizePreloader, 200);
+                    window.setTimeout(finalizePreloader, 100);
                 });
             } else {
-                window.setTimeout(finalizePreloader, 200);
+                window.setTimeout(finalizePreloader, 100);
             }
 
-            // Hard cap: never show more than 2.5 seconds regardless
-            window.setTimeout(finalizePreloader, 2500);
+            // Hard cap: never show more than 1.25 seconds regardless
+            window.setTimeout(finalizePreloader, 1250);
 
             window.addEventListener("load", function () {
                 finalizePreloader();

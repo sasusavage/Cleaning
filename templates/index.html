@@ -7,7 +7,7 @@
     {% set company_logo = site_settings.logo_path if site_settings and site_settings.logo_path else '' %}
     {% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
     {% set page_title_text = hero.title if hero else 'Professional Cleaning Services' %}
-    <title>{{ page_title_text or 'Professional Cleaning Services' }} | {{ company_name }}</title>
+    <title>{{ company_name }} | Professional Cleaning Services</title>
     {% set _site_url = 'https://done-wellcleaninglimited.org' %}
     {% set _meta_desc = 'Professional residential and commercial cleaning in Stevenage, Hertfordshire and surrounding areas. Fully vetted, insured cleaners. Get a free quote today.' %}
     {% set _og_image = company_logo_url if company_logo_url else (_site_url ~ '/favicon/apple-touch-icon.png') %}
@@ -140,6 +140,10 @@
                     <span class="nav__label">FAQs</span>
                 </a>
                 {% endif %}
+
+                <a class="nav__item" href="/blog" title="Blog">
+                    <span class="nav__label">Blog</span>
+                </a>
 
             </div>
 
@@ -300,13 +304,19 @@
                 <h2 class="section__title">{{ site_content.services_section_title if site_content and site_content.services_section_title else 'Professional cleaning tailored to every space \u2014 from your home to your business.' }}</h2>
             </div>
 
-            <div class="services__grid" data-animate="fade-in" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 1.25rem;">
+            <!-- Skeleton cards shown while page loads -->
+            <div class="services__grid skeleton-grid" id="services-skeleton" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 1.25rem;" aria-hidden="true">
+                <div class="skeleton-card"><span class="skeleton skeleton--title"></span><span class="skeleton skeleton--text"></span><span class="skeleton skeleton--text" style="width:40%"></span><span class="skeleton skeleton--btn" style="margin-top:0.75rem;width:100%;"></span></div>
+                <div class="skeleton-card"><span class="skeleton skeleton--title"></span><span class="skeleton skeleton--text"></span><span class="skeleton skeleton--text" style="width:40%"></span><span class="skeleton skeleton--btn" style="margin-top:0.75rem;width:100%;"></span></div>
+            </div>
+
+            <div class="services__grid" data-animate="fade-in" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 1.25rem; display:none;" id="services-real">
                 <article class="service-card">
                     <div class="service-card__body">
                         <h3>One-Time Services</h3>
                         <p class="service-card__description">Deep cleans, move-in/move-out, post-build and one-off specialist jobs.</p>
                         <p class="service-card__price">{{ one_time_services|length }} service{{ 's' if one_time_services|length != 1 else '' }}</p>
-                        <a class="button button--ghost" href="{{ url_for('services_page') }}#one-time" style="margin-top: 1rem; width: 100%; justify-content: center;">Browse One-Time</a>
+                        <a class="button button--ghost" href="{{ url_for('services_page') }}#one-time" style="margin-top: 1rem; width: 100%; justify-content: center;">Select One-Time</a>
                     </div>
                 </article>
                 <article class="service-card">
@@ -314,15 +324,31 @@
                         <h3>Contract-Based Services</h3>
                         <p class="service-card__description">Recurring plans with weekly, fortnightly, and monthly options.</p>
                         <p class="service-card__price">{{ contract_services|length }} service{{ 's' if contract_services|length != 1 else '' }}</p>
-                        <a class="button button--ghost" href="{{ url_for('services_page') }}#contract-based" style="margin-top: 1rem; width: 100%; justify-content: center;">Browse Contract Plans</a>
+                        <a class="button button--ghost" href="{{ url_for('services_page') }}#contract-based" style="margin-top: 1rem; width: 100%; justify-content: center;">Select Contract Plans</a>
                     </div>
                 </article>
-            </div>
+            </div><!-- #services-real -->
 
             <div class="drawer-toggle" data-animate="fade-in">
-                <a class="button button--primary" href="{{ url_for('services_page') }}">Browse Full Services Catalog</a>
+                <a class="button button--primary" href="{{ url_for('services_page') }}">Select from Full Services Catalog</a>
             </div>
         </section>
+        <script>
+            // Swap skeleton → real service cards as soon as DOM is ready
+            (function() {
+                function revealServices() {
+                    var sk = document.getElementById('services-skeleton');
+                    var real = document.getElementById('services-real');
+                    if (sk) sk.style.display = 'none';
+                    if (real) real.style.display = '';
+                }
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', revealServices);
+                } else {
+                    revealServices();
+                }
+            })();
+        </script>
 
         <!-- Why Choose Us Section -->
         {% set why_choose_data = site_content.why_choose_us if site_content and site_content.why_choose_us else {} %}

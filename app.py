@@ -13028,6 +13028,305 @@ def cookie_policy():
     return render_template('cookie_policy.html', site_settings=site_settings)
 
 
+# ============================================================
+# BLOG
+# ============================================================
+
+_done_ensure_blog_table = False
+
+def ensure_blog_table():
+    global _done_ensure_blog_table
+    if _done_ensure_blog_table:
+        return
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    if engine == 'postgres':
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS blog_posts (
+                id BIGSERIAL PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                slug VARCHAR(255) NOT NULL UNIQUE,
+                excerpt TEXT,
+                content TEXT NOT NULL,
+                image_path VARCHAR(512),
+                image_alt VARCHAR(255),
+                meta_description VARCHAR(320),
+                tags VARCHAR(512),
+                is_published BOOLEAN DEFAULT FALSE,
+                published_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+    else:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS blog_posts (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                slug VARCHAR(255) NOT NULL UNIQUE,
+                excerpt TEXT,
+                content TEXT NOT NULL,
+                image_path VARCHAR(512),
+                image_alt VARCHAR(255),
+                meta_description VARCHAR(320),
+                tags VARCHAR(512),
+                is_published TINYINT(1) DEFAULT 0,
+                published_at DATETIME,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
+    conn.commit()
+    cursor.close()
+    conn.close()
+    _done_ensure_blog_table = True
+
+
+def _blog_slugify(text):
+    import re as _re
+    text = (text or '').lower().strip()
+    text = _re.sub(r'[^\w\s-]', '', text)
+    text = _re.sub(r'[\s_-]+', '-', text)
+    return text[:120]
+
+
+def _blog_unique_slug(base_slug, exclude_id=None):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    slug = base_slug
+    n = 1
+    while True:
+        if exclude_id:
+            cursor.execute("SELECT id FROM blog_posts WHERE slug = %s AND id != %s", (slug, exclude_id))
+        else:
+            cursor.execute("SELECT id FROM blog_posts WHERE slug = %s", (slug,))
+        if not cursor.fetchone():
+            break
+        slug = f"{base_slug}-{n}"
+        n += 1
+    cursor.close()
+    conn.close()
+    return slug
+
+
+@app.route('/blog')
+def blog_index():
+    ensure_blog_table()
+    site_settings = fetch_site_settings() or {}
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    if engine == 'postgres':
+        cursor.execute("SELECT id,title,slug,excerpt,image_path,image_alt,tags,published_at FROM blog_posts WHERE is_published = TRUE ORDER BY published_at DESC, id DESC")
+    else:
+        cursor.execute("SELECT id,title,slug,excerpt,image_path,image_alt,tags,published_at FROM blog_posts WHERE is_published = 1 ORDER BY published_at DESC, id DESC")
+    posts = cursor.fetchall() or []
+    cursor.close()
+    conn.close()
+    return render_template('blog_index.html', posts=posts, site_settings=site_settings)
+
+
+@app.route('/blog/<slug>')
+def blog_post(slug):
+    ensure_blog_table()
+    site_settings = fetch_site_settings() or {}
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    if engine == 'postgres':
+        cursor.execute("SELECT * FROM blog_posts WHERE slug = %s AND is_published = TRUE", (slug,))
+    else:
+        cursor.execute("SELECT * FROM blog_posts WHERE slug = %s AND is_published = 1", (slug,))
+    post = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if not post:
+        abort(404)
+    return render_template('blog_post.html', post=post, site_settings=site_settings)
+
+
+# Admin blog routes
+@app.route('/admin/blog')
+@admin_login_required
+def admin_blog_page():
+    ensure_blog_table()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT id,title,slug,is_published,published_at,created_at FROM blog_posts ORDER BY id DESC")
+    posts = cursor.fetchall() or []
+    cursor.close()
+    conn.close()
+    site_settings = fetch_site_settings() or {}
+    return render_template('admin/blog.html', posts=posts, site_settings=site_settings)
+
+
+@app.route('/admin/api/blog/posts', methods=['GET'])
+@admin_login_required
+def admin_api_blog_list():
+    ensure_blog_table()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT id,title,slug,is_published,tags,published_at,created_at FROM blog_posts ORDER BY id DESC")
+    posts = cursor.fetchall() or []
+    cursor.close()
+    conn.close()
+    for p in posts:
+        p['is_published'] = bool(p.get('is_published'))
+        for k in ('published_at', 'created_at'):
+            if p.get(k):
+                p[k] = p[k].isoformat() if hasattr(p[k], 'isoformat') else str(p[k])
+    return jsonify({'posts': posts})
+
+
+@app.route('/admin/api/blog/posts', methods=['POST'])
+@admin_login_required
+def admin_api_blog_create():
+    ensure_blog_table()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    title = sanitize_text(request.form.get('title'), 255)
+    if not title:
+        return jsonify({'error': 'Title is required'}), 400
+    slug = _blog_unique_slug(_blog_slugify(request.form.get('slug') or title))
+    excerpt = (request.form.get('excerpt') or '').strip()[:500]
+    content = (request.form.get('content') or '').strip()
+    image_alt = sanitize_text(request.form.get('image_alt'), 255) or title
+    meta_description = (request.form.get('meta_description') or excerpt or '')[:320]
+    tags = sanitize_text(request.form.get('tags'), 512)
+    is_published = bool(str_to_bool(request.form.get('is_published', '0')))
+
+    # Handle image upload
+    image_path = None
+    img_file = request.files.get('image')
+    if img_file and img_file.filename:
+        try:
+            from werkzeug.utils import secure_filename as _sf
+            import os as _os
+            ext = _os.path.splitext(_sf(img_file.filename))[1].lower()
+            fname = f"blog_{slug}{ext}"
+            upload_dir = _os.path.join(app.root_path, 'static', 'uploads', 'blog')
+            _os.makedirs(upload_dir, exist_ok=True)
+            img_file.save(_os.path.join(upload_dir, fname))
+            image_path = f"static/uploads/blog/{fname}"
+        except Exception:
+            app.logger.exception('Blog image upload failed')
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    now = datetime.utcnow()
+    if engine == 'postgres':
+        published_at = now if is_published else None
+        cursor.execute(
+            "INSERT INTO blog_posts (title,slug,excerpt,content,image_path,image_alt,meta_description,tags,is_published,published_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+            (title, slug, excerpt, content, image_path, image_alt, meta_description, tags, is_published, published_at)
+        )
+        row = cursor.fetchone()
+        new_id = row['id'] if row else None
+    else:
+        published_at = now if is_published else None
+        cursor.execute(
+            "INSERT INTO blog_posts (title,slug,excerpt,content,image_path,image_alt,meta_description,tags,is_published,published_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            (title, slug, excerpt, content, image_path, image_alt, meta_description, tags, int(is_published), published_at)
+        )
+        new_id = cursor.lastrowid
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'success': True, 'id': new_id, 'slug': slug})
+
+
+@app.route('/admin/api/blog/posts/<int:post_id>', methods=['GET'])
+@admin_login_required
+def admin_api_blog_get(post_id):
+    ensure_blog_table()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM blog_posts WHERE id = %s", (post_id,))
+    post = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if not post:
+        return jsonify({'error': 'Not found'}), 404
+    post['is_published'] = bool(post.get('is_published'))
+    for k in ('published_at', 'created_at', 'updated_at'):
+        if post.get(k):
+            post[k] = post[k].isoformat() if hasattr(post[k], 'isoformat') else str(post[k])
+    return jsonify(post)
+
+
+@app.route('/admin/api/blog/posts/<int:post_id>', methods=['PUT'])
+@admin_login_required
+def admin_api_blog_update(post_id):
+    ensure_blog_table()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    title = sanitize_text(request.form.get('title'), 255)
+    if not title:
+        return jsonify({'error': 'Title is required'}), 400
+    slug = _blog_unique_slug(_blog_slugify(request.form.get('slug') or title), exclude_id=post_id)
+    excerpt = (request.form.get('excerpt') or '').strip()[:500]
+    content = (request.form.get('content') or '').strip()
+    image_alt = sanitize_text(request.form.get('image_alt'), 255) or title
+    meta_description = (request.form.get('meta_description') or excerpt or '')[:320]
+    tags = sanitize_text(request.form.get('tags'), 512)
+    is_published = bool(str_to_bool(request.form.get('is_published', '0')))
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Existing image handling
+    cursor.execute("SELECT image_path, published_at FROM blog_posts WHERE id = %s", (post_id,))
+    existing = cursor.fetchone() or {}
+    image_path = existing.get('image_path')
+    existing_published_at = existing.get('published_at')
+
+    img_file = request.files.get('image')
+    if img_file and img_file.filename:
+        try:
+            from werkzeug.utils import secure_filename as _sf
+            import os as _os
+            ext = _os.path.splitext(_sf(img_file.filename))[1].lower()
+            fname = f"blog_{slug}{ext}"
+            upload_dir = _os.path.join(app.root_path, 'static', 'uploads', 'blog')
+            _os.makedirs(upload_dir, exist_ok=True)
+            img_file.save(_os.path.join(upload_dir, fname))
+            image_path = f"static/uploads/blog/{fname}"
+        except Exception:
+            app.logger.exception('Blog image upload failed')
+
+    now = datetime.utcnow()
+    published_at = existing_published_at if existing_published_at else (now if is_published else None)
+    if is_published and not existing_published_at:
+        published_at = now
+
+    if engine == 'postgres':
+        cursor.execute(
+            "UPDATE blog_posts SET title=%s,slug=%s,excerpt=%s,content=%s,image_path=%s,image_alt=%s,meta_description=%s,tags=%s,is_published=%s,published_at=%s,updated_at=NOW() WHERE id=%s",
+            (title, slug, excerpt, content, image_path, image_alt, meta_description, tags, is_published, published_at, post_id)
+        )
+    else:
+        cursor.execute(
+            "UPDATE blog_posts SET title=%s,slug=%s,excerpt=%s,content=%s,image_path=%s,image_alt=%s,meta_description=%s,tags=%s,is_published=%s,published_at=%s,updated_at=NOW() WHERE id=%s",
+            (title, slug, excerpt, content, image_path, image_alt, meta_description, tags, int(is_published), published_at, post_id)
+        )
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'success': True, 'slug': slug})
+
+
+@app.route('/admin/api/blog/posts/<int:post_id>', methods=['DELETE'])
+@admin_login_required
+def admin_api_blog_delete(post_id):
+    ensure_blog_table()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("DELETE FROM blog_posts WHERE id = %s", (post_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'success': True})
+
+
 @app.route('/')
 def index():
     services = []
@@ -13359,7 +13658,35 @@ def sitemap_xml():
     except Exception:
         app.logger.exception('Failed to build dynamic service URLs for sitemap.xml')
 
-    all_urls = base_urls + service_urls
+    # Add blog posts to sitemap
+    blog_urls = []
+    try:
+        ensure_blog_table()
+        _engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+        _conn = get_db_connection()
+        _cur = _conn.cursor(dictionary=True)
+        if _engine == 'postgres':
+            _cur.execute("SELECT slug, updated_at FROM blog_posts WHERE is_published = TRUE ORDER BY id DESC")
+        else:
+            _cur.execute("SELECT slug, updated_at FROM blog_posts WHERE is_published = 1 ORDER BY id DESC")
+        _posts = _cur.fetchall() or []
+        _cur.close()
+        _conn.close()
+        blog_index_url = _public_url(url_for('blog_index'))
+        blog_urls.append({'loc': blog_index_url, 'lastmod': None, 'changefreq': 'daily', 'priority': '0.8'})
+        for _p in _posts:
+            _dt = _p.get('updated_at')
+            _lastmod = _dt.date().isoformat() if isinstance(_dt, datetime) else (str(_dt).split('T')[0].split(' ')[0] if _dt else None)
+            blog_urls.append({
+                'loc': _public_url(url_for('blog_post', slug=_p['slug'])),
+                'lastmod': _lastmod,
+                'changefreq': 'monthly',
+                'priority': '0.7'
+            })
+    except Exception:
+        app.logger.exception('Failed to build blog URLs for sitemap.xml')
+
+    all_urls = base_urls + service_urls + blog_urls
     lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for item in all_urls:
         lines.append('  <url>')

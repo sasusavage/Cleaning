@@ -147,6 +147,40 @@ button {
     color: inherit;
 }
 
+/* ============================================================
+   SKELETON LOADING
+   ============================================================ */
+@keyframes skeletonShimmer {
+    0%   { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+}
+.skeleton {
+    background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+    background-size: 800px 100%;
+    animation: skeletonShimmer 1.4s infinite linear;
+    border-radius: 0.4rem;
+    display: block;
+}
+.skeleton--text   { height: 1em; margin-bottom: 0.5em; }
+.skeleton--title  { height: 1.6em; width: 60%; margin-bottom: 0.75em; }
+.skeleton--img    { height: 180px; width: 100%; border-radius: 0.6rem; }
+.skeleton--btn    { height: 2.4em; width: 120px; border-radius: 2rem; }
+.skeleton--avatar { height: 48px; width: 48px; border-radius: 50%; }
+/* card skeleton wrapper */
+.skeleton-card {
+    background: #fff;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* ============================================================
+   PRELOADER
+   ============================================================ */
+
 .preloader {
     position: fixed;
     inset: 0;
