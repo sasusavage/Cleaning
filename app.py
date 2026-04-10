@@ -2718,6 +2718,7 @@ DEFAULT_HOME_PAGE_SECTIONS = [
     {'section_key': 'services', 'section_label': 'Services'},
     {'section_key': 'why_choose', 'section_label': 'Why Choose Us'},
     {'section_key': 'about', 'section_label': 'About'},
+    {'section_key': 'tri_zonal', 'section_label': 'Tri-Zonal System'},
     {'section_key': 'areas_coverage', 'section_label': 'Areas We Cover'},
     {'section_key': 'testimonials', 'section_label': 'Testimonials'},
     {'section_key': 'policy', 'section_label': 'Policies'},
