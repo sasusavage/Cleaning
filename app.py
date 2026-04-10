@@ -152,6 +152,7 @@ REQUEST_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'requests')
 BRAND_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'brand')
 ABOUT_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'about')
 DOMESTIC_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'domestic')
+TZ_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'trizonal')
 for folder in (
     UPLOAD_ROOT,
     SERVICE_UPLOAD_FOLDER,
@@ -162,7 +163,8 @@ for folder in (
     REQUEST_UPLOAD_FOLDER,
     BRAND_UPLOAD_FOLDER,
     ABOUT_UPLOAD_FOLDER,
-    DOMESTIC_UPLOAD_FOLDER
+    DOMESTIC_UPLOAD_FOLDER,
+    TZ_UPLOAD_FOLDER
 ):
     os.makedirs(folder, exist_ok=True)
 
@@ -11072,6 +11074,51 @@ def admin_site_content_api():
         if conn:
             conn.close()
         return jsonify({'error': 'Unable to update site content right now.'}), 500
+
+
+@app.route('/admin/api/trizonal-image', methods=['POST'])
+@admin_login_required
+def admin_trizonal_image_api():
+    """Upload a tri-zonal image (hero_bg, red_image, green_image, blue_image).
+    Expects multipart: field=<field_name>, existing=<old_url>
+    Returns JSON with the new URL under the same field name."""
+    field = request.form.get('field', '').strip()
+    allowed = {'hero_bg', 'red_image', 'green_image', 'blue_image'}
+    if field not in allowed:
+        return jsonify({'error': 'Invalid field.'}), 400
+    existing = request.form.get('existing', '').strip()
+    # Delete old image
+    if existing:
+        delete_uploaded_file(existing)
+    url = handle_upload(field, TZ_UPLOAD_FOLDER, existing)
+    if not url or url == existing:
+        return jsonify({'error': 'No file uploaded.'}), 400
+    # Persist into the tri_zonal JSON blob in site_content
+    content = fetch_site_content()
+    tz = content.get('tri_zonal') or {}
+    if isinstance(tz, str):
+        try:
+            tz = json.loads(tz)
+        except Exception:
+            tz = {}
+    if field == 'hero_bg':
+        tz['hero_bg'] = url
+    else:
+        zone_key = field.replace('_image', '')  # 'red', 'green', 'blue'
+        tz.setdefault('zones', {}).setdefault(zone_key, {})['image'] = url
+    # Save back
+    conn = get_db_connection()
+    cur = conn.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    active_val = 1
+    tz_json = json.dumps(tz)
+    cur.execute("UPDATE site_content SET content_json=%s, updated_at=CURRENT_TIMESTAMP WHERE section_key='tri_zonal'", (tz_json,))
+    if cur.rowcount == 0:
+        cur.execute("INSERT INTO site_content (section_key, content_json, is_active) VALUES ('tri_zonal', %s, %s)", (tz_json, active_val))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return jsonify({'url': url, 'field': field})
 
 
 @app.route('/admin/api/team-photo', methods=['POST', 'DELETE'])

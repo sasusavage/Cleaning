@@ -10,6 +10,7 @@
     {% set red   = zones.red   if zones.red   else {'name':'Red Zones',   'subtitle':'Bath & Shower rooms & WC', 'tasks':['Dust for Cobwebs','Dust off all surfaces','Clean Bin & Empty all trash','Tidy-up','Polish mirrors','Dust glosswork','Remove hairs from plug hole','Add toilet cleaner','Clean shower','Scrub bath']} %}
     {% set green = zones.green if zones.green else {'name':'Green Zones', 'subtitle':'Kitchen & Utility',        'tasks':['Dust for Cobwebs','Clean Bin & Empty all trash','Vacuum floor','Tidy-up','Inside Fridge on request','Clean Hob & extractor','Switches and handles','Backsplash area & worktops','Clean furniture','Vacuum & Mop floor']} %}
     {% set blue  = zones.blue  if zones.blue  else {'name':'Blue Zones',  'subtitle':'Living & Bedrooms',        'tasks':['Dust for Cobwebs','Clean Bin & Empty all trash','Change bed linen (optional)','Dust glosswork','Dust all Fixtures and fittings','Vacuum upholstery','Clean front door & porchway','Clean any brass (optional)','Dust off all surfaces']} %}
+    {% set hero_bg_url = (tz.hero_bg | media_url) if tz and tz.hero_bg else '' %}
     <title>{{ company_name }} | {{ tz_title }}</title>
     <meta name="description" content="{{ tz_desc[:160] }}">
     <meta name="robots" content="index, follow">
@@ -24,23 +25,53 @@
         a { color: inherit; text-decoration: none; }
 
         /* Nav */
-        .tz-nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0.9rem 2rem; display: flex; align-items: center; gap: 1rem; }
+        .tz-nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0.9rem 2rem; display: flex; align-items: center; gap: 1rem; position: sticky; top: 0; z-index: 100; }
         .tz-nav__brand { font-weight: 800; font-size: 1.05rem; color: #16a34a; }
         .tz-nav__links { display: flex; gap: 1.25rem; margin-left: auto; font-size: 0.88rem; color: #374151; }
         .tz-nav__links a:hover { color: #16a34a; }
 
-        /* Hero */
-        .tz-hero { background: #111827; color: #fff; padding: 5rem 2rem 4rem; text-align: center; position: relative; overflow: hidden; }
-        .tz-hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(22,163,74,0.15) 50%, rgba(37,99,235,0.15) 100%); }
-        .tz-hero__inner { position: relative; max-width: 700px; margin: 0 auto; }
-        .tz-hero__eyebrow { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #9ca3af; margin-bottom: 0.75rem; }
+        /* Hero — scales exactly like main homepage hero */
+        .tz-hero {
+            position: relative;
+            min-height: 420px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: #111827;
+            color: #fff;
+            text-align: center;
+        }
+        .tz-hero__bg {
+            position: absolute;
+            inset: 0;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            transition: transform 0.1s linear;
+        }
+        .tz-hero__overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg,
+                rgba(239,68,68,0.55) 0%,
+                rgba(17,24,39,0.72) 50%,
+                rgba(37,99,235,0.55) 100%);
+        }
+        .tz-hero__inner {
+            position: relative;
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 5rem 2rem 4rem;
+        }
+        .tz-hero__eyebrow { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.65); margin-bottom: 0.75rem; }
         .tz-hero__title { font-size: clamp(2rem, 6vw, 3.5rem); font-weight: 900; line-height: 1.1; margin: 0 0 0.5rem; }
         .tz-hero__bar { display: flex; justify-content: center; gap: 0; margin: 1rem auto 1.5rem; width: 200px; height: 6px; border-radius: 3px; overflow: hidden; }
         .tz-hero__bar span { flex: 1; }
         .tz-hero__bar .r { background: #ef4444; }
         .tz-hero__bar .g { background: #16a34a; }
         .tz-hero__bar .b { background: #2563eb; }
-        .tz-hero__desc { font-size: 1.05rem; line-height: 1.75; color: #d1d5db; max-width: 600px; margin: 0 auto; }
+        .tz-hero__desc { font-size: 1.05rem; line-height: 1.75; color: rgba(255,255,255,0.85); max-width: 600px; margin: 0 auto; }
 
         /* Zone explanation */
         .tz-explain { background: #fff; padding: 3rem 2rem; }
@@ -58,8 +89,10 @@
         .tz-zones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
         @media (max-width: 700px) { .tz-zones { grid-template-columns: 1fr; } }
         .tz-zone { border-radius: 0.75rem; overflow: hidden; }
-        .tz-zone__header { padding: 1.25rem 1.25rem 0.75rem; color: #fff; text-align: center; }
-        .tz-zone__icon { font-size: 2.5rem; margin-bottom: 0.5rem; display: block; }
+        .tz-zone__header { padding: 1.5rem 1.25rem 1rem; color: #fff; text-align: center; }
+        .tz-zone__img-wrap { width: 72px; height: 72px; border-radius: 50%; overflow: hidden; margin: 0 auto 0.75rem; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; }
+        .tz-zone__img-wrap img { width: 100%; height: 100%; object-fit: cover; }
+        .tz-zone__icon-fallback { font-size: 2.25rem; line-height: 1; }
         .tz-zone__name { font-size: 1.1rem; font-weight: 800; margin: 0 0 0.2rem; }
         .tz-zone__sub  { font-size: 0.82rem; opacity: 0.9; margin: 0; }
         .tz-zone__list { background: #fff; padding: 0.5rem 0; }
@@ -93,13 +126,19 @@
         <div class="tz-nav__links">
             <a href="/">Home</a>
             <a href="/services">Services</a>
-            <a href="/tri-zonal" style="color:#16a34a;font-weight:600;">Tri-Zonal</a>
+            <a href="/tri-zonal" style="color:#16a34a;font-weight:600;">{{ tz_title }}</a>
             <a href="/blog">Blog</a>
         </div>
     </nav>
 
-    <!-- Hero -->
-    <header class="tz-hero">
+    <!-- Hero with scalable background image -->
+    <header class="tz-hero" id="tz-hero">
+        {% if hero_bg_url %}
+        <div class="tz-hero__bg" id="tz-hero-bg" style="background-image:url('{{ hero_bg_url }}');"></div>
+        {% else %}
+        <div class="tz-hero__bg" id="tz-hero-bg"></div>
+        {% endif %}
+        <div class="tz-hero__overlay"></div>
         <div class="tz-hero__inner">
             <p class="tz-hero__eyebrow">Our Cleaning Method</p>
             <h1 class="tz-hero__title">{{ tz_title }}</h1>
@@ -122,9 +161,12 @@
             </div>
             <div class="tz-zones">
                 <!-- Red -->
+                {% set red_img = (red.image | media_url) if red.image else '' %}
                 <div class="tz-zone tz-zone--red">
                     <div class="tz-zone__header">
-                        <span class="tz-zone__icon">🏠</span>
+                        <div class="tz-zone__img-wrap">
+                            {% if red_img %}<img src="{{ red_img }}" alt="{{ red.name }}">{% else %}<span class="tz-zone__icon-fallback">🏠</span>{% endif %}
+                        </div>
                         <h2 class="tz-zone__name">{{ red.name }}</h2>
                         <p class="tz-zone__sub">{{ red.subtitle }}</p>
                     </div>
@@ -133,9 +175,12 @@
                     </ul>
                 </div>
                 <!-- Green -->
+                {% set green_img = (green.image | media_url) if green.image else '' %}
                 <div class="tz-zone tz-zone--green">
                     <div class="tz-zone__header">
-                        <span class="tz-zone__icon">🏠</span>
+                        <div class="tz-zone__img-wrap">
+                            {% if green_img %}<img src="{{ green_img }}" alt="{{ green.name }}">{% else %}<span class="tz-zone__icon-fallback">🍽️</span>{% endif %}
+                        </div>
                         <h2 class="tz-zone__name">{{ green.name }}</h2>
                         <p class="tz-zone__sub">{{ green.subtitle }}</p>
                     </div>
@@ -144,9 +189,12 @@
                     </ul>
                 </div>
                 <!-- Blue -->
+                {% set blue_img = (blue.image | media_url) if blue.image else '' %}
                 <div class="tz-zone tz-zone--blue">
                     <div class="tz-zone__header">
-                        <span class="tz-zone__icon">🏠</span>
+                        <div class="tz-zone__img-wrap">
+                            {% if blue_img %}<img src="{{ blue_img }}" alt="{{ blue.name }}">{% else %}<span class="tz-zone__icon-fallback">🛋️</span>{% endif %}
+                        </div>
                         <h2 class="tz-zone__name">{{ blue.name }}</h2>
                         <p class="tz-zone__sub">{{ blue.subtitle }}</p>
                     </div>
@@ -161,12 +209,25 @@
     <!-- CTA -->
     <section class="tz-cta">
         <h2>Ready for a consistent, professional clean?</h2>
-        <p>Book with Done-Well and experience the Tri-Zonal difference.</p>
+        <p>Book with {{ company_name }} and experience the {{ tz_title }} difference.</p>
         <a href="/services">View Our Services</a>
     </section>
 
     <footer class="tz-footer">
-        &copy; {{ company_name }} &middot; <a href="/">Home</a> &middot; <a href="/services">Services</a> &middot; <a href="/tri-zonal">Tri-Zonal</a>
+        &copy; {{ company_name }} &middot; <a href="/">Home</a> &middot; <a href="/services">Services</a> &middot; <a href="/tri-zonal">{{ tz_title }}</a>
     </footer>
+
+    <script>
+        // Parallax scroll effect on hero background — same behaviour as main homepage
+        (function() {
+            const bg = document.getElementById('tz-hero-bg');
+            if (!bg || !bg.style.backgroundImage || bg.style.backgroundImage === 'none') return;
+            function onScroll() {
+                const scrollY = window.scrollY || window.pageYOffset;
+                bg.style.transform = 'translateY(' + (scrollY * 0.3) + 'px)';
+            }
+            window.addEventListener('scroll', onScroll, { passive: true });
+        })();
+    </script>
 </body>
 </html>
