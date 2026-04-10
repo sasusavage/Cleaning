@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Done-Well Cleaning Limited' %}
+    {% set tz_title = tz.title if tz and tz.title else 'TRI-ZONAL™ SYSTEM' %}
+    {% set tz_desc = tz.description if tz and tz.description else 'Our professional cleaners follow a unique colour-coded system designed to deliver consistent, excellent results every visit.' %}
+    {% set zones = tz.zones if tz and tz.zones else {} %}
+    {% set red   = zones.red   if zones.red   else {'name':'Red Zones',   'subtitle':'Bath & Shower rooms & WC', 'tasks':['Dust for Cobwebs','Dust off all surfaces','Clean Bin & Empty all trash','Tidy-up','Polish mirrors','Dust glosswork','Remove hairs from plug hole','Add toilet cleaner','Clean shower','Scrub bath']} %}
+    {% set green = zones.green if zones.green else {'name':'Green Zones', 'subtitle':'Kitchen & Utility',        'tasks':['Dust for Cobwebs','Clean Bin & Empty all trash','Vacuum floor','Tidy-up','Inside Fridge on request','Clean Hob & extractor','Switches and handles','Backsplash area & worktops','Clean furniture','Vacuum & Mop floor']} %}
+    {% set blue  = zones.blue  if zones.blue  else {'name':'Blue Zones',  'subtitle':'Living & Bedrooms',        'tasks':['Dust for Cobwebs','Clean Bin & Empty all trash','Change bed linen (optional)','Dust glosswork','Dust all Fixtures and fittings','Vacuum upholstery','Clean front door & porchway','Clean any brass (optional)','Dust off all surfaces']} %}
+    <title>{{ company_name }} | {{ tz_title }}</title>
+    <meta name="description" content="{{ tz_desc[:160] }}">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://done-wellcleaninglimited.org/tri-zonal">
+    <link rel="icon" href="/favicon/favicon.ico" sizes="any">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Inter', Arial, sans-serif; background: #f8fafc; color: #1f2937; }
+        a { color: inherit; text-decoration: none; }
+
+        /* Nav */
+        .tz-nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0.9rem 2rem; display: flex; align-items: center; gap: 1rem; }
+        .tz-nav__brand { font-weight: 800; font-size: 1.05rem; color: #16a34a; }
+        .tz-nav__links { display: flex; gap: 1.25rem; margin-left: auto; font-size: 0.88rem; color: #374151; }
+        .tz-nav__links a:hover { color: #16a34a; }
+
+        /* Hero */
+        .tz-hero { background: #111827; color: #fff; padding: 5rem 2rem 4rem; text-align: center; position: relative; overflow: hidden; }
+        .tz-hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(22,163,74,0.15) 50%, rgba(37,99,235,0.15) 100%); }
+        .tz-hero__inner { position: relative; max-width: 700px; margin: 0 auto; }
+        .tz-hero__eyebrow { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #9ca3af; margin-bottom: 0.75rem; }
+        .tz-hero__title { font-size: clamp(2rem, 6vw, 3.5rem); font-weight: 900; line-height: 1.1; margin: 0 0 0.5rem; }
+        .tz-hero__bar { display: flex; justify-content: center; gap: 0; margin: 1rem auto 1.5rem; width: 200px; height: 6px; border-radius: 3px; overflow: hidden; }
+        .tz-hero__bar span { flex: 1; }
+        .tz-hero__bar .r { background: #ef4444; }
+        .tz-hero__bar .g { background: #16a34a; }
+        .tz-hero__bar .b { background: #2563eb; }
+        .tz-hero__desc { font-size: 1.05rem; line-height: 1.75; color: #d1d5db; max-width: 600px; margin: 0 auto; }
+
+        /* Zone explanation */
+        .tz-explain { background: #fff; padding: 3rem 2rem; }
+        .tz-explain__inner { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 2fr; gap: 3rem; align-items: start; }
+        @media (max-width: 700px) { .tz-explain__inner { grid-template-columns: 1fr; } }
+        .tz-explain__text h2 { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 800; line-height: 1.25; margin: 0 0 1rem; }
+        .tz-explain__badges { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 1rem; }
+        .tz-badge { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.6rem; border-radius: 0.3rem; font-size: 0.82rem; font-weight: 700; color: #fff; }
+        .tz-badge.r { background: #ef4444; }
+        .tz-badge.g { background: #16a34a; }
+        .tz-badge.b { background: #2563eb; }
+        .tz-explain__text p { font-size: 0.95rem; line-height: 1.75; color: #4b5563; margin: 0.75rem 0 0; }
+
+        /* Zone columns */
+        .tz-zones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+        @media (max-width: 700px) { .tz-zones { grid-template-columns: 1fr; } }
+        .tz-zone { border-radius: 0.75rem; overflow: hidden; }
+        .tz-zone__header { padding: 1.25rem 1.25rem 0.75rem; color: #fff; text-align: center; }
+        .tz-zone__icon { font-size: 2.5rem; margin-bottom: 0.5rem; display: block; }
+        .tz-zone__name { font-size: 1.1rem; font-weight: 800; margin: 0 0 0.2rem; }
+        .tz-zone__sub  { font-size: 0.82rem; opacity: 0.9; margin: 0; }
+        .tz-zone__list { background: #fff; padding: 0.5rem 0; }
+        .tz-zone__item { padding: 0.65rem 1.25rem; font-size: 0.88rem; color: #374151; border-bottom: 1px solid #f3f4f6; text-align: center; }
+        .tz-zone__item:last-child { border-bottom: none; }
+        .tz-zone--red   .tz-zone__header { background: #ef4444; }
+        .tz-zone--red   .tz-zone__item:hover { background: #fff5f5; }
+        .tz-zone--green .tz-zone__header { background: #16a34a; }
+        .tz-zone--green .tz-zone__item:hover { background: #f0fdf4; }
+        .tz-zone--blue  .tz-zone__header { background: #2563eb; }
+        .tz-zone--blue  .tz-zone__item:hover { background: #eff6ff; }
+
+        /* Zones section wrapper */
+        .tz-section { max-width: 1100px; margin: 0 auto; padding: 2rem 2rem 4rem; }
+
+        /* CTA */
+        .tz-cta { background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; text-align: center; padding: 3.5rem 2rem; }
+        .tz-cta h2 { font-size: 1.75rem; font-weight: 800; margin: 0 0 0.5rem; }
+        .tz-cta p { margin: 0 0 1.5rem; opacity: 0.9; }
+        .tz-cta a { display: inline-block; background: #fff; color: #16a34a; font-weight: 700; padding: 0.8rem 2rem; border-radius: 2rem; font-size: 0.95rem; transition: transform 0.15s; }
+        .tz-cta a:hover { transform: translateY(-2px); }
+
+        /* Footer */
+        .tz-footer { text-align: center; padding: 1.5rem; font-size: 0.8rem; color: #9ca3af; border-top: 1px solid #f3f4f6; }
+        .tz-footer a { color: #16a34a; }
+    </style>
+</head>
+<body>
+    <nav class="tz-nav">
+        <a class="tz-nav__brand" href="/">{{ company_name }}</a>
+        <div class="tz-nav__links">
+            <a href="/">Home</a>
+            <a href="/services">Services</a>
+            <a href="/tri-zonal" style="color:#16a34a;font-weight:600;">Tri-Zonal</a>
+            <a href="/blog">Blog</a>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <header class="tz-hero">
+        <div class="tz-hero__inner">
+            <p class="tz-hero__eyebrow">Our Cleaning Method</p>
+            <h1 class="tz-hero__title">{{ tz_title }}</h1>
+            <div class="tz-hero__bar"><span class="r"></span><span class="g"></span><span class="b"></span></div>
+            <p class="tz-hero__desc">{{ tz_desc }}</p>
+        </div>
+    </header>
+
+    <!-- Zone explanation -->
+    <section class="tz-explain">
+        <div class="tz-explain__inner">
+            <div class="tz-explain__text">
+                <h2>Each home is divided into 3 different coloured zones.</h2>
+                <div class="tz-explain__badges">
+                    <span class="tz-badge r">Red</span> for Bathrooms and WC's &nbsp;
+                    <span class="tz-badge g">Green</span> for Kitchens and Utilities &nbsp;
+                    <span class="tz-badge b">Blue</span> for Living and Bedrooms.
+                </div>
+                <p>Each zone has a distinct set of tasks to be followed, along with that zone's corresponding products and coloured cloths — ensuring hygiene, efficiency and consistency across every clean.</p>
+            </div>
+            <div class="tz-zones">
+                <!-- Red -->
+                <div class="tz-zone tz-zone--red">
+                    <div class="tz-zone__header">
+                        <span class="tz-zone__icon">🏠</span>
+                        <h2 class="tz-zone__name">{{ red.name }}</h2>
+                        <p class="tz-zone__sub">{{ red.subtitle }}</p>
+                    </div>
+                    <ul class="tz-zone__list" style="list-style:none;margin:0;padding:0;">
+                        {% for task in red.tasks %}<li class="tz-zone__item">{{ task }}</li>{% endfor %}
+                    </ul>
+                </div>
+                <!-- Green -->
+                <div class="tz-zone tz-zone--green">
+                    <div class="tz-zone__header">
+                        <span class="tz-zone__icon">🏠</span>
+                        <h2 class="tz-zone__name">{{ green.name }}</h2>
+                        <p class="tz-zone__sub">{{ green.subtitle }}</p>
+                    </div>
+                    <ul class="tz-zone__list" style="list-style:none;margin:0;padding:0;">
+                        {% for task in green.tasks %}<li class="tz-zone__item">{{ task }}</li>{% endfor %}
+                    </ul>
+                </div>
+                <!-- Blue -->
+                <div class="tz-zone tz-zone--blue">
+                    <div class="tz-zone__header">
+                        <span class="tz-zone__icon">🏠</span>
+                        <h2 class="tz-zone__name">{{ blue.name }}</h2>
+                        <p class="tz-zone__sub">{{ blue.subtitle }}</p>
+                    </div>
+                    <ul class="tz-zone__list" style="list-style:none;margin:0;padding:0;">
+                        {% for task in blue.tasks %}<li class="tz-zone__item">{{ task }}</li>{% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="tz-cta">
+        <h2>Ready for a consistent, professional clean?</h2>
+        <p>Book with Done-Well and experience the Tri-Zonal difference.</p>
+        <a href="/services">View Our Services</a>
+    </section>
+
+    <footer class="tz-footer">
+        &copy; {{ company_name }} &middot; <a href="/">Home</a> &middot; <a href="/services">Services</a> &middot; <a href="/tri-zonal">Tri-Zonal</a>
+    </footer>
+</body>
+</html>

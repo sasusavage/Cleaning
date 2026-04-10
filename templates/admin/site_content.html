@@ -855,6 +855,48 @@
                 </div>
             </div>
 
+            <!-- Tri-Zonal System Editor -->
+            <div class="card" id="trizonal-card">
+                <h2 class="card__title">🏠 Tri-Zonal System</h2>
+                <p class="card__desc">Edit the Tri-Zonal cleaning system section shown on the homepage and the <a href="/tri-zonal" target="_blank" style="color:var(--primary);">dedicated page</a>.</p>
+
+                <div style="display:grid;gap:0.75rem;margin-bottom:1rem;">
+                    <label class="form-label">Section Title</label>
+                    <input type="text" id="tz_title" name="tz_title" class="form-input" placeholder="TRI-ZONAL™ SYSTEM" value="">
+
+                    <label class="form-label">Section Subtitle / Description</label>
+                    <textarea id="tz_description" name="tz_description" rows="3" class="form-input" placeholder="Our cleaners follow a unique system designed to give consistent, excellent results..."></textarea>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.25rem;">
+                    <!-- Red Zone -->
+                    <div style="border:2px solid #ef4444;border-radius:0.6rem;padding:1rem;">
+                        <h3 style="color:#ef4444;margin:0 0 0.5rem;font-size:0.95rem;">🔴 Red Zone</h3>
+                        <input type="text" id="tz_red_name" class="form-input" placeholder="Red Zones" style="margin-bottom:0.4rem;">
+                        <input type="text" id="tz_red_subtitle" class="form-input" placeholder="Bath & Shower rooms & WC" style="margin-bottom:0.4rem;">
+                        <label style="font-size:0.8rem;color:#6b7280;display:block;margin-bottom:0.25rem;">Tasks (one per line)</label>
+                        <textarea id="tz_red_tasks" rows="8" class="form-input" placeholder="Dust for Cobwebs&#10;Dust off all surfaces&#10;Clean Bin & Empty all trash"></textarea>
+                    </div>
+                    <!-- Green Zone -->
+                    <div style="border:2px solid #16a34a;border-radius:0.6rem;padding:1rem;">
+                        <h3 style="color:#16a34a;margin:0 0 0.5rem;font-size:0.95rem;">🟢 Green Zone</h3>
+                        <input type="text" id="tz_green_name" class="form-input" placeholder="Green Zones" style="margin-bottom:0.4rem;">
+                        <input type="text" id="tz_green_subtitle" class="form-input" placeholder="Kitchen & Utility" style="margin-bottom:0.4rem;">
+                        <label style="font-size:0.8rem;color:#6b7280;display:block;margin-bottom:0.25rem;">Tasks (one per line)</label>
+                        <textarea id="tz_green_tasks" rows="8" class="form-input" placeholder="Dust for Cobwebs&#10;Clean Bin & Empty all trash&#10;Vacuum floor"></textarea>
+                    </div>
+                    <!-- Blue Zone -->
+                    <div style="border:2px solid #2563eb;border-radius:0.6rem;padding:1rem;">
+                        <h3 style="color:#2563eb;margin:0 0 0.5rem;font-size:0.95rem;">🔵 Blue Zone</h3>
+                        <input type="text" id="tz_blue_name" class="form-input" placeholder="Blue Zones" style="margin-bottom:0.4rem;">
+                        <input type="text" id="tz_blue_subtitle" class="form-input" placeholder="Living & Bedrooms" style="margin-bottom:0.4rem;">
+                        <label style="font-size:0.8rem;color:#6b7280;display:block;margin-bottom:0.25rem;">Tasks (one per line)</label>
+                        <textarea id="tz_blue_tasks" rows="8" class="form-input" placeholder="Dust for Cobwebs&#10;Clean Bin & Empty all trash&#10;Change bed linen (optional)"></textarea>
+                    </div>
+                </div>
+                <p class="form-hint" style="margin-top:0.75rem;">Changes are saved when you click <strong>Save All Changes</strong>.</p>
+            </div>
+
             <!-- Terms & Conditions Editor -->
             <div class="card" id="terms-card">
                 <h2 class="card__title">📜 Terms &amp; Conditions</h2>
@@ -1082,7 +1124,16 @@
                 faqs_subtitle: g('faqs_subtitle'),
                 reviews_eyebrow: g('reviews_eyebrow'),
                 reviews_title: g('reviews_title'),
-                terms_of_service: { html: (document.getElementById('tos-editor')?.innerHTML || '').trim() }
+                terms_of_service: { html: (document.getElementById('tos-editor')?.innerHTML || '').trim() },
+                tri_zonal: {
+                    title: (document.getElementById('tz_title')?.value || '').trim(),
+                    description: (document.getElementById('tz_description')?.value || '').trim(),
+                    zones: {
+                        red:   { name: (document.getElementById('tz_red_name')?.value || '').trim(),   subtitle: (document.getElementById('tz_red_subtitle')?.value || '').trim(),   tasks: (document.getElementById('tz_red_tasks')?.value || '').split('\n').map(t=>t.trim()).filter(Boolean) },
+                        green: { name: (document.getElementById('tz_green_name')?.value || '').trim(), subtitle: (document.getElementById('tz_green_subtitle')?.value || '').trim(), tasks: (document.getElementById('tz_green_tasks')?.value || '').split('\n').map(t=>t.trim()).filter(Boolean) },
+                        blue:  { name: (document.getElementById('tz_blue_name')?.value || '').trim(),  subtitle: (document.getElementById('tz_blue_subtitle')?.value || '').trim(),  tasks: (document.getElementById('tz_blue_tasks')?.value || '').split('\n').map(t=>t.trim()).filter(Boolean) }
+                    }
+                }
             };
 
             try {
@@ -1408,6 +1459,40 @@
 
             // Track changes
             editor.addEventListener('input', markChanged);
+        })();
+        // ── Tri-Zonal Editor init ─────────────────────────────────────────
+        (function initTriZonal() {
+            const DEFAULT_TZ = {
+                title: 'TRI-ZONAL™ SYSTEM',
+                description: 'Our professional cleaners are trained to follow a unique cleaning system designed to give excellent, consistent results every visit. Each home is divided into 3 colour-coded zones — each with dedicated products and cloths to ensure hygiene and efficiency.',
+                zones: {
+                    red:   { name: 'Red Zones',   subtitle: 'Bath & Shower rooms & WC', tasks: ['Dust for Cobwebs','Dust off all surfaces','Clean Bin & Empty all trash','Tidy-up','Polish mirrors','Dust glosswork','Remove hairs from plug hole','Add toilet cleaner','Clean shower','Scrub bath'] },
+                    green: { name: 'Green Zones',  subtitle: 'Kitchen & Utility',        tasks: ['Dust for Cobwebs','Clean Bin & Empty all trash','Vacuum floor','Tidy-up','Inside Fridge on request','Clean Hob & extractor','Switches and handles','Backsplash area & worktops','Clean furniture','Vacuum & Mop floor'] },
+                    blue:  { name: 'Blue Zones',   subtitle: 'Living & Bedrooms',        tasks: ['Dust for Cobwebs','Clean Bin & Empty all trash','Change bed linen (optional)','Dust glosswork','Dust all Fixtures and fittings','Vacuum upholstery','Clean front door & porchway','Clean any brass (optional)','Dust off all surfaces'] }
+                }
+            };
+
+            function populateTz(data) {
+                const d = data || DEFAULT_TZ;
+                const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+                set('tz_title', d.title);
+                set('tz_description', d.description);
+                const z = d.zones || {};
+                ['red','green','blue'].forEach(c => {
+                    const zone = z[c] || {};
+                    set('tz_' + c + '_name', zone.name || '');
+                    set('tz_' + c + '_subtitle', zone.subtitle || '');
+                    set('tz_' + c + '_tasks', (zone.tasks || []).join('\n'));
+                });
+            }
+
+            fetch('/admin/api/site-content')
+                .then(r => r.json())
+                .then(function(content) {
+                    const saved = content && content.tri_zonal;
+                    populateTz((saved && (saved.title || (saved.zones && saved.zones.red))) ? saved : DEFAULT_TZ);
+                })
+                .catch(function() { populateTz(DEFAULT_TZ); });
         })();
         // ──────────────────────────────────────────────────────────────────
     </script>

@@ -145,6 +145,10 @@
                     <span class="nav__label">Blog</span>
                 </a>
 
+                <a class="nav__item" href="/tri-zonal" title="Tri-Zonal System">
+                    <span class="nav__label">Tri-Zonal</span>
+                </a>
+
             </div>
 
             <div class="nav__contact">
@@ -450,6 +454,50 @@
                         <span>Our Professional Team</span>
                     </div>
                     {% endif %}
+                </div>
+            </div>
+        </section>
+
+        <!-- Tri-Zonal Teaser -->
+        {% set tz = site_content.tri_zonal if site_content and site_content.tri_zonal else {} %}
+        {% set tz_title = tz.title if tz and tz.title else 'TRI-ZONAL™ SYSTEM' %}
+        {% set tz_desc = tz.description if tz and tz.description else 'Our professional cleaners follow a unique colour-coded system designed to deliver consistent, excellent results every visit.' %}
+        <section class="panel" id="tri-zonal-teaser" style="background:#fff; padding:4rem 2rem;">
+            <div style="max-width:1100px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr; gap:3rem; align-items:center;">
+                <div>
+                    <p class="section__eyebrow">Our Cleaning Method</p>
+                    <h2 class="section__title">{{ tz_title }}</h2>
+                    <p style="line-height:1.75; color:#4b5563; margin:1rem 0 1.5rem;">{{ tz_desc }}</p>
+                    <div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-bottom:1.5rem;">
+                        <span style="background:#ef4444; color:#fff; padding:0.3rem 0.75rem; border-radius:0.3rem; font-size:0.82rem; font-weight:700;">Red — Bathrooms & WC</span>
+                        <span style="background:#16a34a; color:#fff; padding:0.3rem 0.75rem; border-radius:0.3rem; font-size:0.82rem; font-weight:700;">Green — Kitchen & Utility</span>
+                        <span style="background:#2563eb; color:#fff; padding:0.3rem 0.75rem; border-radius:0.3rem; font-size:0.82rem; font-weight:700;">Blue — Living & Bedrooms</span>
+                    </div>
+                    <a href="/tri-zonal" class="button button--primary">Learn About Our System</a>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:0.75rem;">
+                    {% set tz_zones = tz.zones if tz and tz.zones else {} %}
+                    <div style="border-radius:0.6rem; overflow:hidden; text-align:center;">
+                        <div style="background:#ef4444; color:#fff; padding:1rem 0.5rem; font-weight:800; font-size:0.9rem;">
+                            {{ tz_zones.red.name if tz_zones and tz_zones.red and tz_zones.red.name else 'Red Zones' }}<br>
+                            <span style="font-weight:400; font-size:0.78rem; opacity:0.9;">{{ tz_zones.red.subtitle if tz_zones and tz_zones.red and tz_zones.red.subtitle else 'Bath, Shower & WC' }}</span>
+                        </div>
+                        <div style="background:#fff5f5; padding:0.5rem; font-size:0.8rem; color:#374151; border:1px solid #fecaca; border-top:none; border-radius:0 0 0.6rem 0.6rem;">3 colour-coded cloths &amp; products</div>
+                    </div>
+                    <div style="border-radius:0.6rem; overflow:hidden; text-align:center;">
+                        <div style="background:#16a34a; color:#fff; padding:1rem 0.5rem; font-weight:800; font-size:0.9rem;">
+                            {{ tz_zones.green.name if tz_zones and tz_zones.green and tz_zones.green.name else 'Green Zones' }}<br>
+                            <span style="font-weight:400; font-size:0.78rem; opacity:0.9;">{{ tz_zones.green.subtitle if tz_zones and tz_zones.green and tz_zones.green.subtitle else 'Kitchen & Utility' }}</span>
+                        </div>
+                        <div style="background:#f0fdf4; padding:0.5rem; font-size:0.8rem; color:#374151; border:1px solid #bbf7d0; border-top:none; border-radius:0 0 0.6rem 0.6rem;">Hygienic, cross-contamination free</div>
+                    </div>
+                    <div style="border-radius:0.6rem; overflow:hidden; text-align:center;">
+                        <div style="background:#2563eb; color:#fff; padding:1rem 0.5rem; font-weight:800; font-size:0.9rem;">
+                            {{ tz_zones.blue.name if tz_zones and tz_zones.blue and tz_zones.blue.name else 'Blue Zones' }}<br>
+                            <span style="font-weight:400; font-size:0.78rem; opacity:0.9;">{{ tz_zones.blue.subtitle if tz_zones and tz_zones.blue and tz_zones.blue.subtitle else 'Living & Bedrooms' }}</span>
+                        </div>
+                        <div style="background:#eff6ff; padding:0.5rem; font-size:0.8rem; color:#374151; border:1px solid #bfdbfe; border-top:none; border-radius:0 0 0.6rem 0.6rem;">Consistent results, every visit</div>
+                    </div>
                 </div>
             </div>
         </section>

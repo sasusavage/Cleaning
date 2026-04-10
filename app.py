@@ -6311,6 +6311,74 @@ def ensure_site_content_table():
             )
         """)
     conn.commit()
+
+    # Seed default tri_zonal content if not present
+    _tri_zonal_default = json.dumps({
+        'title': 'TRI-ZONAL\u2122 SYSTEM',
+        'description': 'Our professional cleaners follow a unique colour-coded system designed to deliver consistent, excellent results every visit.',
+        'zones': {
+            'red': {
+                'name': 'Red Zones',
+                'subtitle': 'Bath & Shower rooms & WC',
+                'tasks': [
+                    'Dust for Cobwebs',
+                    'Dust off all surfaces',
+                    'Clean Bin & Empty all trash',
+                    'Tidy-up',
+                    'Polish mirrors',
+                    'Dust glosswork',
+                    'Remove hairs from plug hole',
+                    'Add toilet cleaner',
+                    'Clean shower',
+                    'Scrub bath'
+                ]
+            },
+            'green': {
+                'name': 'Green Zones',
+                'subtitle': 'Kitchen & Utility',
+                'tasks': [
+                    'Dust for Cobwebs',
+                    'Clean Bin & Empty all trash',
+                    'Vacuum floor',
+                    'Tidy-up',
+                    'Inside Fridge on request',
+                    'Clean Hob & extractor',
+                    'Switches and handles',
+                    'Backsplash area & worktops',
+                    'Clean furniture',
+                    'Vacuum & Mop floor'
+                ]
+            },
+            'blue': {
+                'name': 'Blue Zones',
+                'subtitle': 'Living & Bedrooms',
+                'tasks': [
+                    'Dust for Cobwebs',
+                    'Clean Bin & Empty all trash',
+                    'Change bed linen (optional)',
+                    'Dust glosswork',
+                    'Dust all Fixtures and fittings',
+                    'Vacuum upholstery',
+                    'Clean front door & porchway',
+                    'Clean any brass (optional)',
+                    'Dust off all surfaces'
+                ]
+            }
+        }
+    })
+    if 'postgres' in engine:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO site_content (section_key, content_json, is_active) VALUES (%s, %s, TRUE) ON CONFLICT (section_key) DO NOTHING",
+            ('tri_zonal', _tri_zonal_default)
+        )
+    else:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT IGNORE INTO site_content (section_key, content_json, is_active) VALUES (%s, %s, 1)",
+            ('tri_zonal', _tri_zonal_default)
+        )
+    conn.commit()
     cursor.close()
     conn.close()
     _done_ensure_site_content_table = True
@@ -13108,6 +13176,14 @@ def _blog_unique_slug(base_slug, exclude_id=None):
     cursor.close()
     conn.close()
     return slug
+
+
+@app.route('/tri-zonal')
+def tri_zonal_page():
+    site_settings = fetch_site_settings() or {}
+    content = fetch_site_content() or {}
+    tz = content.get('tri_zonal') or {}
+    return render_template('tri_zonal.html', site_settings=site_settings, tz=tz)
 
 
 @app.route('/blog')
