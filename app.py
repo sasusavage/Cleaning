@@ -6369,7 +6369,7 @@ def ensure_site_content_table():
     if 'postgres' in engine:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO site_content (section_key, content_json, is_active) VALUES (%s, %s, TRUE) ON CONFLICT (section_key) DO NOTHING",
+            "INSERT INTO site_content (section_key, content_json, is_active) VALUES (%s, %s, 1) ON CONFLICT (section_key) DO NOTHING",
             ('tri_zonal', _tri_zonal_default)
         )
     else:
