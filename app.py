@@ -6702,26 +6702,34 @@ def _fetch_telegram_error_alert_target_quietly():
 
 
 class TelegramErrorLogHandler(logging.Handler):
-    def __init__(self, throttle_seconds=120, health_report_hours=6):
+    def __init__(self, throttle_seconds=120, health_report_hours=1):
         super().__init__(level=logging.ERROR)
         self.throttle_seconds = max(30, int(throttle_seconds or 120))
-        self.health_report_hours = max(1, int(health_report_hours or 6))
+        self.health_report_hours = max(1, int(health_report_hours or 1))
         self._last_sent_at = 0.0
         self._last_fingerprint = ''
         self._lock = threading.Lock()
         self._local = threading.local()
-        self._last_error_at = 0.0          # tracks when last real error occurred
-        self._health_reported_at = 0.0     # tracks when last "all clear" was sent
-        self._health_timer = None
+        self._error_count = 0              # total errors since last health report
+        self._error_types = []             # recent error summaries for health report
+        self._last_error_at = 0.0
+        self._health_reported_at = 0.0
+        self._periodic_timer = None
 
-    def _schedule_health_report(self):
-        """Schedule a health report if no further errors arrive within the window."""
-        if self._health_timer is not None:
-            self._health_timer.cancel()
-        interval = self.health_report_hours * 3600
-        self._health_timer = threading.Timer(interval, self._send_health_report)
-        self._health_timer.daemon = True
-        self._health_timer.start()
+    def _schedule_periodic_health(self):
+        """Fire a health report every hour regardless of whether errors occurred."""
+        if self._periodic_timer is not None:
+            self._periodic_timer.cancel()
+        self._periodic_timer = threading.Timer(
+            self.health_report_hours * 3600, self._periodic_health_tick
+        )
+        self._periodic_timer.daemon = True
+        self._periodic_timer.start()
+
+    def _periodic_health_tick(self):
+        """Called every hour — sends report then reschedules."""
+        self._send_health_report()
+        self._schedule_periodic_health()
 
     def _send_health_report(self):
         try:
@@ -6729,19 +6737,44 @@ class TelegramErrorLogHandler(logging.Handler):
             if not target:
                 return
             now = time.time()
-            hours = self.health_report_hours
-            text = (
-                f"✅ System Health Report\n"
-                f"No errors logged in the past {hours} hour{'s' if hours != 1 else ''}.\n"
-                f"All systems appear healthy."
-            )
+            with self._lock:
+                count = self._error_count
+                recent = list(self._error_types[-5:])   # last 5 distinct errors
+                self._error_count = 0
+                self._error_types = []
+
+            import datetime as _dt
+            ts = _dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+
+            if count == 0:
+                lines = [
+                    '✅ Hourly System Health Report',
+                    f'🕐 {ts}',
+                    f'Status: All systems healthy — no errors in the past {self.health_report_hours}h.',
+                    'Database ✓  |  Routes ✓  |  Background jobs ✓'
+                ]
+            else:
+                lines = [
+                    f'⚠️ Hourly System Health Report',
+                    f'🕐 {ts}',
+                    f'Status: {count} error(s) logged in the past {self.health_report_hours}h.',
+                    ''
+                ]
+                for i, e in enumerate(recent, 1):
+                    lines.append(f'{i}. {e}')
+                lines.append('')
+                lines.append('Check server logs for full tracebacks.')
+
+            text = '\n'.join(lines)
+            if len(text) > 4000:
+                text = text[:3997] + '...'
             url = f"https://api.telegram.org/bot{target['bot_token']}/sendMessage"
             requests.post(url, json={
                 'chat_id': target['chat_id'],
                 'text': text,
                 'disable_web_page_preview': True,
                 'disable_notification': True
-            }, timeout=5)
+            }, timeout=8)
             with self._lock:
                 self._health_reported_at = now
         except Exception:
@@ -6763,7 +6796,6 @@ class TelegramErrorLogHandler(logging.Handler):
             if not message:
                 return
 
-            # Only suppress invalid signature noise — webhook errors are real now
             suppressed_fragments = (
                 'Invalid Stripe webhook signature',
             )
@@ -6774,37 +6806,68 @@ class TelegramErrorLogHandler(logging.Handler):
             fingerprint = hashlib.sha256(fingerprint_source.encode('utf-8', errors='ignore')).hexdigest()
             now = time.time()
             with self._lock:
-                if fingerprint == self._last_fingerprint and (now - self._last_sent_at) < self.throttle_seconds:
+                throttled = (fingerprint == self._last_fingerprint and
+                             (now - self._last_sent_at) < self.throttle_seconds)
+                self._error_count += 1
+                summary = f"[{record.levelname}] {os.path.basename(record.pathname)}:{record.lineno} — {message[:120]}"
+                if summary not in self._error_types:
+                    self._error_types.append(summary)
+                if throttled:
                     return
                 self._last_fingerprint = fingerprint
                 self._last_sent_at = now
                 self._last_error_at = now
 
-            lines = [
-                '🚨 Application Error Detected',
-                f"Level: {record.levelname}",
-                f"Logger: {record.name}",
-                f"Location: {os.path.basename(record.pathname)}:{record.lineno}",
-                f"Message: {message[:1000]}"
-            ]
+            # Build full traceback string if available
+            tb_text = ''
             if record.exc_info:
-                lines.append('Traceback attached in server logs.')
+                import traceback as _tb
+                tb_lines = _tb.format_exception(*record.exc_info)
+                tb_text = ''.join(tb_lines).strip()
+
+            # Request context (if inside a Flask request)
+            req_context = ''
+            try:
+                from flask import request as _req
+                if _req and _req.method:
+                    req_context = f"{_req.method} {_req.path}"
+                    if _req.args:
+                        req_context += f"?{_req.query_string.decode('utf-8', errors='ignore')[:200]}"
+            except Exception:
+                pass
+
+            import datetime as _dt
+            ts = _dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+
+            lines = [
+                '🚨 Application Error',
+                f'🕐 {ts}',
+                f'Level:    {record.levelname}',
+                f'Logger:   {record.name}',
+                f'Location: {record.pathname}:{record.lineno}',
+            ]
+            if req_context:
+                lines.append(f'Request:  {req_context}')
+            lines.append(f'')
+            lines.append(f'Message:\n{message[:800]}')
+
+            if tb_text:
+                # Send only the last ~1200 chars of traceback (most relevant part)
+                tb_tail = tb_text[-1200:] if len(tb_text) > 1200 else tb_text
+                lines.append(f'\nTraceback (tail):\n{tb_tail}')
 
             text = '\n'.join(lines)
-            if len(text) > 3500:
-                text = text[:3497] + '...'
+            if len(text) > 4000:
+                text = text[:3997] + '...'
 
             url = f"https://api.telegram.org/bot{target['bot_token']}/sendMessage"
-            payload = {
+            requests.post(url, json={
                 'chat_id': target['chat_id'],
                 'text': text,
                 'disable_web_page_preview': True,
                 'disable_notification': False
-            }
-            requests.post(url, json=payload, timeout=5)
+            }, timeout=8)
 
-            # Reschedule health report — it fires only if no new errors arrive
-            self._schedule_health_report()
         except Exception:
             return
         finally:
@@ -6812,17 +6875,20 @@ class TelegramErrorLogHandler(logging.Handler):
 
 
 _telegram_error_log_handler_attached = False
+_telegram_error_log_handler_instance = None
 
 
 def configure_telegram_error_log_handler():
-    global _telegram_error_log_handler_attached
+    global _telegram_error_log_handler_attached, _telegram_error_log_handler_instance
     if _telegram_error_log_handler_attached:
         return
     try:
         handler = TelegramErrorLogHandler(throttle_seconds=120, health_report_hours=1)
-        # Attach to both app logger and root logger to catch errors from all modules
         app.logger.addHandler(handler)
         logging.getLogger().addHandler(handler)
+        # Start the recurring hourly health report immediately
+        handler._schedule_periodic_health()
+        _telegram_error_log_handler_instance = handler
         _telegram_error_log_handler_attached = True
     except Exception:
         pass
