@@ -33,9 +33,25 @@ class Config:
     ANALYTICS_DB = os.environ.get('ANALYTICS_DB', 'postgres')
 
     MYSQL_CURSORCLASS = 'DictCursor'
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key')
+
+    # SECRET_KEY must be set as an env var in production. If missing, generate a
+    # random one per process — sessions won't persist across restarts but it's
+    # safer than shipping a hardcoded fallback.
+    _secret_key_env = os.environ.get('SECRET_KEY', '').strip()
+    SECRET_KEY = _secret_key_env if _secret_key_env else os.urandom(32).hex()
+
     EMAIL_ENCRYPTION_KEY = os.environ.get('EMAIL_ENCRYPTION_KEY', 'your-email-key')
     PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL', os.environ.get('SITE_URL', '')).strip().rstrip('/')
+
+    # ── Session security ──────────────────────────────────────────────────────
+    SESSION_COOKIE_HTTPONLY = True          # JS cannot read session cookie
+    SESSION_COOKIE_SAMESITE = 'Lax'        # Blocks CSRF via cross-site requests
+    # Only send cookie over HTTPS in production
+    SESSION_COOKIE_SECURE = os.environ.get('FLASK_ENV', 'production').lower() != 'development'
+    PERMANENT_SESSION_LIFETIME = 43200      # 12 h max session lifetime in seconds
+
+    # ── Upload size limit ─────────────────────────────────────────────────────
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB hard cap on all uploads
 
     # Cloudinary settings
     CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', 'dhzw2vdy9')

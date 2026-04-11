@@ -142,6 +142,56 @@ def favicon_apple_touch_icon():
     return send_from_directory(os.path.join(app.root_path, 'favicon'), 'apple-touch-icon.png', mimetype='image/png')
 app.config.from_object(Config)
 
+# ── Security: HTTP → HTTPS redirect + security headers ───────────────────────
+@app.before_request
+def _enforce_https_and_security():
+    # Redirect HTTP to HTTPS on Render (X-Forwarded-Proto header)
+    proto = request.headers.get('X-Forwarded-Proto', '')
+    if proto == 'http':
+        url = request.url.replace('http://', 'https://', 1)
+        return redirect(url, code=301)
+
+@app.after_request
+def _add_security_headers(response):
+    # Prevent browsers from sniffing content types
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    # Block clickjacking
+    response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+    # XSS protection for older browsers
+    response.headers.setdefault('X-XSS-Protection', '1; mode=block')
+    # HSTS: force HTTPS for 1 year
+    response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+    # Referrer policy
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    return response
+
+# ── Login brute-force protection ──────────────────────────────────────────────
+# In-memory store: ip -> [timestamp, ...] of recent failed attempts
+_login_attempts: dict = {}
+_login_attempts_lock = threading.Lock()
+_LOGIN_MAX_ATTEMPTS = 10       # max failures per window
+_LOGIN_WINDOW_SECONDS = 300    # 5-minute sliding window
+_LOGIN_LOCKOUT_SECONDS = 900   # 15-minute lockout after limit hit
+
+def _check_login_rate_limit(ip: str) -> bool:
+    """Return True if IP is allowed to attempt login, False if locked out."""
+    now = time.time()
+    with _login_attempts_lock:
+        timestamps = _login_attempts.get(ip, [])
+        # Prune entries outside the window
+        timestamps = [t for t in timestamps if now - t < _LOGIN_WINDOW_SECONDS]
+        _login_attempts[ip] = timestamps
+        return len(timestamps) < _LOGIN_MAX_ATTEMPTS
+
+def _record_login_failure(ip: str):
+    now = time.time()
+    with _login_attempts_lock:
+        _login_attempts.setdefault(ip, []).append(now)
+
+def _clear_login_failures(ip: str):
+    with _login_attempts_lock:
+        _login_attempts.pop(ip, None)
+
 UPLOAD_ROOT = os.path.join(app.static_folder, 'static', 'uploads')
 SERVICE_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'services')
 JOB_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'jobs')
@@ -349,11 +399,38 @@ def sanitize_css_color(value, default='#ffffff', allow_empty=False):
     return default
 
 
+_EMAIL_RE = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
+
+# Allowed HTML tags for rich-text fields (blog content, TOS editor)
+_ALLOWED_HTML_TAGS_RE = re.compile(
+    r'<(?!/?(?:p|br|b|strong|i|em|u|ul|ol|li|h[1-6]|a|img|blockquote|hr|span|div|table|thead|tbody|tr|th|td|pre|code)\b)[^>]+>',
+    re.IGNORECASE
+)
+_DANGEROUS_ATTRS_RE = re.compile(
+    r'\s+on\w+\s*=\s*["\'][^"\']*["\']|\s+on\w+\s*=[^\s>]+',
+    re.IGNORECASE
+)
+_DANGEROUS_HREF_RE = re.compile(r'href\s*=\s*["\']?\s*javascript:', re.IGNORECASE)
+
+def sanitize_rich_html(value, max_length=200000):
+    """Strip dangerous tags/attributes from admin rich-text HTML."""
+    if not value:
+        return ''
+    html = str(value)[:max_length]
+    # Remove script/iframe/object/embed/form tags entirely
+    html = re.sub(r'<(script|iframe|object|embed|form|input|button|style)[^>]*>.*?</\1>', '', html, flags=re.IGNORECASE | re.DOTALL)
+    html = re.sub(r'<(script|iframe|object|embed|form|input|button|style)[^>]*/?>',  '', html, flags=re.IGNORECASE)
+    # Remove dangerous event handler attributes (onclick, onload, etc.)
+    html = _DANGEROUS_ATTRS_RE.sub('', html)
+    # Remove javascript: href values
+    html = _DANGEROUS_HREF_RE.sub('href="#"', html)
+    return html
+
 def sanitize_email(value, max_length=150):
     if not value:
         return ''
-    email = sanitize_text(value, max_length)
-    if '@' not in email:
+    email = sanitize_text(value, max_length).lower()
+    if not _EMAIL_RE.match(email):
         return ''
     return email
 
@@ -7005,7 +7082,7 @@ def get_services():
         services = fetch_services_from_db(include_inactive=include_inactive)
         return jsonify(services)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/travel-quote', methods=['POST'])
@@ -7904,7 +7981,7 @@ def get_job_positions():
         jobs = fetch_job_positions_from_db()
         return jsonify(jobs)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/services/add', methods=['POST'])
@@ -8024,7 +8101,7 @@ def add_service():
         return jsonify({'message': 'Service added!'}), 201
     except Exception as e:
         app.logger.exception('Failed to add service')
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/services/edit/<int:service_id>', methods=['PUT'])
@@ -8167,7 +8244,7 @@ def edit_service(service_id):
         return jsonify({'message': 'Service updated!'})
     except Exception as e:
         app.logger.exception('Failed to update service')
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/services/delete/<int:service_id>', methods=['DELETE'])
@@ -8196,7 +8273,7 @@ def delete_service(service_id):
         return jsonify({'message': 'Service deleted!'})
     except Exception as e:
         app.logger.exception('Failed to delete service')
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/admin/api/services/<int:service_id>/options', methods=['POST'])
@@ -8705,7 +8782,7 @@ def add_job_position():
         conn.close()
         return jsonify({'message': 'Job position added!'}), 201
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/job-positions/edit/<int:id>', methods=['PUT'])
@@ -8740,7 +8817,7 @@ def edit_job_position(id):
         conn.close()
         return jsonify({'message': 'Job position updated!'})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/job-positions/delete/<int:id>', methods=['DELETE'])
@@ -8761,7 +8838,7 @@ def delete_job_position(id):
             delete_uploaded_file(old_image)
         return jsonify({'message': 'Job position deleted!'})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/testimonials', methods=['GET'])
@@ -8772,7 +8849,7 @@ def get_testimonials():
         testimonials = fetch_testimonials_from_db(include_pending=include_all)
         return jsonify(testimonials)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/faqs', methods=['GET'])
@@ -8793,7 +8870,7 @@ def get_public_faqs():
         return jsonify(faqs)
     except Exception as e:
         app.logger.exception('Error fetching FAQs')
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 # ==================== PUBLIC AI CHAT WIDGET ====================
@@ -9059,7 +9136,7 @@ def send_chat_message():
         if conn:
             try:
                 conn.rollback()
-            except:
+            except Exception:
                 pass
         app.logger.exception('Error processing chat message')
         return jsonify({'error': 'Failed to process message'}), 500
@@ -9068,12 +9145,12 @@ def send_chat_message():
         if cursor:
             try:
                 cursor.close()
-            except:
+            except Exception:
                 pass
         if conn:
             try:
                 conn.close()
-            except:
+            except Exception:
                 pass
 
 
@@ -9094,12 +9171,12 @@ def build_chat_knowledge_context_separate():
         if cursor:
             try:
                 cursor.close()
-            except:
+            except Exception:
                 pass
         if conn:
             try:
                 conn.close()
-            except:
+            except Exception:
                 pass
 
 
@@ -9440,7 +9517,7 @@ def add_testimonial():
         conn.close()
         return jsonify({'message': 'Testimonial added!'}), 201
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/testimonials/edit/<int:id>', methods=['PUT'])
@@ -9456,7 +9533,7 @@ def edit_testimonial(id):
         conn.close()
         return jsonify({'message': 'Testimonial updated!'})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/testimonials/delete/<int:id>', methods=['DELETE'])
@@ -9470,7 +9547,7 @@ def delete_testimonial(id):
         conn.close()
         return jsonify({'message': 'Testimonial deleted!'})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/testimonials/approve/<int:id>', methods=['POST'])
@@ -9485,7 +9562,7 @@ def approve_testimonial(id):
         conn.close()
         return jsonify({'message': 'Testimonial approved!'})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/testimonials/reject/<int:id>', methods=['POST'])
@@ -9500,7 +9577,7 @@ def reject_testimonial(id):
         conn.close()
         return jsonify({'message': 'Testimonial rejected and removed.'})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/analytics/event', methods=['POST'])
@@ -9630,7 +9707,7 @@ def admin_dashboard_live_stats():
         })
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/admin/api/analytics/live', methods=['GET'])
@@ -9890,7 +9967,7 @@ def admin_analytics_live():
         })
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/admin/api/analytics/kpis', methods=['GET'])
@@ -9937,7 +10014,7 @@ def admin_analytics_kpis():
         })
     except Exception as e:
         app.logger.exception('Error in admin_analytics_kpis')
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/admin/api/analytics/ai-summary', methods=['POST'])
@@ -10027,7 +10104,7 @@ def admin_analytics_ai_summary():
 
     except Exception as e:
         app.logger.exception('Error in admin_analytics_ai_summary')
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/admin/api/analytics/summary', methods=['GET'])
@@ -11097,6 +11174,10 @@ def admin_site_content_api():
 
             # Determine if it's JSON or text content
             if isinstance(value, (dict, list)):
+                # Sanitise any embedded HTML fields (e.g. terms_of_service.html)
+                if isinstance(value, dict) and 'html' in value:
+                    value = dict(value)
+                    value['html'] = sanitize_rich_html(value['html'])
                 content_text = None
                 content_json = json.dumps(value)
             else:
@@ -13061,10 +13142,21 @@ def admin_login():
     error = ''
     site_settings = fetch_site_settings()
     if request.method == 'POST':
+        remote_ip = request.headers.get('X-Forwarded-For', request.remote_addr or 'unknown').split(',')[0].strip()
+        user_agent = sanitize_text(request.headers.get('User-Agent'), 150) or 'unknown'
+
+        # Rate limit check — lockout after too many failures
+        if not _check_login_rate_limit(remote_ip):
+            error = 'Too many failed attempts. Please try again in 15 minutes.'
+            send_telegram_notification('notify_login_failure', [
+                '[Admin] Login blocked — rate limit hit',
+                f'IP: {remote_ip}',
+                f'Agent: {user_agent}'
+            ])
+            return render_template('admin_login.html', error=error, site_settings=site_settings)
+
         username = (request.form.get('username') or '').strip()
         password = request.form.get('password') or ''
-        remote_ip = request.remote_addr or 'unknown'
-        user_agent = sanitize_text(request.headers.get('User-Agent'), 150) or 'unknown'
         sanitized_username = sanitize_text(username, 64) if username else ''
         failure_reason = None
 
@@ -13074,6 +13166,7 @@ def admin_login():
         else:
             user = fetch_admin_user(username)
             if user and user.get('password_hash') and check_password_hash(user['password_hash'], password):
+                _clear_login_failures(remote_ip)
                 session.clear()
                 session['admin_logged_in'] = True
                 session['admin_username'] = user.get('username')
@@ -13093,6 +13186,7 @@ def admin_login():
                 failure_reason = 'invalid_credentials'
 
         if failure_reason:
+            _record_login_failure(remote_ip)
             details = [
                 '[Admin] Login failure',
                 f'Username: {sanitized_username or "(empty)"}',
@@ -13379,7 +13473,7 @@ def admin_api_blog_create():
         return jsonify({'error': 'Title is required'}), 400
     slug = _blog_unique_slug(_blog_slugify(request.form.get('slug') or title))
     excerpt = (request.form.get('excerpt') or '').strip()[:500]
-    content = (request.form.get('content') or '').strip()
+    content = sanitize_rich_html((request.form.get('content') or '').strip())
     image_alt = sanitize_text(request.form.get('image_alt'), 255) or title
     meta_description = (request.form.get('meta_description') or excerpt or '')[:320]
     tags = sanitize_text(request.form.get('tags'), 512)
@@ -13454,7 +13548,7 @@ def admin_api_blog_update(post_id):
         return jsonify({'error': 'Title is required'}), 400
     slug = _blog_unique_slug(_blog_slugify(request.form.get('slug') or title), exclude_id=post_id)
     excerpt = (request.form.get('excerpt') or '').strip()[:500]
-    content = (request.form.get('content') or '').strip()
+    content = sanitize_rich_html((request.form.get('content') or '').strip())
     image_alt = sanitize_text(request.form.get('image_alt'), 255) or title
     meta_description = (request.form.get('meta_description') or excerpt or '')[:320]
     tags = sanitize_text(request.form.get('tags'), 512)
@@ -14556,7 +14650,7 @@ def analytics_chart_data():
     days = request.args.get('days', '30', type=str)
     try:
         days = min(int(days), 90)  # Max 90 days
-    except:
+    except (TypeError, ValueError):
         days = 30
     
     conn = get_db_connection()
