@@ -13528,12 +13528,11 @@ def index():
 
     try:
         operating_bases = fetch_operating_bases(include_inactive=False)
-        # If any bases are missing coordinates, geocode them in the background
-        # so this request isn't blocked. On subsequent loads the cached coords are used.
+        # Geocode any bases missing coordinates synchronously so lat/lng is
+        # always present in the rendered HTML (map works on first load).
         needs_geocode = any(b.get('latitude') is None or b.get('longitude') is None for b in operating_bases)
         if needs_geocode:
-            import threading
-            threading.Thread(target=geocode_bases_if_needed, args=(list(operating_bases),), daemon=True).start()
+            operating_bases = geocode_bases_if_needed(list(operating_bases))
     except Exception:
         app.logger.exception('Error fetching operating bases for index page')
 

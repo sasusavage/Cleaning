@@ -1596,7 +1596,18 @@
                     container: 'coverage-zones-map',
                     center: [-0.2060, 51.9021],
                     zoom: 9,
-                    style: 'tomtom://vector/1/basic-main'
+                    style: {
+                        version: 8,
+                        sources: {
+                            'raster-tiles': {
+                                type: 'raster',
+                                tiles: ['https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=' + apiKey],
+                                tileSize: 256,
+                                attribution: '© TomTom'
+                            }
+                        },
+                        layers: [{ id: 'raster-tiles', type: 'raster', source: 'raster-tiles' }]
+                    }
                 });
             } catch(e) { fallbackToOSM(); return; }
 
