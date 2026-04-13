@@ -148,16 +148,18 @@
     </header>
 
     <!-- Zone explanation -->
+    {% set explain_heading = tz.explain_heading if tz and tz.explain_heading else 'Each home is divided into 3 different coloured zones.' %}
+    {% set explain_body = tz.explain_body if tz and tz.explain_body else "Each zone has a distinct set of tasks to be followed, along with that zone's corresponding products and coloured cloths — ensuring hygiene, efficiency and consistency across every clean." %}
     <section class="tz-explain">
         <div class="tz-explain__inner">
             <div class="tz-explain__text">
-                <h2>Each home is divided into 3 different coloured zones.</h2>
+                <h2>{{ explain_heading }}</h2>
                 <div class="tz-explain__badges">
-                    <span class="tz-badge r">Red</span> for Bathrooms and WC's &nbsp;
-                    <span class="tz-badge g">Green</span> for Kitchens and Utilities &nbsp;
-                    <span class="tz-badge b">Blue</span> for Living and Bedrooms.
+                    <span class="tz-badge r">{{ red.name }}</span> for {{ red.subtitle }} &nbsp;
+                    <span class="tz-badge g">{{ green.name }}</span> for {{ green.subtitle }} &nbsp;
+                    <span class="tz-badge b">{{ blue.name }}</span> for {{ blue.subtitle }}.
                 </div>
-                <p>Each zone has a distinct set of tasks to be followed, along with that zone's corresponding products and coloured cloths — ensuring hygiene, efficiency and consistency across every clean.</p>
+                <p>{{ explain_body }}</p>
             </div>
             <div class="tz-zones">
                 <!-- Red -->

@@ -6396,6 +6396,8 @@ def ensure_site_content_table():
     _tri_zonal_default = json.dumps({
         'title': 'TRI-ZONAL\u2122 SYSTEM',
         'description': 'Our professional cleaners follow a unique colour-coded system designed to deliver consistent, excellent results every visit.',
+        'explain_heading': 'Each home is divided into 3 different coloured zones.',
+        'explain_body': "Each zone has a distinct set of tasks to be followed, along with that zone\u2019s corresponding products and coloured cloths \u2014 ensuring hygiene, efficiency and consistency across every clean.",
         'zones': {
             'red': {
                 'name': 'Red Zones',

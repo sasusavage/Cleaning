@@ -864,8 +864,14 @@
                     <label class="form-label">System Name <span style="color:#6b7280;font-weight:400;">(updates nav &amp; all pages)</span></label>
                     <input type="text" id="tz_title" name="tz_title" class="form-input" placeholder="TRI-ZONAL™ SYSTEM" value="">
 
-                    <label class="form-label">Description</label>
+                    <label class="form-label">Description <span style="color:#6b7280;font-weight:400;">(shown in hero)</span></label>
                     <textarea id="tz_description" name="tz_description" rows="3" class="form-input" placeholder="Our cleaners follow a unique system designed to give consistent, excellent results..."></textarea>
+
+                    <label class="form-label">Explanation Heading <span style="color:#6b7280;font-weight:400;">(on dedicated page)</span></label>
+                    <input type="text" id="tz_explain_heading" class="form-input" placeholder="Each home is divided into 3 different coloured zones.">
+
+                    <label class="form-label">Explanation Body <span style="color:#6b7280;font-weight:400;">(paragraph below the colour badges)</span></label>
+                    <textarea id="tz_explain_body" rows="3" class="form-input" placeholder="Each zone has a distinct set of tasks to be followed..."></textarea>
 
                     <!-- Hero Background Image -->
                     <label class="form-label">Dedicated Page — Hero Background Image</label>
@@ -1172,6 +1178,8 @@
                 tri_zonal: {
                     title: (document.getElementById('tz_title')?.value || '').trim(),
                     description: (document.getElementById('tz_description')?.value || '').trim(),
+                    explain_heading: (document.getElementById('tz_explain_heading')?.value || '').trim(),
+                    explain_body: (document.getElementById('tz_explain_body')?.value || '').trim(),
                     zones: {
                         red:   { name: (document.getElementById('tz_red_name')?.value || '').trim(),   subtitle: (document.getElementById('tz_red_subtitle')?.value || '').trim(),   tasks: (document.getElementById('tz_red_tasks')?.value || '').split('\n').map(t=>t.trim()).filter(Boolean) },
                         green: { name: (document.getElementById('tz_green_name')?.value || '').trim(), subtitle: (document.getElementById('tz_green_subtitle')?.value || '').trim(), tasks: (document.getElementById('tz_green_tasks')?.value || '').split('\n').map(t=>t.trim()).filter(Boolean) },
@@ -1532,6 +1540,8 @@
                 const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
                 set('tz_title', d.title);
                 set('tz_description', d.description);
+                set('tz_explain_heading', d.explain_heading || '');
+                set('tz_explain_body', d.explain_body || '');
                 // Hero bg
                 const heroBgImg = document.getElementById('tz-hero-bg-img');
                 const heroBgEmpty = document.getElementById('tz-hero-bg-empty');
