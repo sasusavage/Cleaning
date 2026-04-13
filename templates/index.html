@@ -7,9 +7,9 @@
     {% set company_logo = site_settings.logo_path if site_settings and site_settings.logo_path else '' %}
     {% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
     {% set page_title_text = hero.title if hero else 'Professional Cleaning Services' %}
-    <title>{{ company_name }} | Professional Cleaning Services</title>
+    <title>Done-Well Cleaning Limited — Professional Cleaning Services in Stevenage &amp; Hertfordshire</title>
     {% set _site_url = 'https://done-wellcleaninglimited.org' %}
-    {% set _meta_desc = 'Professional residential and commercial cleaning in Stevenage, Hertfordshire and surrounding areas. Fully vetted, insured cleaners. Get a free quote today.' %}
+    {% set _meta_desc = 'Done-Well Cleaning Limited offers professional residential and commercial cleaning in Stevenage, Hertfordshire and surrounding areas. Fully vetted, insured cleaners. Get a free quote today.' %}
     {% set _og_image = company_logo_url if company_logo_url else (_site_url ~ '/favicon/apple-touch-icon.png') %}
     <meta name="description" content="{{ _meta_desc }}">
     <meta name="robots" content="index, follow">
@@ -18,7 +18,7 @@
     <!-- Open Graph (Facebook, WhatsApp, Google) -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ _site_url }}/">
-    <meta property="og:title" content="{{ company_name }} — Professional Cleaning Services">
+    <meta property="og:title" content="Done-Well Cleaning Limited — Professional Cleaning Services in Stevenage">
     <meta property="og:description" content="{{ _meta_desc }}">
     <meta property="og:image" content="{{ _og_image }}">
     <meta property="og:locale" content="en_GB">
@@ -26,7 +26,7 @@
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="{{ company_name }} — Professional Cleaning Services">
+    <meta name="twitter:title" content="Done-Well Cleaning Limited — Professional Cleaning Services in Stevenage">
     <meta name="twitter:description" content="{{ _meta_desc }}">
     <meta name="twitter:image" content="{{ _og_image }}">
 
