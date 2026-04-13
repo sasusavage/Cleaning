@@ -5991,7 +5991,8 @@ def fetch_hero_content():
             title_color, title_size_px, title_weight,
             subtitle_color, subtitle_size_px, subtitle_weight,
             content_bg_color,
-            meta_text_color, meta_bg_color
+            meta_text_color, meta_bg_color,
+            small_text_line1_pct, small_text_line2_pct, small_text_line3_pct
         FROM hero_content
         WHERE id = 1
         """
@@ -6103,7 +6104,8 @@ def fetch_hero_content():
                 title_color, title_size_px, title_weight,
                 subtitle_color, subtitle_size_px, subtitle_weight,
                 content_bg_color,
-                meta_text_color, meta_bg_color
+                meta_text_color, meta_bg_color,
+                small_text_line1_pct, small_text_line2_pct, small_text_line3_pct
             FROM hero_content
             WHERE id = 1
             """
