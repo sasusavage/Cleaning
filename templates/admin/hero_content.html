@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Clean Co.' %}
-    <title>Home Page Manager | {{ company_name }} Admin</title>
+    <title>Hero Content | {{ company_name }} Admin</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         :root {
@@ -15,11 +15,10 @@
             --border: #e5e7eb;
             --text: #1f2937;
             --muted: #6b7280;
+            --green: #16a34a;
         }
 
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         body {
             margin: 0;
@@ -30,10 +29,9 @@
             color: var(--text);
         }
 
-        body.is-preview-dragging {
-            overflow: hidden;
-        }
+        body.is-preview-dragging { overflow: hidden; }
 
+        /* ── Sidebar ── */
         .sidebar {
             width: 240px;
             background: #111827;
@@ -64,16 +62,14 @@
             justify-content: center;
             padding: 0.45rem 0.7rem;
             border-radius: 0.5rem;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.08);
             color: #f9fafb;
             font-weight: 600;
             cursor: pointer;
         }
 
-        .sidebar__toggle:hover {
-            background: rgba(255, 255, 255, 0.14);
-        }
+        .sidebar__toggle:hover { background: rgba(255,255,255,0.14); }
 
         .sidebar__nav {
             display: flex;
@@ -81,21 +77,17 @@
             gap: 0.75rem;
         }
 
-        .sidebar--menu-open .sidebar__nav {
-            display: flex;
-        }
+        .sidebar--menu-open .sidebar__nav { display: flex; }
 
-        .sidebar__logout-form {
-            margin-top: 0.75rem;
-        }
+        .sidebar__logout-form { margin-top: 0.75rem; }
 
         .sidebar__logout-button {
             width: 100%;
             display: block;
             padding: 0.75rem 1rem;
             border-radius: 0.5rem;
-            border: 1px solid rgba(248, 113, 113, 0.25);
-            background: rgba(248, 113, 113, 0.12);
+            border: 1px solid rgba(248,113,113,0.25);
+            background: rgba(248,113,113,0.12);
             color: #fca5a5;
             font-weight: 600;
             font-size: 0.95rem;
@@ -104,17 +96,9 @@
             transition: background 0.2s ease, color 0.2s ease;
         }
 
-        .sidebar__logout-button:hover,
-        .sidebar__logout-button:focus {
-            background: rgba(248, 113, 113, 0.2);
-            color: #fee2e2;
-            outline: none;
-        }
+        .sidebar__logout-button:hover { background: rgba(248,113,113,0.2); color: #fee2e2; }
 
-        .sidebar .logo {
-            font-weight: 600;
-            font-size: 1.25rem;
-        }
+        .sidebar .logo { font-weight: 600; font-size: 1.25rem; }
 
         .sidebar .nav-link {
             color: #d1d5db;
@@ -127,223 +111,205 @@
 
         .sidebar .nav-link:hover,
         .sidebar .nav-link.active {
-            background: rgba(37, 99, 235, 0.25);
+            background: rgba(37,99,235,0.25);
             color: #93c5fd;
         }
 
+        /* ── Main ── */
         .main-content {
             flex: 1;
             padding: 2rem;
             overflow-y: auto;
+            max-width: 1100px;
         }
 
         .page-header {
             display: flex;
             justify-content: space-between;
-            align-items: flex-end;
+            align-items: center;
             flex-wrap: wrap;
             gap: 1rem;
+            margin-bottom: 1.5rem;
         }
 
-        .page-header h1 {
-            margin: 0;
-            font-size: 1.75rem;
-        }
+        .page-header h1 { margin: 0; font-size: 1.75rem; }
 
+        /* ── Cards ── */
         .card {
             background: var(--surface);
             border-radius: 1rem;
             border: 1px solid var(--border);
             padding: 1.75rem;
-            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+            box-shadow: 0 2px 8px rgba(15,23,42,0.05);
+            margin-bottom: 1.5rem;
         }
 
-        .card + .card {
-            margin-top: 1.5rem;
+        .section-title {
+            margin: 0 0 0.5rem;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text);
         }
 
-        form.card {
-            /* natural page scroll — no inner scroll trap */
+        .section-hint {
+            margin: 0 0 1.25rem;
+            font-size: 0.88rem;
+            color: var(--muted);
         }
 
-        .grid {
-            display: grid;
-            gap: 1.5rem;
-        }
+        /* ── Grid ── */
+        .grid { display: grid; gap: 1.25rem; }
+        .grid--2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+        .grid--3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
 
-        .grid--two {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
+        /* ── Form ── */
         .form-group {
             display: flex;
             flex-direction: column;
-            gap: 0.5rem;
+            gap: 0.4rem;
         }
 
         label {
             font-weight: 600;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--muted);
         }
 
         input[type="text"],
+        input[type="number"],
         input[type="file"],
         textarea {
             font: inherit;
-            padding: 0.65rem 0.75rem;
+            font-size: 0.95rem;
+            padding: 0.6rem 0.75rem;
             border: 1px solid var(--border);
             border-radius: 0.5rem;
             background: #fff;
-            transition: border-color 0.2s ease;
+            transition: border-color 0.2s;
+            width: 100%;
         }
 
-        textarea {
-            min-height: 120px;
-            resize: vertical;
+        input[type="color"] {
+            padding: 0.25rem 0.35rem;
+            height: 2.4rem;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            cursor: pointer;
+            width: 100%;
         }
 
-        input:focus,
-        textarea:focus {
-            outline: 2px solid rgba(37, 99, 235, 0.2);
+        textarea { min-height: 100px; resize: vertical; }
+
+        input:focus, textarea:focus {
+            outline: 2px solid rgba(37,99,235,0.2);
             border-color: var(--primary);
         }
 
+        /* ── Detail rows (% + label) ── */
+        .detail-row {
+            display: grid;
+            grid-template-columns: 90px 1fr;
+            gap: 0.75rem;
+            align-items: end;
+            padding: 0.85rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 0.65rem;
+            background: #f9fafb;
+        }
+
+        .detail-row__num label { color: #2563eb; }
+
+        /* ── Style control groups ── */
+        .style-group {
+            border: 1px solid var(--border);
+            border-radius: 0.65rem;
+            padding: 1rem 1.1rem;
+        }
+
+        .style-group__title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--muted);
+            margin: 0 0 0.85rem;
+        }
+
+        /* ── Buttons ── */
         .btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 0.35rem;
-            padding: 0.65rem 1.1rem;
+            padding: 0.65rem 1.2rem;
             font-weight: 600;
+            font-size: 0.95rem;
             border-radius: 0.55rem;
             cursor: pointer;
             border: 1px solid transparent;
+            font-family: inherit;
+            transition: background 0.2s;
         }
 
-        .btn-primary {
-            background: var(--primary);
-            color: #fff;
-        }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-outline { border-color: var(--border); color: var(--text); background: #fff; }
+        .btn-outline:hover { background: var(--bg); }
 
-        .btn-primary:hover {
-            background: var(--primary-dark);
-        }
-
-        .btn-outline {
-            border-color: var(--border);
-            color: var(--text);
-            background: #fff;
-        }
-
-        .section-title {
-            margin: 0 0 1.25rem;
-            font-size: 1.1rem;
-            font-weight: 600;
-        }
-
-        .highlights-list,
-        .stats-list,
-        .badge-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            display: grid;
-            gap: 1rem;
-        }
-
-        .badge-list {
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-        }
-
-        .badge-item {
-            border: 1px solid var(--border);
-            border-radius: 0.75rem;
-            padding: 0.75rem;
+        .form-actions {
             display: flex;
-            flex-direction: column;
+            justify-content: flex-end;
             gap: 0.75rem;
-            align-items: center;
-            background: #fff;
+            margin-top: 1.5rem;
+            padding-top: 1.25rem;
+            border-top: 1px solid var(--border);
         }
 
-        .badge-item img {
-            max-width: 100%;
-            height: auto;
-        }
-
-        .badge-item form {
-            margin: 0;
-        }
-
-        .text-muted {
-            color: var(--muted);
-            font-size: 0.9rem;
-        }
-
+        /* ── Alerts ── */
         .alert {
             padding: 0.85rem 1rem;
             border-radius: 0.65rem;
             font-size: 0.95rem;
+            margin-bottom: 1.25rem;
         }
 
-        .alert--error {
-            background: rgba(239, 68, 68, 0.15);
-            color: #991b1b;
-        }
+        .alert--error { background: rgba(239,68,68,0.12); color: #991b1b; border: 1px solid rgba(239,68,68,0.25); }
+        .alert--success { background: rgba(16,185,129,0.12); color: #047857; border: 1px solid rgba(16,185,129,0.25); }
 
-        .alert--success {
-            background: rgba(16, 185, 129, 0.15);
-            color: #047857;
-        }
-
+        /* ── Image preview ── */
         .image-preview {
-            margin-top: 1rem;
-            border-radius: 0.75rem;
+            margin-top: 0.75rem;
+            border-radius: 0.65rem;
             border: 1px solid var(--border);
-            padding: 1rem;
+            padding: 0.75rem;
             background: #f9fafb;
         }
 
         .image-preview img {
             max-width: 100%;
             height: auto;
-            border-radius: 0.5rem;
+            border-radius: 0.4rem;
+            display: block;
         }
 
-        .form-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 0.75rem;
+        .image-preview small {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-bottom: 0.4rem;
         }
 
-        .badge-upload {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-        }
-
-        .hero-editor {
-            border: 1px solid var(--border);
-            border-radius: 0.75rem;
-            padding: 1rem;
-            background: #f8fafc;
-            display: grid;
-            gap: 1rem;
-        }
-
-        /* Wrapper clips the scaled stage and collapses to the scaled height */
-        .hero-editor__stage-wrap {
+        /* ── Hero preview stage ── */
+        .stage-wrap {
             overflow: hidden;
             border-radius: 0.75rem;
-            border: 1px solid rgba(15, 23, 42, 0.12);
-            /* JS will set --stage-scale and --stage-height as CSS custom properties */
+            border: 1px solid rgba(15,23,42,0.12);
             height: calc(650px * var(--stage-scale, 1));
+            margin-bottom: 1.25rem;
         }
 
-        .hero-editor__stage {
+        .stage {
             position: relative;
-            /* Fixed desktop width — same as live hero max-width */
             width: 1280px;
             min-height: 650px;
             transform-origin: top left;
@@ -358,7 +324,7 @@
             padding: 6rem 3rem 5.5rem;
         }
 
-        .hero-editor__stage::before {
+        .stage::before {
             content: "";
             position: absolute;
             inset: 0;
@@ -369,111 +335,47 @@
             transform: scale(1.05);
         }
 
-        .hero-editor__stage::after {
+        .stage::after {
             content: "";
             position: absolute;
             inset: 0;
-            background: linear-gradient(110deg, rgba(8, 16, 32, 0.45) 0%, rgba(8, 16, 32, 0.2) 45%, rgba(8, 16, 32, 0.1) 100%);
+            background: linear-gradient(110deg, rgba(8,16,32,0.45) 0%, rgba(8,16,32,0.2) 45%, rgba(8,16,32,0.1) 100%);
         }
 
-        .hero-editor__content-col,
-        .hero-editor__visual-col {
-            position: relative;
-            z-index: 3;
-        }
+        .stage__content-col,
+        .stage__visual-col { position: relative; z-index: 3; }
 
-        .hero-editor__content-col {
-            display: grid;
-            gap: 1rem;
-            align-self: end;
-            min-width: 0;
-        }
+        .stage__content-col { display: grid; gap: 1rem; align-self: end; min-width: 0; }
 
-        .hero-editor__visual-col {
-            min-height: 460px;
-            height: 460px;
-            align-self: end;
-        }
+        .stage__visual-col { min-height: 460px; height: 460px; align-self: end; }
 
-        .hero-editor__item {
+        .stage__item {
             position: relative;
             user-select: none;
             touch-action: none;
             z-index: 5;
             border-radius: 0.5rem;
-            transition: box-shadow 0.18s ease;
+            transition: box-shadow 0.18s;
         }
 
-        .hero-editor__item:hover {
-            outline: 1px dashed rgba(148, 163, 184, 0.45);
-            outline-offset: 4px;
-        }
+        .stage__item:hover { outline: 1px dashed rgba(148,163,184,0.45); outline-offset: 4px; }
 
-        .hero-editor__item.is-drag-active {
-            outline: 2px solid rgba(59, 130, 246, 0.7);
+        .stage__item.is-drag-active {
+            outline: 2px solid rgba(59,130,246,0.7);
             outline-offset: 4px;
-            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35);
+            box-shadow: 0 12px 28px rgba(15,23,42,0.35);
             z-index: 20;
             cursor: grabbing;
         }
 
-        .hero-editor__item * {
-            user-select: none;
-            touch-action: none;
-        }
+        .stage__item * { user-select: none; touch-action: none; }
 
-        .hero-editor__item--tagline {
-            width: min(100%, 760px);
-        }
+        .stage__item--tagline { width: min(100%, 760px); }
+        .stage__item--title   { width: min(100%, 640px); }
+        .stage__item--subtitle { width: min(100%, 540px); }
+        .stage__item--meta     { width: min(100%, 700px); }
 
-        .hero-editor__item--title {
-            width: min(100%, 640px);
-        }
-
-        .hero-editor__item--subtitle {
-            width: min(100%, 540px);
-        }
-
-        .hero-editor__item--meta {
-            width: min(100%, 700px);
-        }
-
-        .hero-editor__static-cta {
-            position: relative;
-            z-index: 5;
-            display: inline-flex;
-            align-items: center;
-            gap: 1rem;
-            flex-wrap: wrap;
-        }
-
-        .hero-editor__cta-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.75rem;
-            padding: 0.85rem 1.55rem;
-            border-radius: 999px;
-            font-weight: 600;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            font-size: 0.8rem;
-            border: 1px solid transparent;
-        }
-
-        .hero-editor__cta-btn--primary {
-            background: linear-gradient(135deg, #22c55e, #16a34a);
-            color: #fff;
-            box-shadow: 0 14px 30px rgba(34, 197, 94, 0.25);
-        }
-
-        .hero-editor__cta-btn--ghost {
-            border: 1px solid rgba(255, 255, 255, 0.35);
-            background: rgba(255, 255, 255, 0.12);
-            color: #fff;
-        }
-
-        .hero-editor__drag-handle {
+        .stage__drag-handle {
             position: absolute;
             top: 0.45rem;
             left: 0.45rem;
@@ -486,26 +388,21 @@
             font-weight: 600;
             letter-spacing: 0.04em;
             color: #e2e8f0;
-            background: rgba(15, 23, 42, 0.82);
-            border: 1px solid rgba(148, 163, 184, 0.4);
+            background: rgba(15,23,42,0.82);
+            border: 1px solid rgba(148,163,184,0.4);
             cursor: grab;
-            width: fit-content;
             z-index: 8;
             opacity: 0;
-            transition: opacity 0.18s ease;
+            transition: opacity 0.18s;
             pointer-events: auto;
         }
 
-        .hero-editor__item:hover .hero-editor__drag-handle,
-        .hero-editor__item.is-drag-active .hero-editor__drag-handle {
-            opacity: 1;
-        }
+        .stage__item:hover .stage__drag-handle,
+        .stage__item.is-drag-active .stage__drag-handle { opacity: 1; }
 
-        .hero-editor__drag-handle:active {
-            cursor: grabbing;
-        }
+        .stage__drag-handle:active { cursor: grabbing; }
 
-        .hero-editor__tagline {
+        .stage__tagline {
             display: inline-block;
             padding: 0.35rem 1rem;
             border-radius: 6px;
@@ -521,60 +418,87 @@
             line-height: 1.3;
         }
 
-        .hero-editor__title {
+        .stage__title {
             margin: 0.2rem 0;
             color: #2563eb;
             font-size: 4.2rem;
             line-height: 1.05;
             font-weight: 800;
-            text-shadow: 0 2px 8px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.6);
+            text-shadow: 0 2px 8px rgba(255,255,255,0.8), 0 0 20px rgba(255,255,255,0.6);
             max-width: 100%;
             white-space: normal;
             overflow-wrap: anywhere;
         }
 
-        .hero-editor__subtitle {
+        .stage__subtitle {
             margin: 0.5rem 0 0;
             color: #fff;
             font-size: 1.1rem;
             font-weight: 600;
             line-height: 1.45;
-            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7), 0 1px 3px rgba(0, 0, 0, 0.5);
+            text-shadow: 0 2px 8px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.5);
             max-width: 100%;
             white-space: normal;
             overflow-wrap: anywhere;
         }
 
-        .hero-editor__meta {
+        .stage__cta-ghost {
+            position: relative;
+            z-index: 5;
+            display: inline-flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .stage__cta-btn {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.85rem 1.55rem;
+            border-radius: 999px;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            border: 1px solid rgba(255,255,255,0.35);
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+        }
+
+        .stage__meta {
             margin-top: 0.7rem;
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0,1fr));
             gap: 1rem;
         }
 
-        .hero-editor__meta-item {
+        .stage__meta-item {
             color: #fff;
             background: #0f172a;
-            border: 1px solid rgba(22, 163, 74, 0.4);
+            border: 1px solid rgba(22,163,74,0.4);
             border-radius: 0.65rem;
             padding: 1rem 1.25rem;
             font-size: 0.9rem;
             font-weight: 500;
         }
 
-        .hero-editor__item--card {
+        .stage__meta-pct {
+            font-weight: 900;
+            font-size: 1.05rem;
+            color: #86efac;
+        }
+
+        .stage__item--card {
             position: absolute;
             min-width: 220px;
             width: min(270px, 92%);
             border-radius: 24px;
-            background: rgba(255, 255, 255, 0.88);
-            border: 1px solid rgba(255, 255, 255, 0.95);
+            background: rgba(255,255,255,0.88);
+            border: 1px solid rgba(255,255,255,0.95);
             border-left: 3px solid #16a34a;
             color: #334155;
             padding: 1.4rem 1.6rem;
-            box-shadow: 0 8px 32px rgba(15, 23, 42, 0.18), 0 1px 0 rgba(255,255,255,0.6) inset;
-            letter-spacing: 0.02em;
-            text-transform: none;
+            box-shadow: 0 8px 32px rgba(15,23,42,0.18);
             font-size: 0.8rem;
             line-height: 1.5;
             z-index: 4;
@@ -583,1167 +507,811 @@
             word-break: break-word;
         }
 
-        .hero-editor__item--card .hero-editor__drag-handle {
+        .stage__item--card .stage__drag-handle {
             color: #1e293b;
-            background: rgba(255, 255, 255, 0.88);
-            border-color: rgba(15, 23, 42, 0.18);
+            background: rgba(255,255,255,0.88);
+            border-color: rgba(15,23,42,0.18);
         }
 
-        .hero-editor__item--card strong {
+        .stage__item--card strong {
             display: block;
             font-size: 1.75rem;
             font-weight: 800;
             letter-spacing: -0.02em;
-            text-transform: none;
             color: #15803d;
             margin-bottom: 0.25rem;
-            margin-top: 0;
             line-height: 1.1;
         }
 
-        .hero-editor__item--card1 {
-            top: 28px;
-            right: 0;
-            z-index: 3;
-        }
-
-        .hero-editor__item--card2 {
-            top: 175px;
-            right: 0;
-            left: auto;
-            z-index: 2;
-        }
-
-        .hero-editor__item--card3 {
-            top: 322px;
-            right: 0;
-            left: auto;
-            z-index: 1;
-        }
-
-        @media (max-width: 1100px) {
-            .hero-editor__stage {
-                grid-template-columns: 1fr;
-                gap: 1.4rem;
-                padding: 4.2rem 1.4rem 1.4rem;
-                min-height: auto;
-            }
-
-            .hero-editor__content-col {
-                justify-items: center;
-                text-align: center;
-            }
-
-            .hero-editor__static-cta {
-                justify-content: center;
-            }
-
-            .hero-editor__meta {
-                grid-template-columns: 1fr;
-                gap: 0.75rem;
-            }
-
-            .hero-editor__visual-col {
-                min-height: auto;
-                height: auto;
-                display: grid;
-                gap: 0.9rem;
-                justify-items: center;
-            }
-
-            .hero-editor__item--card {
-                position: relative;
-                inset: auto;
-                width: min(100%, 460px);
-            }
-        }
-
-        .hero-editor__card-line {
+        .stage__card-line {
             margin: 0.85rem 0;
             display: block;
             width: 100%;
             height: 1px;
-            background: linear-gradient(90deg, rgba(22, 163, 74, 0.3), transparent);
+            background: linear-gradient(90deg, rgba(22,163,74,0.3), transparent);
         }
 
-        .hero-editor__hint {
-            font-size: 0.86rem;
-            color: var(--muted);
-        }
+        .stage__item--card1 { top: 28px; right: 0; z-index: 3; }
+        .stage__item--card2 { top: 175px; right: 0; z-index: 2; }
+        .stage__item--card3 { top: 322px; right: 0; z-index: 1; }
 
-        .position-grid {
-            display: none; /* inputs are hidden — drag-and-drop only */
-        }
-
-        .position-row {
-            display: grid;
-            grid-template-columns: 120px 1fr 1fr;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.45rem 0.6rem;
-            border-radius: 0.5rem;
-            background: #f8fafc;
-            border: 1px solid var(--border);
-        }
-
-        .position-row:hover {
-            background: #f0f4ff;
-            border-color: rgba(37, 99, 235, 0.25);
-        }
-
-        .position-row__label {
-            font-size: 0.82rem;
-            font-weight: 600;
-            color: var(--text);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .position-row .form-group {
-            gap: 0.2rem;
-        }
-
-        .position-row label {
-            font-size: 0.72rem;
-            color: var(--muted);
-            font-weight: 500;
-        }
-
-        .position-row input[type="number"] {
-            padding: 0.35rem 0.5rem;
-            font-size: 0.85rem;
-        }
-
-        @media (max-width: 600px) {
-            .position-row {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .homepage-flow {
+        /* ── Homepage flow ── */
+        .flow-list {
             list-style: none;
             padding: 0;
             margin: 0;
             display: grid;
-            gap: 0.7rem;
+            gap: 0.6rem;
         }
 
-        .homepage-flow__item {
+        .flow-item {
             border: 1px solid var(--border);
-            border-radius: 0.7rem;
-            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-            padding: 0.7rem 0.8rem;
+            border-radius: 0.65rem;
+            background: #fff;
+            padding: 0.7rem 0.9rem;
             display: flex;
             align-items: center;
             gap: 0.75rem;
             cursor: grab;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+            transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
         }
 
-        .homepage-flow__item:hover {
-            border-color: rgba(37, 99, 235, 0.4);
-            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
-            transform: translateY(-1px);
-        }
+        .flow-item:hover { border-color: rgba(37,99,235,0.35); box-shadow: 0 4px 12px rgba(15,23,42,0.07); transform: translateY(-1px); }
+        .flow-item.is-dragging { opacity: 0.5; transform: scale(0.99); cursor: grabbing; }
 
-        .homepage-flow__item.is-dragging {
-            opacity: 0.55;
-            transform: scale(0.99);
-            cursor: grabbing;
-        }
+        .flow-handle { font-size: 1rem; color: #94a3b8; user-select: none; }
 
-        .homepage-flow__handle {
-            font-size: 1.05rem;
-            line-height: 1;
-            color: #64748b;
-            user-select: none;
-        }
+        .flow-content { flex: 1; min-width: 0; }
+        .flow-content strong { font-size: 0.9rem; display: block; }
+        .flow-content small { font-size: 0.78rem; color: var(--muted); }
 
-        .homepage-flow__content {
-            display: grid;
-            gap: 0.2rem;
-            flex: 1;
-            min-width: 0;
-        }
-
-        .homepage-flow__content strong {
-            font-size: 0.95rem;
-            color: #0f172a;
-        }
-
-        .homepage-flow__content small {
-            color: var(--muted);
-            font-size: 0.78rem;
-            letter-spacing: 0.02em;
-        }
-
-        .homepage-flow__tag {
+        .flow-tag {
             display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0.2rem 0.5rem;
+            padding: 0.18rem 0.5rem;
             border-radius: 999px;
             font-size: 0.72rem;
             font-weight: 700;
             color: #065f46;
-            background: rgba(16, 185, 129, 0.18);
-            border: 1px solid rgba(16, 185, 129, 0.35);
-            white-space: nowrap;
+            background: rgba(16,185,129,0.15);
+            border: 1px solid rgba(16,185,129,0.3);
         }
 
+        /* ── Badge list ── */
+        .badge-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .badge-item {
+            border: 1px solid var(--border);
+            border-radius: 0.65rem;
+            padding: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+            align-items: center;
+            background: #fff;
+            width: 140px;
+        }
+
+        .badge-item img { max-width: 100%; height: auto; }
+
+        /* ── Responsive ── */
         @media (max-width: 1024px) {
-            body {
-                flex-direction: column;
-            }
-            .sidebar {
-                position: relative;
-                width: 100%;
-                height: auto;
-                padding: 1rem 1.25rem;
-                overflow: visible;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            }
-            .sidebar__header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 0;
-            }
-            .sidebar__toggle {
-                display: flex;
-            }
-            .sidebar__nav {
-                display: none;
-                padding-top: 1rem;
-                margin-top: 1rem;
-                border-top: 1px solid rgba(255, 255, 255, 0.1);
-            }
-            .sidebar--menu-open .sidebar__nav {
-                display: flex;
-            }
-            .main-content {
-                padding: 1.5rem;
-            }
+            body { flex-direction: column; }
+            .sidebar { position: relative; width: 100%; height: auto; padding: 1rem 1.25rem; overflow: visible; }
+            .sidebar__header { margin-bottom: 0; }
+            .sidebar__toggle { display: flex; }
+            .sidebar__nav { display: none; padding-top: 1rem; margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); }
+            .sidebar--menu-open .sidebar__nav { display: flex; }
+            .main-content { padding: 1.5rem; max-width: 100%; }
+            .stage { grid-template-columns: 1fr; gap: 1.4rem; padding: 4rem 1.4rem 1.4rem; min-height: auto; }
+            .stage__content-col { justify-items: center; text-align: center; }
+            .stage__cta-ghost { justify-content: center; }
+            .stage__meta { grid-template-columns: 1fr; gap: 0.75rem; }
+            .stage__visual-col { min-height: auto; height: auto; display: grid; gap: 0.9rem; justify-items: center; }
+            .stage__item--card { position: relative; inset: auto; width: min(100%, 460px); }
         }
 
         @media (max-width: 768px) {
-            .main-content {
-                padding: 1.5rem;
-                min-height: 0;
-            }
-
-            .page-header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 0.75rem;
-            }
-
-            .grid--two {
-                grid-template-columns: minmax(0, 1fr);
-            }
-
-            .badge-list {
-                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            }
+            .grid--2, .grid--3 { grid-template-columns: 1fr; }
+            .page-header { flex-direction: column; align-items: flex-start; }
         }
 
         @media (max-width: 600px) {
-            .sidebar {
-                padding: 1rem 1.25rem;
-            }
-
-            .main-content {
-                padding: 1.25rem;
-                min-height: 0;
-            }
-
-            .card {
-                padding: 1.5rem;
-            }
-
-            .form-actions {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .form-actions .btn {
-                width: 100%;
-            }
-
-            .badge-item {
-                padding: 0.6rem;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .sidebar {
-                padding: 0.9rem 1rem;
-            }
-
-            .page-header h1 {
-                font-size: 1.5rem;
-            }
-
-            .card {
-                padding: 1.25rem;
-            }
+            .main-content { padding: 1.25rem; }
+            .card { padding: 1.25rem; }
+            .form-actions { flex-direction: column; align-items: stretch; }
+            .form-actions .btn { width: 100%; }
+            .badge-item { width: 120px; }
         }
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="sidebar__header">
-            <div class="logo">{{ company_name }} Admin</div>
-            <button type="button" class="sidebar__toggle" aria-expanded="false" aria-controls="sidebar-nav">Menu</button>
-        </div>
-                <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
+<div class="sidebar">
+    <div class="sidebar__header">
+        <div class="logo">{{ company_name }} Admin</div>
+        <button type="button" class="sidebar__toggle" aria-expanded="false" aria-controls="sidebar-nav">Menu</button>
+    </div>
+    <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
+        <span class="nav-group__label">Operations</span>
+        <a class="nav-link" href="{{ url_for('admin_dashboard') }}">📊 Analytics</a>
+        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">📋 Requests</a>
+        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#contracts">📄 Contracts</a>
+        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">💳 Payments</a>
+        <hr class="nav-divider">
+        <span class="nav-group__label">Services</span>
+        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">🛠 Service Management</a>
+        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">🚗 Travel Pricing</a>
+        <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">🏠 Domestic Cleaning</a>
+        <hr class="nav-divider">
+        <span class="nav-group__label">Content</span>
+        <a class="nav-link active" href="{{ url_for('admin_hero_content_page') }}">🖼 Hero Content</a>
+        <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">✏️ Site Content</a>
+        <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
+        <a class="nav-link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
+        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">⭐ Testimonials</a>
+        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">💼 Job Positions</a>
+        <hr class="nav-divider">
+        <span class="nav-group__label">Settings</span>
+        <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">🎨 Brand &amp; Logo</a>
+        <a class="nav-link" href="{{ url_for('admin_quote_section') }}">💬 Quote &amp; Contact</a>
+        <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">🔗 Footer</a>
+        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">📧 Email Settings</a>
+        <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">✈️ Telegram</a>
+        <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">🤖 AI Assistant</a>
+        <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">💬 Chat Conversations</a>
+        <hr class="nav-divider">
+        <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
+            <button type="submit" class="sidebar__logout-button">Log Out</button>
+        </form>
+    </nav>
+</div>
 
-            <!-- Operations -->
-            <span class="nav-group__label">Operations</span>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">📊 Analytics</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">📋 Requests</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#contracts">📄 Contracts</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">💳 Payments</a>
-
-            <hr class="nav-divider">
-
-            <!-- Services -->
-            <span class="nav-group__label">Services</span>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">🛠 Service Management</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">🚗 Travel Pricing</a>
-            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">🏠 Domestic Cleaning</a>
-
-            <hr class="nav-divider">
-
-            <!-- Content -->
-            <span class="nav-group__label">Content</span>
-            <a class="nav-link active" href="{{ url_for('admin_hero_content_page') }}">🖼 Hero Content</a>
-            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">✏️ Site Content</a>
-            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
-            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">⭐ Testimonials</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">💼 Job Positions</a>
-
-            <hr class="nav-divider">
-
-            <!-- Settings -->
-            <span class="nav-group__label">Settings</span>
-            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">🎨 Brand &amp; Logo</a>
-            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">💬 Quote &amp; Contact</a>
-            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">🔗 Footer</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">📧 Email Settings</a>
-            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">✈️ Telegram</a>
-            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">🤖 AI Assistant</a>
-            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">💬 Chat Conversations</a>
-
-            <hr class="nav-divider">
-
-            <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
-                <button type="submit" class="sidebar__logout-button">Log Out</button>
-            </form>
-        </nav>
+<div class="main-content">
+    <div class="page-header">
+        <h1>Hero Content</h1>
+        <a class="btn btn-outline" href="{{ url_for('admin_dashboard') }}">← Dashboard</a>
     </div>
 
-    <div class="main-content">
-        <div class="page-header">
-            <h1>Home Page Manager</h1>
-            <a class="btn btn-outline" href="{{ url_for('admin_dashboard') }}">← Back to Dashboard</a>
+    {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
+    {% if message %}<div class="alert alert--success">{{ message }}</div>{% endif %}
+
+    <!-- ══════════════════════════════════════════
+         MAIN HERO FORM
+    ══════════════════════════════════════════ -->
+    <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="form_id" value="hero">
+
+        <!-- 1 · Text Copy -->
+        <div class="card">
+            <h2 class="section-title">Text Content</h2>
+            <p class="section-hint">The main words shown on the hero banner.</p>
+            <div class="grid grid--2">
+                <div class="form-group">
+                    <label for="tagline">Tagline <span style="font-weight:400;">(small label above the title)</span></label>
+                    <input type="text" id="tagline" name="tagline" value="{{ hero.tagline or '' }}" placeholder="e.g. Trusted Cleaning Experts">
+                </div>
+                <div class="form-group">
+                    <label for="title">Title <span style="font-weight:400;">(large heading)</span></label>
+                    <input type="text" id="title" name="title" value="{{ hero.title or '' }}" placeholder="e.g. Professional Cleaning Services">
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label for="subtitle">Subtitle / Description</label>
+                    <textarea id="subtitle" name="subtitle" rows="3" placeholder="Short paragraph shown under the title.">{{ hero.subtitle or '' }}</textarea>
+                </div>
+            </div>
         </div>
 
-        {% if error %}
-        <div class="alert alert--error">{{ error }}</div>
-        {% endif %}
-        {% if message %}
-        <div class="alert alert--success">{{ message }}</div>
-        {% endif %}
+        <!-- 2 · Background Image -->
+        <div class="card">
+            <h2 class="section-title">Background Image</h2>
+            <p class="section-hint">The photo shown behind the hero text.</p>
+            <div class="form-group">
+                <label for="background_image">Upload new background</label>
+                <input type="file" id="background_image" name="background_image" accept="image/*">
+                <input type="hidden" name="existing_background" value="{{ hero.hero_background_image or '' }}">
+            </div>
+            {% if hero.hero_background_image %}
+            <div class="image-preview" style="margin-top:0.85rem;">
+                <small>Current background</small>
+                <img src="{{ hero.hero_background_image | media_url }}" alt="Hero background" loading="lazy">
+            </div>
+            <label style="display:flex;align-items:center;gap:0.5rem;margin-top:0.75rem;font-size:0.88rem;color:var(--muted);font-weight:500;cursor:pointer;">
+                <input type="checkbox" name="remove_background" value="1"> Remove current background
+            </label>
+            {% endif %}
+        </div>
 
-        <form method="post" enctype="multipart/form-data" class="card grid" style="gap: 2rem;">
-            <input type="hidden" name="form_id" value="hero">
-            <section>
-                <h2 class="section-title">Primary Copy</h2>
-                <div class="grid grid--two">
-                    <div class="form-group">
-                        <label for="tagline">Tagline</label>
-                        <input type="text" id="tagline" name="tagline" value="{{ hero.tagline or '' }}">
+        <!-- 3 · Supporting Detail Badges -->
+        <div class="card">
+            <h2 class="section-title">Supporting Details</h2>
+            <p class="section-hint">Three small badges shown at the bottom of the hero. Enter the label text and optionally a % number — the percentage shows bold before the label on the live site.</p>
+            <div class="grid" style="gap:0.75rem;">
+
+                <div class="detail-row">
+                    <div class="form-group detail-row__num">
+                        <label for="small_text_line1_pct">% Number</label>
+                        <input type="number" id="small_text_line1_pct" name="small_text_line1_pct" min="1" max="100"
+                            value="{{ hero.small_text_line1_pct if hero and hero.small_text_line1_pct is not none else '' }}"
+                            placeholder="e.g. 98">
                     </div>
                     <div class="form-group">
-                        <label for="title">Title</label>
-                        <input type="text" id="title" name="title" value="{{ hero.title or '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label for="subtitle">Subtitle</label>
-                        <textarea id="subtitle" name="subtitle" rows="3">{{ hero.subtitle or '' }}</textarea>
+                        <label for="small_text_line1">Badge 1 Label</label>
+                        <input type="text" id="small_text_line1" name="small_text_line1"
+                            value="{{ hero.small_text_line1 or '' }}" placeholder="e.g. Client Satisfaction">
                     </div>
                 </div>
-            </section>
 
-            <section>
-                <h2 class="section-title">Hero Background</h2>
+                <div class="detail-row">
+                    <div class="form-group detail-row__num">
+                        <label for="small_text_line2_pct">% Number</label>
+                        <input type="number" id="small_text_line2_pct" name="small_text_line2_pct" min="1" max="100"
+                            value="{{ hero.small_text_line2_pct if hero and hero.small_text_line2_pct is not none else '' }}"
+                            placeholder="e.g. 100">
+                    </div>
+                    <div class="form-group">
+                        <label for="small_text_line2">Badge 2 Label</label>
+                        <input type="text" id="small_text_line2" name="small_text_line2"
+                            value="{{ hero.small_text_line2 or '' }}" placeholder="e.g. Vetted Staff">
+                    </div>
+                </div>
+
+                <div class="detail-row">
+                    <div class="form-group detail-row__num">
+                        <label for="small_text_line3_pct">% Number</label>
+                        <input type="number" id="small_text_line3_pct" name="small_text_line3_pct" min="1" max="100"
+                            value="{{ hero.small_text_line3_pct if hero and hero.small_text_line3_pct is not none else '' }}"
+                            placeholder="e.g. 99">
+                    </div>
+                    <div class="form-group">
+                        <label for="small_text_line3">Badge 3 Label</label>
+                        <input type="text" id="small_text_line3" name="small_text_line3"
+                            value="{{ hero.small_text_line3 or '' }}" placeholder="e.g. On-Time Arrivals">
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 4 · Stat Cards -->
+        <div class="card">
+            <h2 class="section-title">Stat Cards</h2>
+            <p class="section-hint">Three floating cards on the right side of the hero. Use the <strong>·</strong> character to separate the big number from the description (e.g. <em>98% · Client satisfaction score</em>). Add a second · for a third line.</p>
+            <div class="grid grid--3">
                 <div class="form-group">
-                    <label for="background_image">Upload Background</label>
-                    <input type="file" id="background_image" name="background_image" accept="image/*">
-                    <input type="hidden" name="existing_background" value="{{ hero.hero_background_image or '' }}">
+                    <label for="stat1_text">Card 1</label>
+                    <input type="text" id="stat1_text" name="stat1_text" value="{{ hero.stat1_text or '' }}" placeholder="98% · Client satisfaction score">
                 </div>
-                {% if hero.hero_background_image %}
-                <div class="form-group" style="margin-top: 0.5rem;">
-                    <label class="text-muted" style="display: flex; align-items: center; gap: 0.5rem;">
-                        <input type="checkbox" name="remove_background" value="1">
-                        Remove current background
-                    </label>
+                <div class="form-group">
+                    <label for="stat2_text">Card 2</label>
+                    <input type="text" id="stat2_text" name="stat2_text" value="{{ hero.stat2_text or '' }}" placeholder="24h · Response time">
                 </div>
-                <div class="image-preview">
-                    <strong>Current Background</strong>
-                    <img src="{{ hero.hero_background_image | media_url }}" alt="Hero background preview" loading="lazy">
+                <div class="form-group">
+                    <label for="stat3_text">Card 3</label>
+                    <input type="text" id="stat3_text" name="stat3_text" value="{{ hero.stat3_text or '' }}" placeholder="Emergency · Cleanups available">
                 </div>
-                {% endif %}
-            </section>
+            </div>
+        </div>
 
-            <section>
-                <h2 class="section-title">Supporting Details</h2>
-                <p class="text-muted" style="margin-bottom:1rem;">Enter a label (e.g. "Reliable") and optionally a percentage — shown bold before the label on the homepage.</p>
-                <div style="display:grid;gap:0.75rem;">
-                    <div style="display:grid;grid-template-columns:80px 1fr;gap:0.5rem;align-items:end;">
-                        <div class="form-group" style="margin:0;">
-                            <label for="small_text_line1_pct">% (optional)</label>
-                            <input type="number" id="small_text_line1_pct" name="small_text_line1_pct" min="0" max="100" placeholder="98" value="{{ hero.small_text_line1_pct if hero and hero.small_text_line1_pct is not none else '' }}" style="text-align:center;">
+        <!-- 5 · Visual Preview & Positioning -->
+        <div class="card">
+            <h2 class="section-title">Layout Preview</h2>
+            <p class="section-hint">Hover any element in the preview and drag it to reposition.</p>
+
+            <div class="stage-wrap" id="stageWrap">
+                <div class="stage" id="stage"
+                    {% if hero.hero_background_image %}
+                    style="--preview-bg-image: url('{{ hero.hero_background_image | media_url }}');"
+                    {% else %}
+                    style="--preview-bg-image: linear-gradient(135deg, #0f172a, #1e293b);"
+                    {% endif %}
+                >
+                    <div class="stage__content-col" id="previewContentCol">
+                        <div class="stage__item stage__item--tagline" id="previewTaglineItem" data-x-input="tagline_offset_x" data-y-input="tagline_offset_y">
+                            <span class="stage__drag-handle" data-drag-handle>Move Tagline</span>
+                            <span class="stage__tagline" id="previewTagline">{{ hero.tagline or 'Trusted Cleaning Experts' }}</span>
                         </div>
-                        <div class="form-group" style="margin:0;">
-                            <label for="small_text_line1">Detail 1 Label</label>
-                            <input type="text" id="small_text_line1" name="small_text_line1" value="{{ hero.small_text_line1 or '' }}" placeholder="e.g. Reliable">
+                        <div class="stage__item stage__item--title" id="previewTitleItem" data-x-input="title_offset_x" data-y-input="title_offset_y">
+                            <span class="stage__drag-handle" data-drag-handle>Move Title</span>
+                            <h3 class="stage__title" id="previewTitle">{{ hero.title or 'Professional Cleaning Services' }}</h3>
                         </div>
-                    </div>
-                    <div style="display:grid;grid-template-columns:80px 1fr;gap:0.5rem;align-items:end;">
-                        <div class="form-group" style="margin:0;">
-                            <label for="small_text_line2_pct">% (optional)</label>
-                            <input type="number" id="small_text_line2_pct" name="small_text_line2_pct" min="0" max="100" placeholder="100" value="{{ hero.small_text_line2_pct if hero and hero.small_text_line2_pct is not none else '' }}" style="text-align:center;">
+                        <div class="stage__item stage__item--subtitle" id="previewSubtitleItem" data-x-input="subtitle_offset_x" data-y-input="subtitle_offset_y">
+                            <span class="stage__drag-handle" data-drag-handle>Move Subtitle</span>
+                            <p class="stage__subtitle" id="previewSubtitle">{{ hero.subtitle or 'Reliable, affordable cleaning for your home or office.' }}</p>
                         </div>
-                        <div class="form-group" style="margin:0;">
-                            <label for="small_text_line2">Detail 2 Label</label>
-                            <input type="text" id="small_text_line2" name="small_text_line2" value="{{ hero.small_text_line2 or '' }}" placeholder="e.g. Affordable">
+                        <div class="stage__cta-ghost" aria-hidden="true">
+                            <span class="stage__cta-btn">See Reviews</span>
                         </div>
-                    </div>
-                    <div style="display:grid;grid-template-columns:80px 1fr;gap:0.5rem;align-items:end;">
-                        <div class="form-group" style="margin:0;">
-                            <label for="small_text_line3_pct">% (optional)</label>
-                            <input type="number" id="small_text_line3_pct" name="small_text_line3_pct" min="0" max="100" placeholder="99" value="{{ hero.small_text_line3_pct if hero and hero.small_text_line3_pct is not none else '' }}" style="text-align:center;">
-                        </div>
-                        <div class="form-group" style="margin:0;">
-                            <label for="small_text_line3">Detail 3 Label</label>
-                            <input type="text" id="small_text_line3" name="small_text_line3" value="{{ hero.small_text_line3 or '' }}" placeholder="e.g. Professional">
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section>
-                <h2 class="section-title">Stat Highlights</h2>
-                <p class="text-muted" style="margin-bottom: 1.25rem;">Use the "·" symbol to separate the lead metric from its description (e.g., <em>98% · Client satisfaction score</em>).</p>
-                <div class="grid grid--two">
-                    <div class="form-group">
-                        <label for="stat1_text">Stat 1</label>
-                        <input type="text" id="stat1_text" name="stat1_text" value="{{ hero.stat1_text or '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label for="stat2_text">Stat 2</label>
-                        <input type="text" id="stat2_text" name="stat2_text" value="{{ hero.stat2_text or '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label for="stat3_text">Stat 3</label>
-                        <input type="text" id="stat3_text" name="stat3_text" value="{{ hero.stat3_text or '' }}">
-                    </div>
-                </div>
-            </section>
-
-            <section>
-                <h2 class="section-title">Layout &amp; Style Controls</h2>
-                <p class="hero-editor__hint">Drag items in the preview to reposition them. You can also fine-tune exact X/Y values and typography colors/weight below.</p>
-
-                <div class="hero-editor">
-                    <p class="hero-editor__hint" style="margin-bottom: 0.5rem;">
-                        Hover any element in the preview and drag it to reposition.
-                    </p>
-                    <div class="hero-editor__stage-wrap" id="heroEditorStageWrap">
-                    <div
-                        class="hero-editor__stage"
-                        id="heroEditorStage"
-                        {% if hero.hero_background_image %}
-                        style="--preview-bg-image: url('{{ hero.hero_background_image | media_url }}');"
-                        {% else %}
-                        style="--preview-bg-image: linear-gradient(135deg, #0f172a, #1e293b);"
-                        {% endif %}
-                    >
-                        <div class="hero-editor__content-col" id="previewContentCol">
-                            <div class="hero-editor__item hero-editor__item--tagline" id="previewTaglineItem" data-x-input="tagline_offset_x" data-y-input="tagline_offset_y">
-                                <span class="hero-editor__drag-handle" data-drag-handle>Move Tagline</span>
-                                <span class="hero-editor__tagline" id="previewTagline">{{ hero.tagline if hero else 'Trusted Cleaning Experts' }}</span>
-                            </div>
-
-                            <div class="hero-editor__item hero-editor__item--title" id="previewTitleItem" data-x-input="title_offset_x" data-y-input="title_offset_y">
-                                <span class="hero-editor__drag-handle" data-drag-handle>Move Title</span>
-                                <h3 class="hero-editor__title" id="previewTitle">{{ hero.title if hero else 'Professional Cleaning Services' }}</h3>
-                            </div>
-
-                            <div class="hero-editor__item hero-editor__item--subtitle" id="previewSubtitleItem" data-x-input="subtitle_offset_x" data-y-input="subtitle_offset_y">
-                                <span class="hero-editor__drag-handle" data-drag-handle>Move Subtitle</span>
-                                <p class="hero-editor__subtitle" id="previewSubtitle">{{ hero.subtitle if hero else 'Reliable, affordable cleaning for your home or office.' }}</p>
-                            </div>
-
-                            <div class="hero-editor__static-cta" aria-hidden="true">
-                                <span class="hero-editor__cta-btn hero-editor__cta-btn--ghost">See Reviews</span>
-                            </div>
-
-                            <div class="hero-editor__item hero-editor__item--meta" id="previewMetaItem" data-x-input="meta_offset_x" data-y-input="meta_offset_y">
-                                <span class="hero-editor__drag-handle" data-drag-handle>Move Details</span>
-                                <div class="hero-editor__meta">
-                                    <div class="hero-editor__meta-item" id="previewMeta1">{{ hero.small_text_line1 if hero else 'Over 150 satisfied clients nationwide' }}</div>
-                                    <div class="hero-editor__meta-item" id="previewMeta2">{{ hero.small_text_line2 if hero else 'Eco-friendly products and flexible scheduling' }}</div>
-                                    <div class="hero-editor__meta-item" id="previewMeta3">{{ hero.small_text_line3 if hero else 'Fully vetted, professional cleaning teams' }}</div>
+                        <div class="stage__item stage__item--meta" id="previewMetaItem" data-x-input="meta_offset_x" data-y-input="meta_offset_y">
+                            <span class="stage__drag-handle" data-drag-handle>Move Badges</span>
+                            <div class="stage__meta">
+                                <div class="stage__meta-item" id="previewMeta1">
+                                    {% if hero.small_text_line1_pct %}<span class="stage__meta-pct">{{ hero.small_text_line1_pct }}%</span> {% endif %}{{ hero.small_text_line1 or 'Detail 1' }}
+                                </div>
+                                <div class="stage__meta-item" id="previewMeta2">
+                                    {% if hero.small_text_line2_pct %}<span class="stage__meta-pct">{{ hero.small_text_line2_pct }}%</span> {% endif %}{{ hero.small_text_line2 or 'Detail 2' }}
+                                </div>
+                                <div class="stage__meta-item" id="previewMeta3">
+                                    {% if hero.small_text_line3_pct %}<span class="stage__meta-pct">{{ hero.small_text_line3_pct }}%</span> {% endif %}{{ hero.small_text_line3 or 'Detail 3' }}
                                 </div>
                             </div>
                         </div>
-
-                        <div class="hero-editor__visual-col">
-                            <div class="hero-editor__item hero-editor__item--card hero-editor__item--card1" id="previewCard1" data-x-input="card1_offset_x" data-y-input="card1_offset_y">
-                                <span class="hero-editor__drag-handle" data-drag-handle>Move Card 1</span>
-                                {% set stat1_preview = hero.stat1_text if hero else '98% · Client satisfaction score' %}
-                                {% set stat1_parts = stat1_preview.split('·') if stat1_preview else [] %}
-                                <strong id="previewCard1Primary">{{ stat1_parts[0] | trim if stat1_parts else '' }}</strong>
-                                <span id="previewCard1Secondary">{{ stat1_parts[1] | trim if stat1_parts|length > 1 else (stat1_preview | trim if stat1_preview and stat1_parts|length == 1 else '') }}</span>
-                                <span class="hero-editor__card-line"></span>
-                                <span id="previewCard1Tertiary">{{ stat1_parts[2] | trim if stat1_parts|length > 2 else '' }}</span>
-                            </div>
-
-                            <div class="hero-editor__item hero-editor__item--card hero-editor__item--card2" id="previewCard2" data-x-input="card2_offset_x" data-y-input="card2_offset_y">
-                                <span class="hero-editor__drag-handle" data-drag-handle>Move Card 2</span>
-                                {% set stat2_preview = hero.stat2_text if hero else '24h · Response time for every request' %}
-                                {% set stat2_parts = stat2_preview.split('·') if stat2_preview else [] %}
-                                <strong id="previewCard2Primary">{{ stat2_parts[0] | trim if stat2_parts else '' }}</strong>
-                                <span id="previewCard2Secondary">{{ stat2_parts[1] | trim if stat2_parts|length > 1 else (stat2_preview | trim if stat2_preview and stat2_parts|length == 1 else '') }}</span>
-                                <span class="hero-editor__card-line"></span>
-                                <span id="previewCard2Tertiary">{{ stat2_parts[2] | trim if stat2_parts|length > 2 else '' }}</span>
-                            </div>
-
-                            <div class="hero-editor__item hero-editor__item--card hero-editor__item--card3" id="previewCard3" data-x-input="card3_offset_x" data-y-input="card3_offset_y">
-                                <span class="hero-editor__drag-handle" data-drag-handle>Move Card 3</span>
-                                {% set stat3_preview = hero.stat3_text if hero else 'Emergency · Cleanups available when you need them' %}
-                                {% set stat3_parts = stat3_preview.split('·') if stat3_preview else [] %}
-                                <strong id="previewCard3Primary">{{ stat3_parts[0] | trim if stat3_parts else '' }}</strong>
-                                <span id="previewCard3Secondary">{{ stat3_parts[1] | trim if stat3_parts|length > 1 else (stat3_preview | trim if stat3_preview and stat3_parts|length == 1 else '') }}</span>
-                                <span class="hero-editor__card-line"></span>
-                                <span id="previewCard3Tertiary">{{ stat3_parts[2] | trim if stat3_parts|length > 2 else '' }}</span>
-                            </div>
-                        </div>
-                    </div>
                     </div>
 
-                    <div class="position-grid">
-                        <div class="position-row">
-                            <span class="position-row__label">Content Block</span>
-                            <div class="form-group">
-                                <label for="content_offset_x">X (px)</label>
-                                <input type="number" id="content_offset_x" name="content_offset_x" min="-420" max="420" value="{{ hero.content_offset_x or 0 }}">
-                            </div>
-                            <div class="form-group">
-                                <label for="content_offset_y">Y (px)</label>
-                                <input type="number" id="content_offset_y" name="content_offset_y" min="-220" max="220" value="{{ hero.content_offset_y or 0 }}">
-                            </div>
+                    <div class="stage__visual-col">
+                        <div class="stage__item stage__item--card stage__item--card1" id="previewCard1" data-x-input="card1_offset_x" data-y-input="card1_offset_y">
+                            <span class="stage__drag-handle" data-drag-handle>Move Card 1</span>
+                            {% set s1 = (hero.stat1_text or '98% · Client satisfaction score').split('·') %}
+                            <strong id="previewCard1Primary">{{ s1[0] | trim }}</strong>
+                            <span id="previewCard1Secondary">{{ s1[1] | trim if s1|length > 1 else '' }}</span>
+                            <span class="stage__card-line"></span>
+                            <span id="previewCard1Tertiary" style="{{ 'display:none' if s1|length < 3 else '' }}">{{ s1[2] | trim if s1|length > 2 else '' }}</span>
                         </div>
-                        <div class="position-row">
-                            <span class="position-row__label">Tagline</span>
-                            <div class="form-group">
-                                <label for="tagline_offset_x">X (px)</label>
-                                <input type="number" id="tagline_offset_x" name="tagline_offset_x" min="-320" max="320" value="{{ hero.tagline_offset_x or 0 }}">
-                            </div>
-                            <div class="form-group">
-                                <label for="tagline_offset_y">Y (px)</label>
-                                <input type="number" id="tagline_offset_y" name="tagline_offset_y" min="-220" max="220" value="{{ hero.tagline_offset_y or 0 }}">
-                            </div>
+                        <div class="stage__item stage__item--card stage__item--card2" id="previewCard2" data-x-input="card2_offset_x" data-y-input="card2_offset_y">
+                            <span class="stage__drag-handle" data-drag-handle>Move Card 2</span>
+                            {% set s2 = (hero.stat2_text or '24h · Response time for every request').split('·') %}
+                            <strong id="previewCard2Primary">{{ s2[0] | trim }}</strong>
+                            <span id="previewCard2Secondary">{{ s2[1] | trim if s2|length > 1 else '' }}</span>
+                            <span class="stage__card-line"></span>
+                            <span id="previewCard2Tertiary" style="{{ 'display:none' if s2|length < 3 else '' }}">{{ s2[2] | trim if s2|length > 2 else '' }}</span>
                         </div>
-                        <div class="position-row">
-                            <span class="position-row__label">Title</span>
-                            <div class="form-group">
-                                <label for="title_offset_x">X (px)</label>
-                                <input type="number" id="title_offset_x" name="title_offset_x" min="-320" max="320" value="{{ hero.title_offset_x or 0 }}">
-                            </div>
-                            <div class="form-group">
-                                <label for="title_offset_y">Y (px)</label>
-                                <input type="number" id="title_offset_y" name="title_offset_y" min="-220" max="220" value="{{ hero.title_offset_y or 0 }}">
-                            </div>
-                        </div>
-                        <div class="position-row">
-                            <span class="position-row__label">Subtitle</span>
-                            <div class="form-group">
-                                <label for="subtitle_offset_x">X (px)</label>
-                                <input type="number" id="subtitle_offset_x" name="subtitle_offset_x" min="-320" max="320" value="{{ hero.subtitle_offset_x or 0 }}">
-                            </div>
-                            <div class="form-group">
-                                <label for="subtitle_offset_y">Y (px)</label>
-                                <input type="number" id="subtitle_offset_y" name="subtitle_offset_y" min="-220" max="220" value="{{ hero.subtitle_offset_y or 0 }}">
-                            </div>
-                        </div>
-                        <div class="position-row">
-                            <span class="position-row__label">Details</span>
-                            <div class="form-group">
-                                <label for="meta_offset_x">X (px)</label>
-                                <input type="number" id="meta_offset_x" name="meta_offset_x" min="-320" max="320" value="{{ hero.meta_offset_x or 0 }}">
-                            </div>
-                            <div class="form-group">
-                                <label for="meta_offset_y">Y (px)</label>
-                                <input type="number" id="meta_offset_y" name="meta_offset_y" min="-220" max="220" value="{{ hero.meta_offset_y or 0 }}">
-                            </div>
-                        </div>
-                        <div class="position-row">
-                            <span class="position-row__label">Stat Card 1</span>
-                            <div class="form-group">
-                                <label for="card1_offset_x">X (px)</label>
-                                <input type="number" id="card1_offset_x" name="card1_offset_x" min="-220" max="220" value="{{ hero.card1_offset_x or 0 }}">
-                            </div>
-                            <div class="form-group">
-                                <label for="card1_offset_y">Y (px)</label>
-                                <input type="number" id="card1_offset_y" name="card1_offset_y" min="-220" max="220" value="{{ hero.card1_offset_y or 0 }}">
-                            </div>
-                        </div>
-                        <div class="position-row">
-                            <span class="position-row__label">Stat Card 2</span>
-                            <div class="form-group">
-                                <label for="card2_offset_x">X (px)</label>
-                                <input type="number" id="card2_offset_x" name="card2_offset_x" min="-220" max="220" value="{{ hero.card2_offset_x or 0 }}">
-                            </div>
-                            <div class="form-group">
-                                <label for="card2_offset_y">Y (px)</label>
-                                <input type="number" id="card2_offset_y" name="card2_offset_y" min="-220" max="220" value="{{ hero.card2_offset_y or 0 }}">
-                            </div>
-                        </div>
-                        <div class="position-row">
-                            <span class="position-row__label">Stat Card 3</span>
-                            <div class="form-group">
-                                <label for="card3_offset_x">X (px)</label>
-                                <input type="number" id="card3_offset_x" name="card3_offset_x" min="-220" max="220" value="{{ hero.card3_offset_x or 0 }}">
-                            </div>
-                            <div class="form-group">
-                                <label for="card3_offset_y">Y (px)</label>
-                                <input type="number" id="card3_offset_y" name="card3_offset_y" min="-220" max="220" value="{{ hero.card3_offset_y or 0 }}">
-                            </div>
+                        <div class="stage__item stage__item--card stage__item--card3" id="previewCard3" data-x-input="card3_offset_x" data-y-input="card3_offset_y">
+                            <span class="stage__drag-handle" data-drag-handle>Move Card 3</span>
+                            {% set s3 = (hero.stat3_text or 'Emergency · Cleanups available').split('·') %}
+                            <strong id="previewCard3Primary">{{ s3[0] | trim }}</strong>
+                            <span id="previewCard3Secondary">{{ s3[1] | trim if s3|length > 1 else '' }}</span>
+                            <span class="stage__card-line"></span>
+                            <span id="previewCard3Tertiary" style="{{ 'display:none' if s3|length < 3 else '' }}">{{ s3[2] | trim if s3|length > 2 else '' }}</span>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <div class="grid grid--two">
+            <!-- Hidden position inputs (wired to drag-and-drop) -->
+            <div style="display:none;">
+                <input type="number" id="content_offset_x" name="content_offset_x" min="-420" max="420" value="{{ hero.content_offset_x or 0 }}">
+                <input type="number" id="content_offset_y" name="content_offset_y" min="-220" max="220" value="{{ hero.content_offset_y or 0 }}">
+                <input type="number" id="tagline_offset_x" name="tagline_offset_x" min="-320" max="320" value="{{ hero.tagline_offset_x or 0 }}">
+                <input type="number" id="tagline_offset_y" name="tagline_offset_y" min="-220" max="220" value="{{ hero.tagline_offset_y or 0 }}">
+                <input type="number" id="title_offset_x" name="title_offset_x" min="-320" max="320" value="{{ hero.title_offset_x or 0 }}">
+                <input type="number" id="title_offset_y" name="title_offset_y" min="-220" max="220" value="{{ hero.title_offset_y or 0 }}">
+                <input type="number" id="subtitle_offset_x" name="subtitle_offset_x" min="-320" max="320" value="{{ hero.subtitle_offset_x or 0 }}">
+                <input type="number" id="subtitle_offset_y" name="subtitle_offset_y" min="-220" max="220" value="{{ hero.subtitle_offset_y or 0 }}">
+                <input type="number" id="meta_offset_x" name="meta_offset_x" min="-320" max="320" value="{{ hero.meta_offset_x or 0 }}">
+                <input type="number" id="meta_offset_y" name="meta_offset_y" min="-220" max="220" value="{{ hero.meta_offset_y or 0 }}">
+                <input type="number" id="card1_offset_x" name="card1_offset_x" min="-220" max="220" value="{{ hero.card1_offset_x or 0 }}">
+                <input type="number" id="card1_offset_y" name="card1_offset_y" min="-220" max="220" value="{{ hero.card1_offset_y or 0 }}">
+                <input type="number" id="card2_offset_x" name="card2_offset_x" min="-220" max="220" value="{{ hero.card2_offset_x or 0 }}">
+                <input type="number" id="card2_offset_y" name="card2_offset_y" min="-220" max="220" value="{{ hero.card2_offset_y or 0 }}">
+                <input type="number" id="card3_offset_x" name="card3_offset_x" min="-220" max="220" value="{{ hero.card3_offset_x or 0 }}">
+                <input type="number" id="card3_offset_y" name="card3_offset_y" min="-220" max="220" value="{{ hero.card3_offset_y or 0 }}">
+            </div>
+        </div>
+
+        <!-- 6 · Typography & Colours -->
+        <div class="card">
+            <h2 class="section-title">Typography &amp; Colours</h2>
+            <p class="section-hint">Changes show live in the preview above as you type.</p>
+
+            <div class="grid" style="gap:1rem;">
+
+                <div class="style-group">
+                    <p class="style-group__title">Tagline</p>
+                    <div class="grid grid--2">
                         <div class="form-group">
-                            <label for="tagline_bg_color">Tagline Background</label>
+                            <label for="tagline_bg_color">Background colour</label>
                             <input type="color" id="tagline_bg_color" name="tagline_bg_color" value="{{ hero.tagline_bg_color or '#16a34a' }}">
                         </div>
                         <div class="form-group">
-                            <label for="tagline_text_color">Tagline Text</label>
+                            <label for="tagline_text_color">Text colour</label>
                             <input type="color" id="tagline_text_color" name="tagline_text_color" value="{{ hero.tagline_text_color or '#ffffff' }}">
                         </div>
+                    </div>
+                </div>
+
+                <div class="style-group">
+                    <p class="style-group__title">Title</p>
+                    <div class="grid grid--3">
                         <div class="form-group">
-                            <label for="title_color">Title Color</label>
+                            <label for="title_color">Colour</label>
                             <input type="color" id="title_color" name="title_color" value="{{ hero.title_color or '#2563eb' }}">
                         </div>
                         <div class="form-group">
-                            <label for="title_size_px">Title Size (px)</label>
+                            <label for="title_size_px">Size (px) — 34 to 84</label>
                             <input type="number" id="title_size_px" name="title_size_px" min="34" max="84" value="{{ hero.title_size_px or 72 }}">
                         </div>
                         <div class="form-group">
-                            <label for="title_weight">Title Boldness</label>
+                            <label for="title_weight">Boldness — 400 to 900</label>
                             <input type="number" id="title_weight" name="title_weight" min="400" max="900" step="100" value="{{ hero.title_weight or 800 }}">
                         </div>
+                    </div>
+                </div>
+
+                <div class="style-group">
+                    <p class="style-group__title">Subtitle / Description</p>
+                    <div class="grid grid--3">
                         <div class="form-group">
-                            <label for="subtitle_color">Paragraph Color</label>
+                            <label for="subtitle_color">Colour</label>
                             <input type="color" id="subtitle_color" name="subtitle_color" value="{{ hero.subtitle_color or '#ffffff' }}">
                         </div>
                         <div class="form-group">
-                            <label for="subtitle_size_px">Paragraph Size (px)</label>
+                            <label for="subtitle_size_px">Size (px) — 14 to 24</label>
                             <input type="number" id="subtitle_size_px" name="subtitle_size_px" min="14" max="24" value="{{ hero.subtitle_size_px or 18 }}">
                         </div>
                         <div class="form-group">
-                            <label for="subtitle_weight">Paragraph Boldness</label>
+                            <label for="subtitle_weight">Boldness — 300 to 900</label>
                             <input type="number" id="subtitle_weight" name="subtitle_weight" min="300" max="900" step="100" value="{{ hero.subtitle_weight or 600 }}">
                         </div>
+                    </div>
+                </div>
+
+                <div class="style-group">
+                    <p class="style-group__title">Detail Badges</p>
+                    <div class="grid grid--2">
                         <div class="form-group">
-                            <label for="content_bg_color">Content Panel Background</label>
-                            <input type="text" id="content_bg_color" name="content_bg_color" value="{{ hero.content_bg_color or '' }}" placeholder="#0f172a (leave empty for none)">
-                        </div>
-                        <div class="form-group">
-                            <label for="meta_text_color">Detail Text Color</label>
+                            <label for="meta_text_color">Text colour</label>
                             <input type="color" id="meta_text_color" name="meta_text_color" value="{{ hero.meta_text_color or '#ffffff' }}">
                         </div>
                         <div class="form-group">
-                            <label for="meta_bg_color">Detail Background Color</label>
+                            <label for="meta_bg_color">Background colour</label>
                             <input type="color" id="meta_bg_color" name="meta_bg_color" value="{{ hero.meta_bg_color or '#0f172a' }}">
                         </div>
                     </div>
                 </div>
-            </section>
 
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary">Save Hero Content</button>
-            </div>
-        </form>
-
-        <div class="card">
-            <h2 class="section-title">Homepage Section Flow</h2>
-            <p class="text-muted" style="margin-bottom: 1rem;">Drag to mirror the live homepage sequence (Hero, Services, About, etc.). Changes are saved immediately and reflected on the site.</p>
-
-            <ul class="homepage-flow" id="homepageSectionList" aria-label="Homepage section order">
-                {% for section in homepage_sections %}
-                <li class="homepage-flow__item" draggable="true" data-section-key="{{ section.section_key }}">
-                    <span class="homepage-flow__handle" aria-hidden="true">↕</span>
-                    <div class="homepage-flow__content">
-                        <strong>{{ section.section_label }}</strong>
-                        <small>Key: {{ section.section_key }}</small>
+                <div class="style-group">
+                    <p class="style-group__title">Content Panel</p>
+                    <div class="form-group">
+                        <label for="content_bg_color">Panel background <span style="font-weight:400;">(leave empty for transparent)</span></label>
+                        <input type="text" id="content_bg_color" name="content_bg_color" value="{{ hero.content_bg_color or '' }}" placeholder="#0f172a or rgba(0,0,0,0.5)">
                     </div>
-                    <span class="homepage-flow__tag">Live</span>
-                </li>
-                {% endfor %}
-            </ul>
+                </div>
 
-            <p class="text-muted" id="homepageFlowStatus" aria-live="polite" style="margin-top: 0.9rem;">Drag and drop to reorder sections.</p>
+            </div>
         </div>
 
-        <div class="card">
-            <h2 class="section-title">Hero Badges</h2>
-            {% if hero_badges %}
-            <ul class="badge-list">
-                {% for badge in hero_badges %}
-                <li class="badge-item">
-                    <img src="{{ badge.image_path | media_url }}" alt="Hero badge {{ loop.index }}" loading="lazy">
-                    <form method="post">
-                        <input type="hidden" name="form_id" value="badge_delete">
-                        <input type="hidden" name="badge_id" value="{{ badge.id }}">
-                        <button type="submit" class="btn btn-outline" onclick="return confirm('Delete this badge?');">Remove</button>
-                    </form>
-                </li>
-                {% endfor %}
-            </ul>
-            {% else %}
-            <p class="text-muted">No hero badges uploaded yet.</p>
-            {% endif %}
-
-            <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border);">
-
-            <form method="post" enctype="multipart/form-data" class="badge-upload">
-                <input type="hidden" name="form_id" value="badge_upload">
-                <div class="form-group">
-                    <label for="badge_image">Upload New Badge</label>
-                    <input type="file" id="badge_image" name="image" accept="image/*" required>
-                </div>
-                <div class="form-actions" style="justify-content: flex-start;">
-                    <button type="submit" class="btn btn-primary">Upload Badge</button>
-                </div>
-            </form>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Hero Content</button>
         </div>
+    </form>
+
+    <!-- ══════════════════════════════════════════
+         HOMEPAGE SECTION ORDER
+    ══════════════════════════════════════════ -->
+    <div class="card">
+        <h2 class="section-title">Homepage Section Order</h2>
+        <p class="section-hint">Drag to reorder sections. Changes save automatically and are reflected live on the site.</p>
+        <ul class="flow-list" id="flowList" aria-label="Homepage section order">
+            {% for section in homepage_sections %}
+            <li class="flow-item" draggable="true" data-section-key="{{ section.section_key }}">
+                <span class="flow-handle" aria-hidden="true">↕</span>
+                <div class="flow-content">
+                    <strong>{{ section.section_label }}</strong>
+                    <small>{{ section.section_key }}</small>
+                </div>
+                <span class="flow-tag">Live</span>
+            </li>
+            {% endfor %}
+        </ul>
+        <p class="section-hint" id="flowStatus" aria-live="polite" style="margin-top:0.75rem;margin-bottom:0;">Drag to reorder.</p>
     </div>
 
-    <script>
-        const sidebar = document.querySelector('.sidebar');
-        const sidebarToggle = document.querySelector('.sidebar__toggle');
-        const sidebarLinks = document.querySelectorAll('.sidebar__nav .nav-link');
+    <!-- ══════════════════════════════════════════
+         HERO BADGES
+    ══════════════════════════════════════════ -->
+    <div class="card">
+        <h2 class="section-title">Trust Badges</h2>
+        <p class="section-hint">Small logo/accreditation images shown on the hero.</p>
+        {% if hero_badges %}
+        <ul class="badge-list">
+            {% for badge in hero_badges %}
+            <li class="badge-item">
+                <img src="{{ badge.image_path | media_url }}" alt="Badge {{ loop.index }}" loading="lazy">
+                <form method="post">
+                    <input type="hidden" name="form_id" value="badge_delete">
+                    <input type="hidden" name="badge_id" value="{{ badge.id }}">
+                    <button type="submit" class="btn btn-outline" style="font-size:0.8rem;padding:0.4rem 0.7rem;" onclick="return confirm('Remove this badge?');">Remove</button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        <hr style="margin:1.5rem 0;border:none;border-top:1px solid var(--border);">
+        {% endif %}
+        <form method="post" enctype="multipart/form-data">
+            <input type="hidden" name="form_id" value="badge_upload">
+            <div class="form-group">
+                <label for="badge_image">Upload new badge</label>
+                <input type="file" id="badge_image" name="image" accept="image/*" required>
+            </div>
+            <div class="form-actions" style="justify-content:flex-start;border-top:none;margin-top:1rem;padding-top:0;">
+                <button type="submit" class="btn btn-primary">Upload Badge</button>
+            </div>
+        </form>
+    </div>
+</div>
 
-        if (sidebar && sidebarToggle) {
-            sidebarToggle.addEventListener('click', () => {
-                const isOpen = sidebar.classList.toggle('sidebar--menu-open');
-                sidebarToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-            });
+<script>
+/* ── Sidebar toggle ── */
+(function () {
+    const sidebar = document.querySelector('.sidebar');
+    const toggle = document.querySelector('.sidebar__toggle');
+    if (!sidebar || !toggle) return;
+    toggle.addEventListener('click', () => {
+        const open = sidebar.classList.toggle('sidebar--menu-open');
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.querySelectorAll('.sidebar__nav .nav-link').forEach(link => {
+        link.addEventListener('click', () => {
+            if (window.innerWidth <= 1024 && sidebar.classList.contains('sidebar--menu-open')) {
+                sidebar.classList.remove('sidebar--menu-open');
+                toggle.setAttribute('aria-expanded', 'false');
+            }
+        });
+    });
+    window.addEventListener('resize', () => {
+        if (window.innerWidth > 1024) sidebar.classList.remove('sidebar--menu-open');
+    });
+})();
 
-            sidebarLinks.forEach((link) => {
-                link.addEventListener('click', () => {
-                    if (window.innerWidth <= 1024 && sidebar.classList.contains('sidebar--menu-open')) {
-                        sidebar.classList.remove('sidebar--menu-open');
-                        sidebarToggle.setAttribute('aria-expanded', 'false');
-                    }
-                });
-            });
+/* ── Homepage section order ── */
+(function () {
+    const list = document.getElementById('flowList');
+    const status = document.getElementById('flowStatus');
+    if (!list) return;
 
-            window.addEventListener('resize', () => {
-                if (window.innerWidth > 1024 && sidebar.classList.contains('sidebar--menu-open')) {
-                    sidebar.classList.remove('sidebar--menu-open');
-                    sidebarToggle.setAttribute('aria-expanded', 'false');
-                }
-            });
+    let dragged = null;
+
+    list.querySelectorAll('.flow-item').forEach(item => {
+        item.addEventListener('dragstart', e => {
+            dragged = item;
+            item.classList.add('is-dragging');
+            if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+        });
+        item.addEventListener('dragend', () => {
+            item.classList.remove('is-dragging');
+            dragged = null;
+            saveOrder();
+        });
+    });
+
+    list.addEventListener('dragover', e => {
+        e.preventDefault();
+        if (!dragged) return;
+        const after = getDragAfter(list, e.clientY);
+        if (!after) list.appendChild(dragged);
+        else if (after !== dragged) list.insertBefore(dragged, after);
+    });
+
+    function getDragAfter(container, y) {
+        const items = [...container.querySelectorAll('.flow-item:not(.is-dragging)')];
+        return items.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) return { offset, element: child };
+            return closest;
+        }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+    }
+
+    function saveOrder() {
+        const keys = [...list.querySelectorAll('[data-section-key]')].map(i => i.dataset.sectionKey).filter(Boolean);
+        if (!keys.length) return;
+        status.textContent = 'Saving…';
+        fetch('/admin/api/homepage-sections/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ section_keys: keys })
+        })
+        .then(r => r.json().then(d => ({ ok: r.ok, d })))
+        .then(({ ok, d }) => {
+            status.textContent = ok ? 'Order saved.' : (d.error || 'Failed to save.');
+            status.style.color = ok ? '' : '#b91c1c';
+        })
+        .catch(() => { status.textContent = 'Failed to save.'; status.style.color = '#b91c1c'; });
+    }
+})();
+
+/* ── Hero preview ── */
+(function () {
+    const stage = document.getElementById('stage');
+    const stageWrap = document.getElementById('stageWrap');
+    if (!stage || !stageWrap) return;
+
+    const DESIGN_W = 1280;
+
+    function scaleStage() {
+        const avail = stageWrap.parentElement ? stageWrap.parentElement.clientWidth : stageWrap.clientWidth;
+        const scale = Math.min(1, avail / DESIGN_W);
+        const h = stage.offsetHeight || 650;
+        stageWrap.style.setProperty('--stage-scale', scale);
+        stageWrap.style.height = `${Math.round(h * scale)}px`;
+        stage.style.transform = `scale(${scale})`;
+    }
+
+    scaleStage();
+    requestAnimationFrame(() => requestAnimationFrame(scaleStage));
+    window.addEventListener('resize', scaleStage);
+
+    function clamp(v, lo, hi) {
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo;
+    }
+
+    function getScale() {
+        const m = stage.style.transform.match(/scale\(([^)]+)\)/);
+        return m ? parseFloat(m[1]) || 1 : 1;
+    }
+
+    function applyTransform(item, xInput, yInput) {
+        item.style.transform = `translate(${Number(xInput.value)||0}px,${Number(yInput.value)||0}px)`;
+    }
+
+    function wireDrag(item) {
+        const xInput = document.getElementById(item.dataset.xInput);
+        const yInput = document.getElementById(item.dataset.yInput);
+        const handle = item.querySelector('[data-drag-handle]') || item;
+        if (!xInput || !yInput) return;
+
+        applyTransform(item, xInput, yInput);
+
+        let dragging = false, sx = 0, sy = 0, sox = 0, soy = 0;
+        let xMin = -400, xMax = 400, yMin = -300, yMax = 300;
+
+        handle.addEventListener('pointerdown', e => {
+            e.preventDefault(); e.stopPropagation();
+            dragging = true; sx = e.clientX; sy = e.clientY;
+            sox = Number(xInput.value)||0; soy = Number(yInput.value)||0;
+            const sc = getScale();
+            const sr = stage.getBoundingClientRect();
+            const ir = item.getBoundingClientRect();
+            xMin = Math.round((sr.left - ir.left)/sc + sox) + 8;
+            xMax = Math.round((sr.right - ir.right)/sc + sox) - 8;
+            yMin = Math.round((sr.top - ir.top)/sc + soy) + 8;
+            yMax = Math.round((sr.bottom - ir.bottom)/sc + soy) - 8;
+            if (xMin > xMax) { const m = (xMin+xMax)/2; xMin = xMax = m; }
+            if (yMin > yMax) { const m = (yMin+yMax)/2; yMin = yMax = m; }
+            handle.setPointerCapture(e.pointerId);
+            item.classList.add('is-drag-active');
+            document.body.classList.add('is-preview-dragging');
+        });
+
+        handle.addEventListener('pointermove', e => {
+            if (!dragging) return;
+            e.preventDefault();
+            const sc = getScale();
+            xInput.value = String(Math.round(clamp(sox + (e.clientX - sx)/sc, xMin, xMax)));
+            yInput.value = String(Math.round(clamp(soy + (e.clientY - sy)/sc, yMin, yMax)));
+            applyTransform(item, xInput, yInput);
+        });
+
+        function endDrag(e) {
+            if (!dragging) return;
+            dragging = false;
+            handle.releasePointerCapture(e.pointerId);
+            item.classList.remove('is-drag-active');
+            document.body.classList.remove('is-preview-dragging');
         }
 
-        const homepageSectionList = document.getElementById('homepageSectionList');
-        const homepageFlowStatus = document.getElementById('homepageFlowStatus');
+        handle.addEventListener('pointerup', endDrag);
+        handle.addEventListener('pointercancel', endDrag);
+    }
 
-        function setHomepageFlowStatus(message, isError) {
-            if (!homepageFlowStatus) {
-                return;
-            }
-            homepageFlowStatus.textContent = message;
-            homepageFlowStatus.style.color = isError ? '#b91c1c' : '#6b7280';
+    stage.querySelectorAll('[data-x-input][data-y-input]').forEach(wireDrag);
+
+    /* Content column offset */
+    const contentCol = document.getElementById('previewContentCol');
+    const cxInput = document.getElementById('content_offset_x');
+    const cyInput = document.getElementById('content_offset_y');
+    function applyContentOffset() {
+        if (!contentCol || !cxInput || !cyInput) return;
+        contentCol.style.transform = `translate(${Number(cxInput.value)||0}px,${Number(cyInput.value)||0}px)`;
+    }
+    if (cxInput) cxInput.addEventListener('input', applyContentOffset);
+    if (cyInput) cyInput.addEventListener('input', applyContentOffset);
+    applyContentOffset();
+
+    /* Live style controls */
+    function applyStyles() {
+        const get = id => document.getElementById(id);
+
+        const tagline = get('previewTagline');
+        const title   = get('previewTitle');
+        const sub     = get('previewSubtitle');
+
+        if (tagline) {
+            const bg = get('tagline_bg_color'); if (bg) tagline.style.background = bg.value;
+            const tc = get('tagline_text_color'); if (tc) tagline.style.color = tc.value;
         }
-
-        function getHomepageSectionOrder() {
-            if (!homepageSectionList) {
-                return [];
-            }
-            return Array.from(homepageSectionList.querySelectorAll('[data-section-key]'))
-                .map((item) => item.dataset.sectionKey)
-                .filter(Boolean);
+        if (title) {
+            const c = get('title_color');   if (c) title.style.color = c.value;
+            const s = get('title_size_px'); if (s) title.style.fontSize = `${clamp(s.value,34,84)}px`;
+            const w = get('title_weight');  if (w) title.style.fontWeight = String(clamp(w.value,400,900));
         }
-
-        function getHomepageDragAfterElement(container, y) {
-            const draggableElements = [...container.querySelectorAll('.homepage-flow__item:not(.is-dragging)')];
-
-            return draggableElements.reduce((closest, child) => {
-                const box = child.getBoundingClientRect();
-                const offset = y - box.top - box.height / 2;
-                if (offset < 0 && offset > closest.offset) {
-                    return { offset, element: child };
-                }
-                return closest;
-            }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+        if (sub) {
+            const c = get('subtitle_color');   if (c) sub.style.color = c.value;
+            const s = get('subtitle_size_px'); if (s) sub.style.fontSize = `${clamp(s.value,14,24)}px`;
+            const w = get('subtitle_weight');  if (w) sub.style.fontWeight = String(clamp(w.value,300,900));
         }
-
-        function persistHomepageSectionOrder() {
-            const sectionKeys = getHomepageSectionOrder();
-            if (!sectionKeys.length) {
-                return;
-            }
-
-            setHomepageFlowStatus('Saving homepage order...', false);
-
-            fetch('/admin/api/homepage-sections/reorder', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ section_keys: sectionKeys }) })
-            .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
-            .then(({ ok, data }) => {
-                if (!ok) {
-                    throw new Error((data && data.error) ? data.error : 'Failed to save homepage order.');
-                }
-                setHomepageFlowStatus('Homepage order saved.', false);
-            })
-            .catch((error) => {
-                setHomepageFlowStatus(error.message || 'Failed to save homepage order.', true);
-            });
+        const col = document.getElementById('previewContentCol');
+        const cbg = get('content_bg_color');
+        if (col && cbg) {
+            col.style.background    = cbg.value || 'transparent';
+            col.style.borderRadius  = cbg.value ? '0.75rem' : '0';
+            col.style.padding       = cbg.value ? '1rem' : '0';
         }
+        const mtc = get('meta_text_color');
+        const mbc = get('meta_bg_color');
+        document.querySelectorAll('.stage__meta-item').forEach(el => {
+            if (mtc) el.style.color = mtc.value;
+            if (mbc) el.style.background = mbc.value;
+        });
+    }
 
-        if (homepageSectionList) {
-            let draggedItem = null;
-            const flowItems = homepageSectionList.querySelectorAll('.homepage-flow__item');
+    ['tagline_bg_color','tagline_text_color','title_color','title_size_px','title_weight',
+     'subtitle_color','subtitle_size_px','subtitle_weight','content_bg_color','meta_text_color','meta_bg_color']
+    .forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', applyStyles);
+    });
 
-            flowItems.forEach((item) => {
-                item.addEventListener('dragstart', (event) => {
-                    draggedItem = item;
-                    item.classList.add('is-dragging');
-                    if (event.dataTransfer) {
-                        event.dataTransfer.effectAllowed = 'move';
-                        event.dataTransfer.setData('text/plain', item.dataset.sectionKey || '');
-                    }
-                });
+    applyStyles();
 
-                item.addEventListener('dragend', () => {
-                    item.classList.remove('is-dragging');
-                    draggedItem = null;
-                    persistHomepageSectionOrder();
-                });
-            });
+    /* Live stat card text */
+    function parseCard(raw) {
+        const parts = String(raw||'').split('·').map(s=>s.trim()).filter(Boolean);
+        return { primary: parts[0]||'', secondary: parts[1]||'', tertiary: parts[2]||'' };
+    }
 
-            homepageSectionList.addEventListener('dragover', (event) => {
-                event.preventDefault();
-                if (!draggedItem) {
-                    return;
-                }
+    function applyCardText() {
+        [[1,'stat1_text'],[2,'stat2_text'],[3,'stat3_text']].forEach(([n, inputId]) => {
+            const inp = document.getElementById(inputId);
+            if (!inp) return;
+            const p = parseCard(inp.value);
+            const pr = document.getElementById(`previewCard${n}Primary`);
+            const sc = document.getElementById(`previewCard${n}Secondary`);
+            const tr = document.getElementById(`previewCard${n}Tertiary`);
+            if (pr) pr.textContent = p.primary;
+            if (sc) sc.textContent = p.secondary;
+            if (tr) { tr.textContent = p.tertiary; tr.style.display = p.tertiary ? 'block' : 'none'; }
+        });
+    }
 
-                const afterElement = getHomepageDragAfterElement(homepageSectionList, event.clientY);
-                if (!afterElement) {
-                    homepageSectionList.appendChild(draggedItem);
-                } else if (afterElement !== draggedItem) {
-                    homepageSectionList.insertBefore(draggedItem, afterElement);
-                }
-            });
-        }
+    ['stat1_text','stat2_text','stat3_text'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', applyCardText);
+    });
 
-        const previewStage = document.getElementById('heroEditorStage');
-        const stageWrap = document.getElementById('heroEditorStageWrap');
-        const STAGE_DESIGN_WIDTH = 1280; // match live hero desktop width
+    applyCardText();
 
-        function updateStageScale() {
-            if (!stageWrap || !previewStage) return;
-            const availableWidth = stageWrap.parentElement ? stageWrap.parentElement.clientWidth : stageWrap.clientWidth;
-            const scale = Math.min(1, availableWidth / STAGE_DESIGN_WIDTH);
-            const stageH = previewStage.offsetHeight || 620;
-            stageWrap.style.setProperty('--stage-scale', scale);
-            stageWrap.style.height = `${Math.round(stageH * scale)}px`;
-            previewStage.style.transform = `scale(${scale})`;
-        }
+    /* Live badge preview (% + label) */
+    function applyMetaPreview() {
+        [[1,1],[2,2],[3,3]].forEach(([n]) => {
+            const pctEl  = document.getElementById(`small_text_line${n}_pct`);
+            const lblEl  = document.getElementById(`small_text_line${n}`);
+            const target = document.getElementById(`previewMeta${n}`);
+            if (!target) return;
+            const pct = pctEl ? pctEl.value.trim() : '';
+            const lbl = lblEl ? lblEl.value.trim() : '';
+            target.innerHTML = pct
+                ? `<span class="stage__meta-pct">${pct}%</span> ${lbl || `Detail ${n}`}`
+                : (lbl || `Detail ${n}`);
+        });
+    }
 
-        updateStageScale();
-        // Re-run once layout is fully painted so offsetHeight is accurate
-        requestAnimationFrame(() => requestAnimationFrame(updateStageScale));
-        window.addEventListener('resize', updateStageScale);
+    [1,2,3].forEach(n => {
+        ['small_text_line'+n+'_pct','small_text_line'+n].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', applyMetaPreview);
+        });
+    });
 
-        const draggableItems = previewStage ? previewStage.querySelectorAll('[data-x-input][data-y-input]') : [];
-
-        function clamp(value, min, max) {
-            const parsed = Number(value);
-            if (!Number.isFinite(parsed)) {
-                return min;
-            }
-            return Math.min(max, Math.max(min, parsed));
-        }
-
-        function applyItemTransform(item) {
-            const xInput = document.getElementById(item.dataset.xInput);
-            const yInput = document.getElementById(item.dataset.yInput);
-            if (!xInput || !yInput) {
-                return;
-            }
-
-            const x = Number(xInput.value) || 0;
-            const y = Number(yInput.value) || 0;
-            item.style.transform = `translate(${x}px, ${y}px)`;
-        }
-
-        function wireDraggableItem(item) {
-            const xInput = document.getElementById(item.dataset.xInput);
-            const yInput = document.getElementById(item.dataset.yInput);
-            const dragHandle = item.querySelector('[data-drag-handle]') || item;
-            if (!xInput || !yInput) {
-                return;
-            }
-
-            applyItemTransform(item);
-
-            xInput.addEventListener('input', () => applyItemTransform(item));
-            yInput.addEventListener('input', () => applyItemTransform(item));
-
-            let isDragging = false;
-            let startX = 0;
-            let startY = 0;
-            let startOffsetX = 0;
-            let startOffsetY = 0;
-            let xMin = -400, xMax = 400, yMin = -300, yMax = 300;
-
-            function getStageScale() {
-                if (!previewStage) return 1;
-                const t = previewStage.style.transform;
-                const m = t.match(/scale\(([^)]+)\)/);
-                return m ? (parseFloat(m[1]) || 1) : 1;
-            }
-
-            dragHandle.addEventListener('pointerdown', (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-
-                isDragging = true;
-                startX = event.clientX;
-                startY = event.clientY;
-                startOffsetX = Number(xInput.value) || 0;
-                startOffsetY = Number(yInput.value) || 0;
-
-                const currentScale = getStageScale();
-                if (previewStage) {
-                    const stageRect = previewStage.getBoundingClientRect();
-                    const itemRect = item.getBoundingClientRect();
-                    xMin = Math.round((stageRect.left - itemRect.left) / currentScale + startOffsetX) + 8;
-                    xMax = Math.round((stageRect.right - itemRect.right) / currentScale + startOffsetX) - 8;
-                    yMin = Math.round((stageRect.top - itemRect.top) / currentScale + startOffsetY) + 8;
-                    yMax = Math.round((stageRect.bottom - itemRect.bottom) / currentScale + startOffsetY) - 8;
-                    if (xMin > xMax) { const mid = (xMin + xMax) / 2; xMin = mid; xMax = mid; }
-                    if (yMin > yMax) { const mid = (yMin + yMax) / 2; yMin = mid; yMax = mid; }
-                } else {
-                    xMin = Number(xInput.min) || -400;
-                    xMax = Number(xInput.max) || 400;
-                    yMin = Number(yInput.min) || -300;
-                    yMax = Number(yInput.max) || 300;
-                }
-
-                dragHandle.setPointerCapture(event.pointerId);
-                item.classList.add('is-drag-active');
-                document.body.classList.add('is-preview-dragging');
-            });
-
-            dragHandle.addEventListener('pointermove', (event) => {
-                if (!isDragging) return;
-                event.preventDefault();
-                const scale = getStageScale();
-                const nextX = clamp(startOffsetX + (event.clientX - startX) / scale, xMin, xMax);
-                const nextY = clamp(startOffsetY + (event.clientY - startY) / scale, yMin, yMax);
-                xInput.value = String(Math.round(nextX));
-                yInput.value = String(Math.round(nextY));
-                applyItemTransform(item);
-            });
-
-            function endDrag(event) {
-                if (!isDragging) return;
-                isDragging = false;
-                dragHandle.releasePointerCapture(event.pointerId);
-                item.classList.remove('is-drag-active');
-                document.body.classList.remove('is-preview-dragging');
-            }
-
-            dragHandle.addEventListener('pointerup', endDrag);
-            dragHandle.addEventListener('pointercancel', endDrag);
-        }
-
-        function applyPreviewStyleControls() {
-            const tagline = document.getElementById('previewTagline');
-            const title = document.getElementById('previewTitle');
-            const subtitle = document.getElementById('previewSubtitle');
-            const previewContentCol = document.getElementById('previewContentCol');
-
-            const taglineBg = document.getElementById('tagline_bg_color');
-            const taglineText = document.getElementById('tagline_text_color');
-            const titleColor = document.getElementById('title_color');
-            const titleSize = document.getElementById('title_size_px');
-            const titleWeight = document.getElementById('title_weight');
-            const subtitleColor = document.getElementById('subtitle_color');
-            const subtitleSize = document.getElementById('subtitle_size_px');
-            const subtitleWeight = document.getElementById('subtitle_weight');
-            const contentBgColor = document.getElementById('content_bg_color');
-            const metaTextColor = document.getElementById('meta_text_color');
-            const metaBgColor = document.getElementById('meta_bg_color');
-
-            if (tagline && taglineBg) {
-                tagline.style.background = taglineBg.value;
-            }
-            if (tagline && taglineText) {
-                tagline.style.color = taglineText.value;
-            }
-            if (title && titleColor) {
-                title.style.color = titleColor.value;
-            }
-            if (title && titleSize) {
-                title.style.fontSize = `${clamp(titleSize.value, 34, 84)}px`;
-            }
-            if (title && titleWeight) {
-                title.style.fontWeight = String(clamp(titleWeight.value, 400, 900));
-            }
-            if (subtitle && subtitleColor) {
-                subtitle.style.color = subtitleColor.value;
-            }
-            if (subtitle && subtitleSize) {
-                subtitle.style.fontSize = `${clamp(subtitleSize.value, 14, 24)}px`;
-            }
-            if (subtitle && subtitleWeight) {
-                subtitle.style.fontWeight = String(clamp(subtitleWeight.value, 300, 900));
-            }
-            if (previewContentCol && contentBgColor) {
-                previewContentCol.style.background = contentBgColor.value ? contentBgColor.value : 'transparent';
-                previewContentCol.style.borderRadius = contentBgColor.value ? '0.75rem' : '0';
-                previewContentCol.style.padding = contentBgColor.value ? '1rem' : '0';
-            }
-
-            if (metaTextColor || metaBgColor) {
-                document.querySelectorAll('.hero-editor__meta-item').forEach((meta) => {
-                    if (metaTextColor) {
-                        meta.style.color = metaTextColor.value;
-                    }
-                    if (metaBgColor) {
-                        meta.style.background = metaBgColor.value;
-                    }
-                });
-            }
-        }
-
-        function parseStatPreview(rawValue) {
-            const text = String(rawValue || '').trim();
-            if (!text) {
-                return { primary: '', secondary: '', tertiary: '' };
-            }
-
-            const parts = text
-                .split('·')
-                .map((segment) => String(segment || '').trim())
-                .filter((segment) => segment);
-
-            if (!parts.length) {
-                return { primary: text, secondary: '', tertiary: '' };
-            }
-
-            return {
-                primary: parts[0] || '',
-                secondary: parts[1] || (parts.length === 1 ? text : ''),
-                tertiary: parts[2] || ''
-            };
-        }
-
-        function applyCardPreviewText() {
-            const mappings = [
-                { inputId: 'stat1_text', primaryId: 'previewCard1Primary', secondaryId: 'previewCard1Secondary', tertiaryId: 'previewCard1Tertiary' },
-                { inputId: 'stat2_text', primaryId: 'previewCard2Primary', secondaryId: 'previewCard2Secondary', tertiaryId: 'previewCard2Tertiary' },
-                { inputId: 'stat3_text', primaryId: 'previewCard3Primary', secondaryId: 'previewCard3Secondary', tertiaryId: 'previewCard3Tertiary' }
-            ];
-
-            mappings.forEach((mapping) => {
-                const input = document.getElementById(mapping.inputId);
-                const primary = document.getElementById(mapping.primaryId);
-                const secondary = document.getElementById(mapping.secondaryId);
-                const tertiary = document.getElementById(mapping.tertiaryId);
-
-                if (!input || !primary || !secondary || !tertiary) {
-                    return;
-                }
-
-                const parsed = parseStatPreview(input.value);
-                primary.textContent = parsed.primary;
-                secondary.textContent = parsed.secondary;
-                tertiary.textContent = parsed.tertiary;
-                tertiary.style.display = parsed.tertiary ? 'block' : 'none';
-            });
-        }
-
-        if (previewStage) {
-            draggableItems.forEach((item) => wireDraggableItem(item));
-
-            const previewContentCol = document.getElementById('previewContentCol');
-            const contentOffsetX = document.getElementById('content_offset_x');
-            const contentOffsetY = document.getElementById('content_offset_y');
-
-            function applyContentOffset() {
-                if (!previewContentCol || !contentOffsetX || !contentOffsetY) {
-                    return;
-                }
-                const nextX = clamp(contentOffsetX.value, -420, 420);
-                const nextY = clamp(contentOffsetY.value, -220, 220);
-                contentOffsetX.value = String(Math.round(nextX));
-                contentOffsetY.value = String(Math.round(nextY));
-                previewContentCol.style.transform = `translate(${Math.round(nextX)}px, ${Math.round(nextY)}px)`;
-            }
-
-            if (contentOffsetX) {
-                contentOffsetX.addEventListener('input', applyContentOffset);
-            }
-            if (contentOffsetY) {
-                contentOffsetY.addEventListener('input', applyContentOffset);
-            }
-
-            [
-                'tagline_bg_color',
-                'tagline_text_color',
-                'title_color',
-                'title_size_px',
-                'title_weight',
-                'subtitle_color',
-                'subtitle_size_px',
-                'subtitle_weight',
-                'content_bg_color',
-                'meta_text_color',
-                'meta_bg_color'
-            ].forEach((id) => {
-                const input = document.getElementById(id);
-                if (input) {
-                    input.addEventListener('input', applyPreviewStyleControls);
-                }
-            });
-
-            ['stat1_text', 'stat2_text', 'stat3_text'].forEach((id) => {
-                const input = document.getElementById(id);
-                if (input) {
-                    input.addEventListener('input', applyCardPreviewText);
-                }
-            });
-
-            applyContentOffset();
-            applyPreviewStyleControls();
-            applyCardPreviewText();
-            // Recalculate wrapper height after all items have rendered and fonts loaded
-            requestAnimationFrame(() => requestAnimationFrame(updateStageScale));
-        }
-    </script>
+    applyMetaPreview();
+    requestAnimationFrame(() => requestAnimationFrame(scaleStage));
+})();
+</script>
 </body>
 </html>
