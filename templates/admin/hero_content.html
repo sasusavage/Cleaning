@@ -1001,18 +1001,37 @@
 
             <section>
                 <h2 class="section-title">Supporting Details</h2>
-                <div class="grid grid--two">
-                    <div class="form-group">
-                        <label for="small_text_line1">Detail 1</label>
-                        <input type="text" id="small_text_line1" name="small_text_line1" value="{{ hero.small_text_line1 or '' }}">
+                <p class="text-muted" style="margin-bottom:1rem;">Enter a label (e.g. "Reliable") and optionally a percentage — shown bold before the label on the homepage.</p>
+                <div style="display:grid;gap:0.75rem;">
+                    <div style="display:grid;grid-template-columns:80px 1fr;gap:0.5rem;align-items:end;">
+                        <div class="form-group" style="margin:0;">
+                            <label for="small_text_line1_pct">% (optional)</label>
+                            <input type="number" id="small_text_line1_pct" name="small_text_line1_pct" min="0" max="100" placeholder="98" value="{{ hero.small_text_line1_pct if hero and hero.small_text_line1_pct is not none else '' }}" style="text-align:center;">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="small_text_line1">Detail 1 Label</label>
+                            <input type="text" id="small_text_line1" name="small_text_line1" value="{{ hero.small_text_line1 or '' }}" placeholder="e.g. Reliable">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="small_text_line2">Detail 2</label>
-                        <input type="text" id="small_text_line2" name="small_text_line2" value="{{ hero.small_text_line2 or '' }}">
+                    <div style="display:grid;grid-template-columns:80px 1fr;gap:0.5rem;align-items:end;">
+                        <div class="form-group" style="margin:0;">
+                            <label for="small_text_line2_pct">% (optional)</label>
+                            <input type="number" id="small_text_line2_pct" name="small_text_line2_pct" min="0" max="100" placeholder="100" value="{{ hero.small_text_line2_pct if hero and hero.small_text_line2_pct is not none else '' }}" style="text-align:center;">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="small_text_line2">Detail 2 Label</label>
+                            <input type="text" id="small_text_line2" name="small_text_line2" value="{{ hero.small_text_line2 or '' }}" placeholder="e.g. Affordable">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="small_text_line3">Detail 3</label>
-                        <input type="text" id="small_text_line3" name="small_text_line3" value="{{ hero.small_text_line3 or '' }}">
+                    <div style="display:grid;grid-template-columns:80px 1fr;gap:0.5rem;align-items:end;">
+                        <div class="form-group" style="margin:0;">
+                            <label for="small_text_line3_pct">% (optional)</label>
+                            <input type="number" id="small_text_line3_pct" name="small_text_line3_pct" min="0" max="100" placeholder="99" value="{{ hero.small_text_line3_pct if hero and hero.small_text_line3_pct is not none else '' }}" style="text-align:center;">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="small_text_line3">Detail 3 Label</label>
+                            <input type="text" id="small_text_line3" name="small_text_line3" value="{{ hero.small_text_line3 or '' }}" placeholder="e.g. Professional">
+                        </div>
                     </div>
                 </div>
             </section>

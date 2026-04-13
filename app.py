@@ -6203,6 +6203,9 @@ def ensure_hero_content_schema():
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_color VARCHAR(20)")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_text_color VARCHAR(20) DEFAULT '#ffffff'")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_bg_color VARCHAR(20) DEFAULT '#0f172a'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS small_text_line1_pct SMALLINT DEFAULT NULL")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS small_text_line2_pct SMALLINT DEFAULT NULL")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS small_text_line3_pct SMALLINT DEFAULT NULL")
     else:
         cursor.execute(
             """
@@ -6277,7 +6280,10 @@ def ensure_hero_content_schema():
             'subtitle_weight': "INT DEFAULT 600",
             'content_bg_color': "VARCHAR(20) NULL",
             'meta_text_color': "VARCHAR(20) DEFAULT '#ffffff'",
-            'meta_bg_color': "VARCHAR(20) DEFAULT '#0f172a'"
+            'meta_bg_color': "VARCHAR(20) DEFAULT '#0f172a'",
+            'small_text_line1_pct': "SMALLINT DEFAULT NULL",
+            'small_text_line2_pct': "SMALLINT DEFAULT NULL",
+            'small_text_line3_pct': "SMALLINT DEFAULT NULL"
         }
 
         for column_name, column_sql in mysql_columns.items():
@@ -12693,6 +12699,15 @@ def admin_hero_content_page():
                 small_text_line1 = sanitize_text(request.form.get('small_text_line1'), 255)
                 small_text_line2 = sanitize_text(request.form.get('small_text_line2'), 255)
                 small_text_line3 = sanitize_text(request.form.get('small_text_line3'), 255)
+                def _parse_pct(v):
+                    try:
+                        n = int(str(v).strip())
+                        return max(0, min(100, n)) if n else None
+                    except (TypeError, ValueError):
+                        return None
+                small_text_line1_pct = _parse_pct(request.form.get('small_text_line1_pct'))
+                small_text_line2_pct = _parse_pct(request.form.get('small_text_line2_pct'))
+                small_text_line3_pct = _parse_pct(request.form.get('small_text_line3_pct'))
                 stat1_text = sanitize_text(request.form.get('stat1_text'), 255)
                 stat2_text = sanitize_text(request.form.get('stat2_text'), 255)
                 stat3_text = sanitize_text(request.form.get('stat3_text'), 255)
@@ -12778,7 +12793,10 @@ def admin_hero_content_page():
                         subtitle_weight=%s,
                         content_bg_color=%s,
                         meta_text_color=%s,
-                        meta_bg_color=%s
+                        meta_bg_color=%s,
+                        small_text_line1_pct=%s,
+                        small_text_line2_pct=%s,
+                        small_text_line3_pct=%s
                     WHERE id = 1
                     """,
                     (
@@ -12818,7 +12836,10 @@ def admin_hero_content_page():
                         subtitle_weight,
                         content_bg_color or None,
                         meta_text_color,
-                        meta_bg_color
+                        meta_bg_color,
+                        small_text_line1_pct,
+                        small_text_line2_pct,
+                        small_text_line3_pct
                     )
                 )
                 conn.commit()

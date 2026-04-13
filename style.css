@@ -1084,8 +1084,15 @@ body.is-nav-expanded main {
     border: 1px solid rgba(22, 163, 74, 0.4);
     color: var(--hero-meta-text, #fff);
     font-size: 0.9rem;
-    font-weight: 500;
+    font-weight: 700;
     backdrop-filter: blur(12px);
+}
+
+.hero__meta-pct {
+    font-size: 1.15rem;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: -0.01em;
 }
 
 .hero__cta {
