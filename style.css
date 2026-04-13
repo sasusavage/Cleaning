@@ -587,15 +587,15 @@ body.is-nav-expanded main {
 .panel {
     max-width: var(--max-width);
     margin: 0 auto;
-    padding: 8rem 3rem;
+    padding: 3.5rem 3rem;
 }
 
 .services.panel {
-    padding-top: 3rem;
+    padding-top: 2rem;
 }
 
 .testimonials .panel {
-    padding-top: 3rem;
+    padding-top: 2rem;
 }
 
 .section__header {
@@ -2400,7 +2400,7 @@ body.is-nav-expanded main {
     background: linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 100%);
     position: relative;
     overflow: hidden;
-    padding-top: 4rem;
+    padding-top: 2rem;
 }
 
 .policy-section::before {
@@ -2630,7 +2630,7 @@ body.is-nav-expanded main {
     overflow: hidden;
     max-width: 100%;
     width: 100%;
-    padding: 5rem 2rem;
+    padding: 2.5rem 2rem;
 }
 
 .contact .section__header,
@@ -4500,12 +4500,12 @@ body {
    WHY CHOOSE US SECTION
    ==================================== */
 .services + .why-choose {
-    margin-top: -4rem;
+    margin-top: -2rem;
 }
 
 .why-choose {
     background: #f7f9fc;
-    padding: 4rem 2rem;
+    padding: 2.5rem 2rem;
 }
 
 .why-choose__grid {
@@ -4559,7 +4559,7 @@ body {
    WHO WE ARE SECTION
    ==================================== */
 .who-we-are {
-    padding: 4rem 2rem 2rem;
+    padding: 2.5rem 2rem 1.5rem;
 }
 
 .who-we-are__grid {
