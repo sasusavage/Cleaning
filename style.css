@@ -1078,21 +1078,26 @@ body.is-nav-expanded main {
 }
 
 .hero__meta-item {
-    padding: 1rem 1.25rem;
+    padding: 1.1rem 1.4rem;
     border-radius: var(--radius-medium);
     background: var(--hero-meta-bg, rgba(0, 0, 0, 0.5));
     border: 1px solid rgba(22, 163, 74, 0.4);
     color: var(--hero-meta-text, #fff);
-    font-size: 1.25rem;
-    font-weight: 800;
+    font-size: 1.1rem;
+    font-weight: 700;
     backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
 }
 
 .hero__meta-pct {
-    font-size: 1.15rem;
+    font-size: 1.9rem;
     font-weight: 900;
-    color: #fff;
-    letter-spacing: -0.01em;
+    color: #4ade80;
+    letter-spacing: -0.03em;
+    line-height: 1;
 }
 
 .hero__cta {
