@@ -1083,8 +1083,8 @@ body.is-nav-expanded main {
     background: var(--hero-meta-bg, rgba(0, 0, 0, 0.5));
     border: 1px solid rgba(22, 163, 74, 0.4);
     color: var(--hero-meta-text, #fff);
-    font-size: 0.9rem;
-    font-weight: 700;
+    font-size: 1.1rem;
+    font-weight: 800;
     backdrop-filter: blur(12px);
 }
 
