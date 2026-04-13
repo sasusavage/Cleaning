@@ -13994,7 +13994,14 @@ def sitemap_xml():
     except Exception:
         app.logger.exception('Failed to build blog URLs for sitemap.xml')
 
-    all_urls = base_urls + service_urls + blog_urls
+    static_urls = [
+        {'loc': _public_url(url_for('tri_zonal_page')), 'lastmod': None, 'changefreq': 'monthly', 'priority': '0.8'},
+        {'loc': _public_url(url_for('privacy_policy')), 'lastmod': None, 'changefreq': 'yearly', 'priority': '0.4'},
+        {'loc': _public_url(url_for('terms_of_service')), 'lastmod': None, 'changefreq': 'yearly', 'priority': '0.4'},
+        {'loc': _public_url(url_for('cookie_policy')), 'lastmod': None, 'changefreq': 'yearly', 'priority': '0.4'},
+    ]
+
+    all_urls = base_urls + static_urls + service_urls + blog_urls
     lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for item in all_urls:
         lines.append('  <url>')
