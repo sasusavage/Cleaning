@@ -911,7 +911,8 @@ body.is-nav-expanded main {
     content: "";
     position: absolute;
     inset: 0;
-    background: var(--hero-background, var(--hero-image));
+    background-color: var(--hero-bg-color, #0f172a);
+    background-image: var(--hero-background, var(--hero-image));
     background-size: cover;
     background-position: center;
     z-index: -2;
@@ -922,7 +923,7 @@ body.is-nav-expanded main {
     content: "";
     position: absolute;
     inset: 0;
-    background: none;
+    background: rgba(0, 0, 0, var(--hero-overlay-opacity, 0.35));
     z-index: -1;
 }
 
@@ -1081,7 +1082,7 @@ body.is-nav-expanded main {
     padding: 1.1rem 1.4rem;
     border-radius: var(--radius-medium);
     background: var(--hero-meta-bg, rgba(0, 0, 0, 0.5));
-    border: 1px solid rgba(22, 163, 74, 0.4);
+    border: 1px solid var(--hero-meta-border, rgba(22, 163, 74, 0.4));
     color: var(--hero-meta-text, #fff);
     font-size: 1.1rem;
     font-weight: 700;
@@ -1095,7 +1096,7 @@ body.is-nav-expanded main {
 .hero__meta-pct {
     font-size: 1.9rem;
     font-weight: 900;
-    color: #4ade80;
+    color: var(--hero-meta-pct-color, #4ade80);
     letter-spacing: -0.03em;
     line-height: 1;
 }

@@ -5992,7 +5992,9 @@ def fetch_hero_content():
             subtitle_color, subtitle_size_px, subtitle_weight,
             content_bg_color,
             meta_text_color, meta_bg_color,
-            small_text_line1_pct, small_text_line2_pct, small_text_line3_pct
+            small_text_line1_pct, small_text_line2_pct, small_text_line3_pct,
+            hero_bg_color, hero_overlay_opacity, meta_border_color, meta_pct_color,
+            cta_text, cta_link
         FROM hero_content
         WHERE id = 1
         """
@@ -6105,7 +6107,9 @@ def fetch_hero_content():
                 subtitle_color, subtitle_size_px, subtitle_weight,
                 content_bg_color,
                 meta_text_color, meta_bg_color,
-                small_text_line1_pct, small_text_line2_pct, small_text_line3_pct
+                small_text_line1_pct, small_text_line2_pct, small_text_line3_pct,
+                hero_bg_color, hero_overlay_opacity, meta_border_color, meta_pct_color,
+                cta_text, cta_link
             FROM hero_content
             WHERE id = 1
             """
@@ -6208,6 +6212,12 @@ def ensure_hero_content_schema():
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS small_text_line1_pct SMALLINT DEFAULT NULL")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS small_text_line2_pct SMALLINT DEFAULT NULL")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS small_text_line3_pct SMALLINT DEFAULT NULL")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_bg_color VARCHAR(20) DEFAULT '#0f172a'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_overlay_opacity NUMERIC(3,2) DEFAULT 0.35")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_border_color VARCHAR(20) DEFAULT '#16a34a'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_pct_color VARCHAR(20) DEFAULT '#4ade80'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_text VARCHAR(100) DEFAULT 'See Reviews'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_link VARCHAR(255) DEFAULT '#testimonials'")
     else:
         cursor.execute(
             """
@@ -6285,7 +6295,13 @@ def ensure_hero_content_schema():
             'meta_bg_color': "VARCHAR(20) DEFAULT '#0f172a'",
             'small_text_line1_pct': "SMALLINT DEFAULT NULL",
             'small_text_line2_pct': "SMALLINT DEFAULT NULL",
-            'small_text_line3_pct': "SMALLINT DEFAULT NULL"
+            'small_text_line3_pct': "SMALLINT DEFAULT NULL",
+            'hero_bg_color': "VARCHAR(20) DEFAULT '#0f172a'",
+            'hero_overlay_opacity': "DECIMAL(3,2) DEFAULT 0.35",
+            'meta_border_color': "VARCHAR(20) DEFAULT '#16a34a'",
+            'meta_pct_color': "VARCHAR(20) DEFAULT '#4ade80'",
+            'cta_text': "VARCHAR(100) DEFAULT 'See Reviews'",
+            'cta_link': "VARCHAR(255) DEFAULT '#testimonials'"
         }
 
         for column_name, column_sql in mysql_columns.items():
@@ -12740,6 +12756,16 @@ def admin_hero_content_page():
                 content_bg_color = sanitize_css_color(request.form.get('content_bg_color'), '', allow_empty=True)
                 meta_text_color = sanitize_css_color(request.form.get('meta_text_color'), '#ffffff')
                 meta_bg_color = sanitize_css_color(request.form.get('meta_bg_color'), '#0f172a')
+                hero_bg_color = sanitize_css_color(request.form.get('hero_bg_color'), '#0f172a')
+                try:
+                    _ov = float(request.form.get('hero_overlay_opacity', 0.35))
+                    hero_overlay_opacity = round(max(0.0, min(1.0, _ov)), 2)
+                except (TypeError, ValueError):
+                    hero_overlay_opacity = 0.35
+                meta_border_color = sanitize_css_color(request.form.get('meta_border_color'), '#16a34a')
+                meta_pct_color = sanitize_css_color(request.form.get('meta_pct_color'), '#4ade80')
+                cta_text = sanitize_text(request.form.get('cta_text'), 100) or 'See Reviews'
+                cta_link = sanitize_text(request.form.get('cta_link'), 255) or '#testimonials'
                 existing_background = request.form.get('existing_background', '').strip()
                 remove_background = str_to_bool(request.form.get('remove_background', 'false'))
 
@@ -12798,7 +12824,13 @@ def admin_hero_content_page():
                         meta_bg_color=%s,
                         small_text_line1_pct=%s,
                         small_text_line2_pct=%s,
-                        small_text_line3_pct=%s
+                        small_text_line3_pct=%s,
+                        hero_bg_color=%s,
+                        hero_overlay_opacity=%s,
+                        meta_border_color=%s,
+                        meta_pct_color=%s,
+                        cta_text=%s,
+                        cta_link=%s
                     WHERE id = 1
                     """,
                     (
@@ -12841,7 +12873,13 @@ def admin_hero_content_page():
                         meta_bg_color,
                         small_text_line1_pct,
                         small_text_line2_pct,
-                        small_text_line3_pct
+                        small_text_line3_pct,
+                        hero_bg_color,
+                        hero_overlay_opacity,
+                        meta_border_color,
+                        meta_pct_color,
+                        cta_text,
+                        cta_link
                     )
                 )
                 conn.commit()

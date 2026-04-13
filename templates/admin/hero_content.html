@@ -710,25 +710,43 @@
                     <label for="subtitle">Subtitle / Description</label>
                     <textarea id="subtitle" name="subtitle" rows="3" placeholder="Short paragraph shown under the title.">{{ hero.subtitle or '' }}</textarea>
                 </div>
+                <div class="form-group">
+                    <label for="cta_text">Button Text</label>
+                    <input type="text" id="cta_text" name="cta_text" value="{{ hero.cta_text or 'See Reviews' }}" placeholder="e.g. See Reviews">
+                </div>
+                <div class="form-group">
+                    <label for="cta_link">Button Link <span style="font-weight:400;">(use #section-id for same-page links)</span></label>
+                    <input type="text" id="cta_link" name="cta_link" value="{{ hero.cta_link or '#testimonials' }}" placeholder="#testimonials">
+                </div>
             </div>
         </div>
 
-        <!-- 2 · Background Image -->
+        <!-- 2 · Background -->
         <div class="card">
-            <h2 class="section-title">Background Image</h2>
-            <p class="section-hint">The photo shown behind the hero text.</p>
+            <h2 class="section-title">Background</h2>
+            <p class="section-hint">Upload a photo or set a plain colour. The overlay controls how dark the tint is over the image (0 = no tint, 1 = fully black).</p>
+            <div class="grid grid--2" style="margin-bottom:1rem;">
+                <div class="form-group">
+                    <label for="hero_bg_color">Background colour <span style="font-weight:400;">(shown when no image, or behind image)</span></label>
+                    <input type="color" id="hero_bg_color" name="hero_bg_color" value="{{ hero.hero_bg_color or '#0f172a' }}">
+                </div>
+                <div class="form-group">
+                    <label for="hero_overlay_opacity">Image overlay darkness <span style="font-weight:400;">(0.0 – 1.0)</span></label>
+                    <input type="number" id="hero_overlay_opacity" name="hero_overlay_opacity" min="0" max="1" step="0.05" value="{{ hero.hero_overlay_opacity if hero and hero.hero_overlay_opacity is not none else 0.35 }}">
+                </div>
+            </div>
             <div class="form-group">
-                <label for="background_image">Upload new background</label>
+                <label for="background_image">Upload background photo</label>
                 <input type="file" id="background_image" name="background_image" accept="image/*">
                 <input type="hidden" name="existing_background" value="{{ hero.hero_background_image or '' }}">
             </div>
             {% if hero.hero_background_image %}
             <div class="image-preview" style="margin-top:0.85rem;">
-                <small>Current background</small>
+                <small>Current background photo</small>
                 <img src="{{ hero.hero_background_image | media_url }}" alt="Hero background" loading="lazy">
             </div>
             <label style="display:flex;align-items:center;gap:0.5rem;margin-top:0.75rem;font-size:0.88rem;color:var(--muted);font-weight:500;cursor:pointer;">
-                <input type="checkbox" name="remove_background" value="1"> Remove current background
+                <input type="checkbox" name="remove_background" value="1"> Remove current photo (revert to colour only)
             </label>
             {% endif %}
         </div>
@@ -960,12 +978,20 @@
                     <p class="style-group__title">Detail Badges</p>
                     <div class="grid grid--2">
                         <div class="form-group">
-                            <label for="meta_text_color">Text colour</label>
+                            <label for="meta_text_color">Label text colour</label>
                             <input type="color" id="meta_text_color" name="meta_text_color" value="{{ hero.meta_text_color or '#ffffff' }}">
                         </div>
                         <div class="form-group">
-                            <label for="meta_bg_color">Background colour</label>
+                            <label for="meta_bg_color">Badge background colour</label>
                             <input type="color" id="meta_bg_color" name="meta_bg_color" value="{{ hero.meta_bg_color or '#0f172a' }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="meta_border_color">Badge border colour</label>
+                            <input type="color" id="meta_border_color" name="meta_border_color" value="{{ hero.meta_border_color or '#16a34a' }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="meta_pct_color">% Number colour</label>
+                            <input type="color" id="meta_pct_color" name="meta_pct_color" value="{{ hero.meta_pct_color or '#4ade80' }}">
                         </div>
                     </div>
                 </div>
@@ -1251,14 +1277,28 @@
         }
         const mtc = get('meta_text_color');
         const mbc = get('meta_bg_color');
+        const mborc = get('meta_border_color');
+        const mpct = get('meta_pct_color');
         document.querySelectorAll('.stage__meta-item').forEach(el => {
             if (mtc) el.style.color = mtc.value;
             if (mbc) el.style.background = mbc.value;
+            if (mborc) el.style.borderColor = mborc.value;
         });
+        document.querySelectorAll('.stage__meta-pct').forEach(el => {
+            if (mpct) el.style.color = mpct.value;
+        });
+        const stageEl = document.getElementById('stage');
+        const bgc = get('hero_bg_color');
+        const ov = get('hero_overlay_opacity');
+        if (stageEl) {
+            if (bgc) stageEl.style.backgroundColor = bgc.value;
+            if (ov) stageEl.style.setProperty('--overlay-opacity', ov.value);
+        }
     }
 
     ['tagline_bg_color','tagline_text_color','title_color','title_size_px','title_weight',
-     'subtitle_color','subtitle_size_px','subtitle_weight','content_bg_color','meta_text_color','meta_bg_color']
+     'subtitle_color','subtitle_size_px','subtitle_weight','content_bg_color','meta_text_color','meta_bg_color',
+     'meta_border_color','meta_pct_color','hero_bg_color','hero_overlay_opacity']
     .forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', applyStyles);

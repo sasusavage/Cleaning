@@ -218,6 +218,10 @@
         {% set hero_inline_style = hero_inline_style ~ '--hero-subtitle-weight:' ~ (hero.subtitle_weight or 600) ~ ';' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-meta-text:' ~ (hero.meta_text_color or '#ffffff') ~ ';' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-meta-bg:' ~ (hero.meta_bg_color or '#0f172a') ~ ';' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-bg-color:' ~ (hero.hero_bg_color or '#0f172a') ~ ';' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-overlay-opacity:' ~ (hero.hero_overlay_opacity or 0.35) ~ ';' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-meta-border:' ~ (hero.meta_border_color or '#16a34a') ~ ';' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-meta-pct-color:' ~ (hero.meta_pct_color or '#4ade80') ~ ';' %}
         {% if hero.content_bg_color %}
             {% set hero_inline_style = hero_inline_style ~ '--hero-content-bg:' ~ hero.content_bg_color ~ ';--hero-content-padding:1rem;' %}
         {% endif %}
@@ -252,7 +256,7 @@
                 <p class="hero__subtitle">{{ hero_subtitle_text }}</p>
                 {% endif %}
                 <div class="hero__cta button-group">
-                    <a class="button button--ghost" href="#testimonials">See Reviews</a>
+                    <a class="button button--ghost" href="{{ hero.cta_link or '#testimonials' }}">{{ hero.cta_text or 'See Reviews' }}</a>
                 </div>
                 {% if hero_small_texts %}
                 <div class="hero__meta" data-animate="fade-in">
