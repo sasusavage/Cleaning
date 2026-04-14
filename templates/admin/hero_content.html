@@ -157,6 +157,19 @@
             color: var(--muted);
         }
 
+        .btn-sm {
+            padding: 0.3rem 0.65rem;
+            font-size: 0.8rem;
+            border-radius: 0.4rem;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .btn-danger { background: #fee2e2; color: #b91c1c; }
+        .btn-danger:hover { background: #fecaca; }
+
         /* ── Grid ── */
         .grid { display: grid; gap: 1.25rem; }
         .grid--2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
@@ -747,15 +760,15 @@
         <!-- 3 · Supporting Detail Badges -->
         <div class="card">
             <h2 class="section-title">Supporting Details</h2>
-            <p class="section-hint">Three small badges shown at the bottom of the hero. Enter the label text and optionally a % number — the percentage shows bold before the label on the live site.</p>
+            <p class="section-hint">Three small badges shown at the bottom of the hero. Set the label text and the <strong>Boldness</strong> of each label (400 = normal, 700 = bold, 900 = heaviest). Leave Boldness blank for the default weight.</p>
             <div class="grid" style="gap:0.75rem;">
 
                 <div class="detail-row">
                     <div class="form-group detail-row__num">
-                        <label for="small_text_line1_pct">% Number</label>
-                        <input type="number" id="small_text_line1_pct" name="small_text_line1_pct" min="1" max="100"
+                        <label for="small_text_line1_pct">Boldness</label>
+                        <input type="number" id="small_text_line1_pct" name="small_text_line1_pct" min="100" max="900" step="100"
                             value="{{ hero.small_text_line1_pct if hero and hero.small_text_line1_pct is not none else '' }}"
-                            placeholder="e.g. 98">
+                            placeholder="e.g. 700">
                     </div>
                     <div class="form-group">
                         <label for="small_text_line1">Badge 1 Label</label>
@@ -766,10 +779,10 @@
 
                 <div class="detail-row">
                     <div class="form-group detail-row__num">
-                        <label for="small_text_line2_pct">% Number</label>
-                        <input type="number" id="small_text_line2_pct" name="small_text_line2_pct" min="1" max="100"
+                        <label for="small_text_line2_pct">Boldness</label>
+                        <input type="number" id="small_text_line2_pct" name="small_text_line2_pct" min="100" max="900" step="100"
                             value="{{ hero.small_text_line2_pct if hero and hero.small_text_line2_pct is not none else '' }}"
-                            placeholder="e.g. 100">
+                            placeholder="e.g. 700">
                     </div>
                     <div class="form-group">
                         <label for="small_text_line2">Badge 2 Label</label>
@@ -780,10 +793,10 @@
 
                 <div class="detail-row">
                     <div class="form-group detail-row__num">
-                        <label for="small_text_line3_pct">% Number</label>
-                        <input type="number" id="small_text_line3_pct" name="small_text_line3_pct" min="1" max="100"
+                        <label for="small_text_line3_pct">Boldness</label>
+                        <input type="number" id="small_text_line3_pct" name="small_text_line3_pct" min="100" max="900" step="100"
                             value="{{ hero.small_text_line3_pct if hero and hero.small_text_line3_pct is not none else '' }}"
-                            placeholder="e.g. 99">
+                            placeholder="e.g. 700">
                     </div>
                     <div class="form-group">
                         <label for="small_text_line3">Badge 3 Label</label>
@@ -844,13 +857,13 @@
                             <span class="stage__drag-handle" data-drag-handle>Move Badges</span>
                             <div class="stage__meta">
                                 <div class="stage__meta-item" id="previewMeta1">
-                                    {% if hero.small_text_line1_pct %}<span class="stage__meta-pct">{{ hero.small_text_line1_pct }}%</span> {% endif %}{{ hero.small_text_line1 or 'Detail 1' }}
+                                    <span{% if hero.small_text_line1_pct %} style="font-weight:{{ hero.small_text_line1_pct }}"{% endif %}>{{ hero.small_text_line1 or 'Detail 1' }}</span>
                                 </div>
                                 <div class="stage__meta-item" id="previewMeta2">
-                                    {% if hero.small_text_line2_pct %}<span class="stage__meta-pct">{{ hero.small_text_line2_pct }}%</span> {% endif %}{{ hero.small_text_line2 or 'Detail 2' }}
+                                    <span{% if hero.small_text_line2_pct %} style="font-weight:{{ hero.small_text_line2_pct }}"{% endif %}>{{ hero.small_text_line2 or 'Detail 2' }}</span>
                                 </div>
                                 <div class="stage__meta-item" id="previewMeta3">
-                                    {% if hero.small_text_line3_pct %}<span class="stage__meta-pct">{{ hero.small_text_line3_pct }}%</span> {% endif %}{{ hero.small_text_line3 or 'Detail 3' }}
+                                    <span{% if hero.small_text_line3_pct %} style="font-weight:{{ hero.small_text_line3_pct }}"{% endif %}>{{ hero.small_text_line3 or 'Detail 3' }}</span>
                                 </div>
                             </div>
                         </div>
@@ -917,8 +930,18 @@
                     <p class="style-group__title">Tagline</p>
                     <div class="grid grid--2">
                         <div class="form-group">
-                            <label for="tagline_bg_color">Background colour</label>
-                            <input type="color" id="tagline_bg_color" name="tagline_bg_color" value="{{ hero.tagline_bg_color or '#16a34a' }}">
+                            <label for="tagline_bg_color_picker">Background colour</label>
+                            <div style="display:flex;gap:0.5rem;align-items:center;">
+                                <input type="color" id="tagline_bg_color_picker"
+                                    value="{{ hero.tagline_bg_color or '#16a34a' }}"
+                                    oninput="document.getElementById('tagline_bg_color').value=this.value;document.getElementById('tagline_bg_clear').textContent='Clear';">
+                                <input type="hidden" id="tagline_bg_color" name="tagline_bg_color" value="{{ hero.tagline_bg_color or '#16a34a' }}">
+                                <button type="button" id="tagline_bg_clear" class="btn-sm btn-danger"
+                                    onclick="document.getElementById('tagline_bg_color').value='';document.getElementById('tagline_bg_color_picker').value='#16a34a';document.getElementById('previewTagline').style.background='transparent';this.textContent='Cleared';"
+                                    title="Remove background colour from tagline">
+                                    {% if not hero or not hero.tagline_bg_color %}Cleared{% else %}Clear{% endif %}
+                                </button>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label for="tagline_text_color">Text colour</label>
@@ -977,10 +1000,6 @@
                         <div class="form-group">
                             <label for="meta_border_color">Badge border colour</label>
                             <input type="color" id="meta_border_color" name="meta_border_color" value="{{ hero.meta_border_color or '#16a34a' }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="meta_pct_color">% Number colour</label>
-                            <input type="color" id="meta_pct_color" name="meta_pct_color" value="{{ hero.meta_pct_color or '#4ade80' }}">
                         </div>
                     </div>
                 </div>
@@ -1244,7 +1263,8 @@
         const sub     = get('previewSubtitle');
 
         if (tagline) {
-            const bg = get('tagline_bg_color'); if (bg) tagline.style.background = bg.value;
+            const bg = get('tagline_bg_color'); // hidden input — may be '' (cleared)
+            if (bg) tagline.style.background = bg.value || 'transparent';
             const tc = get('tagline_text_color'); if (tc) tagline.style.color = tc.value;
         }
         if (title) {
@@ -1285,9 +1305,9 @@
         }
     }
 
-    ['tagline_bg_color','tagline_text_color','title_color','title_size_px','title_weight',
+    ['tagline_bg_color_picker','tagline_text_color','title_color','title_size_px','title_weight',
      'subtitle_color','subtitle_size_px','subtitle_weight','content_bg_color','meta_text_color','meta_bg_color',
-     'meta_border_color','meta_pct_color','hero_bg_color','hero_overlay_opacity']
+     'meta_border_color','hero_bg_color','hero_overlay_opacity']
     .forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', applyStyles);
@@ -1334,20 +1354,17 @@
 
     applyCardText();
 
-    /* Live badge preview (% + label) */
+    /* Live badge preview (boldness + label) */
     function applyMetaPreview() {
-        const mpct = document.getElementById('meta_pct_color');
         [1,2,3].forEach(n => {
-            const pctEl  = document.getElementById(`small_text_line${n}_pct`);
-            const lblEl  = document.getElementById(`small_text_line${n}`);
-            const target = document.getElementById(`previewMeta${n}`);
+            const weightEl = document.getElementById(`small_text_line${n}_pct`);
+            const lblEl    = document.getElementById(`small_text_line${n}`);
+            const target   = document.getElementById(`previewMeta${n}`);
             if (!target) return;
-            const pct = pctEl ? pctEl.value.trim() : '';
-            const lbl = lblEl ? lblEl.value.trim() : '';
-            const pctColor = (mpct && mpct.value) ? mpct.value : '#4ade80';
-            target.innerHTML = pct
-                ? `<span class="stage__meta-pct" style="color:${pctColor}">${pct}%</span> ${lbl || `Detail ${n}`}`
-                : (lbl || `Detail ${n}`);
+            const weight = weightEl ? weightEl.value.trim() : '';
+            const lbl    = lblEl ? lblEl.value.trim() : '';
+            const fw = (weight && !isNaN(parseInt(weight))) ? parseInt(weight) : '';
+            target.innerHTML = `<span${fw ? ` style="font-weight:${fw}"` : ''}>${lbl || `Detail ${n}`}</span>`;
         });
     }
 
@@ -1357,8 +1374,6 @@
             if (el) el.addEventListener('input', applyMetaPreview);
         });
     });
-    const mpctInput = document.getElementById('meta_pct_color');
-    if (mpctInput) mpctInput.addEventListener('input', applyMetaPreview);
 
     applyMetaPreview();
     requestAnimationFrame(() => requestAnimationFrame(scaleStage));

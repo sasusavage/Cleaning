@@ -394,7 +394,12 @@ def sanitize_css_color(value, default='#ffffff', allow_empty=False):
     cleaned = sanitize_text(value, 20)
     if allow_empty and not cleaned:
         return ''
-    if re.fullmatch(r'#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?', cleaned):
+    m3 = re.fullmatch(r'#([0-9a-fA-F]{3})', cleaned)
+    if m3:
+        # Expand 3-digit hex to 6-digit so colour inputs render correctly
+        h = m3.group(1)
+        return '#' + h[0]*2 + h[1]*2 + h[2]*2
+    if re.fullmatch(r'#[0-9a-fA-F]{6}', cleaned):
         return cleaned
     return default
 
@@ -12717,15 +12722,17 @@ def admin_hero_content_page():
                 small_text_line1 = sanitize_text(request.form.get('small_text_line1'), 255)
                 small_text_line2 = sanitize_text(request.form.get('small_text_line2'), 255)
                 small_text_line3 = sanitize_text(request.form.get('small_text_line3'), 255)
-                def _parse_pct(v):
+                def _parse_weight(v):
                     try:
                         n = int(str(v).strip())
-                        return max(0, min(100, n)) if n else None
+                        # Round to nearest 100, clamp 100–900
+                        n = max(100, min(900, round(n / 100) * 100))
+                        return n
                     except (TypeError, ValueError):
                         return None
-                small_text_line1_pct = _parse_pct(request.form.get('small_text_line1_pct'))
-                small_text_line2_pct = _parse_pct(request.form.get('small_text_line2_pct'))
-                small_text_line3_pct = _parse_pct(request.form.get('small_text_line3_pct'))
+                small_text_line1_pct = _parse_weight(request.form.get('small_text_line1_pct'))
+                small_text_line2_pct = _parse_weight(request.form.get('small_text_line2_pct'))
+                small_text_line3_pct = _parse_weight(request.form.get('small_text_line3_pct'))
                 stat1_text = sanitize_text(request.form.get('stat1_text'), 255)
                 stat2_text = sanitize_text(request.form.get('stat2_text'), 255)
                 stat3_text = sanitize_text(request.form.get('stat3_text'), 255)
@@ -12745,7 +12752,7 @@ def admin_hero_content_page():
                 card2_offset_y = sanitize_int_range(request.form.get('card2_offset_y'), 0, -220, 220)
                 card3_offset_x = sanitize_int_range(request.form.get('card3_offset_x'), 0, -220, 220)
                 card3_offset_y = sanitize_int_range(request.form.get('card3_offset_y'), 0, -220, 220)
-                tagline_bg_color = sanitize_css_color(request.form.get('tagline_bg_color'), '#16a34a')
+                tagline_bg_color = sanitize_css_color(request.form.get('tagline_bg_color'), '#16a34a', allow_empty=True)
                 tagline_text_color = sanitize_css_color(request.form.get('tagline_text_color'), '#ffffff')
                 title_color = sanitize_css_color(request.form.get('title_color'), '#2563eb')
                 title_size_px = sanitize_int_range(request.form.get('title_size_px'), 72, 34, 84)

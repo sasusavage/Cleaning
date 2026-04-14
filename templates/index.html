@@ -260,11 +260,11 @@
                 </div>
                 {% if hero_small_texts %}
                 <div class="hero__meta" data-animate="fade-in">
-                    {% set pcts = [hero.small_text_line1_pct if hero else None, hero.small_text_line2_pct if hero else None, hero.small_text_line3_pct if hero else None] %}
+                    {% set weights = [hero.small_text_line1_pct if hero else None, hero.small_text_line2_pct if hero else None, hero.small_text_line3_pct if hero else None] %}
                     {% for detail in hero_small_texts %}
-                    {% set pct = pcts[loop.index0] if loop.index0 < pcts|length else None %}
+                    {% set fw = weights[loop.index0] if loop.index0 < weights|length else None %}
                     <div class="hero__meta-item">
-                        {% if pct %}<strong class="hero__meta-pct">{{ pct }}%</strong> {% endif %}{{ detail }}
+                        <span{% if fw %} style="font-weight:{{ fw }}"{% endif %}>{{ detail }}</span>
                     </div>
                     {% endfor %}
                 </div>
