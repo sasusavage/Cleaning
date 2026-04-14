@@ -316,7 +316,7 @@
             transform: scale(var(--stage-scale, 1));
             border-radius: 0.75rem;
             overflow: hidden;
-            background: linear-gradient(135deg, #0f172a, #1e293b);
+            background-color: var(--stage-bg-color, #0f172a);
             display: grid;
             grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
             align-items: end;
@@ -339,15 +339,13 @@
             content: "";
             position: absolute;
             inset: 0;
-            background: linear-gradient(110deg, rgba(8,16,32,0.45) 0%, rgba(8,16,32,0.2) 45%, rgba(8,16,32,0.1) 100%);
+            background: rgba(0, 0, 0, var(--stage-overlay, 0.35));
         }
 
         .stage__content-col,
         .stage__visual-col { position: relative; z-index: 3; }
 
         .stage__content-col { display: grid; gap: 1rem; align-self: end; min-width: 0; }
-
-        .stage__visual-col { min-height: 460px; height: 460px; align-self: end; }
 
         .stage__item {
             position: relative;
@@ -537,9 +535,18 @@
             background: linear-gradient(90deg, rgba(22,163,74,0.3), transparent);
         }
 
-        .stage__item--card1 { top: 28px; right: 0; z-index: 3; }
-        .stage__item--card2 { top: 175px; right: 0; z-index: 2; }
-        .stage__item--card3 { top: 322px; right: 0; z-index: 1; }
+        .stage__visual-col {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            align-items: flex-end;
+        }
+
+        .stage__item--card { position: relative; inset: auto; }
+
+        .stage__item--card1 { z-index: 3; }
+        .stage__item--card2 { z-index: 2; }
+        .stage__item--card3 { z-index: 1; }
 
         /* ── Homepage flow ── */
         .flow-list {
@@ -619,8 +626,8 @@
             .stage__content-col { justify-items: center; text-align: center; }
             .stage__cta-ghost { justify-content: center; }
             .stage__meta { grid-template-columns: 1fr; gap: 0.75rem; }
-            .stage__visual-col { min-height: auto; height: auto; display: grid; gap: 0.9rem; justify-items: center; }
-            .stage__item--card { position: relative; inset: auto; width: min(100%, 460px); }
+            .stage__visual-col { min-height: auto; height: auto; align-items: center; }
+            .stage__item--card { width: min(100%, 460px); }
         }
 
         @media (max-width: 768px) {
@@ -829,11 +836,7 @@
 
             <div class="stage-wrap" id="stageWrap">
                 <div class="stage" id="stage"
-                    {% if hero.hero_background_image %}
-                    style="--preview-bg-image: url('{{ hero.hero_background_image | media_url }}');"
-                    {% else %}
-                    style="--preview-bg-image: linear-gradient(135deg, #0f172a, #1e293b);"
-                    {% endif %}
+                    style="--stage-bg-color:{{ hero.hero_bg_color or '#0f172a' }};--stage-overlay:{{ hero.hero_overlay_opacity if hero and hero.hero_overlay_opacity is not none else 0.35 }};{% if hero.hero_background_image %}--preview-bg-image:url('{{ hero.hero_background_image | media_url }}');{% endif %}"
                 >
                     <div class="stage__content-col" id="previewContentCol">
                         <div class="stage__item stage__item--tagline" id="previewTaglineItem" data-x-input="tagline_offset_x" data-y-input="tagline_offset_y">
@@ -849,7 +852,7 @@
                             <p class="stage__subtitle" id="previewSubtitle">{{ hero.subtitle or 'Reliable, affordable cleaning for your home or office.' }}</p>
                         </div>
                         <div class="stage__cta-ghost" aria-hidden="true">
-                            <span class="stage__cta-btn">See Reviews</span>
+                            <span class="stage__cta-btn" id="previewCtaBtn">{{ hero.cta_text or 'See Reviews' }}</span>
                         </div>
                         <div class="stage__item stage__item--meta" id="previewMetaItem" data-x-input="meta_offset_x" data-y-input="meta_offset_y">
                             <span class="stage__drag-handle" data-drag-handle>Move Badges</span>
@@ -1291,8 +1294,8 @@
         const bgc = get('hero_bg_color');
         const ov = get('hero_overlay_opacity');
         if (stageEl) {
-            if (bgc) stageEl.style.backgroundColor = bgc.value;
-            if (ov) stageEl.style.setProperty('--overlay-opacity', ov.value);
+            if (bgc) stageEl.style.setProperty('--stage-bg-color', bgc.value);
+            if (ov) stageEl.style.setProperty('--stage-overlay', ov.value);
         }
     }
 
@@ -1305,6 +1308,18 @@
     });
 
     applyStyles();
+
+    /* Live text preview — tagline, title, subtitle, CTA */
+    function wireTextPreview(inputId, previewId, fallback) {
+        const inp = document.getElementById(inputId);
+        const prev = document.getElementById(previewId);
+        if (!inp || !prev) return;
+        inp.addEventListener('input', () => { prev.textContent = inp.value.trim() || fallback; });
+    }
+    wireTextPreview('tagline', 'previewTagline', 'Trusted Cleaning Experts');
+    wireTextPreview('title', 'previewTitle', 'Professional Cleaning Services');
+    wireTextPreview('subtitle', 'previewSubtitle', 'Reliable, affordable cleaning for your home or office.');
+    wireTextPreview('cta_text', 'previewCtaBtn', 'See Reviews');
 
     /* Live stat card text */
     function parseCard(raw) {
