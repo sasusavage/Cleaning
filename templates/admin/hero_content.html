@@ -388,9 +388,10 @@
             user-select: none;
             touch-action: none;
             border-radius: 0.5rem;
+            cursor: grab;
         }
 
-        .stage__item:hover { outline: 1px dashed rgba(148,163,184,0.5); outline-offset: 3px; }
+        .stage__item:hover { outline: 2px dashed rgba(148,163,184,0.7); outline-offset: 3px; }
         .stage__item.is-drag-active {
             outline: 2px solid rgba(59,130,246,0.8);
             outline-offset: 3px;
@@ -831,7 +832,7 @@
         <!-- 5 · Visual Preview & Positioning -->
         <div class="card">
             <h2 class="section-title">Layout Preview</h2>
-            <p class="section-hint">Hover any element in the preview and drag it to reposition.</p>
+            <p class="section-hint">Click and drag any element in the preview to reposition it.</p>
 
             <div class="stage-wrap" id="stageWrap">
                 <div class="stage" id="stage"
@@ -839,22 +840,18 @@
                 >
                     <div class="stage__content-col" id="previewContentCol">
                         <div class="stage__item stage__item--tagline" id="previewTaglineItem" data-x-input="tagline_offset_x" data-y-input="tagline_offset_y">
-                            <span class="stage__drag-handle" data-drag-handle>Move Tagline</span>
-                            <span class="stage__tagline" id="previewTagline">{{ hero.tagline or 'Trusted Cleaning Experts' }}</span>
+                            <span class="stage__tagline" id="previewTagline">{{ hero.tagline or '' }}</span>
                         </div>
                         <div class="stage__item stage__item--title" id="previewTitleItem" data-x-input="title_offset_x" data-y-input="title_offset_y">
-                            <span class="stage__drag-handle" data-drag-handle>Move Title</span>
-                            <h3 class="stage__title" id="previewTitle">{{ hero.title or 'Professional Cleaning Services' }}</h3>
+                            <h3 class="stage__title" id="previewTitle">{{ hero.title or '' }}</h3>
                         </div>
                         <div class="stage__item stage__item--subtitle" id="previewSubtitleItem" data-x-input="subtitle_offset_x" data-y-input="subtitle_offset_y">
-                            <span class="stage__drag-handle" data-drag-handle>Move Subtitle</span>
-                            <p class="stage__subtitle" id="previewSubtitle">{{ hero.subtitle or 'Reliable, affordable cleaning for your home or office.' }}</p>
+                            <p class="stage__subtitle" id="previewSubtitle">{{ hero.subtitle or '' }}</p>
                         </div>
                         <div class="stage__cta-ghost" aria-hidden="true">
                             <span class="stage__cta-btn" id="previewCtaBtn">{{ hero.cta_text or 'See Reviews' }}</span>
                         </div>
                         <div class="stage__item stage__item--meta" id="previewMetaItem" data-x-input="meta_offset_x" data-y-input="meta_offset_y">
-                            <span class="stage__drag-handle" data-drag-handle>Move Badges</span>
                             <div class="stage__meta">
                                 <div class="stage__meta-item" id="previewMeta1">
                                     <span{% if hero.small_text_line1_pct %} style="font-weight:{{ hero.small_text_line1_pct }}"{% endif %}>{{ hero.small_text_line1 or 'Detail 1' }}</span>
@@ -871,7 +868,6 @@
 
                     <div class="stage__visual-col">
                         <div class="stage__item stage__item--card stage__item--card1" id="previewCard1" data-x-input="card1_offset_x" data-y-input="card1_offset_y">
-                            <span class="stage__drag-handle" data-drag-handle>Move Card 1</span>
                             {% set s1 = (hero.stat1_text or '98% · Client satisfaction score').split('·') %}
                             <strong id="previewCard1Primary">{{ s1[0] | trim }}</strong>
                             <span id="previewCard1Secondary">{{ s1[1] | trim if s1|length > 1 else '' }}</span>
@@ -879,7 +875,6 @@
                             <span id="previewCard1Tertiary" style="{{ 'display:none' if s1|length < 3 else '' }}">{{ s1[2] | trim if s1|length > 2 else '' }}</span>
                         </div>
                         <div class="stage__item stage__item--card stage__item--card2" id="previewCard2" data-x-input="card2_offset_x" data-y-input="card2_offset_y">
-                            <span class="stage__drag-handle" data-drag-handle>Move Card 2</span>
                             {% set s2 = (hero.stat2_text or '24h · Response time for every request').split('·') %}
                             <strong id="previewCard2Primary">{{ s2[0] | trim }}</strong>
                             <span id="previewCard2Secondary">{{ s2[1] | trim if s2|length > 1 else '' }}</span>
@@ -887,7 +882,6 @@
                             <span id="previewCard2Tertiary" style="{{ 'display:none' if s2|length < 3 else '' }}">{{ s2[2] | trim if s2|length > 2 else '' }}</span>
                         </div>
                         <div class="stage__item stage__item--card stage__item--card3" id="previewCard3" data-x-input="card3_offset_x" data-y-input="card3_offset_y">
-                            <span class="stage__drag-handle" data-drag-handle>Move Card 3</span>
                             {% set s3 = (hero.stat3_text or 'Emergency · Cleanups available').split('·') %}
                             <strong id="previewCard3Primary">{{ s3[0] | trim }}</strong>
                             <span id="previewCard3Secondary">{{ s3[1] | trim if s3|length > 1 else '' }}</span>
@@ -1193,7 +1187,7 @@
     function wireDrag(item) {
         const xInput = document.getElementById(item.dataset.xInput);
         const yInput = document.getElementById(item.dataset.yInput);
-        const handle = item.querySelector('[data-drag-handle]') || item;
+        const handle = item; // drag anywhere on the element
         if (!xInput || !yInput) return;
 
         applyTransform(item, xInput, yInput);
@@ -1320,6 +1314,8 @@
         const inp = document.getElementById(inputId);
         const prev = document.getElementById(previewId);
         if (!inp || !prev) return;
+        // Set initial value from field (or fallback if empty)
+        if (!prev.textContent.trim()) prev.textContent = inp.value.trim() || fallback;
         inp.addEventListener('input', () => { prev.textContent = inp.value.trim() || fallback; });
     }
     wireTextPreview('tagline', 'previewTagline', 'Trusted Cleaning Experts');
