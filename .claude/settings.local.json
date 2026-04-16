@@ -12,7 +12,15 @@
       "Bash(grep -n \"async function load\\\\|fetch\\(''''/admin\\\\|fetch\\(\\\\`/admin\" c:/Users/DeLL/OneDrive/Documents/Cleaning/templates/admin/dashboard.html)",
       "Bash(python -c \"import ast; ast.parse\\(open\\(''app.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")",
       "Bash(py -c \":*)",
-      "Bash(py -m py_compile app.py)"
+      "Bash(py -m py_compile app.py)",
+      "Bash(\"c:\\\\Users\\\\DeLL\\\\OneDrive\\\\Documents\\\\Cleaning\\\\favicon\\\\site.webmanifest\":*)",
+      "Bash(curl -s https://done-wellcleaninglimited.org/robots.txt)",
+      "Bash(grep -E \"route\\\\\\(''''/\\(admin|[^/]|$\\)\")",
+      "Bash(grep -n \"return jsonify\\({''''error'''': str\\(e\\)}\\), 500\" app.py)",
+      "Bash(grep -n \"return jsonify\\({''''error'''': str\\(exc\\)}\\), 500\\\\|return jsonify\\({''''error'''': str\\(exc\\)}\\), 400\" app.py)",
+      "Bash(grep -n \"return jsonify\\({''error'': str\\(exc\\)}\\), 500\" app.py)",
+      "Bash(python -c \"import py_compile; py_compile.compile\\(''app.py'', doraise=True\\); print\\(''OK''\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\(''config.py'', doraise=True\\); print\\(''OK''\\)\")"
     ]
   }
 }
