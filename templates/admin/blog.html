@@ -100,7 +100,9 @@
     <aside class="sidebar">
         <div class="sidebar__brand">{{ company_name }}</div>
         <a class="sidebar__link" href="{{ url_for('admin_dashboard') }}">← Dashboard</a>
-        <hr class="sidebar__sep">        <a class="sidebar__link" href="{{ url_for('admin_site_content_page') }}">✏️ Site Content</a>
+        <hr class="sidebar__sep">
+        <a class="sidebar__link" href="{{ url_for('admin_hero_content_page') }}">🖼 Hero Content</a>
+        <a class="sidebar__link" href="{{ url_for('admin_site_content_page') }}">✏️ Site Content</a>
         <a class="sidebar__link active" href="{{ url_for('admin_blog_page') }}">📝 Blog Posts</a>
         <a class="sidebar__link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
         <a class="sidebar__link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>

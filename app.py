@@ -12704,13 +12704,9 @@ def admin_delete_hero_badge(badge_id):
     return jsonify({'message': 'Badge deleted.'})
 
 
-@app.route('/admin/hero-content', methods=['GET'])
+@app.route('/admin/hero-content', methods=['GET', 'POST'])
 @admin_login_required
 def admin_hero_content_page():
-    site_settings = fetch_site_settings()
-    return render_template('admin/hero_content.html', site_settings=site_settings)
-
-def _admin_hero_content_page_disabled():
     message = request.args.get('message', '').strip()
     error = request.args.get('error', '').strip()
 
