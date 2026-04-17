@@ -317,7 +317,7 @@
             overflow: hidden;
             border-radius: 0.75rem;
             border: 1px solid rgba(15,23,42,0.12);
-            height: calc(540px * var(--stage-scale, 1));
+            height: calc(600px * var(--stage-scale, 1));
             margin-bottom: 1.25rem;
         }
 
@@ -325,7 +325,7 @@
         .stage {
             position: relative;
             width: 1280px;
-            height: 540px;
+            height: 600px;
             transform-origin: top left;
             transform: scale(var(--stage-scale, 1));
             border-radius: 0.75rem;
@@ -369,11 +369,12 @@
             align-content: end;
         }
 
-        /* right: cards — mirrors .hero__visual */
+        /* right: cards — mirrors .hero__visual (height: 460px on live) */
         .stage__visual-col {
             position: relative;
             z-index: 2;
-            height: 420px;
+            height: 460px;
+            align-self: center;
         }
 
         /* draggable item base */
@@ -455,43 +456,44 @@
         }
         .stage__meta-item {
             color: #fff;
-            background: var(--hero-meta-bg, rgba(0,0,0,0.5));
-            border: 1px solid var(--hero-meta-border, rgba(22,163,74,0.4));
-            border-radius: 10px;
-            padding: 0.9rem 1.1rem;
-            font-size: 0.9rem;
+            background: {{ hero.meta_bg_color or '#16a34a' }};
+            border: 1px solid {{ hero.meta_border_color or '#16a34a' }};
+            border-radius: 12px;
+            padding: 1rem 1.3rem;
+            font-size: 1rem;
             font-weight: 700;
             backdrop-filter: blur(12px);
         }
 
-        /* stat cards — mirrors .hero__card with absolute positioning */
+        /* stat cards — exact copy of live .hero__card */
         .stage__item--card {
             position: absolute;
-            width: 220px;
-            border-radius: 16px;
+            width: 270px;
+            border-radius: 20px;
             background: rgba(255,255,255,0.88);
             border: 1px solid rgba(255,255,255,0.95);
             border-left: 3px solid #16a34a;
             color: #475569;
-            padding: 1.2rem 1.4rem;
-            box-shadow: 0 8px 32px rgba(15,23,42,0.18);
+            padding: 1.4rem 1.6rem;
+            box-shadow: 0 8px 32px rgba(15,23,42,0.18), 0 1px 0 rgba(255,255,255,0.6) inset;
             backdrop-filter: saturate(200%) blur(20px);
-            font-size: 0.78rem;
+            font-size: 0.8rem;
             line-height: 1.5;
             overflow-wrap: anywhere;
             right: 0;
         }
-        .stage__item--card1 { top: 20px;  z-index: 3; }
-        .stage__item--card2 { top: 160px; z-index: 2; }
-        .stage__item--card3 { top: 300px; z-index: 1; }
+        /* match live: primary top:28, secondary top:175, tertiary top:322 */
+        .stage__item--card1 { top: 28px;  z-index: 3; }
+        .stage__item--card2 { top: 175px; z-index: 2; }
+        .stage__item--card3 { top: 322px; z-index: 1; }
 
         .stage__item--card strong {
             display: block;
-            font-size: 1.6rem;
+            font-size: 1.75rem;
             font-weight: 800;
             letter-spacing: -0.02em;
             color: #15803d;
-            margin-bottom: 0.2rem;
+            margin-bottom: 0.25rem;
             line-height: 1.1;
         }
 
@@ -1122,7 +1124,7 @@
 
     const DESIGN_W = 1280;
 
-    const STAGE_H = 540;
+    const STAGE_H = 600;
     function scaleStage() {
         const avail = stageWrap.parentElement ? stageWrap.parentElement.clientWidth : stageWrap.clientWidth;
         const scale = Math.min(1, avail / DESIGN_W);
@@ -1274,10 +1276,28 @@
         prev.textContent = inp.value.trim() || fallback;
         inp.addEventListener('input', () => { prev.textContent = inp.value.trim() || fallback; });
     }
-    wireTextPreview('tagline', 'previewTagline', '— tagline —');
-    wireTextPreview('title', 'previewTitle', '— title —');
-    wireTextPreview('subtitle', 'previewSubtitle', '— subtitle —');
+    wireTextPreview('tagline', 'previewTagline', '');
+    wireTextPreview('title', 'previewTitle', '');
+    wireTextPreview('subtitle', 'previewSubtitle', '');
     wireTextPreview('cta_text', 'previewCtaBtn', 'See Reviews');
+
+    // Hide stage items that have no content so they don't take up space
+    function syncEmptyItems() {
+        [
+            ['previewTaglineItem', 'previewTagline'],
+            ['previewTitleItem',   'previewTitle'],
+            ['previewSubtitleItem','previewSubtitle'],
+        ].forEach(([itemId, elId]) => {
+            const item = document.getElementById(itemId);
+            const el   = document.getElementById(elId);
+            if (item && el) item.style.display = el.textContent.trim() ? '' : 'none';
+        });
+    }
+    syncEmptyItems();
+    ['tagline','title','subtitle'].forEach(id => {
+        const inp = document.getElementById(id);
+        if (inp) inp.addEventListener('input', syncEmptyItems);
+    });
 
     /* Live stat card text */
     function parseCard(raw) {
