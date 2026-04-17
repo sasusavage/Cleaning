@@ -5988,6 +5988,7 @@ def fetch_hero_content():
             tagline_offset_x, tagline_offset_y,
             title_offset_x, title_offset_y,
             subtitle_offset_x, subtitle_offset_y,
+            cta_offset_x, cta_offset_y,
             meta_offset_x, meta_offset_y,
             card1_offset_x, card1_offset_y,
             card2_offset_x, card2_offset_y,
@@ -6195,6 +6196,8 @@ def ensure_hero_content_schema():
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_offset_y INTEGER DEFAULT 0")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_offset_x INTEGER DEFAULT 0")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_offset_y INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_offset_x INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_offset_y INTEGER DEFAULT 0")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_offset_x INTEGER DEFAULT 0")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_offset_y INTEGER DEFAULT 0")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS card1_offset_x INTEGER DEFAULT 0")
@@ -12744,6 +12747,8 @@ def admin_hero_content_page():
                 title_offset_y = sanitize_int_range(request.form.get('title_offset_y'), 0, -220, 220)
                 subtitle_offset_x = sanitize_int_range(request.form.get('subtitle_offset_x'), 0, -320, 320)
                 subtitle_offset_y = sanitize_int_range(request.form.get('subtitle_offset_y'), 0, -220, 220)
+                cta_offset_x = sanitize_int_range(request.form.get('cta_offset_x'), 0, -320, 320)
+                cta_offset_y = sanitize_int_range(request.form.get('cta_offset_y'), 0, -220, 220)
                 meta_offset_x = sanitize_int_range(request.form.get('meta_offset_x'), 0, -320, 320)
                 meta_offset_y = sanitize_int_range(request.form.get('meta_offset_y'), 0, -220, 220)
                 card1_offset_x = sanitize_int_range(request.form.get('card1_offset_x'), 0, -220, 220)
@@ -12810,6 +12815,8 @@ def admin_hero_content_page():
                         title_offset_y=%s,
                         subtitle_offset_x=%s,
                         subtitle_offset_y=%s,
+                        cta_offset_x=%s,
+                        cta_offset_y=%s,
                         meta_offset_x=%s,
                         meta_offset_y=%s,
                         card1_offset_x=%s,
@@ -12859,6 +12866,8 @@ def admin_hero_content_page():
                         title_offset_y,
                         subtitle_offset_x,
                         subtitle_offset_y,
+                        cta_offset_x,
+                        cta_offset_y,
                         meta_offset_x,
                         meta_offset_y,
                         card1_offset_x,

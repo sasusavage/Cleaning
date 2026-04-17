@@ -801,7 +801,7 @@
                         <div class="stage__item stage__item--subtitle" id="previewSubtitleItem" data-x-input="subtitle_offset_x" data-y-input="subtitle_offset_y">
                             <p class="stage__subtitle" id="previewSubtitle">{{ hero.subtitle or '' }}</p>
                         </div>
-                        <div class="stage__cta-ghost" aria-hidden="true">
+                        <div class="stage__item stage__cta-ghost" id="previewCtaItem" data-x-input="cta_offset_x" data-y-input="cta_offset_y">
                             <span class="stage__cta-btn" id="previewCtaBtn">{{ hero.cta_text or 'See Reviews' }}</span>
                         </div>
                         <div class="stage__item stage__item--meta" id="previewMetaItem" data-x-input="meta_offset_x" data-y-input="meta_offset_y">
@@ -855,6 +855,8 @@
                 <input type="number" id="title_offset_y" name="title_offset_y" min="-220" max="220" value="{{ hero.title_offset_y or 0 }}">
                 <input type="number" id="subtitle_offset_x" name="subtitle_offset_x" min="-320" max="320" value="{{ hero.subtitle_offset_x or 0 }}">
                 <input type="number" id="subtitle_offset_y" name="subtitle_offset_y" min="-220" max="220" value="{{ hero.subtitle_offset_y or 0 }}">
+                <input type="number" id="cta_offset_x" name="cta_offset_x" min="-320" max="320" value="{{ hero.cta_offset_x or 0 if hero else 0 }}">
+                <input type="number" id="cta_offset_y" name="cta_offset_y" min="-220" max="220" value="{{ hero.cta_offset_y or 0 if hero else 0 }}">
                 <input type="number" id="meta_offset_x" name="meta_offset_x" min="-320" max="320" value="{{ hero.meta_offset_x or 0 }}">
                 <input type="number" id="meta_offset_y" name="meta_offset_y" min="-220" max="220" value="{{ hero.meta_offset_y or 0 }}">
                 <input type="number" id="card1_offset_x" name="card1_offset_x" min="-220" max="220" value="{{ hero.card1_offset_x or 0 }}">
@@ -937,15 +939,25 @@
                     <p class="style-group__title">Detail Badges</p>
                     <div class="grid grid--2">
                         <div class="form-group">
-                            <label for="meta_text_color">Label text colour</label>
+                            <label for="meta_text_color">Text colour</label>
                             <input type="color" id="meta_text_color" name="meta_text_color" value="{{ hero.meta_text_color or '#ffffff' }}">
                         </div>
                         <div class="form-group">
-                            <label for="meta_bg_color">Badge background colour</label>
-                            <input type="color" id="meta_bg_color" name="meta_bg_color" value="{{ hero.meta_bg_color or '#0f172a' }}">
+                            <label for="meta_bg_color_picker">Background colour</label>
+                            <div style="display:flex;gap:0.5rem;align-items:center;">
+                                <input type="color" id="meta_bg_color_picker"
+                                    value="{{ hero.meta_bg_color or '#16a34a' }}"
+                                    oninput="document.getElementById('meta_bg_color').value=this.value;document.getElementById('meta_bg_clear').textContent='Clear';applyMetaPreviewFromBtn();">
+                                <input type="hidden" id="meta_bg_color" name="meta_bg_color" value="{{ hero.meta_bg_color or '#16a34a' }}">
+                                <button type="button" id="meta_bg_clear" class="btn-sm btn-danger"
+                                    onclick="document.getElementById('meta_bg_color').value='';document.getElementById('meta_bg_color_picker').value='#16a34a';applyMetaPreviewFromBtn();this.textContent='Cleared';"
+                                    title="Remove badge background colour">
+                                    {% if not hero or not hero.meta_bg_color %}Cleared{% else %}Clear{% endif %}
+                                </button>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label for="meta_border_color">Badge border colour</label>
+                            <label for="meta_border_color">Border colour</label>
                             <input type="color" id="meta_border_color" name="meta_border_color" value="{{ hero.meta_border_color or '#16a34a' }}">
                         </div>
                     </div>
@@ -1233,18 +1245,7 @@
             col.style.borderRadius  = cbg.value ? '0.75rem' : '0';
             col.style.padding       = cbg.value ? '1rem' : '0';
         }
-        const mtc = get('meta_text_color');
-        const mbc = get('meta_bg_color');
-        const mborc = get('meta_border_color');
-        const mpct = get('meta_pct_color');
-        document.querySelectorAll('.stage__meta-item').forEach(el => {
-            if (mtc) el.style.color = mtc.value;
-            if (mbc) el.style.background = mbc.value;
-            if (mborc) el.style.borderColor = mborc.value;
-        });
-        document.querySelectorAll('.stage__meta-pct').forEach(el => {
-            if (mpct) el.style.color = mpct.value;
-        });
+        // badge colours handled by applyMetaPreview()
         const stageEl = document.getElementById('stage');
         const bgc = get('hero_bg_color');
         const ov = get('hero_overlay_opacity');
@@ -1255,8 +1256,8 @@
     }
 
     ['tagline_bg_color_picker','tagline_text_color','title_color','title_size_px','title_weight',
-     'subtitle_color','subtitle_size_px','subtitle_weight','content_bg_color','meta_text_color','meta_bg_color',
-     'meta_border_color','hero_bg_color','hero_overlay_opacity']
+     'subtitle_color','subtitle_size_px','subtitle_weight','content_bg_color',
+     'hero_bg_color','hero_overlay_opacity']
     .forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', applyStyles);
@@ -1269,13 +1270,13 @@
         const inp = document.getElementById(inputId);
         const prev = document.getElementById(previewId);
         if (!inp || !prev) return;
-        // Set initial value from field (or fallback if empty)
-        if (!prev.textContent.trim()) prev.textContent = inp.value.trim() || fallback;
+        // Always set from the input value on load; only use fallback if input is also empty
+        prev.textContent = inp.value.trim() || fallback;
         inp.addEventListener('input', () => { prev.textContent = inp.value.trim() || fallback; });
     }
-    wireTextPreview('tagline', 'previewTagline', 'Trusted Cleaning Experts');
-    wireTextPreview('title', 'previewTitle', 'Professional Cleaning Services');
-    wireTextPreview('subtitle', 'previewSubtitle', 'Reliable, affordable cleaning for your home or office.');
+    wireTextPreview('tagline', 'previewTagline', '— tagline —');
+    wireTextPreview('title', 'previewTitle', '— title —');
+    wireTextPreview('subtitle', 'previewSubtitle', '— subtitle —');
     wireTextPreview('cta_text', 'previewCtaBtn', 'See Reviews');
 
     /* Live stat card text */
@@ -1305,8 +1306,13 @@
 
     applyCardText();
 
-    /* Live badge preview (boldness + label) */
+    function applyMetaPreviewFromBtn() { applyMetaPreview(); }
+
+    /* Live badge preview — label text + boldness + colours */
     function applyMetaPreview() {
+        const mtc   = document.getElementById('meta_text_color');
+        const mbc   = document.getElementById('meta_bg_color'); // hidden input (may be '')
+        const mborc = document.getElementById('meta_border_color');
         [1,2,3].forEach(n => {
             const weightEl = document.getElementById(`small_text_line${n}_pct`);
             const lblEl    = document.getElementById(`small_text_line${n}`);
@@ -1315,7 +1321,11 @@
             const weight = weightEl ? weightEl.value.trim() : '';
             const lbl    = lblEl ? lblEl.value.trim() : '';
             const fw = (weight && !isNaN(parseInt(weight))) ? parseInt(weight) : '';
-            target.innerHTML = `<span${fw ? ` style="font-weight:${fw}"` : ''}>${lbl || `Detail ${n}`}</span>`;
+            const txtColor = (mtc && mtc.value) ? mtc.value : '';
+            target.innerHTML = `<span${fw ? ` style="font-weight:${fw}${txtColor ? ';color:'+txtColor : ''}"` : (txtColor ? ` style="color:${txtColor}"` : '')}>${lbl || `Badge ${n}`}</span>`;
+            target.style.background = (mbc && mbc.value) ? mbc.value : 'transparent';
+            if (mborc && mborc.value) target.style.borderColor = mborc.value;
+            if (txtColor) target.style.color = txtColor;
         });
     }
 
@@ -1324,6 +1334,11 @@
             const el = document.getElementById(id);
             if (el) el.addEventListener('input', applyMetaPreview);
         });
+    });
+    // Re-run badge preview when colour pickers change
+    ['meta_text_color','meta_bg_color_picker','meta_border_color'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', applyMetaPreview);
     });
 
     applyMetaPreview();
