@@ -456,7 +456,7 @@
         }
         .stage__meta-item {
             color: #fff;
-            background: {{ hero.meta_bg_color or '#16a34a' }};
+            background: {% if hero and hero.meta_bg_color %}{{ hero.meta_bg_color }}{% else %}transparent{% endif %};
             border: 1px solid {{ hero.meta_border_color or '#16a34a' }};
             border-radius: 12px;
             padding: 1rem 1.3rem;
@@ -884,9 +884,9 @@
                             <label for="tagline_bg_color_picker">Background colour</label>
                             <div style="display:flex;gap:0.5rem;align-items:center;">
                                 <input type="color" id="tagline_bg_color_picker"
-                                    value="{{ hero.tagline_bg_color or '#16a34a' }}"
+                                    value="{{ hero.tagline_bg_color if hero and hero.tagline_bg_color else '#16a34a' }}"
                                     oninput="document.getElementById('tagline_bg_color').value=this.value;document.getElementById('tagline_bg_clear').textContent='Clear';">
-                                <input type="hidden" id="tagline_bg_color" name="tagline_bg_color" value="{{ hero.tagline_bg_color or '#16a34a' }}">
+                                <input type="hidden" id="tagline_bg_color" name="tagline_bg_color" value="{{ hero.tagline_bg_color if hero and hero.tagline_bg_color else '' }}">
                                 <button type="button" id="tagline_bg_clear" class="btn-sm btn-danger"
                                     onclick="document.getElementById('tagline_bg_color').value='';document.getElementById('tagline_bg_color_picker').value='#16a34a';document.getElementById('previewTagline').style.background='transparent';this.textContent='Cleared';"
                                     title="Remove background colour from tagline">
@@ -948,9 +948,9 @@
                             <label for="meta_bg_color_picker">Background colour</label>
                             <div style="display:flex;gap:0.5rem;align-items:center;">
                                 <input type="color" id="meta_bg_color_picker"
-                                    value="{{ hero.meta_bg_color or '#16a34a' }}"
+                                    value="{{ hero.meta_bg_color if hero and hero.meta_bg_color else '#16a34a' }}"
                                     oninput="document.getElementById('meta_bg_color').value=this.value;document.getElementById('meta_bg_clear').textContent='Clear';applyMetaPreviewFromBtn();">
-                                <input type="hidden" id="meta_bg_color" name="meta_bg_color" value="{{ hero.meta_bg_color or '#16a34a' }}">
+                                <input type="hidden" id="meta_bg_color" name="meta_bg_color" value="{{ hero.meta_bg_color if hero and hero.meta_bg_color else '' }}">
                                 <button type="button" id="meta_bg_clear" class="btn-sm btn-danger"
                                     onclick="document.getElementById('meta_bg_color').value='';document.getElementById('meta_bg_color_picker').value='#16a34a';applyMetaPreviewFromBtn();this.textContent='Cleared';"
                                     title="Remove badge background colour">
