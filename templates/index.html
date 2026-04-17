@@ -208,7 +208,7 @@
         {% set hero_inline_style = hero_inline_style ~ '--hero-card2-y:' ~ (hero.card2_offset_y or 0) ~ 'px;' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-card3-x:' ~ (hero.card3_offset_x or 0) ~ 'px;' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-card3-y:' ~ (hero.card3_offset_y or 0) ~ 'px;' %}
-        {% set hero_inline_style = hero_inline_style ~ '--hero-tagline-bg:' ~ (hero.tagline_bg_color or '#16a34a') ~ ';' %}
+        {% if hero.tagline_bg_color %}{% set hero_inline_style = hero_inline_style ~ '--hero-tagline-bg:' ~ hero.tagline_bg_color ~ ';' %}{% else %}{% set hero_inline_style = hero_inline_style ~ '--hero-tagline-bg:transparent;' %}{% endif %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-tagline-text:' ~ (hero.tagline_text_color or '#ffffff') ~ ';' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-title-color:' ~ (hero.title_color or '#2563eb') ~ ';' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-title-size:' ~ (hero.title_size_px or 72) ~ 'px;' %}
@@ -217,7 +217,7 @@
         {% set hero_inline_style = hero_inline_style ~ '--hero-subtitle-size:' ~ (hero.subtitle_size_px or 18) ~ 'px;' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-subtitle-weight:' ~ (hero.subtitle_weight or 600) ~ ';' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-meta-text:' ~ (hero.meta_text_color or '#ffffff') ~ ';' %}
-        {% set hero_inline_style = hero_inline_style ~ '--hero-meta-bg:' ~ (hero.meta_bg_color or '#0f172a') ~ ';' %}
+        {% if hero.meta_bg_color %}{% set hero_inline_style = hero_inline_style ~ '--hero-meta-bg:' ~ hero.meta_bg_color ~ ';' %}{% else %}{% set hero_inline_style = hero_inline_style ~ '--hero-meta-bg:transparent;' %}{% endif %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-bg-color:' ~ (hero.hero_bg_color or '#0f172a') ~ ';' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-overlay-opacity:' ~ (hero.hero_overlay_opacity or 0.35) ~ ';' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-meta-border:' ~ (hero.meta_border_color or '#16a34a') ~ ';' %}

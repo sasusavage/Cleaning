@@ -12767,7 +12767,7 @@ def admin_hero_content_page():
                 subtitle_weight = sanitize_int_range(request.form.get('subtitle_weight'), 600, 300, 900)
                 content_bg_color = sanitize_css_color(request.form.get('content_bg_color'), '', allow_empty=True)
                 meta_text_color = sanitize_css_color(request.form.get('meta_text_color'), '#ffffff')
-                meta_bg_color = sanitize_css_color(request.form.get('meta_bg_color'), '#0f172a')
+                meta_bg_color = sanitize_css_color(request.form.get('meta_bg_color'), '#16a34a', allow_empty=True)
                 hero_bg_color = sanitize_css_color(request.form.get('hero_bg_color'), '#0f172a')
                 try:
                     _ov = float(request.form.get('hero_overlay_opacity', 0.35))
