@@ -4047,48 +4047,50 @@ body {
         display: none;
     }
 
-    /* Content: eyebrow at top, rest at bottom via flex */
+    /* Content: eyebrow at top, title/CTA/badges at bottom */
     .hero__content {
         flex: 1;
         display: flex;
         flex-direction: column;
-        padding: 2rem 1.25rem 1.75rem;
+        padding: 5rem 1.4rem 2.5rem;
         text-align: left;
         gap: 0;
         transform: none !important;
     }
 
-    /* Eyebrow pill pinned to top of content */
+    /* Eyebrow pill pinned to top — pushes everything else down */
     .hero__eyebrow {
         font-size: 0.72rem;
-        padding: 0.28rem 0.7rem;
+        padding: 0.28rem 0.75rem;
         align-self: flex-start;
         margin-bottom: auto;
         transform: none !important;
         white-space: normal;
-        max-width: 90%;
+        max-width: 92%;
         line-height: 1.4;
     }
 
-    /* Title/subtitle/CTA cluster at the bottom */
+    /* Title */
     .hero__title {
-        font-size: clamp(1.75rem, 7.5vw, 2.4rem) !important;
-        line-height: 1.1;
+        font-size: clamp(1.9rem, 7.5vw, 2.5rem) !important;
+        line-height: 1.08;
         margin-top: 0;
-        padding-top: 0.75rem;
+        padding-top: 1rem;
         transform: none !important;
     }
 
+    /* Subtitle */
     .hero__subtitle {
-        font-size: 0.88rem;
+        font-size: 0.9rem;
         max-width: 100%;
-        margin: 0.6rem 0 0;
+        margin: 0.55rem 0 0;
         transform: none !important;
     }
 
+    /* CTA button */
     .hero__cta {
         justify-content: flex-start;
-        margin-top: 1rem;
+        margin-top: 1.1rem;
         transform: none !important;
     }
 
@@ -4097,23 +4099,26 @@ body {
         justify-content: center;
     }
 
-    /* Meta items: show as a compact list inside the hero at the bottom */
+    /* Meta badge pills */
     .hero__meta {
         display: flex;
-        flex-direction: column;
-        gap: 0.35rem;
-        margin: 0.85rem 0 0;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin: 1rem 0 0;
         transform: none !important;
     }
 
     .hero__meta-item {
-        font-size: 0.8rem;
-        padding: 0.45rem 0.85rem;
-        background: rgba(0, 0, 0, 0.35);
-        backdrop-filter: blur(6px);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        color: #fff;
-        border-radius: 8px;
+        font-size: 0.78rem;
+        padding: 0.4rem 0.85rem;
+        background: var(--hero-meta-bg, rgba(0, 0, 0, 0.45));
+        backdrop-filter: blur(8px);
+        border: 1px solid var(--hero-meta-border, rgba(255, 255, 255, 0.2));
+        color: var(--hero-meta-text, #fff);
+        border-radius: 999px;
+        font-weight: 600;
+        flex: 0 0 auto;
     }
 
     /* Hide stat cards on mobile — no room */
@@ -4342,8 +4347,9 @@ body {
     .hero__meta-item {
         padding: 0.65rem 0.75rem;
         font-size: 0.82rem;
-        background: rgba(0,0,0,0.5);
-        border-color: rgba(22,163,74,0.35);
+        background: var(--hero-meta-bg, rgba(0,0,0,0.5));
+        border-color: var(--hero-meta-border, rgba(22,163,74,0.35));
+        color: var(--hero-meta-text, #fff);
         backdrop-filter: blur(8px);
     }
 
@@ -4375,12 +4381,11 @@ body {
     }
 
     .hero {
-        padding: 0 0 4.5rem;
         min-height: 100svh;
     }
 
     .hero__content {
-        padding: 0 1rem;
+        padding: 4.5rem 1rem 2rem;
     }
 
     .hero__eyebrow {
@@ -4397,13 +4402,12 @@ body {
     }
 
     .hero__meta {
-        grid-template-columns: 1fr;
-        gap: 0.45rem;
+        gap: 0.4rem;
     }
 
     .hero__meta-item {
-        padding: 0.6rem 0.75rem;
-        font-size: 0.8rem;
+        padding: 0.38rem 0.75rem;
+        font-size: 0.76rem;
     }
 
     .hero__cta .button {
