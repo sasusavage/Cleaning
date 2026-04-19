@@ -1343,8 +1343,9 @@
             const fw = (weight && !isNaN(parseInt(weight))) ? parseInt(weight) : '';
             const txtColor = (mtc && mtc.value) ? mtc.value : '';
             target.innerHTML = `<span${fw ? ` style="font-weight:${fw}${txtColor ? ';color:'+txtColor : ''}"` : (txtColor ? ` style="color:${txtColor}"` : '')}>${lbl || `Badge ${n}`}</span>`;
-            target.style.background = (mbc && mbc.value) ? mbc.value : 'transparent';
-            if (mborc && mborc.value) target.style.borderColor = mborc.value;
+            const hasBg = mbc && mbc.value;
+            target.style.background = hasBg ? mbc.value : 'transparent';
+            target.style.borderColor = hasBg ? (mborc && mborc.value ? mborc.value : '#16a34a') : 'rgba(255,255,255,0.2)';
             if (txtColor) target.style.color = txtColor;
         });
     }

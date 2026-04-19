@@ -200,6 +200,8 @@
         {% set hero_inline_style = hero_inline_style ~ '--hero-title-y:' ~ (hero.title_offset_y or 0) ~ 'px;' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-subtitle-x:' ~ (hero.subtitle_offset_x or 0) ~ 'px;' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-subtitle-y:' ~ (hero.subtitle_offset_y or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-cta-x:' ~ (hero.cta_offset_x or 0) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-cta-y:' ~ (hero.cta_offset_y or 0) ~ 'px;' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-meta-x:' ~ (hero.meta_offset_x or 0) ~ 'px;' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-meta-y:' ~ (hero.meta_offset_y or 0) ~ 'px;' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-card1-x:' ~ (hero.card1_offset_x or 0) ~ 'px;' %}
@@ -220,7 +222,7 @@
         {% if hero.meta_bg_color %}{% set hero_inline_style = hero_inline_style ~ '--hero-meta-bg:' ~ hero.meta_bg_color ~ ';' %}{% else %}{% set hero_inline_style = hero_inline_style ~ '--hero-meta-bg:transparent;' %}{% endif %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-bg-color:' ~ (hero.hero_bg_color or '#0f172a') ~ ';' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-overlay-opacity:' ~ (hero.hero_overlay_opacity or 0.35) ~ ';' %}
-        {% set hero_inline_style = hero_inline_style ~ '--hero-meta-border:' ~ (hero.meta_border_color or '#16a34a') ~ ';' %}
+        {% if hero.meta_bg_color %}{% set hero_inline_style = hero_inline_style ~ '--hero-meta-border:' ~ (hero.meta_border_color or '#16a34a') ~ ';' %}{% else %}{% set hero_inline_style = hero_inline_style ~ '--hero-meta-border:rgba(255,255,255,0.2);' %}{% endif %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-meta-pct-color:' ~ (hero.meta_pct_color or '#4ade80') ~ ';' %}
         {% if hero.content_bg_color %}
             {% set hero_inline_style = hero_inline_style ~ '--hero-content-bg:' ~ hero.content_bg_color ~ ';--hero-content-padding:1rem;' %}

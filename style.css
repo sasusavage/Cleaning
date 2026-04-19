@@ -1103,6 +1103,7 @@ body.is-nav-expanded main {
 
 .hero__cta {
     margin-top: 1rem;
+    transform: translate(var(--hero-cta-x, 0px), var(--hero-cta-y, 0px));
 }
 
 .hero__visual {
@@ -4058,16 +4059,17 @@ body {
         transform: none !important;
     }
 
-    /* Eyebrow pill pinned to top — pushes everything else down */
+    /* Eyebrow pill pinned to top, centred */
     .hero__eyebrow {
         font-size: 0.72rem;
         padding: 0.28rem 0.75rem;
-        align-self: flex-start;
+        align-self: center;
         margin-bottom: auto;
         transform: none !important;
         white-space: normal;
         max-width: 92%;
         line-height: 1.4;
+        text-align: center;
     }
 
     /* Title */
@@ -4289,12 +4291,13 @@ body {
     .hero__eyebrow,
     .hero__title,
     .hero__subtitle,
+    .hero__cta,
     .hero__meta {
         transform: none !important;
         max-width: 100%;
     }
 
-    /* Tagline pill — compact, readable */
+    /* Tagline pill — compact, readable, centred */
     .hero__eyebrow {
         font-size: 0.72rem;
         letter-spacing: 0.2em;
@@ -4302,6 +4305,8 @@ body {
         max-width: 92%;
         line-height: 1.4;
         white-space: normal;
+        align-self: center;
+        text-align: center;
     }
 
     /* Title — large but not overwhelming */
