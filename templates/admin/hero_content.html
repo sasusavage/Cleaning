@@ -120,7 +120,7 @@
             flex: 1;
             padding: 2rem;
             overflow-y: auto;
-            max-width: 1100px;
+            max-width: 1300px;
         }
 
         .page-header {
@@ -317,15 +317,15 @@
             overflow: hidden;
             border-radius: 0.75rem;
             border: 1px solid rgba(15,23,42,0.12);
-            height: calc(600px * var(--stage-scale, 1));
+            height: calc(700px * var(--stage-scale, 1));
             margin-bottom: 1.25rem;
         }
 
         /* ── Stage (hero preview) — mirrors live .hero exactly ── */
         .stage {
             position: relative;
-            width: 1280px;
-            height: 600px;
+            width: 1400px;
+            height: 700px;
             transform-origin: top left;
             transform: scale(var(--stage-scale, 1));
             border-radius: 0.75rem;
@@ -335,7 +335,7 @@
             grid-template-columns: minmax(0,1.1fr) minmax(0,0.9fr);
             gap: 2.5rem;
             align-items: end;
-            padding: 5rem 3rem 4rem;
+            padding: 5.5rem 3.5rem 4.5rem;
             font-family: 'Inter', system-ui, sans-serif;
             box-sizing: border-box;
         }
@@ -369,11 +369,11 @@
             align-content: end;
         }
 
-        /* right: cards — mirrors .hero__visual (height: 460px on live) */
+        /* right: cards — mirrors .hero__visual */
         .stage__visual-col {
             position: relative;
             z-index: 2;
-            height: 460px;
+            height: 530px;
             align-self: center;
         }
 
@@ -482,10 +482,10 @@
             overflow-wrap: anywhere;
             right: 0;
         }
-        /* match live: primary top:28, secondary top:175, tertiary top:322 */
-        .stage__item--card1 { top: 28px;  z-index: 3; }
-        .stage__item--card2 { top: 175px; z-index: 2; }
-        .stage__item--card3 { top: 322px; z-index: 1; }
+        /* match live positions, scaled for 700px stage */
+        .stage__item--card1 { top: 32px;  z-index: 3; }
+        .stage__item--card2 { top: 205px; z-index: 2; }
+        .stage__item--card3 { top: 376px; z-index: 1; }
 
         .stage__item--card strong {
             display: block;
@@ -885,10 +885,10 @@
                             <div style="display:flex;gap:0.5rem;align-items:center;">
                                 <input type="color" id="tagline_bg_color_picker"
                                     value="{{ hero.tagline_bg_color if hero and hero.tagline_bg_color else '#16a34a' }}"
-                                    oninput="document.getElementById('tagline_bg_color').value=this.value;document.getElementById('tagline_bg_clear').textContent='Clear';">
+                                    oninput="document.getElementById('tagline_bg_color').value=this.value;document.getElementById('tagline_bg_clear').textContent='Clear';if(typeof _applyStyles==='function')_applyStyles();">
                                 <input type="hidden" id="tagline_bg_color" name="tagline_bg_color" value="{{ hero.tagline_bg_color if hero and hero.tagline_bg_color else '' }}">
                                 <button type="button" id="tagline_bg_clear" class="btn-sm btn-danger"
-                                    onclick="document.getElementById('tagline_bg_color').value='';document.getElementById('tagline_bg_color_picker').value='#16a34a';document.getElementById('previewTagline').style.background='transparent';this.textContent='Cleared';"
+                                    onclick="document.getElementById('tagline_bg_color').value='';document.getElementById('tagline_bg_color_picker').value='#cccccc';if(typeof _applyStyles==='function')_applyStyles();this.textContent='Cleared';"
                                     title="Remove background colour from tagline">
                                     {% if not hero or not hero.tagline_bg_color %}Cleared{% else %}Clear{% endif %}
                                 </button>
@@ -949,10 +949,10 @@
                             <div style="display:flex;gap:0.5rem;align-items:center;">
                                 <input type="color" id="meta_bg_color_picker"
                                     value="{{ hero.meta_bg_color if hero and hero.meta_bg_color else '#16a34a' }}"
-                                    oninput="document.getElementById('meta_bg_color').value=this.value;document.getElementById('meta_bg_clear').textContent='Clear';applyMetaPreviewFromBtn();">
+                                    oninput="document.getElementById('meta_bg_color').value=this.value;document.getElementById('meta_bg_clear').textContent='Clear';if(typeof _applyMetaPreview==='function')_applyMetaPreview();">
                                 <input type="hidden" id="meta_bg_color" name="meta_bg_color" value="{{ hero.meta_bg_color if hero and hero.meta_bg_color else '' }}">
                                 <button type="button" id="meta_bg_clear" class="btn-sm btn-danger"
-                                    onclick="document.getElementById('meta_bg_color').value='';document.getElementById('meta_bg_color_picker').value='#16a34a';applyMetaPreviewFromBtn();this.textContent='Cleared';"
+                                    onclick="document.getElementById('meta_bg_color').value='';document.getElementById('meta_bg_color_picker').value='#cccccc';if(typeof _applyMetaPreview==='function')_applyMetaPreview();this.textContent='Cleared';"
                                     title="Remove badge background colour">
                                     {% if not hero or not hero.meta_bg_color %}Cleared{% else %}Clear{% endif %}
                                 </button>
@@ -1122,9 +1122,9 @@
     const stageWrap = document.getElementById('stageWrap');
     if (!stage || !stageWrap) return;
 
-    const DESIGN_W = 1280;
+    const DESIGN_W = 1400;
 
-    const STAGE_H = 600;
+    const STAGE_H = 700;
     function scaleStage() {
         const avail = stageWrap.parentElement ? stageWrap.parentElement.clientWidth : stageWrap.clientWidth;
         const scale = Math.min(1, avail / DESIGN_W);
@@ -1352,16 +1352,27 @@
     [1,2,3].forEach(n => {
         ['small_text_line'+n+'_pct','small_text_line'+n].forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.addEventListener('input', applyMetaPreview);
+            if (el) {
+                el.addEventListener('input', applyMetaPreview);
+                el.addEventListener('change', applyMetaPreview);
+            }
         });
     });
     // Re-run badge preview when colour pickers change
     ['meta_text_color','meta_bg_color_picker','meta_border_color'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.addEventListener('input', applyMetaPreview);
+        if (el) {
+            el.addEventListener('input', applyMetaPreview);
+            el.addEventListener('change', applyMetaPreview);
+        }
     });
 
     applyMetaPreview();
+
+    /* Expose globally so inline onclick handlers can trigger preview updates */
+    window._applyStyles = applyStyles;
+    window._applyMetaPreview = applyMetaPreview;
+
     requestAnimationFrame(() => requestAnimationFrame(scaleStage));
 })();
 </script>
