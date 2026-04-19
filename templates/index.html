@@ -232,66 +232,82 @@
         {% set hero_tagline_text = hero.tagline if hero else 'Trusted Cleaning Experts' %}
         {% set hero_title_text = hero.title if hero else 'Professional Cleaning Services' %}
         {% set hero_subtitle_text = hero.subtitle if hero else 'Reliable, affordable cleaning for your home or office. Get your free, no-obligation quote today!' %}
-        <header class="panel hero{% if hero_background_url %} hero--has-background{% endif %}" id="top" data-home-section="hero" style="{{ hero_inline_style }}">
-            {% if hero_badges %}
-            <div class="badge-marquee" aria-label="Certifications and partners">
-                <div class="badge-marquee__track">
-                    {% for badge in hero_badges[:10] %}
-                    <div class="badge-marquee__item">
-                        <img src="{{ badge.image_path | media_url }}" alt="Certification badge {{ loop.index }}" loading="lazy">
-                    </div>
-                    {% endfor %}
-                    {% for badge in hero_badges[:10] %}
-                    <div class="badge-marquee__item">
-                        <img src="{{ badge.image_path | media_url }}" alt="Certification badge {{ loop.index }}" loading="lazy" aria-hidden="true">
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-            <div class="hero__content" data-animate="grow">
-                {% if hero_tagline_text %}
-                <p class="hero__eyebrow">{{ hero_tagline_text }}</p>
-                {% endif %}
-                {% if hero_title_text %}
-                <h1 class="hero__title">{{ hero_title_text }}</h1>
-                {% endif %}
-                {% if hero_subtitle_text %}
-                <p class="hero__subtitle">{{ hero_subtitle_text }}</p>
-                {% endif %}
-                <div class="hero__cta button-group">
-                    <a class="button button--ghost" href="{{ hero.cta_link or '#testimonials' }}">{{ hero.cta_text or 'See Reviews' }}</a>
-                </div>
-                {% if hero_small_texts %}
-                <div class="hero__meta" data-animate="fade-in">
-                    {% set weights = [hero.small_text_line1_pct if hero else None, hero.small_text_line2_pct if hero else None, hero.small_text_line3_pct if hero else None] %}
-                    {% for detail in hero_small_texts %}
-                    {% set fw = weights[loop.index0] if loop.index0 < weights|length else None %}
-                    <div class="hero__meta-item">
-                        <span{% if fw %} style="font-weight:{{ fw }}"{% endif %}>{{ detail }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endif %}
-            </div>
-            <div class="hero__visual grow-on-load" aria-hidden="true">
-                <div class="hero__orb" data-depth="0.3"></div>
-                {% if hero_stat_cards %}
-                    {% set variants = ['primary', 'secondary', 'tertiary'] %}
-                    {% set depth_values = ['0.18', '0.12', '0.2'] %}
-                    {% for stat in hero_stat_cards %}
-                    {% set variant = variants[loop.index0] if loop.index0 < variants|length else 'secondary' %}
-                    {% set depth = depth_values[loop.index0] if loop.index0 < depth_values|length else '0.12' %}
-                    <div class="hero__card hero__card--{{ variant }}" data-depth="{{ depth }}">
-                        {% if stat.primary %}<strong>{{ stat.primary }}</strong>{% endif %}
-                        {% if stat.secondary %}{{ stat.secondary }}{% else %}{{ stat.raw }}{% endif %}
-                        <span class="hero__card-line"></span>
-                        {% if stat.tertiary %}{{ stat.tertiary }}{% endif %}
-                    </div>
-                    {% endfor %}
-                {% endif %}
-            </div>
-        </header>
+        <section class="hero" role="region" aria-label="Hero" data-layout="{{ hero.layout_mode or 'balenciaga' }}">
+  <!-- Announcement Bar (toggleable) -->
+  {% if hero and hero.announcement_bar_enabled %}
+  <div class="hero__announcement" style="--announcement-bg:{{ hero.announcement_bg_color or '#000' }};--announcement-text:{{ hero.announcement_text_color or '#fff' }};">
+    <p class="hero__announcement-text">{{ hero.announcement_text or 'FREE DELIVERY' }}</p>
+  </div>
+  {% endif %}
+
+  <!-- Background Layer -->
+  <div class="hero__background">
+    {% if hero and hero.media_url %}
+      {% if hero.media_type == 'video' %}
+      <video class="hero__media hero__video" autoplay muted loop playsinline preload="metadata">
+        <source src="{{ hero.media_url | media_url }}" type="video/mp4">
+      </video>
+      {% else %}
+      <img class="hero__media hero__image" src="{{ hero.media_url | media_url }}" alt="Hero background" loading="eager" decoding="async">
+      {% endif %}
+    {% endif %}
+    <!-- Overlay (controlled by brightness_offset) -->
+    <div class="hero__overlay" style="--brightness-offset:{{ hero.media_brightness_offset or -0.55 }};"></div>
+  </div>
+
+  <!-- Floating Badge (top-right) -->
+  {% if hero and hero.badge_enabled and hero.badge_text %}
+  <div class="hero__floating-badge"
+       style="--badge-bg:{{ hero.badge_bg_color or '#fff' }};--badge-text:{{ hero.badge_text_color or '#000' }};">
+    <span class="hero__badge-label">{{ hero.badge_text }}</span>
+  </div>
+  {% endif %}
+
+  <!-- Main Content Container -->
+  <div class="hero__container">
+    {% if hero and hero.layout_mode == 'puma' %}
+      <!-- PUMA MODE: Split-screen grid -->
+      <div class="hero__content">
+        {% include 'hero-content-block.html' %}
+      </div>
+      <div class="hero__media-col">
+        <!-- Media (image/video) displayed on right -->
+      </div>
+    {% else %}
+      <!-- BALENCIAGA MODE: Full-bleed, text bottom-left -->
+      {% include 'hero-content-block.html' %}
+    {% endif %}
+  </div>
+
+  <!-- Bottom Stats Strip -->
+  {% if hero and (hero.stat1_label or hero.stat2_label or hero.stat3_label) %}
+  <div class="hero__stats" style="--stats-bg:{{ hero.stats_bg_color or 'rgba(0,0,0,0.5)' }};">
+    <div class="hero__stat" data-stat="1">
+      <span class="hero__stat-value">{{ hero.stat1_value or '—' }}</span>
+      <span class="hero__stat-label">{{ hero.stat1_label or 'Stat 1' }}</span>
+    </div>
+    <div class="hero__stat" data-stat="2">
+      <span class="hero__stat-value">{{ hero.stat2_value or '—' }}</span>
+      <span class="hero__stat-label">{{ hero.stat2_label or 'Stat 2' }}</span>
+    </div>
+    <div class="hero__stat" data-stat="3">
+      <span class="hero__stat-value">{{ hero.stat3_value or '—' }}</span>
+      <span class="hero__stat-label">{{ hero.stat3_label or 'Stat 3' }}</span>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Trust Badges Marquee (KEEP AS-IS) -->
+  {% if hero_badges %}
+  <div class="hero__badge-marquee" aria-label="Trust badges">
+    <div class="hero__marquee-inner">
+      {% for badge in hero_badges %}
+      <img class="hero__badge-image" src="{{ badge.image_path | media_url }}" alt="Badge {{ loop.index }}" loading="lazy">
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</section>
 
         {% if hero_badges %}
         <div class="hero-badges-mobile" aria-label="Certifications and partners">

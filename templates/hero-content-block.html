@@ -1,0 +1,21 @@
+<div class="hero__editorial">
+  <p class="hero__editorial-label">{{ hero.editorial_label or 'Collection' }}</p>
+</div>
+
+<div class="hero__text-group">
+  <h1 class="hero__title">{{ hero.title or 'Editorial Excellence' }}</h1>
+  <p class="hero__subtitle">{{ hero.subtitle or 'Premium collections, curated with care.' }}</p>
+</div>
+
+<div class="hero__ctas">
+  {% if hero.cta_primary_text %}
+  <a href="{{ hero.cta_primary_link or '#' }}" class="hero__cta hero__cta--primary">
+    {{ hero.cta_primary_text }}
+  </a>
+  {% endif %}
+  {% if hero.cta_secondary_text %}
+  <a href="{{ hero.cta_secondary_link or '#' }}" class="hero__cta hero__cta--secondary">
+    {{ hero.cta_secondary_text }}
+  </a>
+  {% endif %}
+</div>

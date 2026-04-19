@@ -5193,3 +5193,34 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 });
+
+
+/* ─── HERO SECTION (SLIDIN GH) ─── */
+document.addEventListener('DOMContentLoaded', function () {
+    var heroEl = document.querySelector('.hero');
+    if (!heroEl) return;
+
+    // Set layout mode attribute for CSS
+    var layoutMode = heroEl.getAttribute('data-layout') || 'balenciaga';
+    heroEl.setAttribute('data-layout', layoutMode);
+
+    // Video playback optimization
+    var video = heroEl.querySelector('.hero__video');
+    if (video) {
+        video.addEventListener('play', function () {
+            video.style.willChange = 'auto';
+        });
+    }
+});
+
+/* Responsive hero stats grid on mobile */
+window.addEventListener('resize', function () {
+    var stats = document.querySelector('.hero__stats');
+    if (!stats) return;
+
+    if (window.innerWidth <= 768) {
+        stats.style.gridTemplateColumns = '1fr';
+    } else {
+        stats.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    }
+});

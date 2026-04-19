@@ -404,7 +404,47 @@ def sanitize_css_color(value, default='#ffffff', allow_empty=False):
     return default
 
 
-_EMAIL_RE = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
+def validate_layout_mode(value, default='balenciaga'):
+    """Validates layout_mode is one of the allowed layout types."""
+    valid_modes = ['balenciaga', 'puma']
+    cleaned = sanitize_text(value, 20).lower().strip()
+    if cleaned in valid_modes:
+        return cleaned
+    return default
+
+
+def sanitize_media_url(value, default=None, allow_empty=True):
+    """Validates and sanitizes media URLs (for images/videos in hero)."""
+    if not value:
+        return default if allow_empty else (default or '')
+
+    cleaned = str(value).strip()
+
+    # Allow relative paths
+    if cleaned.startswith('/'):
+        if len(cleaned) <= 2048 and '..' not in cleaned:
+            return cleaned
+
+    # Allow data URIs for embedded images
+    if cleaned.startswith('data:'):
+        if len(cleaned) <= 8192 and re.match(r'^data:image/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/=]+$', cleaned):
+            return cleaned
+
+    # Allow HTTPS urls (common for Cloudinary)
+    if cleaned.startswith('https://'):
+        if len(cleaned) <= 2048:
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(cleaned)
+                if parsed.netloc and '.' in parsed.netloc:
+                    return cleaned
+            except Exception:
+                pass
+
+    return default if allow_empty else (default or '')
+
+
+
 
 # Allowed HTML tags for rich-text fields (blog content, TOS editor)
 _ALLOWED_HTML_TAGS_RE = re.compile(
@@ -5912,45 +5952,36 @@ def log_analytics_event(event_type, event_data=None):
 
 DEFAULT_HERO_CONTENT = {
     'id': 1,
-    'title': 'Professional Cleaning Services',
-    'subtitle': 'Reliable, affordable cleaning for your home or office. Get your free, no-obligation quote today!',
-    'tagline': 'Trusted Cleaning Experts',
-    'small_text_line1': 'Over 150 satisfied clients nationwide',
-    'small_text_line2': 'Eco-friendly products and flexible scheduling',
-    'small_text_line3': 'Fully vetted, professional cleaning teams',
-    'stat1_text': '98% · Client satisfaction score',
-    'stat2_text': '24h · Response time for every request',
-    'stat3_text': 'Emergency · Cleanups available when you need them',
-    'hero_background_image': None,
-    'content_offset_x': 0,
-    'content_offset_y': 0,
-    'tagline_offset_x': 0,
-    'tagline_offset_y': 0,
-    'title_offset_x': 0,
-    'title_offset_y': 0,
-    'subtitle_offset_x': 0,
-    'subtitle_offset_y': 0,
-    'meta_offset_x': 0,
-    'meta_offset_y': 0,
-    'card1_offset_x': 0,
-    'card1_offset_y': 0,
-    'card2_offset_x': 0,
-    'card2_offset_y': 0,
-    'card3_offset_x': 0,
-    'card3_offset_y': 0,
-    'tagline_bg_color': '#16a34a',
-    'tagline_text_color': '#ffffff',
-    'title_color': '#2563eb',
-    'title_size_px': 72,
-    'title_weight': 800,
+    'layout_mode': 'balenciaga',
+    'media_url': None,
+    'media_type': 'image',
+    'announcement_bar_enabled': False,
+    'announcement_text': 'FREE DELIVERY',
+    'announcement_bg_color': '#000000',
+    'announcement_text_color': '#ffffff',
+    'editorial_label': 'Spring Collection',
+    'editorial_tracking': 0.1,
+    'title': 'Editorial Excellence',
+    'title_color': '#ffffff',
+    'subtitle': 'Curated luxury across premium collections.',
     'subtitle_color': '#ffffff',
-    'subtitle_size_px': 18,
-    'subtitle_weight': 600,
-    'content_bg_color': '',
-    'meta_text_color': '#ffffff',
-    'meta_bg_color': '#0f172a',
-    'meta_font_size': 16,
-    'meta_font_weight': 700
+    'cta_primary_text': 'Explore',
+    'cta_primary_link': '/collections',
+    'cta_secondary_text': 'Learn More',
+    'cta_secondary_link': '#about',
+    'badge_enabled': True,
+    'badge_text': 'Limited Drops',
+    'badge_bg_color': '#ffffff',
+    'badge_text_color': '#000000',
+    'stat1_label': 'Premium Quality',
+    'stat1_value': '98%',
+    'stat2_label': 'Global Reach',
+    'stat2_value': '150+',
+    'stat3_label': '24/7 Support',
+    'stat3_value': 'Always',
+    'stats_bg_color': 'rgba(0,0,0,0.5)',
+    'hero_bg_color': '#000000',
+    'media_brightness_offset': -0.55,
 }
 
 
@@ -5982,28 +6013,15 @@ def fetch_hero_content():
     cursor.execute(
         """
         SELECT
-            id, title, subtitle, tagline,
-            small_text_line1, small_text_line2, small_text_line3,
-            stat1_text, stat2_text, stat3_text,
-            hero_background_image,
-            content_offset_x, content_offset_y,
-            tagline_offset_x, tagline_offset_y,
-            title_offset_x, title_offset_y,
-            subtitle_offset_x, subtitle_offset_y,
-            cta_offset_x, cta_offset_y,
-            meta_offset_x, meta_offset_y,
-            card1_offset_x, card1_offset_y,
-            card2_offset_x, card2_offset_y,
-            card3_offset_x, card3_offset_y,
-            tagline_bg_color, tagline_text_color,
-            title_color, title_size_px, title_weight,
-            subtitle_color, subtitle_size_px, subtitle_weight,
-            content_bg_color,
-            meta_text_color, meta_bg_color,
-            small_text_line1_pct, small_text_line2_pct, small_text_line3_pct,
-            meta_font_size, meta_font_weight,
-            hero_bg_color, hero_overlay_opacity, meta_border_color, meta_pct_color,
-            cta_text, cta_link
+            id,
+            layout_mode, media_url, media_type,
+            announcement_bar_enabled, announcement_text, announcement_bg_color, announcement_text_color,
+            editorial_label, editorial_tracking,
+            title, title_color, subtitle, subtitle_color,
+            cta_primary_text, cta_primary_link, cta_secondary_text, cta_secondary_link,
+            badge_enabled, badge_text, badge_bg_color, badge_text_color,
+            stat1_label, stat1_value, stat2_label, stat2_value, stat3_label, stat3_value, stats_bg_color,
+            hero_bg_color, media_brightness_offset
         FROM hero_content
         WHERE id = 1
         """
@@ -6015,82 +6033,59 @@ def fetch_hero_content():
         cursor.execute(
             """
             INSERT INTO hero_content (
-                id, title, subtitle, tagline,
-                small_text_line1, small_text_line2, small_text_line3,
-                stat1_text, stat2_text, stat3_text,
-                hero_background_image,
-                content_offset_x, content_offset_y,
-                tagline_offset_x, tagline_offset_y,
-                title_offset_x, title_offset_y,
-                subtitle_offset_x, subtitle_offset_y,
-                meta_offset_x, meta_offset_y,
-                card1_offset_x, card1_offset_y,
-                card2_offset_x, card2_offset_y,
-                card3_offset_x, card3_offset_y,
-                tagline_bg_color, tagline_text_color,
-                title_color, title_size_px, title_weight,
-                subtitle_color, subtitle_size_px, subtitle_weight,
-                content_bg_color,
-                meta_text_color, meta_bg_color
+                id,
+                layout_mode, media_url, media_type,
+                announcement_bar_enabled, announcement_text, announcement_bg_color, announcement_text_color,
+                editorial_label, editorial_tracking,
+                title, title_color, subtitle, subtitle_color,
+                cta_primary_text, cta_primary_link, cta_secondary_text, cta_secondary_link,
+                badge_enabled, badge_text, badge_bg_color, badge_text_color,
+                stat1_label, stat1_value, stat2_label, stat2_value, stat3_label, stat3_value, stats_bg_color,
+                hero_bg_color, media_brightness_offset
             ) VALUES (
+                %s,
+                %s, %s, %s,
                 %s, %s, %s, %s,
-                %s, %s, %s,
-                %s, %s, %s,
-                %s,
                 %s, %s,
-                %s, %s,
-                %s, %s,
-                %s, %s,
-                %s, %s,
-                %s, %s,
-                %s, %s,
-                %s, %s,
-                %s, %s,
-                %s, %s, %s,
-                %s, %s, %s,
-                %s,
+                %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s,
                 %s, %s
             )
             """,
             (
                 DEFAULT_HERO_CONTENT['id'],
+                DEFAULT_HERO_CONTENT['layout_mode'],
+                DEFAULT_HERO_CONTENT['media_url'],
+                DEFAULT_HERO_CONTENT['media_type'],
+                DEFAULT_HERO_CONTENT['announcement_bar_enabled'],
+                DEFAULT_HERO_CONTENT['announcement_text'],
+                DEFAULT_HERO_CONTENT['announcement_bg_color'],
+                DEFAULT_HERO_CONTENT['announcement_text_color'],
+                DEFAULT_HERO_CONTENT['editorial_label'],
+                DEFAULT_HERO_CONTENT['editorial_tracking'],
                 DEFAULT_HERO_CONTENT['title'],
-                DEFAULT_HERO_CONTENT['subtitle'],
-                DEFAULT_HERO_CONTENT['tagline'],
-                DEFAULT_HERO_CONTENT['small_text_line1'],
-                DEFAULT_HERO_CONTENT['small_text_line2'],
-                DEFAULT_HERO_CONTENT['small_text_line3'],
-                DEFAULT_HERO_CONTENT['stat1_text'],
-                DEFAULT_HERO_CONTENT['stat2_text'],
-                DEFAULT_HERO_CONTENT['stat3_text'],
-                DEFAULT_HERO_CONTENT['hero_background_image'],
-                DEFAULT_HERO_CONTENT['content_offset_x'],
-                DEFAULT_HERO_CONTENT['content_offset_y'],
-                DEFAULT_HERO_CONTENT['tagline_offset_x'],
-                DEFAULT_HERO_CONTENT['tagline_offset_y'],
-                DEFAULT_HERO_CONTENT['title_offset_x'],
-                DEFAULT_HERO_CONTENT['title_offset_y'],
-                DEFAULT_HERO_CONTENT['subtitle_offset_x'],
-                DEFAULT_HERO_CONTENT['subtitle_offset_y'],
-                DEFAULT_HERO_CONTENT['meta_offset_x'],
-                DEFAULT_HERO_CONTENT['meta_offset_y'],
-                DEFAULT_HERO_CONTENT['card1_offset_x'],
-                DEFAULT_HERO_CONTENT['card1_offset_y'],
-                DEFAULT_HERO_CONTENT['card2_offset_x'],
-                DEFAULT_HERO_CONTENT['card2_offset_y'],
-                DEFAULT_HERO_CONTENT['card3_offset_x'],
-                DEFAULT_HERO_CONTENT['card3_offset_y'],
-                DEFAULT_HERO_CONTENT['tagline_bg_color'],
-                DEFAULT_HERO_CONTENT['tagline_text_color'],
                 DEFAULT_HERO_CONTENT['title_color'],
-                DEFAULT_HERO_CONTENT['title_size_px'],
-                DEFAULT_HERO_CONTENT['title_weight'],
+                DEFAULT_HERO_CONTENT['subtitle'],
                 DEFAULT_HERO_CONTENT['subtitle_color'],
-                DEFAULT_HERO_CONTENT['subtitle_size_px'],
-                DEFAULT_HERO_CONTENT['subtitle_weight'],
-                DEFAULT_HERO_CONTENT['content_bg_color'],
-                DEFAULT_HERO_CONTENT['meta_text_color'],
-                DEFAULT_HERO_CONTENT['meta_bg_color']
+                DEFAULT_HERO_CONTENT['cta_primary_text'],
+                DEFAULT_HERO_CONTENT['cta_primary_link'],
+                DEFAULT_HERO_CONTENT['cta_secondary_text'],
+                DEFAULT_HERO_CONTENT['cta_secondary_link'],
+                DEFAULT_HERO_CONTENT['badge_enabled'],
+                DEFAULT_HERO_CONTENT['badge_text'],
+                DEFAULT_HERO_CONTENT['badge_bg_color'],
+                DEFAULT_HERO_CONTENT['badge_text_color'],
+                DEFAULT_HERO_CONTENT['stat1_label'],
+                DEFAULT_HERO_CONTENT['stat1_value'],
+                DEFAULT_HERO_CONTENT['stat2_label'],
+                DEFAULT_HERO_CONTENT['stat2_value'],
+                DEFAULT_HERO_CONTENT['stat3_label'],
+                DEFAULT_HERO_CONTENT['stat3_value'],
+                DEFAULT_HERO_CONTENT['stats_bg_color'],
+                DEFAULT_HERO_CONTENT['hero_bg_color'],
+                DEFAULT_HERO_CONTENT['media_brightness_offset'],
             )
         )
         conn.commit()
@@ -6099,27 +6094,15 @@ def fetch_hero_content():
         cursor.execute(
             """
             SELECT
-                id, title, subtitle, tagline,
-                small_text_line1, small_text_line2, small_text_line3,
-                stat1_text, stat2_text, stat3_text,
-                hero_background_image,
-                content_offset_x, content_offset_y,
-                tagline_offset_x, tagline_offset_y,
-                title_offset_x, title_offset_y,
-                subtitle_offset_x, subtitle_offset_y,
-                meta_offset_x, meta_offset_y,
-                card1_offset_x, card1_offset_y,
-                card2_offset_x, card2_offset_y,
-                card3_offset_x, card3_offset_y,
-                tagline_bg_color, tagline_text_color,
-                title_color, title_size_px, title_weight,
-                subtitle_color, subtitle_size_px, subtitle_weight,
-                content_bg_color,
-                meta_text_color, meta_bg_color,
-                small_text_line1_pct, small_text_line2_pct, small_text_line3_pct,
-                meta_font_size, meta_font_weight,
-                hero_bg_color, hero_overlay_opacity, meta_border_color, meta_pct_color,
-                cta_text, cta_link
+                id,
+                layout_mode, media_url, media_type,
+                announcement_bar_enabled, announcement_text, announcement_bg_color, announcement_text_color,
+                editorial_label, editorial_tracking,
+                title, title_color, subtitle, subtitle_color,
+                cta_primary_text, cta_primary_link, cta_secondary_text, cta_secondary_link,
+                badge_enabled, badge_text, badge_bg_color, badge_text_color,
+                stat1_label, stat1_value, stat2_label, stat2_value, stat3_label, stat3_value, stats_bg_color,
+                hero_bg_color, media_brightness_offset
             FROM hero_content
             WHERE id = 1
             """
@@ -6149,181 +6132,79 @@ def ensure_hero_content_schema():
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS hero_content (
-                id BIGINT PRIMARY KEY,
-                title VARCHAR(255),
-                subtitle TEXT,
-                tagline VARCHAR(255),
-                small_text_line1 VARCHAR(255),
-                small_text_line2 VARCHAR(255),
-                small_text_line3 VARCHAR(255),
-                stat1_text VARCHAR(255),
-                stat2_text VARCHAR(255),
-                stat3_text VARCHAR(255),
-                hero_background_image TEXT,
-                content_offset_x INTEGER DEFAULT 0,
-                content_offset_y INTEGER DEFAULT 0,
-                tagline_offset_x INTEGER DEFAULT 0,
-                tagline_offset_y INTEGER DEFAULT 0,
-                title_offset_x INTEGER DEFAULT 0,
-                title_offset_y INTEGER DEFAULT 0,
-                subtitle_offset_x INTEGER DEFAULT 0,
-                subtitle_offset_y INTEGER DEFAULT 0,
-                meta_offset_x INTEGER DEFAULT 0,
-                meta_offset_y INTEGER DEFAULT 0,
-                card1_offset_x INTEGER DEFAULT 0,
-                card1_offset_y INTEGER DEFAULT 0,
-                card2_offset_x INTEGER DEFAULT 0,
-                card2_offset_y INTEGER DEFAULT 0,
-                card3_offset_x INTEGER DEFAULT 0,
-                card3_offset_y INTEGER DEFAULT 0,
-                tagline_bg_color VARCHAR(20) DEFAULT '#16a34a',
-                tagline_text_color VARCHAR(20) DEFAULT '#ffffff',
-                title_color VARCHAR(20) DEFAULT '#2563eb',
-                title_size_px INTEGER DEFAULT 72,
-                title_weight INTEGER DEFAULT 800,
+                id BIGINT PRIMARY KEY DEFAULT 1,
+                layout_mode VARCHAR(20) DEFAULT 'balenciaga',
+                media_url TEXT,
+                media_type VARCHAR(10) DEFAULT 'image',
+                announcement_bar_enabled BOOLEAN DEFAULT FALSE,
+                announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY',
+                announcement_bg_color VARCHAR(20) DEFAULT '#000000',
+                announcement_text_color VARCHAR(20) DEFAULT '#ffffff',
+                editorial_label VARCHAR(100) DEFAULT 'Spring Collection',
+                editorial_tracking NUMERIC(3,2) DEFAULT 0.1,
+                title VARCHAR(500) DEFAULT 'Editorial Excellence',
+                title_color VARCHAR(20) DEFAULT '#ffffff',
+                subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.',
                 subtitle_color VARCHAR(20) DEFAULT '#ffffff',
-                subtitle_size_px INTEGER DEFAULT 18,
-                subtitle_weight INTEGER DEFAULT 600,
-                content_bg_color VARCHAR(20),
-                meta_text_color VARCHAR(20) DEFAULT '#ffffff',
-                meta_bg_color VARCHAR(20) DEFAULT '#0f172a'
+                cta_primary_text VARCHAR(100) DEFAULT 'Explore',
+                cta_primary_link VARCHAR(255) DEFAULT '/collections',
+                cta_secondary_text VARCHAR(100) DEFAULT 'Learn More',
+                cta_secondary_link VARCHAR(255) DEFAULT '#about',
+                badge_enabled BOOLEAN DEFAULT TRUE,
+                badge_text VARCHAR(100) DEFAULT 'Limited Drops',
+                badge_bg_color VARCHAR(20) DEFAULT '#ffffff',
+                badge_text_color VARCHAR(20) DEFAULT '#000000',
+                stat1_label VARCHAR(100) DEFAULT 'Premium Quality',
+                stat1_value VARCHAR(50) DEFAULT '98%',
+                stat2_label VARCHAR(100) DEFAULT 'Global Reach',
+                stat2_value VARCHAR(50) DEFAULT '150+',
+                stat3_label VARCHAR(100) DEFAULT '24/7 Support',
+                stat3_value VARCHAR(50) DEFAULT 'Always',
+                stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)',
+                hero_bg_color VARCHAR(20) DEFAULT '#000000',
+                media_brightness_offset NUMERIC(2,1) DEFAULT -0.55
             )
             """
         )
-
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_background_image TEXT")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_offset_x INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_offset_y INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS tagline_offset_x INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS tagline_offset_y INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_offset_x INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_offset_y INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_offset_x INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_offset_y INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_offset_x INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_offset_y INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_offset_x INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_offset_y INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS card1_offset_x INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS card1_offset_y INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS card2_offset_x INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS card2_offset_y INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS card3_offset_x INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS card3_offset_y INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS tagline_bg_color VARCHAR(20) DEFAULT '#16a34a'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS tagline_text_color VARCHAR(20) DEFAULT '#ffffff'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_color VARCHAR(20) DEFAULT '#2563eb'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_size_px INTEGER DEFAULT 72")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_weight INTEGER DEFAULT 800")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_color VARCHAR(20) DEFAULT '#ffffff'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_size_px INTEGER DEFAULT 18")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_weight INTEGER DEFAULT 600")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_color VARCHAR(20)")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_text_color VARCHAR(20) DEFAULT '#ffffff'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_bg_color VARCHAR(20) DEFAULT '#0f172a'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS small_text_line1_pct SMALLINT DEFAULT NULL")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS small_text_line2_pct SMALLINT DEFAULT NULL")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS small_text_line3_pct SMALLINT DEFAULT NULL")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_font_size INTEGER DEFAULT 16")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_font_weight INTEGER DEFAULT 700")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_bg_color VARCHAR(20) DEFAULT '#0f172a'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_overlay_opacity NUMERIC(3,2) DEFAULT 0.35")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_border_color VARCHAR(20) DEFAULT '#16a34a'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_pct_color VARCHAR(20) DEFAULT '#4ade80'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_text VARCHAR(100) DEFAULT 'See Reviews'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_link VARCHAR(255) DEFAULT '#testimonials'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS deprecated_old_schema BOOLEAN DEFAULT FALSE")
     else:
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS hero_content (
-                id INT PRIMARY KEY,
-                title VARCHAR(255),
-                subtitle TEXT,
-                tagline VARCHAR(255),
-                small_text_line1 VARCHAR(255),
-                small_text_line2 VARCHAR(255),
-                small_text_line3 VARCHAR(255),
-                stat1_text VARCHAR(255),
-                stat2_text VARCHAR(255),
-                stat3_text VARCHAR(255),
-                hero_background_image TEXT,
-                content_offset_x INT DEFAULT 0,
-                content_offset_y INT DEFAULT 0,
-                tagline_offset_x INT DEFAULT 0,
-                tagline_offset_y INT DEFAULT 0,
-                title_offset_x INT DEFAULT 0,
-                title_offset_y INT DEFAULT 0,
-                subtitle_offset_x INT DEFAULT 0,
-                subtitle_offset_y INT DEFAULT 0,
-                meta_offset_x INT DEFAULT 0,
-                meta_offset_y INT DEFAULT 0,
-                card1_offset_x INT DEFAULT 0,
-                card1_offset_y INT DEFAULT 0,
-                card2_offset_x INT DEFAULT 0,
-                card2_offset_y INT DEFAULT 0,
-                card3_offset_x INT DEFAULT 0,
-                card3_offset_y INT DEFAULT 0,
-                tagline_bg_color VARCHAR(20) DEFAULT '#16a34a',
-                tagline_text_color VARCHAR(20) DEFAULT '#ffffff',
-                title_color VARCHAR(20) DEFAULT '#2563eb',
-                title_size_px INT DEFAULT 72,
-                title_weight INT DEFAULT 800,
+                id INT PRIMARY KEY DEFAULT 1,
+                layout_mode VARCHAR(20) DEFAULT 'balenciaga',
+                media_url LONGTEXT,
+                media_type VARCHAR(10) DEFAULT 'image',
+                announcement_bar_enabled BOOLEAN DEFAULT 0,
+                announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY',
+                announcement_bg_color VARCHAR(20) DEFAULT '#000000',
+                announcement_text_color VARCHAR(20) DEFAULT '#ffffff',
+                editorial_label VARCHAR(100) DEFAULT 'Spring Collection',
+                editorial_tracking DECIMAL(3,2) DEFAULT 0.1,
+                title VARCHAR(500) DEFAULT 'Editorial Excellence',
+                title_color VARCHAR(20) DEFAULT '#ffffff',
+                subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.',
                 subtitle_color VARCHAR(20) DEFAULT '#ffffff',
-                subtitle_size_px INT DEFAULT 18,
-                subtitle_weight INT DEFAULT 600,
-                content_bg_color VARCHAR(20) NULL,
-                meta_text_color VARCHAR(20) DEFAULT '#ffffff',
-                meta_bg_color VARCHAR(20) DEFAULT '#0f172a'
+                cta_primary_text VARCHAR(100) DEFAULT 'Explore',
+                cta_primary_link VARCHAR(255) DEFAULT '/collections',
+                cta_secondary_text VARCHAR(100) DEFAULT 'Learn More',
+                cta_secondary_link VARCHAR(255) DEFAULT '#about',
+                badge_enabled BOOLEAN DEFAULT 1,
+                badge_text VARCHAR(100) DEFAULT 'Limited Drops',
+                badge_bg_color VARCHAR(20) DEFAULT '#ffffff',
+                badge_text_color VARCHAR(20) DEFAULT '#000000',
+                stat1_label VARCHAR(100) DEFAULT 'Premium Quality',
+                stat1_value VARCHAR(50) DEFAULT '98%',
+                stat2_label VARCHAR(100) DEFAULT 'Global Reach',
+                stat2_value VARCHAR(50) DEFAULT '150+',
+                stat3_label VARCHAR(100) DEFAULT '24/7 Support',
+                stat3_value VARCHAR(50) DEFAULT 'Always',
+                stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)',
+                hero_bg_color VARCHAR(20) DEFAULT '#000000',
+                media_brightness_offset DECIMAL(2,1) DEFAULT -0.55
             )
             """
         )
-
-        mysql_columns = {
-            'hero_background_image': "TEXT NULL",
-            'content_offset_x': "INT DEFAULT 0",
-            'content_offset_y': "INT DEFAULT 0",
-            'tagline_offset_x': "INT DEFAULT 0",
-            'tagline_offset_y': "INT DEFAULT 0",
-            'title_offset_x': "INT DEFAULT 0",
-            'title_offset_y': "INT DEFAULT 0",
-            'subtitle_offset_x': "INT DEFAULT 0",
-            'subtitle_offset_y': "INT DEFAULT 0",
-            'meta_offset_x': "INT DEFAULT 0",
-            'meta_offset_y': "INT DEFAULT 0",
-            'card1_offset_x': "INT DEFAULT 0",
-            'card1_offset_y': "INT DEFAULT 0",
-            'card2_offset_x': "INT DEFAULT 0",
-            'card2_offset_y': "INT DEFAULT 0",
-            'card3_offset_x': "INT DEFAULT 0",
-            'card3_offset_y': "INT DEFAULT 0",
-            'tagline_bg_color': "VARCHAR(20) DEFAULT '#16a34a'",
-            'tagline_text_color': "VARCHAR(20) DEFAULT '#ffffff'",
-            'title_color': "VARCHAR(20) DEFAULT '#2563eb'",
-            'title_size_px': "INT DEFAULT 72",
-            'title_weight': "INT DEFAULT 800",
-            'subtitle_color': "VARCHAR(20) DEFAULT '#ffffff'",
-            'subtitle_size_px': "INT DEFAULT 18",
-            'subtitle_weight': "INT DEFAULT 600",
-            'content_bg_color': "VARCHAR(20) NULL",
-            'meta_text_color': "VARCHAR(20) DEFAULT '#ffffff'",
-            'meta_bg_color': "VARCHAR(20) DEFAULT '#0f172a'",
-            'small_text_line1_pct': "SMALLINT DEFAULT NULL",
-            'small_text_line2_pct': "SMALLINT DEFAULT NULL",
-            'small_text_line3_pct': "SMALLINT DEFAULT NULL",
-            'meta_font_size': "INT DEFAULT 16",
-            'meta_font_weight': "INT DEFAULT 700",
-            'hero_bg_color': "VARCHAR(20) DEFAULT '#0f172a'",
-            'hero_overlay_opacity': "DECIMAL(3,2) DEFAULT 0.35",
-            'meta_border_color': "VARCHAR(20) DEFAULT '#16a34a'",
-            'meta_pct_color': "VARCHAR(20) DEFAULT '#4ade80'",
-            'cta_text': "VARCHAR(100) DEFAULT 'See Reviews'",
-            'cta_link': "VARCHAR(255) DEFAULT '#testimonials'"
-        }
-
-        for column_name, column_sql in mysql_columns.items():
-            cursor.execute("SHOW COLUMNS FROM hero_content LIKE %s", (column_name,))
-            if not cursor.fetchone():
-                cursor.execute(f"ALTER TABLE hero_content ADD COLUMN {column_name} {column_sql}")
 
     conn.commit()
     cursor.close()

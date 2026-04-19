@@ -2,989 +2,177 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Clean Co.' %}
-    <title>Hero Content | {{ company_name }} Admin</title>
+    <title>Hero Content | Admin</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        :root {
-            color-scheme: light;
-            --bg: #f3f4f6;
-            --surface: #ffffff;
-            --primary: #2563eb;
-            --primary-dark: #1d4ed8;
-            --border: #e5e7eb;
-            --text: #1f2937;
-            --muted: #6b7280;
-            --green: #16a34a;
-        }
-
         * { box-sizing: border-box; }
-
-        body {
-            margin: 0;
-            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: var(--bg);
-            display: flex;
-            min-height: 100vh;
-            color: var(--text);
+        body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background: #f3f4f6; padding: 2rem; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { margin-top: 0; }
+        .card { background: #fff; border-radius: 1rem; border: 1px solid #e5e7eb; padding: 1.75rem; margin-bottom: 1.5rem; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; font-weight: 600; font-size: 0.85rem; color: #6b7280; margin-bottom: 0.4rem; }
+        input[type="text"], input[type="number"], input[type="file"], input[type="color"], textarea, select {
+            font: inherit; font-size: 0.95rem; padding: 0.6rem 0.75rem; border: 1px solid #e5e7eb;
+            border-radius: 0.5rem; width: 100%;
         }
-
-        body.is-preview-dragging { overflow: hidden; }
-
-        /* ── Sidebar ── */
-        .sidebar {
-            width: 240px;
-            background: #111827;
-            color: #f9fafb;
-            padding: 2rem 1.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-            position: sticky;
-            top: 0;
-            height: 100vh;
-            overflow-y: auto;
-            align-self: flex-start;
-            z-index: 120;
-        }
-
-        .sidebar__header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.75rem;
-            margin-bottom: 0.75rem;
-        }
-
-        .sidebar__toggle {
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 0.45rem 0.7rem;
-            border-radius: 0.5rem;
-            border: 1px solid rgba(255,255,255,0.2);
-            background: rgba(255,255,255,0.08);
-            color: #f9fafb;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        .sidebar__toggle:hover { background: rgba(255,255,255,0.14); }
-
-        .sidebar__nav {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-        }
-
-        .sidebar--menu-open .sidebar__nav { display: flex; }
-
-        .sidebar__logout-form { margin-top: 0.75rem; }
-
-        .sidebar__logout-button {
-            width: 100%;
-            display: block;
-            padding: 0.75rem 1rem;
-            border-radius: 0.5rem;
-            border: 1px solid rgba(248,113,113,0.25);
-            background: rgba(248,113,113,0.12);
-            color: #fca5a5;
-            font-weight: 600;
-            font-size: 0.95rem;
-            font-family: inherit;
-            cursor: pointer;
-            transition: background 0.2s ease, color 0.2s ease;
-        }
-
-        .sidebar__logout-button:hover { background: rgba(248,113,113,0.2); color: #fee2e2; }
-
-        .sidebar .logo { font-weight: 600; font-size: 1.25rem; }
-
-        .sidebar .nav-link {
-            color: #d1d5db;
-            text-decoration: none;
-            padding: 0.65rem 0.75rem;
-            border-radius: 0.5rem;
-            transition: background 0.2s ease;
-            display: block;
-        }
-
-        .sidebar .nav-link:hover,
-        .sidebar .nav-link.active {
-            background: rgba(37,99,235,0.25);
-            color: #93c5fd;
-        }
-
-        /* ── Main ── */
-        .main-content {
-            flex: 1;
-            padding: 2rem;
-            overflow-y: auto;
-            max-width: 1300px;
-        }
-
-        .page-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .page-header h1 { margin: 0; font-size: 1.75rem; }
-
-        /* ── Cards ── */
-        .card {
-            background: var(--surface);
-            border-radius: 1rem;
-            border: 1px solid var(--border);
-            padding: 1.75rem;
-            box-shadow: 0 2px 8px rgba(15,23,42,0.05);
-            margin-bottom: 1.5rem;
-        }
-
-        .section-title {
-            margin: 0 0 0.5rem;
-            font-size: 1.05rem;
-            font-weight: 700;
-            color: var(--text);
-        }
-
-        .section-hint {
-            margin: 0 0 1.25rem;
-            font-size: 0.88rem;
-            color: var(--muted);
-        }
-
-        .btn-sm {
-            padding: 0.3rem 0.65rem;
-            font-size: 0.8rem;
-            border-radius: 0.4rem;
-            border: none;
-            cursor: pointer;
-            font-family: inherit;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-        .btn-danger { background: #fee2e2; color: #b91c1c; }
-        .btn-danger:hover { background: #fecaca; }
-
-        /* ── Grid ── */
-        .grid { display: grid; gap: 1.25rem; }
-        .grid--2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
-        .grid--3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
-
-        /* ── Form ── */
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.4rem;
-        }
-
-        label {
-            font-weight: 600;
-            font-size: 0.85rem;
-            color: var(--muted);
-        }
-
-        input[type="text"],
-        input[type="number"],
-        input[type="file"],
-        textarea {
-            font: inherit;
-            font-size: 0.95rem;
-            padding: 0.6rem 0.75rem;
-            border: 1px solid var(--border);
-            border-radius: 0.5rem;
-            background: #fff;
-            transition: border-color 0.2s;
-            width: 100%;
-        }
-
-        input[type="color"] {
-            padding: 0.25rem 0.35rem;
-            height: 2.4rem;
-            border: 1px solid var(--border);
-            border-radius: 0.5rem;
-            cursor: pointer;
-            width: 100%;
-        }
-
         textarea { min-height: 100px; resize: vertical; }
-
-        input:focus, textarea:focus {
-            outline: 2px solid rgba(37,99,235,0.2);
-            border-color: var(--primary);
-        }
-
-        /* ── Detail rows (% + label) ── */
-        .detail-row {
-            display: grid;
-            grid-template-columns: 90px 1fr;
-            gap: 0.75rem;
-            align-items: end;
-            padding: 0.85rem 1rem;
-            border: 1px solid var(--border);
-            border-radius: 0.65rem;
-            background: #f9fafb;
-        }
-
-        .detail-row__num label { color: #2563eb; }
-
-        /* ── Style control groups ── */
-        .style-group {
-            border: 1px solid var(--border);
-            border-radius: 0.65rem;
-            padding: 1rem 1.1rem;
-        }
-
-        .style-group__title {
-            font-size: 0.8rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: var(--muted);
-            margin: 0 0 0.85rem;
-        }
-
-        /* ── Buttons ── */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.35rem;
-            padding: 0.65rem 1.2rem;
-            font-weight: 600;
-            font-size: 0.95rem;
-            border-radius: 0.55rem;
-            cursor: pointer;
-            border: 1px solid transparent;
-            font-family: inherit;
-            transition: background 0.2s;
-        }
-
-        .btn-primary { background: var(--primary); color: #fff; }
-        .btn-primary:hover { background: var(--primary-dark); }
-        .btn-outline { border-color: var(--border); color: var(--text); background: #fff; }
-        .btn-outline:hover { background: var(--bg); }
-
-        .form-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 0.75rem;
-            margin-top: 1.5rem;
-            padding-top: 1.25rem;
-            border-top: 1px solid var(--border);
-        }
-
-        /* ── Alerts ── */
-        .alert {
-            padding: 0.85rem 1rem;
-            border-radius: 0.65rem;
-            font-size: 0.95rem;
-            margin-bottom: 1.25rem;
-        }
-
-        .alert--error { background: rgba(239,68,68,0.12); color: #991b1b; border: 1px solid rgba(239,68,68,0.25); }
-        .alert--success { background: rgba(16,185,129,0.12); color: #047857; border: 1px solid rgba(16,185,129,0.25); }
-
-        /* ── Image preview ── */
-        .image-preview {
-            margin-top: 0.75rem;
-            border-radius: 0.65rem;
-            border: 1px solid var(--border);
-            padding: 0.75rem;
-            background: #f9fafb;
-        }
-
-        .image-preview img {
-            max-width: 100%;
-            height: auto;
-            border-radius: 0.4rem;
-            display: block;
-        }
-
-        .image-preview small {
-            display: block;
-            font-size: 0.8rem;
-            color: var(--muted);
-            margin-bottom: 0.4rem;
-        }
-
-        /* ── Hero preview stage ── */
-        .stage-wrap {
-            overflow: hidden;
-            border-radius: 0.75rem;
-            border: 1px solid rgba(15,23,42,0.12);
-            height: calc(700px * var(--stage-scale, 1));
-            margin-bottom: 1.25rem;
-        }
-
-        /* ── Stage (hero preview) — mirrors live .hero exactly ── */
-        .stage {
-            position: relative;
-            width: 1400px;
-            height: 700px;
-            transform-origin: top left;
-            transform: scale(var(--stage-scale, 1));
-            border-radius: 0.75rem;
-            overflow: hidden;
-            background-color: var(--stage-bg-color, #0f172a);
-            display: grid;
-            grid-template-columns: minmax(0,1.1fr) minmax(0,0.9fr);
-            gap: 2.5rem;
-            align-items: end;
-            padding: 5.5rem 3.5rem 4.5rem;
-            font-family: 'Inter', system-ui, sans-serif;
-            box-sizing: border-box;
-        }
-
-        /* background photo */
-        .stage::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background-image: var(--preview-bg-image);
-            background-size: cover;
-            background-position: center;
-            z-index: 0;
-        }
-
-        /* dark overlay */
-        .stage::after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background: rgba(0,0,0,var(--stage-overlay,0.35));
-            z-index: 1;
-        }
-
-        /* left: text content — mirrors .hero__content */
-        .stage__content-col {
-            position: relative;
-            z-index: 2;
-            display: grid;
-            gap: 0.85rem;
-            align-content: end;
-        }
-
-        /* right: cards — mirrors .hero__visual */
-        .stage__visual-col {
-            position: relative;
-            z-index: 2;
-            height: 530px;
-            align-self: center;
-        }
-
-        /* draggable item base */
-        .stage__item {
-            position: relative;
-            user-select: none;
-            touch-action: none;
-            cursor: grab;
-        }
-        .stage__item:hover { outline: 2px dashed rgba(255,255,255,0.5); outline-offset: 2px; }
-        .stage__item.is-drag-active {
-            outline: 2px solid #3b82f6;
-            outline-offset: 2px;
-            z-index: 30;
-        }
-        .stage__item:active { cursor: grabbing; }
-        .stage__item * { user-select: none; touch-action: none; }
-
-        /* tagline — mirrors .hero__eyebrow */
-        .stage__tagline {
-            letter-spacing: 0.35em;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            color: var(--stage-tagline-text, #fff);
-            background: var(--stage-tagline-bg, linear-gradient(135deg,#22c55e,#16a34a));
-            display: inline-block;
-            width: fit-content;
-            padding: 0.35rem 1rem;
-            border-radius: 6px;
-            font-weight: 600;
-            line-height: 1.3;
-        }
-
-        /* title — mirrors .hero__title */
-        .stage__title {
-            margin: 0;
-            color: #2563eb;
-            font-size: 3.8rem;
-            line-height: 1.05;
-            font-weight: 800;
-            text-shadow: 0 2px 8px rgba(255,255,255,0.8), 0 0 20px rgba(255,255,255,0.6);
-            overflow-wrap: anywhere;
-        }
-
-        /* subtitle — mirrors .hero__subtitle */
-        .stage__subtitle {
-            margin: 0;
-            color: #fff;
-            font-size: 1rem;
-            font-weight: 600;
-            line-height: 1.5;
-            text-shadow: 0 2px 8px rgba(0,0,0,0.7);
-            max-width: 520px;
-            overflow-wrap: anywhere;
-        }
-
-        /* CTA ghost button */
-        .stage__cta-ghost { display: inline-flex; margin-top: 0.25rem; }
-        .stage__cta-btn {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.65rem 1.5rem;
-            border-radius: 999px;
-            font-weight: 600;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            border: 1.5px solid rgba(255,255,255,0.5);
-            background: rgba(255,255,255,0.12);
-            color: #fff;
-        }
-
-        /* detail badges — mirrors .hero__meta + .hero__meta-item */
-        .stage__meta {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0,1fr));
-            gap: 0.75rem;
-            margin-top: 0.5rem;
-        }
-        .stage__meta-item {
-            color: #fff;
-            background: {% if hero and hero.meta_bg_color %}{{ hero.meta_bg_color }}{% else %}transparent{% endif %};
-            border: 1px solid {% if hero and hero.meta_bg_color %}{{ hero.meta_border_color or '#16a34a' }}{% else %}rgba(255,255,255,0.2){% endif %};
-            border-radius: 12px;
-            padding: 1rem 1.3rem;
-            font-size: {{ hero.meta_font_size or 16 }}px;
-            font-weight: {{ hero.meta_font_weight or 700 }};
-        }
-
-        /* stat cards — exact copy of live .hero__card */
-        .stage__item--card {
-            position: absolute;
-            width: 270px;
-            border-radius: 20px;
-            background: rgba(255,255,255,0.88);
-            border: 1px solid rgba(255,255,255,0.95);
-            border-left: 3px solid #16a34a;
-            color: #475569;
-            padding: 1.4rem 1.6rem;
-            box-shadow: 0 8px 32px rgba(15,23,42,0.18), 0 1px 0 rgba(255,255,255,0.6) inset;
-            backdrop-filter: saturate(200%) blur(20px);
-            font-size: 0.8rem;
-            line-height: 1.5;
-            overflow-wrap: anywhere;
-            right: 0;
-        }
-        /* match live positions, scaled for 700px stage */
-        .stage__item--card1 { top: 32px;  z-index: 3; }
-        .stage__item--card2 { top: 205px; z-index: 2; }
-        .stage__item--card3 { top: 376px; z-index: 1; }
-
-        .stage__item--card strong {
-            display: block;
-            font-size: 1.75rem;
-            font-weight: 800;
-            letter-spacing: -0.02em;
-            color: #15803d;
-            margin-bottom: 0.25rem;
-            line-height: 1.1;
-        }
-
-        .stage__card-line {
-            margin: 0.75rem 0;
-            display: block;
-            width: 100%;
-            height: 1px;
-            background: linear-gradient(90deg, rgba(22,163,74,0.3), transparent);
-        }
-
-        /* ── Homepage flow ── */
-        .flow-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            display: grid;
-            gap: 0.6rem;
-        }
-
-        .flow-item {
-            border: 1px solid var(--border);
-            border-radius: 0.65rem;
-            background: #fff;
-            padding: 0.7rem 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            cursor: grab;
-            transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
-        }
-
-        .flow-item:hover { border-color: rgba(37,99,235,0.35); box-shadow: 0 4px 12px rgba(15,23,42,0.07); transform: translateY(-1px); }
-        .flow-item.is-dragging { opacity: 0.5; transform: scale(0.99); cursor: grabbing; }
-
-        .flow-handle { font-size: 1rem; color: #94a3b8; user-select: none; }
-
-        .flow-content { flex: 1; min-width: 0; }
-        .flow-content strong { font-size: 0.9rem; display: block; }
-        .flow-content small { font-size: 0.78rem; color: var(--muted); }
-
-        .flow-tag {
-            display: inline-flex;
-            padding: 0.18rem 0.5rem;
-            border-radius: 999px;
-            font-size: 0.72rem;
-            font-weight: 700;
-            color: #065f46;
-            background: rgba(16,185,129,0.15);
-            border: 1px solid rgba(16,185,129,0.3);
-        }
-
-        /* ── Badge list ── */
-        .badge-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 1rem;
-        }
-
-        .badge-item {
-            border: 1px solid var(--border);
-            border-radius: 0.65rem;
-            padding: 0.75rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.6rem;
-            align-items: center;
-            background: #fff;
-            width: 140px;
-        }
-
-        .badge-item img { max-width: 100%; height: auto; }
-
-        /* ── Responsive ── */
-        @media (max-width: 1024px) {
-            body { flex-direction: column; }
-            .sidebar { position: relative; width: 100%; height: auto; padding: 1rem 1.25rem; overflow: visible; }
-            .sidebar__header { margin-bottom: 0; }
-            .sidebar__toggle { display: flex; }
-            .sidebar__nav { display: none; padding-top: 1rem; margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); }
-            .sidebar--menu-open .sidebar__nav { display: flex; }
-            .main-content { padding: 1.5rem; max-width: 100%; }
-            .stage { flex-direction: column; padding: 2rem 1.5rem; min-height: auto; }
-            .stage__visual-col { align-items: center; }
-            .stage__item--card { width: min(100%, 400px); }
-            .stage__meta { grid-template-columns: 1fr; }
-        }
-
-        @media (max-width: 768px) {
-            .grid--2, .grid--3 { grid-template-columns: 1fr; }
-            .page-header { flex-direction: column; align-items: flex-start; }
-        }
-
-        @media (max-width: 600px) {
-            .main-content { padding: 1.25rem; }
-            .card { padding: 1.25rem; }
-            .form-actions { flex-direction: column; align-items: stretch; }
-            .form-actions .btn { width: 100%; }
-            .badge-item { width: 120px; }
-        }
+        input[type="color"] { height: 2.4rem; padding: 0.25rem 0.35rem; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+        .grid-full { grid-column: 1 / -1; }
+        .btn { padding: 0.65rem 1.2rem; font-weight: 600; border-radius: 0.55rem;cursor: pointer; border: none; font-family: inherit; }
+        .btn-primary { background: #2563eb; color: #fff; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .form-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
+        .alert { padding: 0.85rem 1rem; border-radius: 0.65rem; margin-bottom: 1.25rem; }
+        .alert-success { background: rgba(16,185,129,0.12); color: #047857; border: 1px solid rgba(16,185,129,0.25); }
+        .alert-error { background: rgba(239,68,68,0.12); color: #991b1b; border: 1px solid rgba(239,68,68,0.25); }
+        .hint { font-size: 0.78rem; color: #6b7280; margin-top: 0.25rem; }
     </style>
 </head>
 <body>
-<div class="sidebar">
-    <div class="sidebar__header">
-        <div class="logo">{{ company_name }} Admin</div>
-        <button type="button" class="sidebar__toggle" aria-expanded="false" aria-controls="sidebar-nav">Menu</button>
-    </div>
-    <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
-        <span class="nav-group__label">Operations</span>
-        <a class="nav-link" href="{{ url_for('admin_dashboard') }}">📊 Analytics</a>
-        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">📋 Requests</a>
-        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#contracts">📄 Contracts</a>
-        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">💳 Payments</a>
-        <hr class="nav-divider">
-        <span class="nav-group__label">Services</span>
-        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">🛠 Service Management</a>
-        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">🚗 Travel Pricing</a>
-        <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">🏠 Domestic Cleaning</a>
-        <hr class="nav-divider">
-        <span class="nav-group__label">Content</span>
-        <a class="nav-link active" href="{{ url_for('admin_hero_content_page') }}">🖼 Hero Content</a>
-        <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">✏️ Site Content</a>
-        <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
-        <a class="nav-link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
-        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">⭐ Testimonials</a>
-        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">💼 Job Positions</a>
-        <hr class="nav-divider">
-        <span class="nav-group__label">Settings</span>
-        <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">🎨 Brand &amp; Logo</a>
-        <a class="nav-link" href="{{ url_for('admin_quote_section') }}">💬 Quote &amp; Contact</a>
-        <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">🔗 Footer</a>
-        <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">📧 Email Settings</a>
-        <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">✈️ Telegram</a>
-        <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">🤖 AI Assistant</a>
-        <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">💬 Chat Conversations</a>
-        <hr class="nav-divider">
-        <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
-            <button type="submit" class="sidebar__logout-button">Log Out</button>
-        </form>
-    </nav>
-</div>
+<div class="container">
+    <h1>Hero Content Editor</h1>
 
-<div class="main-content">
-    <div class="page-header">
-        <h1>Hero Content</h1>
-        <a class="btn btn-outline" href="{{ url_for('admin_dashboard') }}">← Dashboard</a>
-    </div>
+    {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+    {% if message %}<div class="alert alert-success">{{ message }}</div>{% endif %}
 
-    {% if error %}<div class="alert alert--error">{{ error }}</div>{% endif %}
-    {% if message %}<div class="alert alert--success">{{ message }}</div>{% endif %}
-
-    <!-- ══════════════════════════════════════════
-         MAIN HERO FORM
-    ══════════════════════════════════════════ -->
     <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="form_id" value="hero">
 
-        <!-- 1 · Text Copy -->
+        <!-- Layout Mode -->
         <div class="card">
-            <h2 class="section-title">Text Content</h2>
-            <p class="section-hint">The main words shown on the hero banner.</p>
-            <div class="grid grid--2">
+            <h2>Layout Mode</h2>
+            <div class="form-group">
+                <label for="layout">Layout Style</label>
+                <select id="layout" name="layout_mode">
+                    <option value="balenciaga" {% if hero.layout_mode == 'balenciaga' %}selected{% endif %}>Balenciaga (Full-bleed)</option>
+                    <option value="puma" {% if hero.layout_mode == 'puma' %}selected{% endif %}>PUMA (Split-screen)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Announcement Bar -->
+        <div class="card">
+            <h2>Announcement Bar</h2>
+            <div class="form-group">
+                <label><input type="checkbox" name="announcement_bar_enabled" value="true" {% if hero.announcement_bar_enabled %}checked{% endif %}> Enable announcement bar</label>
+            </div>
+            <div class="grid">
                 <div class="form-group">
-                    <label for="tagline">Tagline <span style="font-weight:400;">(small label above the title)</span></label>
-                    <input type="text" id="tagline" name="tagline" value="{{ hero.tagline or '' }}" placeholder="e.g. Trusted Cleaning Experts">
+                    <label for="announcement_text">Text</label>
+                    <input type="text" id="announcement_text" name="announcement_text" value="{{ hero.announcement_text or 'FREE DELIVERY' }}" placeholder="FREE DELIVERY">
                 </div>
                 <div class="form-group">
-                    <label for="title">Title <span style="font-weight:400;">(large heading)</span></label>
-                    <input type="text" id="title" name="title" value="{{ hero.title or '' }}" placeholder="e.g. Professional Cleaning Services">
-                </div>
-                <div class="form-group" style="grid-column: 1 / -1;">
-                    <label for="subtitle">Subtitle / Description</label>
-                    <textarea id="subtitle" name="subtitle" rows="3" placeholder="Short paragraph shown under the title.">{{ hero.subtitle or '' }}</textarea>
-                </div>
-                <div class="form-group">
-                    <label for="cta_text">Button Text</label>
-                    <input type="text" id="cta_text" name="cta_text" value="{{ hero.cta_text or 'See Reviews' }}" placeholder="e.g. See Reviews">
-                </div>
-                <div class="form-group">
-                    <label for="cta_link">Button Link <span style="font-weight:400;">(use #section-id for same-page links)</span></label>
-                    <input type="text" id="cta_link" name="cta_link" value="{{ hero.cta_link or '#testimonials' }}" placeholder="#testimonials">
+                    <label for="announcement_bg_color">Background Color</label>
+                    <input type="color" id="announcement_bg_color" name="announcement_bg_color" value="{{ hero.announcement_bg_color or '#000000' }}">
                 </div>
             </div>
         </div>
 
-        <!-- 2 · Background -->
+        <!-- Editorial & Title -->
         <div class="card">
-            <h2 class="section-title">Background</h2>
-            <p class="section-hint">Upload a photo or set a plain colour. The overlay controls how dark the tint is over the image (0 = no tint, 1 = fully black).</p>
-            <div class="grid grid--2" style="margin-bottom:1rem;">
-                <div class="form-group">
-                    <label for="hero_bg_color">Background colour <span style="font-weight:400;">(shown when no image, or behind image)</span></label>
-                    <input type="color" id="hero_bg_color" name="hero_bg_color" value="{{ hero.hero_bg_color or '#0f172a' }}">
-                </div>
-                <div class="form-group">
-                    <label for="hero_overlay_opacity">Image overlay darkness <span style="font-weight:400;">(0.0 – 1.0)</span></label>
-                    <input type="number" id="hero_overlay_opacity" name="hero_overlay_opacity" min="0" max="1" step="0.05" value="{{ hero.hero_overlay_opacity if hero and hero.hero_overlay_opacity is not none else 0.35 }}">
-                </div>
+            <h2>Content</h2>
+            <div class="form-group">
+                <label for="editorial_label">Editorial Label</label>
+                <input type="text" id="editorial_label" name="editorial_label" value="{{ hero.editorial_label or 'Spring Collection' }}"placeholder="e.g. Spring Collection">
             </div>
             <div class="form-group">
-                <label for="background_image">Upload background photo</label>
-                <input type="file" id="background_image" name="background_image" accept="image/*">
-                <input type="hidden" name="existing_background" value="{{ hero.hero_background_image or '' }}">
+                <label for="title">Title</label>
+                <input type="text" id="title" name="title" value="{{ hero.title or 'Editorial Excellence' }}" placeholder="Main headline">
             </div>
-            {% if hero.hero_background_image %}
-            <div class="image-preview" style="margin-top:0.85rem;">
-                <small>Current background photo</small>
-                <img src="{{ hero.hero_background_image | media_url }}" alt="Hero background" loading="lazy">
-            </div>
-            <label style="display:flex;align-items:center;gap:0.5rem;margin-top:0.75rem;font-size:0.88rem;color:var(--muted);font-weight:500;cursor:pointer;">
-                <input type="checkbox" name="remove_background" value="1"> Remove current photo (revert to colour only)
-            </label>
-            {% endif %}
-        </div>
-
-        <!-- 3 · Supporting Detail Badges -->
-        <div class="card">
-            <h2 class="section-title">Supporting Details</h2>
-            <p class="section-hint">Three small badges shown at the bottom of the hero. Set the label text and the <strong>Boldness</strong> of each label (400 = normal, 700 = bold, 900 = heaviest). Leave Boldness blank for the default weight.</p>
-            <div class="grid" style="gap:0.75rem;">
-
-                <div class="detail-row">
-                    <div class="form-group detail-row__num">
-                        <label for="small_text_line1_pct">Boldness</label>
-                        <input type="number" id="small_text_line1_pct" name="small_text_line1_pct" min="100" max="900" step="100"
-                            value="{{ hero.small_text_line1_pct if hero and hero.small_text_line1_pct is not none else '' }}"
-                            placeholder="e.g. 700">
-                    </div>
-                    <div class="form-group">
-                        <label for="small_text_line1">Badge 1 Label</label>
-                        <input type="text" id="small_text_line1" name="small_text_line1"
-                            value="{{ hero.small_text_line1 or '' }}" placeholder="e.g. Client Satisfaction">
-                    </div>
-                </div>
-
-                <div class="detail-row">
-                    <div class="form-group detail-row__num">
-                        <label for="small_text_line2_pct">Boldness</label>
-                        <input type="number" id="small_text_line2_pct" name="small_text_line2_pct" min="100" max="900" step="100"
-                            value="{{ hero.small_text_line2_pct if hero and hero.small_text_line2_pct is not none else '' }}"
-                            placeholder="e.g. 700">
-                    </div>
-                    <div class="form-group">
-                        <label for="small_text_line2">Badge 2 Label</label>
-                        <input type="text" id="small_text_line2" name="small_text_line2"
-                            value="{{ hero.small_text_line2 or '' }}" placeholder="e.g. Vetted Staff">
-                    </div>
-                </div>
-
-                <div class="detail-row">
-                    <div class="form-group detail-row__num">
-                        <label for="small_text_line3_pct">Boldness</label>
-                        <input type="number" id="small_text_line3_pct" name="small_text_line3_pct" min="100" max="900" step="100"
-                            value="{{ hero.small_text_line3_pct if hero and hero.small_text_line3_pct is not none else '' }}"
-                            placeholder="e.g. 700">
-                    </div>
-                    <div class="form-group">
-                        <label for="small_text_line3">Badge 3 Label</label>
-                        <input type="text" id="small_text_line3" name="small_text_line3"
-                            value="{{ hero.small_text_line3 or '' }}" placeholder="e.g. On-Time Arrivals">
-                    </div>
-                </div>
-
+            <div class="form-group grid-full">
+                <label for="subtitle">Subtitle</label>
+                <textarea id="subtitle" name="subtitle" placeholder="Supporting text">{{ hero.subtitle or 'Premium collections, curated with care.' }}</textarea>
             </div>
         </div>
 
-        <!-- 4 · Stat Cards -->
+        <!-- CTAs -->
         <div class="card">
-            <h2 class="section-title">Stat Cards</h2>
-            <p class="section-hint">Three floating cards on the right side of the hero. Use the <strong>·</strong> character to separate the big number from the description (e.g. <em>98% · Client satisfaction score</em>). Add a second · for a third line.</p>
-            <div class="grid grid--3">
+            <h2>Buttons</h2>
+            <div class="grid">
                 <div class="form-group">
-                    <label for="stat1_text">Card 1</label>
-                    <input type="text" id="stat1_text" name="stat1_text" value="{{ hero.stat1_text or '' }}" placeholder="98% · Client satisfaction score">
+                    <label for="cta_primary_text">Primary Button Text</label>
+                    <input type="text" id="cta_primary_text" name="cta_primary_text" value="{{ hero.cta_primary_text or 'Explore' }}">
                 </div>
                 <div class="form-group">
-                    <label for="stat2_text">Card 2</label>
-                    <input type="text" id="stat2_text" name="stat2_text" value="{{ hero.stat2_text or '' }}" placeholder="24h · Response time">
+                    <label for="cta_primary_link">Primary Button Link</label>
+                    <input type="text" id="cta_primary_link" name="cta_primary_link" value="{{ hero.cta_primary_link or '/collections' }}">
                 </div>
                 <div class="form-group">
-                    <label for="stat3_text">Card 3</label>
-                    <input type="text" id="stat3_text" name="stat3_text" value="{{ hero.stat3_text or '' }}" placeholder="Emergency · Cleanups available">
+                    <label for="cta_secondary_text">Secondary Button Text</label>
+                    <input type="text" id="cta_secondary_text" name="cta_secondary_text" value="{{ hero.cta_secondary_text or 'Learn More' }}">
+                </div>
+                <div class="form-group">
+                    <label for="cta_secondary_link">Secondary Button Link</label>
+                    <input type="text" id="cta_secondary_link" name="cta_secondary_link" value="{{ hero.cta_secondary_link or '#about' }}">
                 </div>
             </div>
         </div>
 
-        <!-- 5 · Visual Preview & Positioning -->
+        <!-- Badge -->
         <div class="card">
-            <h2 class="section-title">Layout Preview</h2>
-            <p class="section-hint">Click and drag any element in the preview to reposition it.</p>
-
-            <div class="stage-wrap" id="stageWrap">
-                <div class="stage" id="stage"
-                    style="--stage-bg-color:{{ hero.hero_bg_color or '#0f172a' }};--stage-overlay:{{ hero.hero_overlay_opacity if hero and hero.hero_overlay_opacity is not none else 0.35 }};{% if hero.hero_background_image %}--preview-bg-image:url('{{ hero.hero_background_image | media_url }}');{% endif %}"
-                >
-                    <div class="stage__content-col" id="previewContentCol">
-                        <div class="stage__item stage__item--tagline" id="previewTaglineItem" data-x-input="tagline_offset_x" data-y-input="tagline_offset_y">
-                            <span class="stage__tagline" id="previewTagline">{{ hero.tagline or '' }}</span>
-                        </div>
-                        <div class="stage__item stage__item--title" id="previewTitleItem" data-x-input="title_offset_x" data-y-input="title_offset_y">
-                            <h3 class="stage__title" id="previewTitle">{{ hero.title or '' }}</h3>
-                        </div>
-                        <div class="stage__item stage__item--subtitle" id="previewSubtitleItem" data-x-input="subtitle_offset_x" data-y-input="subtitle_offset_y">
-                            <p class="stage__subtitle" id="previewSubtitle">{{ hero.subtitle or '' }}</p>
-                        </div>
-                        <div class="stage__item stage__cta-ghost" id="previewCtaItem" data-x-input="cta_offset_x" data-y-input="cta_offset_y">
-                            <span class="stage__cta-btn" id="previewCtaBtn">{{ hero.cta_text or 'See Reviews' }}</span>
-                        </div>
-                        <div class="stage__item stage__item--meta" id="previewMetaItem" data-x-input="meta_offset_x" data-y-input="meta_offset_y">
-                            <div class="stage__meta">
-                                <div class="stage__meta-item" id="previewMeta1">
-                                    <span{% if hero.small_text_line1_pct %} style="font-weight:{{ hero.small_text_line1_pct }}"{% endif %}>{{ hero.small_text_line1 or 'Detail 1' }}</span>
-                                </div>
-                                <div class="stage__meta-item" id="previewMeta2">
-                                    <span{% if hero.small_text_line2_pct %} style="font-weight:{{ hero.small_text_line2_pct }}"{% endif %}>{{ hero.small_text_line2 or 'Detail 2' }}</span>
-                                </div>
-                                <div class="stage__meta-item" id="previewMeta3">
-                                    <span{% if hero.small_text_line3_pct %} style="font-weight:{{ hero.small_text_line3_pct }}"{% endif %}>{{ hero.small_text_line3 or 'Detail 3' }}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="stage__visual-col">
-                        <div class="stage__item stage__item--card stage__item--card1" id="previewCard1" data-x-input="card1_offset_x" data-y-input="card1_offset_y">
-                            {% set s1 = (hero.stat1_text or '98% · Client satisfaction score').split('·') %}
-                            <strong id="previewCard1Primary">{{ s1[0] | trim }}</strong>
-                            <span id="previewCard1Secondary">{{ s1[1] | trim if s1|length > 1 else '' }}</span>
-                            <span class="stage__card-line"></span>
-                            <span id="previewCard1Tertiary" style="{{ 'display:none' if s1|length < 3 else '' }}">{{ s1[2] | trim if s1|length > 2 else '' }}</span>
-                        </div>
-                        <div class="stage__item stage__item--card stage__item--card2" id="previewCard2" data-x-input="card2_offset_x" data-y-input="card2_offset_y">
-                            {% set s2 = (hero.stat2_text or '24h · Response time for every request').split('·') %}
-                            <strong id="previewCard2Primary">{{ s2[0] | trim }}</strong>
-                            <span id="previewCard2Secondary">{{ s2[1] | trim if s2|length > 1 else '' }}</span>
-                            <span class="stage__card-line"></span>
-                            <span id="previewCard2Tertiary" style="{{ 'display:none' if s2|length < 3 else '' }}">{{ s2[2] | trim if s2|length > 2 else '' }}</span>
-                        </div>
-                        <div class="stage__item stage__item--card stage__item--card3" id="previewCard3" data-x-input="card3_offset_x" data-y-input="card3_offset_y">
-                            {% set s3 = (hero.stat3_text or 'Emergency · Cleanups available').split('·') %}
-                            <strong id="previewCard3Primary">{{ s3[0] | trim }}</strong>
-                            <span id="previewCard3Secondary">{{ s3[1] | trim if s3|length > 1 else '' }}</span>
-                            <span class="stage__card-line"></span>
-                            <span id="previewCard3Tertiary" style="{{ 'display:none' if s3|length < 3 else '' }}">{{ s3[2] | trim if s3|length > 2 else '' }}</span>
-                        </div>
-                    </div>
+            <h2>Floating Badge</h2>
+            <div class="form-group">
+                <label><input type="checkbox" name="badge_enabled" value="true" {% if hero.badge_enabled %}checked{% endif %}> Show badge</label>
+            </div> <div class="grid">
+                <div class="form-group">
+                    <label for="badge_text">Badge Text</label>
+                    <input type="text" id="badge_text" name="badge_text" value="{{ hero.badge_text or 'Limited Drops' }}">
                 </div>
-            </div>
-
-            <!-- Hidden position inputs (wired to drag-and-drop) -->
-            <div style="display:none;">
-                <input type="number" id="content_offset_x" name="content_offset_x" min="-420" max="420" value="{{ hero.content_offset_x or 0 }}">
-                <input type="number" id="content_offset_y" name="content_offset_y" min="-220" max="220" value="{{ hero.content_offset_y or 0 }}">
-                <input type="number" id="tagline_offset_x" name="tagline_offset_x" min="-320" max="320" value="{{ hero.tagline_offset_x or 0 }}">
-                <input type="number" id="tagline_offset_y" name="tagline_offset_y" min="-220" max="220" value="{{ hero.tagline_offset_y or 0 }}">
-                <input type="number" id="title_offset_x" name="title_offset_x" min="-320" max="320" value="{{ hero.title_offset_x or 0 }}">
-                <input type="number" id="title_offset_y" name="title_offset_y" min="-220" max="220" value="{{ hero.title_offset_y or 0 }}">
-                <input type="number" id="subtitle_offset_x" name="subtitle_offset_x" min="-320" max="320" value="{{ hero.subtitle_offset_x or 0 }}">
-                <input type="number" id="subtitle_offset_y" name="subtitle_offset_y" min="-220" max="220" value="{{ hero.subtitle_offset_y or 0 }}">
-                <input type="number" id="cta_offset_x" name="cta_offset_x" min="-320" max="320" value="{{ hero.cta_offset_x or 0 if hero else 0 }}">
-                <input type="number" id="cta_offset_y" name="cta_offset_y" min="-220" max="220" value="{{ hero.cta_offset_y or 0 if hero else 0 }}">
-                <input type="number" id="meta_offset_x" name="meta_offset_x" min="-320" max="320" value="{{ hero.meta_offset_x or 0 }}">
-                <input type="number" id="meta_offset_y" name="meta_offset_y" min="-220" max="220" value="{{ hero.meta_offset_y or 0 }}">
-                <input type="number" id="card1_offset_x" name="card1_offset_x" min="-220" max="220" value="{{ hero.card1_offset_x or 0 }}">
-                <input type="number" id="card1_offset_y" name="card1_offset_y" min="-220" max="220" value="{{ hero.card1_offset_y or 0 }}">
-                <input type="number" id="card2_offset_x" name="card2_offset_x" min="-220" max="220" value="{{ hero.card2_offset_x or 0 }}">
-                <input type="number" id="card2_offset_y" name="card2_offset_y" min="-220" max="220" value="{{ hero.card2_offset_y or 0 }}">
-                <input type="number" id="card3_offset_x" name="card3_offset_x" min="-220" max="220" value="{{ hero.card3_offset_x or 0 }}">
-                <input type="number" id="card3_offset_y" name="card3_offset_y" min="-220" max="220" value="{{ hero.card3_offset_y or 0 }}">
+                <div class="form-group">
+                    <label for="badge_bg_color">Background</label>
+                    <input type="color" id="badge_bg_color" name="badge_bg_color" value="{{ hero.badge_bg_color or '#ffffff' }}">
+                </div>
             </div>
         </div>
 
-        <!-- 6 · Styling -->
+        <!-- Stats -->
         <div class="card">
-            <h2 class="section-title">Styling</h2>
-            <p class="section-hint">Colour, size and weight for each hero element. Changes show live in the preview.</p>
-
-            <div class="grid" style="gap:1rem;">
-
-                <!-- Tagline -->
-                <div class="style-group">
-                    <p class="style-group__title">Tagline</p>
-                    <div class="grid grid--2">
-                        <div class="form-group">
-                            <label for="tagline_bg_color_picker">Background</label>
-                            <div style="display:flex;gap:0.5rem;align-items:center;">
-                                <input type="color" id="tagline_bg_color_picker"
-                                    value="{{ hero.tagline_bg_color if hero and hero.tagline_bg_color else '#16a34a' }}"
-                                    oninput="document.getElementById('tagline_bg_color').value=this.value;document.getElementById('tagline_bg_clear').textContent='Clear';if(typeof _applyStyles==='function')_applyStyles();">
-                                <input type="hidden" id="tagline_bg_color" name="tagline_bg_color" value="{{ hero.tagline_bg_color if hero and hero.tagline_bg_color else '' }}">
-                                <button type="button" id="tagline_bg_clear" class="btn-sm btn-danger"
-                                    onclick="document.getElementById('tagline_bg_color').value='';document.getElementById('tagline_bg_color_picker').value='#cccccc';if(typeof _applyStyles==='function')_applyStyles();this.textContent='Cleared';"
-                                    title="Remove background colour">
-                                    {% if not hero or not hero.tagline_bg_color %}Cleared{% else %}Clear{% endif %}
-                                </button>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="tagline_text_color">Text colour</label>
-                            <input type="color" id="tagline_text_color" name="tagline_text_color" value="{{ hero.tagline_text_color or '#ffffff' }}">
-                        </div>
-                    </div>
+            <h2>Bottom Stats</h2>
+            <div class="grid">
+                <div class="form-group">
+                    <label for="stat1_value">Stat 1 Value</label>
+                    <input type="text" id="stat1_value" name="stat1_value" value="{{ hero.stat1_value or '98%' }}" placeholder="98%">
                 </div>
-
-                <!-- Title -->
-                <div class="style-group">
-                    <p class="style-group__title">Title</p>
-                    <div class="grid grid--3">
-                        <div class="form-group">
-                            <label for="title_color">Colour</label>
-                            <input type="color" id="title_color" name="title_color" value="{{ hero.title_color or '#2563eb' }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="title_size_px">Size (34–84 px)</label>
-                            <input type="number" id="title_size_px" name="title_size_px" min="34" max="84" value="{{ hero.title_size_px or 72 }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="title_weight">Weight (400–900)</label>
-                            <input type="number" id="title_weight" name="title_weight" min="400" max="900" step="100" value="{{ hero.title_weight or 800 }}">
-                        </div>
-                    </div>
+                <div class="form-group">
+                    <label for="stat1_label">Stat 1 Label</label>
+                    <input type="text" id="stat1_label" name="stat1_label" value="{{ hero.stat1_label or 'Premium Quality' }}" placeholder="Premium Quality">
                 </div>
-
-                <!-- Subtitle -->
-                <div class="style-group">
-                    <p class="style-group__title">Subtitle</p>
-                    <div class="grid grid--3">
-                        <div class="form-group">
-                            <label for="subtitle_color">Colour</label>
-                            <input type="color" id="subtitle_color" name="subtitle_color" value="{{ hero.subtitle_color or '#ffffff' }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="subtitle_size_px">Size (14–24 px)</label>
-                            <input type="number" id="subtitle_size_px" name="subtitle_size_px" min="14" max="24" value="{{ hero.subtitle_size_px or 18 }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="subtitle_weight">Weight (300–900)</label>
-                            <input type="number" id="subtitle_weight" name="subtitle_weight" min="300" max="900" step="100" value="{{ hero.subtitle_weight or 600 }}">
-                        </div>
-                    </div>
+                <div class="form-group">
+                    <label for="stat2_value">Stat 2 Value</label>
+                    <input type="text" id="stat2_value" name="stat2_value" value="{{ hero.stat2_value or '150+' }}" placeholder="150+">
                 </div>
-
-                <!-- Detail Badges -->
-                <div class="style-group">
-                    <p class="style-group__title">Detail Badges</p>
-                    <div class="grid grid--2" style="margin-bottom:0.75rem;">
-                        <div class="form-group">
-                            <label for="meta_text_color">Text colour</label>
-                            <input type="color" id="meta_text_color" name="meta_text_color" value="{{ hero.meta_text_color or '#ffffff' }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="meta_border_color">Border colour</label>
-                            <input type="color" id="meta_border_color" name="meta_border_color" value="{{ hero.meta_border_color or '#16a34a' }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="meta_font_size">Text size (10–32 px)</label>
-                            <input type="number" id="meta_font_size" name="meta_font_size" min="10" max="32" value="{{ hero.meta_font_size or 16 }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="meta_font_weight">Text weight (300–900)</label>
-                            <input type="number" id="meta_font_weight" name="meta_font_weight" min="300" max="900" step="100" value="{{ hero.meta_font_weight or 700 }}">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="meta_bg_color_picker">Background</label>
-                        <div style="display:flex;gap:0.5rem;align-items:center;">
-                            <input type="color" id="meta_bg_color_picker"
-                                value="{{ hero.meta_bg_color if hero and hero.meta_bg_color else '#16a34a' }}"
-                                oninput="document.getElementById('meta_bg_color').value=this.value;document.getElementById('meta_bg_clear').textContent='Clear';if(typeof _applyMetaPreview==='function')_applyMetaPreview();">
-                            <input type="hidden" id="meta_bg_color" name="meta_bg_color" value="{{ hero.meta_bg_color if hero and hero.meta_bg_color else '' }}">
-                            <button type="button" id="meta_bg_clear" class="btn-sm btn-danger"
-                                onclick="document.getElementById('meta_bg_color').value='';document.getElementById('meta_bg_color_picker').value='#cccccc';if(typeof _applyMetaPreview==='function')_applyMetaPreview();this.textContent='Cleared';"
-                                title="Remove badge background">
-                                {% if not hero or not hero.meta_bg_color %}Cleared{% else %}Clear{% endif %}
-                            </button>
-                        </div>
-                    </div>
+                <div class="form-group">
+                    <label for="stat2_label">Stat 2 Label</label>
+                    <input type="text" id="stat2_label" name="stat2_label" value="{{ hero.stat2_label or 'Global Reach' }}" placeholder="Global Reach">
                 </div>
-
-                <!-- Content Panel -->
-                <div class="style-group">
-                    <p class="style-group__title">Content Panel</p>
-                    <div class="form-group">
-                        <label for="content_bg_color">Background <span style="font-weight:400;">(leave empty for transparent)</span></label>
-                        <input type="text" id="content_bg_color" name="content_bg_color" value="{{ hero.content_bg_color or '' }}" placeholder="#0f172a or rgba(0,0,0,0.5)">
-                    </div>
+                <div class="form-group">
+                    <label for="stat3_value">Stat 3 Value</label>
+                    <input type="text" id="stat3_value" name="stat3_value" value="{{ hero.stat3_value or 'Always' }}" placeholder="Always">
                 </div>
+                <div class="form-group">
+                    <label for="stat3_label">Stat 3 Label</label>
+                    <input type="text" id="stat3_label" name="stat3_label" value="{{ hero.stat3_label or '24/7 Support' }}" placeholder="24/7 Support">
+                </div>
+            </div>
+        </div>
 
+        <!-- Media -->
+        <div class="card">
+            <h2>Background Media</h2>
+            <div class="form-group">
+                <label for="media_url">Media URL (Image or Video)</label>
+                <input type="text" id="media_url" name="media_url" value="{{ hero.media_url or '' }}" placeholder="/uploads/hero.jpg or https://example.com/video.mp4">
+                <div class="hint">Supports: /path/to/image.jpg, https://cloudinary.url, or data URIs</div>
+            </div>
+            <div class="form-group">
+                <label for="hero_bg_color">Fallback Background Color</label>
+                <input type="color" id="hero_bg_color" name="hero_bg_color" value="{{ hero.hero_bg_color or '#000000' }}">
+            </div>
+            <div class="form-group">
+                <label for="media_brightness_offset">Brightness (-1 to 1)</label>
+                <input type="number" id="media_brightness_offset" name="media_brightness_offset" min="-1" max="1" step="0.1" value="{{ hero.media_brightness_offset or -0.55 }}">
             </div>
         </div>
 
@@ -992,407 +180,6 @@
             <button type="submit" class="btn btn-primary">Save Hero Content</button>
         </div>
     </form>
-
-    <!-- ══════════════════════════════════════════
-         HOMEPAGE SECTION ORDER
-    ══════════════════════════════════════════ -->
-    <div class="card">
-        <h2 class="section-title">Homepage Section Order</h2>
-        <p class="section-hint">Drag to reorder sections. Changes save automatically and are reflected live on the site.</p>
-        <ul class="flow-list" id="flowList" aria-label="Homepage section order">
-            {% for section in homepage_sections %}
-            <li class="flow-item" draggable="true" data-section-key="{{ section.section_key }}">
-                <span class="flow-handle" aria-hidden="true">↕</span>
-                <div class="flow-content">
-                    <strong>{{ section.section_label }}</strong>
-                    <small>{{ section.section_key }}</small>
-                </div>
-                <span class="flow-tag">Live</span>
-            </li>
-            {% endfor %}
-        </ul>
-        <p class="section-hint" id="flowStatus" aria-live="polite" style="margin-top:0.75rem;margin-bottom:0;">Drag to reorder.</p>
-    </div>
-
-    <!-- ══════════════════════════════════════════
-         HERO BADGES
-    ══════════════════════════════════════════ -->
-    <div class="card">
-        <h2 class="section-title">Trust Badges</h2>
-        <p class="section-hint">Small logo/accreditation images shown on the hero.</p>
-        {% if hero_badges %}
-        <ul class="badge-list">
-            {% for badge in hero_badges %}
-            <li class="badge-item">
-                <img src="{{ badge.image_path | media_url }}" alt="Badge {{ loop.index }}" loading="lazy">
-                <form method="post">
-                    <input type="hidden" name="form_id" value="badge_delete">
-                    <input type="hidden" name="badge_id" value="{{ badge.id }}">
-                    <button type="submit" class="btn btn-outline" style="font-size:0.8rem;padding:0.4rem 0.7rem;" onclick="return confirm('Remove this badge?');">Remove</button>
-                </form>
-            </li>
-            {% endfor %}
-        </ul>
-        <hr style="margin:1.5rem 0;border:none;border-top:1px solid var(--border);">
-        {% endif %}
-        <form method="post" enctype="multipart/form-data">
-            <input type="hidden" name="form_id" value="badge_upload">
-            <div class="form-group">
-                <label for="badge_image">Upload new badge</label>
-                <input type="file" id="badge_image" name="image" accept="image/*" required>
-            </div>
-            <div class="form-actions" style="justify-content:flex-start;border-top:none;margin-top:1rem;padding-top:0;">
-                <button type="submit" class="btn btn-primary">Upload Badge</button>
-            </div>
-        </form>
-    </div>
 </div>
-
-<script>
-/* ── Sidebar toggle ── */
-(function () {
-    const sidebar = document.querySelector('.sidebar');
-    const toggle = document.querySelector('.sidebar__toggle');
-    if (!sidebar || !toggle) return;
-    toggle.addEventListener('click', () => {
-        const open = sidebar.classList.toggle('sidebar--menu-open');
-        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
-    document.querySelectorAll('.sidebar__nav .nav-link').forEach(link => {
-        link.addEventListener('click', () => {
-            if (window.innerWidth <= 1024 && sidebar.classList.contains('sidebar--menu-open')) {
-                sidebar.classList.remove('sidebar--menu-open');
-                toggle.setAttribute('aria-expanded', 'false');
-            }
-        });
-    });
-    window.addEventListener('resize', () => {
-        if (window.innerWidth > 1024) sidebar.classList.remove('sidebar--menu-open');
-    });
-})();
-
-/* ── Homepage section order ── */
-(function () {
-    const list = document.getElementById('flowList');
-    const status = document.getElementById('flowStatus');
-    if (!list) return;
-
-    let dragged = null;
-
-    list.querySelectorAll('.flow-item').forEach(item => {
-        item.addEventListener('dragstart', e => {
-            dragged = item;
-            item.classList.add('is-dragging');
-            if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
-        });
-        item.addEventListener('dragend', () => {
-            item.classList.remove('is-dragging');
-            dragged = null;
-            saveOrder();
-        });
-    });
-
-    list.addEventListener('dragover', e => {
-        e.preventDefault();
-        if (!dragged) return;
-        const after = getDragAfter(list, e.clientY);
-        if (!after) list.appendChild(dragged);
-        else if (after !== dragged) list.insertBefore(dragged, after);
-    });
-
-    function getDragAfter(container, y) {
-        const items = [...container.querySelectorAll('.flow-item:not(.is-dragging)')];
-        return items.reduce((closest, child) => {
-            const box = child.getBoundingClientRect();
-            const offset = y - box.top - box.height / 2;
-            if (offset < 0 && offset > closest.offset) return { offset, element: child };
-            return closest;
-        }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
-    }
-
-    function saveOrder() {
-        const keys = [...list.querySelectorAll('[data-section-key]')].map(i => i.dataset.sectionKey).filter(Boolean);
-        if (!keys.length) return;
-        status.textContent = 'Saving…';
-        fetch('/admin/api/homepage-sections/reorder', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ section_keys: keys })
-        })
-        .then(r => r.json().then(d => ({ ok: r.ok, d })))
-        .then(({ ok, d }) => {
-            status.textContent = ok ? 'Order saved.' : (d.error || 'Failed to save.');
-            status.style.color = ok ? '' : '#b91c1c';
-        })
-        .catch(() => { status.textContent = 'Failed to save.'; status.style.color = '#b91c1c'; });
-    }
-})();
-
-/* ── Hero preview ── */
-(function () {
-    const stage = document.getElementById('stage');
-    const stageWrap = document.getElementById('stageWrap');
-    if (!stage || !stageWrap) return;
-
-    const DESIGN_W = 1400;
-
-    const STAGE_H = 700;
-    function scaleStage() {
-        const avail = stageWrap.parentElement ? stageWrap.parentElement.clientWidth : stageWrap.clientWidth;
-        const scale = Math.min(1, avail / DESIGN_W);
-        stageWrap.style.setProperty('--stage-scale', scale);
-        stageWrap.style.height = `${Math.round(STAGE_H * scale)}px`;
-        stage.style.transform = `scale(${scale})`;
-    }
-
-    scaleStage();
-    requestAnimationFrame(() => requestAnimationFrame(scaleStage));
-    window.addEventListener('resize', scaleStage);
-
-    function clamp(v, lo, hi) {
-        const n = Number(v);
-        return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo;
-    }
-
-    function getScale() {
-        const m = stage.style.transform.match(/scale\(([^)]+)\)/);
-        return m ? parseFloat(m[1]) || 1 : 1;
-    }
-
-    function applyTransform(item, xInput, yInput) {
-        item.style.transform = `translate(${Number(xInput.value)||0}px,${Number(yInput.value)||0}px)`;
-    }
-
-    function wireDrag(item) {
-        const xInput = document.getElementById(item.dataset.xInput);
-        const yInput = document.getElementById(item.dataset.yInput);
-        const handle = item; // drag anywhere on the element
-        if (!xInput || !yInput) return;
-
-        applyTransform(item, xInput, yInput);
-
-        let dragging = false, sx = 0, sy = 0, sox = 0, soy = 0;
-        let xMin = -400, xMax = 400, yMin = -300, yMax = 300;
-
-        handle.addEventListener('pointerdown', e => {
-            e.preventDefault(); e.stopPropagation();
-            dragging = true; sx = e.clientX; sy = e.clientY;
-            sox = Number(xInput.value)||0; soy = Number(yInput.value)||0;
-            const sc = getScale();
-            const sr = stage.getBoundingClientRect();
-            const ir = item.getBoundingClientRect();
-            xMin = Math.round((sr.left - ir.left)/sc + sox) + 8;
-            xMax = Math.round((sr.right - ir.right)/sc + sox) - 8;
-            yMin = Math.round((sr.top - ir.top)/sc + soy) + 8;
-            yMax = Math.round((sr.bottom - ir.bottom)/sc + soy) - 8;
-            if (xMin > xMax) { const m = (xMin+xMax)/2; xMin = xMax = m; }
-            if (yMin > yMax) { const m = (yMin+yMax)/2; yMin = yMax = m; }
-            handle.setPointerCapture(e.pointerId);
-            item.classList.add('is-drag-active');
-            document.body.classList.add('is-preview-dragging');
-        });
-
-        handle.addEventListener('pointermove', e => {
-            if (!dragging) return;
-            e.preventDefault();
-            const sc = getScale();
-            xInput.value = String(Math.round(clamp(sox + (e.clientX - sx)/sc, xMin, xMax)));
-            yInput.value = String(Math.round(clamp(soy + (e.clientY - sy)/sc, yMin, yMax)));
-            applyTransform(item, xInput, yInput);
-        });
-
-        function endDrag(e) {
-            if (!dragging) return;
-            dragging = false;
-            handle.releasePointerCapture(e.pointerId);
-            item.classList.remove('is-drag-active');
-            document.body.classList.remove('is-preview-dragging');
-        }
-
-        handle.addEventListener('pointerup', endDrag);
-        handle.addEventListener('pointercancel', endDrag);
-    }
-
-    stage.querySelectorAll('[data-x-input][data-y-input]').forEach(wireDrag);
-
-    /* Content column offset */
-    const contentCol = document.getElementById('previewContentCol');
-    const cxInput = document.getElementById('content_offset_x');
-    const cyInput = document.getElementById('content_offset_y');
-    function applyContentOffset() {
-        if (!contentCol || !cxInput || !cyInput) return;
-        contentCol.style.transform = `translate(${Number(cxInput.value)||0}px,${Number(cyInput.value)||0}px)`;
-    }
-    if (cxInput) cxInput.addEventListener('input', applyContentOffset);
-    if (cyInput) cyInput.addEventListener('input', applyContentOffset);
-    applyContentOffset();
-
-    /* Live style controls */
-    function applyStyles() {
-        const get = id => document.getElementById(id);
-
-        const tagline = get('previewTagline');
-        const title   = get('previewTitle');
-        const sub     = get('previewSubtitle');
-
-        if (tagline) {
-            const bg = get('tagline_bg_color'); // hidden input — may be '' (cleared)
-            const bgVal = bg ? (bg.value || 'transparent') : 'transparent';
-            tagline.style.background = bgVal;
-            tagline.style.padding = bgVal === 'transparent' ? '0' : '';
-            const tc = get('tagline_text_color'); if (tc) tagline.style.color = tc.value;
-        }
-        if (title) {
-            const c = get('title_color');   if (c) title.style.color = c.value;
-            const s = get('title_size_px'); if (s) title.style.fontSize = `${clamp(s.value,34,84)}px`;
-            const w = get('title_weight');  if (w) title.style.fontWeight = String(clamp(w.value,400,900));
-        }
-        if (sub) {
-            const c = get('subtitle_color');   if (c) sub.style.color = c.value;
-            const s = get('subtitle_size_px'); if (s) sub.style.fontSize = `${clamp(s.value,14,24)}px`;
-            const w = get('subtitle_weight');  if (w) sub.style.fontWeight = String(clamp(w.value,300,900));
-        }
-        const col = document.getElementById('previewContentCol');
-        const cbg = get('content_bg_color');
-        if (col && cbg) {
-            col.style.background    = cbg.value || 'transparent';
-            col.style.borderRadius  = cbg.value ? '0.75rem' : '0';
-            col.style.padding       = cbg.value ? '1rem' : '0';
-        }
-        // badge colours handled by applyMetaPreview()
-        const stageEl = document.getElementById('stage');
-        const bgc = get('hero_bg_color');
-        const ov = get('hero_overlay_opacity');
-        if (stageEl) {
-            if (bgc) stageEl.style.setProperty('--stage-bg-color', bgc.value);
-            if (ov) stageEl.style.setProperty('--stage-overlay', ov.value);
-        }
-    }
-
-    ['tagline_bg_color_picker','tagline_text_color','title_color','title_size_px','title_weight',
-     'subtitle_color','subtitle_size_px','subtitle_weight','content_bg_color',
-     'hero_bg_color','hero_overlay_opacity']
-    .forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('input', applyStyles);
-    });
-
-    applyStyles();
-
-    /* Live text preview — tagline, title, subtitle, CTA */
-    function wireTextPreview(inputId, previewId, fallback) {
-        const inp = document.getElementById(inputId);
-        const prev = document.getElementById(previewId);
-        if (!inp || !prev) return;
-        // Always set from the input value on load; only use fallback if input is also empty
-        prev.textContent = inp.value.trim() || fallback;
-        inp.addEventListener('input', () => { prev.textContent = inp.value.trim() || fallback; });
-    }
-    wireTextPreview('tagline', 'previewTagline', '');
-    wireTextPreview('title', 'previewTitle', '');
-    wireTextPreview('subtitle', 'previewSubtitle', '');
-    wireTextPreview('cta_text', 'previewCtaBtn', 'See Reviews');
-
-    // Hide stage items that have no content so they don't take up space
-    function syncEmptyItems() {
-        [
-            ['previewTaglineItem', 'previewTagline'],
-            ['previewTitleItem',   'previewTitle'],
-            ['previewSubtitleItem','previewSubtitle'],
-        ].forEach(([itemId, elId]) => {
-            const item = document.getElementById(itemId);
-            const el   = document.getElementById(elId);
-            if (item && el) item.style.display = el.textContent.trim() ? '' : 'none';
-        });
-    }
-    syncEmptyItems();
-    ['tagline','title','subtitle'].forEach(id => {
-        const inp = document.getElementById(id);
-        if (inp) inp.addEventListener('input', syncEmptyItems);
-    });
-
-    /* Live stat card text */
-    function parseCard(raw) {
-        const parts = String(raw||'').split('·').map(s=>s.trim()).filter(Boolean);
-        return { primary: parts[0]||'', secondary: parts[1]||'', tertiary: parts[2]||'' };
-    }
-
-    function applyCardText() {
-        [[1,'stat1_text'],[2,'stat2_text'],[3,'stat3_text']].forEach(([n, inputId]) => {
-            const inp = document.getElementById(inputId);
-            if (!inp) return;
-            const p = parseCard(inp.value);
-            const pr = document.getElementById(`previewCard${n}Primary`);
-            const sc = document.getElementById(`previewCard${n}Secondary`);
-            const tr = document.getElementById(`previewCard${n}Tertiary`);
-            if (pr) pr.textContent = p.primary;
-            if (sc) sc.textContent = p.secondary;
-            if (tr) { tr.textContent = p.tertiary; tr.style.display = p.tertiary ? 'block' : 'none'; }
-        });
-    }
-
-    ['stat1_text','stat2_text','stat3_text'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('input', applyCardText);
-    });
-
-    applyCardText();
-
-    function applyMetaPreviewFromBtn() { applyMetaPreview(); }
-
-    /* Live badge preview — label text + boldness + size + colours */
-    function applyMetaPreview() {
-        const mtc   = document.getElementById('meta_text_color');
-        const mbc   = document.getElementById('meta_bg_color'); // hidden input (may be '')
-        const mborc = document.getElementById('meta_border_color');
-        const mfs   = document.getElementById('meta_font_size');
-        const mfw   = document.getElementById('meta_font_weight');
-        const globalSize   = mfs ? (parseInt(mfs.value) || 16) : 16;
-        const globalWeight = mfw ? (parseInt(mfw.value) || 700) : 700;
-        [1,2,3].forEach(n => {
-            const weightEl = document.getElementById(`small_text_line${n}_pct`);
-            const lblEl    = document.getElementById(`small_text_line${n}`);
-            const target   = document.getElementById(`previewMeta${n}`);
-            if (!target) return;
-            const perBadgeWeight = weightEl ? weightEl.value.trim() : '';
-            const lbl    = lblEl ? lblEl.value.trim() : '';
-            const fw = (perBadgeWeight && !isNaN(parseInt(perBadgeWeight))) ? parseInt(perBadgeWeight) : globalWeight;
-            const txtColor = (mtc && mtc.value) ? mtc.value : '';
-            const spanStyle = `font-weight:${fw};font-size:${globalSize}px${txtColor ? ';color:'+txtColor : ''}`;
-            target.innerHTML = `<span style="${spanStyle}">${lbl || `Badge ${n}`}</span>`;
-            const hasBg = mbc && mbc.value;
-            target.style.background = hasBg ? mbc.value : 'transparent';
-            target.style.borderColor = hasBg ? (mborc && mborc.value ? mborc.value : '#16a34a') : 'rgba(255,255,255,0.2)';
-            if (txtColor) target.style.color = txtColor;
-        });
-    }
-
-    [1,2,3].forEach(n => {
-        ['small_text_line'+n+'_pct','small_text_line'+n].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.addEventListener('input', applyMetaPreview);
-                el.addEventListener('change', applyMetaPreview);
-            }
-        });
-    });
-    // Re-run badge preview when colour/size/weight controls change
-    ['meta_text_color','meta_bg_color_picker','meta_border_color','meta_font_size','meta_font_weight'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('input', applyMetaPreview);
-            el.addEventListener('change', applyMetaPreview);
-        }
-    });
-
-    applyMetaPreview();
-
-    /* Expose globally so inline onclick handlers can trigger preview updates */
-    window._applyStyles = applyStyles;
-    window._applyMetaPreview = applyMetaPreview;
-
-    requestAnimationFrame(() => requestAnimationFrame(scaleStage));
-})();
-</script>
 </body>
 </html>
