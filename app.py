@@ -5988,7 +5988,7 @@ DEFAULT_HERO_CONTENT = {
 
 DEFAULT_SITE_SETTINGS = {
     'id': 1,
-    'company_name': 'Clean Co.',
+    'company_name': 'Done-well cleaning limited.org',
     'logo_path': None
 }
 
@@ -6166,7 +6166,37 @@ def ensure_hero_content_schema():
             )
             """
         )
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS deprecated_old_schema BOOLEAN DEFAULT FALSE")
+        # Add all new Slidin GH columns if they don't exist
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS layout_mode VARCHAR(20) DEFAULT 'balenciaga'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_url TEXT")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_type VARCHAR(10) DEFAULT 'image'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bar_enabled BOOLEAN DEFAULT FALSE")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bg_color VARCHAR(20) DEFAULT '#000000'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text_color VARCHAR(20) DEFAULT '#ffffff'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_label VARCHAR(100) DEFAULT 'Spring Collection'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_tracking NUMERIC(3,2) DEFAULT 0.1")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title VARCHAR(500) DEFAULT 'Editorial Excellence'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_color VARCHAR(20) DEFAULT '#ffffff'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_color VARCHAR(20) DEFAULT '#ffffff'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_text VARCHAR(100) DEFAULT 'Explore'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_link VARCHAR(255) DEFAULT '/collections'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_text VARCHAR(100) DEFAULT 'Learn More'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_link VARCHAR(255) DEFAULT '#about'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_enabled BOOLEAN DEFAULT TRUE")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text VARCHAR(100) DEFAULT 'Limited Drops'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_bg_color VARCHAR(20) DEFAULT '#ffffff'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text_color VARCHAR(20) DEFAULT '#000000'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_label VARCHAR(100) DEFAULT 'Premium Quality'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_value VARCHAR(50) DEFAULT '98%'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_label VARCHAR(100) DEFAULT 'Global Reach'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_value VARCHAR(50) DEFAULT '150+'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_label VARCHAR(100) DEFAULT '24/7 Support'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_value VARCHAR(50) DEFAULT 'Always'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_bg_color VARCHAR(20) DEFAULT '#000000'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_brightness_offset NUMERIC(2,1) DEFAULT -0.55")
     else:
         cursor.execute(
             """
@@ -6205,6 +6235,37 @@ def ensure_hero_content_schema():
             )
             """
         )
+        # Add all new Slidin GH columns if they don't exist (MySQL)
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS layout_mode VARCHAR(20) DEFAULT 'balenciaga'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_url LONGTEXT")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_type VARCHAR(10) DEFAULT 'image'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bar_enabled BOOLEAN DEFAULT 0")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bg_color VARCHAR(20) DEFAULT '#000000'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text_color VARCHAR(20) DEFAULT '#ffffff'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_label VARCHAR(100) DEFAULT 'Spring Collection'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_tracking DECIMAL(3,2) DEFAULT 0.1")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title VARCHAR(500) DEFAULT 'Editorial Excellence'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_color VARCHAR(20) DEFAULT '#ffffff'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_color VARCHAR(20) DEFAULT '#ffffff'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_text VARCHAR(100) DEFAULT 'Explore'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_link VARCHAR(255) DEFAULT '/collections'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_text VARCHAR(100) DEFAULT 'Learn More'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_link VARCHAR(255) DEFAULT '#about'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_enabled BOOLEAN DEFAULT 1")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text VARCHAR(100) DEFAULT 'Limited Drops'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_bg_color VARCHAR(20) DEFAULT '#ffffff'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text_color VARCHAR(20) DEFAULT '#000000'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_label VARCHAR(100) DEFAULT 'Premium Quality'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_value VARCHAR(50) DEFAULT '98%'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_label VARCHAR(100) DEFAULT 'Global Reach'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_value VARCHAR(50) DEFAULT '150+'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_label VARCHAR(100) DEFAULT '24/7 Support'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_value VARCHAR(50) DEFAULT 'Always'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_bg_color VARCHAR(20) DEFAULT '#000000'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_brightness_offset DECIMAL(2,1) DEFAULT -0.55")
 
     conn.commit()
     cursor.close()
