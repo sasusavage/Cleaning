@@ -1084,9 +1084,8 @@ body.is-nav-expanded main {
     background: var(--hero-meta-bg, rgba(0, 0, 0, 0.5));
     border: 1px solid var(--hero-meta-border, rgba(22, 163, 74, 0.4));
     color: var(--hero-meta-text, #fff);
-    font-size: 1.1rem;
-    font-weight: 700;
-    backdrop-filter: blur(12px);
+    font-size: var(--hero-meta-size, 1.1rem);
+    font-weight: var(--hero-meta-weight, 700);
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -4115,7 +4114,6 @@ body {
         font-size: 0.78rem;
         padding: 0.4rem 0.85rem;
         background: var(--hero-meta-bg, rgba(0, 0, 0, 0.45));
-        backdrop-filter: blur(8px);
         border: 1px solid var(--hero-meta-border, rgba(255, 255, 255, 0.2));
         color: var(--hero-meta-text, #fff);
         border-radius: 999px;
@@ -4355,7 +4353,6 @@ body {
         background: var(--hero-meta-bg, rgba(0,0,0,0.5));
         border-color: var(--hero-meta-border, rgba(22,163,74,0.35));
         color: var(--hero-meta-text, #fff);
-        backdrop-filter: blur(8px);
     }
 
     /* Hide visual column (stat cards) */

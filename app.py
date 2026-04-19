@@ -5948,7 +5948,9 @@ DEFAULT_HERO_CONTENT = {
     'subtitle_weight': 600,
     'content_bg_color': '',
     'meta_text_color': '#ffffff',
-    'meta_bg_color': '#0f172a'
+    'meta_bg_color': '#0f172a',
+    'meta_font_size': 16,
+    'meta_font_weight': 700
 }
 
 
@@ -5999,6 +6001,7 @@ def fetch_hero_content():
             content_bg_color,
             meta_text_color, meta_bg_color,
             small_text_line1_pct, small_text_line2_pct, small_text_line3_pct,
+            meta_font_size, meta_font_weight,
             hero_bg_color, hero_overlay_opacity, meta_border_color, meta_pct_color,
             cta_text, cta_link
         FROM hero_content
@@ -6114,6 +6117,7 @@ def fetch_hero_content():
                 content_bg_color,
                 meta_text_color, meta_bg_color,
                 small_text_line1_pct, small_text_line2_pct, small_text_line3_pct,
+                meta_font_size, meta_font_weight,
                 hero_bg_color, hero_overlay_opacity, meta_border_color, meta_pct_color,
                 cta_text, cta_link
             FROM hero_content
@@ -6220,6 +6224,8 @@ def ensure_hero_content_schema():
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS small_text_line1_pct SMALLINT DEFAULT NULL")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS small_text_line2_pct SMALLINT DEFAULT NULL")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS small_text_line3_pct SMALLINT DEFAULT NULL")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_font_size INTEGER DEFAULT 16")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_font_weight INTEGER DEFAULT 700")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_bg_color VARCHAR(20) DEFAULT '#0f172a'")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_overlay_opacity NUMERIC(3,2) DEFAULT 0.35")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS meta_border_color VARCHAR(20) DEFAULT '#16a34a'")
@@ -6304,6 +6310,8 @@ def ensure_hero_content_schema():
             'small_text_line1_pct': "SMALLINT DEFAULT NULL",
             'small_text_line2_pct': "SMALLINT DEFAULT NULL",
             'small_text_line3_pct': "SMALLINT DEFAULT NULL",
+            'meta_font_size': "INT DEFAULT 16",
+            'meta_font_weight': "INT DEFAULT 700",
             'hero_bg_color': "VARCHAR(20) DEFAULT '#0f172a'",
             'hero_overlay_opacity': "DECIMAL(3,2) DEFAULT 0.35",
             'meta_border_color': "VARCHAR(20) DEFAULT '#16a34a'",
@@ -12736,6 +12744,8 @@ def admin_hero_content_page():
                 small_text_line1_pct = _parse_weight(request.form.get('small_text_line1_pct'))
                 small_text_line2_pct = _parse_weight(request.form.get('small_text_line2_pct'))
                 small_text_line3_pct = _parse_weight(request.form.get('small_text_line3_pct'))
+                meta_font_size = sanitize_int_range(request.form.get('meta_font_size'), 16, 10, 32)
+                meta_font_weight = sanitize_int_range(request.form.get('meta_font_weight'), 700, 300, 900)
                 stat1_text = sanitize_text(request.form.get('stat1_text'), 255)
                 stat2_text = sanitize_text(request.form.get('stat2_text'), 255)
                 stat3_text = sanitize_text(request.form.get('stat3_text'), 255)
@@ -12839,6 +12849,8 @@ def admin_hero_content_page():
                         small_text_line1_pct=%s,
                         small_text_line2_pct=%s,
                         small_text_line3_pct=%s,
+                        meta_font_size=%s,
+                        meta_font_weight=%s,
                         hero_bg_color=%s,
                         hero_overlay_opacity=%s,
                         meta_border_color=%s,
@@ -12890,6 +12902,8 @@ def admin_hero_content_page():
                         small_text_line1_pct,
                         small_text_line2_pct,
                         small_text_line3_pct,
+                        meta_font_size,
+                        meta_font_weight,
                         hero_bg_color,
                         hero_overlay_opacity,
                         meta_border_color,

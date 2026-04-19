@@ -219,6 +219,8 @@
         {% set hero_inline_style = hero_inline_style ~ '--hero-subtitle-size:' ~ (hero.subtitle_size_px or 18) ~ 'px;' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-subtitle-weight:' ~ (hero.subtitle_weight or 600) ~ ';' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-meta-text:' ~ (hero.meta_text_color or '#ffffff') ~ ';' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-meta-size:' ~ (hero.meta_font_size or 16) ~ 'px;' %}
+        {% set hero_inline_style = hero_inline_style ~ '--hero-meta-weight:' ~ (hero.meta_font_weight or 700) ~ ';' %}
         {% if hero.meta_bg_color %}{% set hero_inline_style = hero_inline_style ~ '--hero-meta-bg:' ~ hero.meta_bg_color ~ ';' %}{% else %}{% set hero_inline_style = hero_inline_style ~ '--hero-meta-bg:transparent;' %}{% endif %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-bg-color:' ~ (hero.hero_bg_color or '#0f172a') ~ ';' %}
         {% set hero_inline_style = hero_inline_style ~ '--hero-overlay-opacity:' ~ (hero.hero_overlay_opacity or 0.35) ~ ';' %}

@@ -457,12 +457,11 @@
         .stage__meta-item {
             color: #fff;
             background: {% if hero and hero.meta_bg_color %}{{ hero.meta_bg_color }}{% else %}transparent{% endif %};
-            border: 1px solid {{ hero.meta_border_color or '#16a34a' }};
+            border: 1px solid {% if hero and hero.meta_bg_color %}{{ hero.meta_border_color or '#16a34a' }}{% else %}rgba(255,255,255,0.2){% endif %};
             border-radius: 12px;
             padding: 1rem 1.3rem;
-            font-size: 1rem;
-            font-weight: 700;
-            backdrop-filter: blur(12px);
+            font-size: {{ hero.meta_font_size or 16 }}px;
+            font-weight: {{ hero.meta_font_weight or 700 }};
         }
 
         /* stat cards — exact copy of live .hero__card */
@@ -870,18 +869,19 @@
             </div>
         </div>
 
-        <!-- 6 · Typography & Colours -->
+        <!-- 6 · Styling -->
         <div class="card">
-            <h2 class="section-title">Typography &amp; Colours</h2>
-            <p class="section-hint">Changes show live in the preview above as you type.</p>
+            <h2 class="section-title">Styling</h2>
+            <p class="section-hint">Colour, size and weight for each hero element. Changes show live in the preview.</p>
 
             <div class="grid" style="gap:1rem;">
 
+                <!-- Tagline -->
                 <div class="style-group">
                     <p class="style-group__title">Tagline</p>
                     <div class="grid grid--2">
                         <div class="form-group">
-                            <label for="tagline_bg_color_picker">Background colour</label>
+                            <label for="tagline_bg_color_picker">Background</label>
                             <div style="display:flex;gap:0.5rem;align-items:center;">
                                 <input type="color" id="tagline_bg_color_picker"
                                     value="{{ hero.tagline_bg_color if hero and hero.tagline_bg_color else '#16a34a' }}"
@@ -889,7 +889,7 @@
                                 <input type="hidden" id="tagline_bg_color" name="tagline_bg_color" value="{{ hero.tagline_bg_color if hero and hero.tagline_bg_color else '' }}">
                                 <button type="button" id="tagline_bg_clear" class="btn-sm btn-danger"
                                     onclick="document.getElementById('tagline_bg_color').value='';document.getElementById('tagline_bg_color_picker').value='#cccccc';if(typeof _applyStyles==='function')_applyStyles();this.textContent='Cleared';"
-                                    title="Remove background colour from tagline">
+                                    title="Remove background colour">
                                     {% if not hero or not hero.tagline_bg_color %}Cleared{% else %}Clear{% endif %}
                                 </button>
                             </div>
@@ -901,6 +901,7 @@
                     </div>
                 </div>
 
+                <!-- Title -->
                 <div class="style-group">
                     <p class="style-group__title">Title</p>
                     <div class="grid grid--3">
@@ -909,66 +910,77 @@
                             <input type="color" id="title_color" name="title_color" value="{{ hero.title_color or '#2563eb' }}">
                         </div>
                         <div class="form-group">
-                            <label for="title_size_px">Size (px) — 34 to 84</label>
+                            <label for="title_size_px">Size (34–84 px)</label>
                             <input type="number" id="title_size_px" name="title_size_px" min="34" max="84" value="{{ hero.title_size_px or 72 }}">
                         </div>
                         <div class="form-group">
-                            <label for="title_weight">Boldness — 400 to 900</label>
+                            <label for="title_weight">Weight (400–900)</label>
                             <input type="number" id="title_weight" name="title_weight" min="400" max="900" step="100" value="{{ hero.title_weight or 800 }}">
                         </div>
                     </div>
                 </div>
 
+                <!-- Subtitle -->
                 <div class="style-group">
-                    <p class="style-group__title">Subtitle / Description</p>
+                    <p class="style-group__title">Subtitle</p>
                     <div class="grid grid--3">
                         <div class="form-group">
                             <label for="subtitle_color">Colour</label>
                             <input type="color" id="subtitle_color" name="subtitle_color" value="{{ hero.subtitle_color or '#ffffff' }}">
                         </div>
                         <div class="form-group">
-                            <label for="subtitle_size_px">Size (px) — 14 to 24</label>
+                            <label for="subtitle_size_px">Size (14–24 px)</label>
                             <input type="number" id="subtitle_size_px" name="subtitle_size_px" min="14" max="24" value="{{ hero.subtitle_size_px or 18 }}">
                         </div>
                         <div class="form-group">
-                            <label for="subtitle_weight">Boldness — 300 to 900</label>
+                            <label for="subtitle_weight">Weight (300–900)</label>
                             <input type="number" id="subtitle_weight" name="subtitle_weight" min="300" max="900" step="100" value="{{ hero.subtitle_weight or 600 }}">
                         </div>
                     </div>
                 </div>
 
+                <!-- Detail Badges -->
                 <div class="style-group">
                     <p class="style-group__title">Detail Badges</p>
-                    <div class="grid grid--2">
+                    <div class="grid grid--2" style="margin-bottom:0.75rem;">
                         <div class="form-group">
                             <label for="meta_text_color">Text colour</label>
                             <input type="color" id="meta_text_color" name="meta_text_color" value="{{ hero.meta_text_color or '#ffffff' }}">
                         </div>
                         <div class="form-group">
-                            <label for="meta_bg_color_picker">Background colour</label>
-                            <div style="display:flex;gap:0.5rem;align-items:center;">
-                                <input type="color" id="meta_bg_color_picker"
-                                    value="{{ hero.meta_bg_color if hero and hero.meta_bg_color else '#16a34a' }}"
-                                    oninput="document.getElementById('meta_bg_color').value=this.value;document.getElementById('meta_bg_clear').textContent='Clear';if(typeof _applyMetaPreview==='function')_applyMetaPreview();">
-                                <input type="hidden" id="meta_bg_color" name="meta_bg_color" value="{{ hero.meta_bg_color if hero and hero.meta_bg_color else '' }}">
-                                <button type="button" id="meta_bg_clear" class="btn-sm btn-danger"
-                                    onclick="document.getElementById('meta_bg_color').value='';document.getElementById('meta_bg_color_picker').value='#cccccc';if(typeof _applyMetaPreview==='function')_applyMetaPreview();this.textContent='Cleared';"
-                                    title="Remove badge background colour">
-                                    {% if not hero or not hero.meta_bg_color %}Cleared{% else %}Clear{% endif %}
-                                </button>
-                            </div>
-                        </div>
-                        <div class="form-group">
                             <label for="meta_border_color">Border colour</label>
                             <input type="color" id="meta_border_color" name="meta_border_color" value="{{ hero.meta_border_color or '#16a34a' }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="meta_font_size">Text size (10–32 px)</label>
+                            <input type="number" id="meta_font_size" name="meta_font_size" min="10" max="32" value="{{ hero.meta_font_size or 16 }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="meta_font_weight">Text weight (300–900)</label>
+                            <input type="number" id="meta_font_weight" name="meta_font_weight" min="300" max="900" step="100" value="{{ hero.meta_font_weight or 700 }}">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="meta_bg_color_picker">Background</label>
+                        <div style="display:flex;gap:0.5rem;align-items:center;">
+                            <input type="color" id="meta_bg_color_picker"
+                                value="{{ hero.meta_bg_color if hero and hero.meta_bg_color else '#16a34a' }}"
+                                oninput="document.getElementById('meta_bg_color').value=this.value;document.getElementById('meta_bg_clear').textContent='Clear';if(typeof _applyMetaPreview==='function')_applyMetaPreview();">
+                            <input type="hidden" id="meta_bg_color" name="meta_bg_color" value="{{ hero.meta_bg_color if hero and hero.meta_bg_color else '' }}">
+                            <button type="button" id="meta_bg_clear" class="btn-sm btn-danger"
+                                onclick="document.getElementById('meta_bg_color').value='';document.getElementById('meta_bg_color_picker').value='#cccccc';if(typeof _applyMetaPreview==='function')_applyMetaPreview();this.textContent='Cleared';"
+                                title="Remove badge background">
+                                {% if not hero or not hero.meta_bg_color %}Cleared{% else %}Clear{% endif %}
+                            </button>
                         </div>
                     </div>
                 </div>
 
+                <!-- Content Panel -->
                 <div class="style-group">
                     <p class="style-group__title">Content Panel</p>
                     <div class="form-group">
-                        <label for="content_bg_color">Panel background <span style="font-weight:400;">(leave empty for transparent)</span></label>
+                        <label for="content_bg_color">Background <span style="font-weight:400;">(leave empty for transparent)</span></label>
                         <input type="text" id="content_bg_color" name="content_bg_color" value="{{ hero.content_bg_color or '' }}" placeholder="#0f172a or rgba(0,0,0,0.5)">
                     </div>
                 </div>
@@ -1328,21 +1340,26 @@
 
     function applyMetaPreviewFromBtn() { applyMetaPreview(); }
 
-    /* Live badge preview — label text + boldness + colours */
+    /* Live badge preview — label text + boldness + size + colours */
     function applyMetaPreview() {
         const mtc   = document.getElementById('meta_text_color');
         const mbc   = document.getElementById('meta_bg_color'); // hidden input (may be '')
         const mborc = document.getElementById('meta_border_color');
+        const mfs   = document.getElementById('meta_font_size');
+        const mfw   = document.getElementById('meta_font_weight');
+        const globalSize   = mfs ? (parseInt(mfs.value) || 16) : 16;
+        const globalWeight = mfw ? (parseInt(mfw.value) || 700) : 700;
         [1,2,3].forEach(n => {
             const weightEl = document.getElementById(`small_text_line${n}_pct`);
             const lblEl    = document.getElementById(`small_text_line${n}`);
             const target   = document.getElementById(`previewMeta${n}`);
             if (!target) return;
-            const weight = weightEl ? weightEl.value.trim() : '';
+            const perBadgeWeight = weightEl ? weightEl.value.trim() : '';
             const lbl    = lblEl ? lblEl.value.trim() : '';
-            const fw = (weight && !isNaN(parseInt(weight))) ? parseInt(weight) : '';
+            const fw = (perBadgeWeight && !isNaN(parseInt(perBadgeWeight))) ? parseInt(perBadgeWeight) : globalWeight;
             const txtColor = (mtc && mtc.value) ? mtc.value : '';
-            target.innerHTML = `<span${fw ? ` style="font-weight:${fw}${txtColor ? ';color:'+txtColor : ''}"` : (txtColor ? ` style="color:${txtColor}"` : '')}>${lbl || `Badge ${n}`}</span>`;
+            const spanStyle = `font-weight:${fw};font-size:${globalSize}px${txtColor ? ';color:'+txtColor : ''}`;
+            target.innerHTML = `<span style="${spanStyle}">${lbl || `Badge ${n}`}</span>`;
             const hasBg = mbc && mbc.value;
             target.style.background = hasBg ? mbc.value : 'transparent';
             target.style.borderColor = hasBg ? (mborc && mborc.value ? mborc.value : '#16a34a') : 'rgba(255,255,255,0.2)';
@@ -1359,8 +1376,8 @@
             }
         });
     });
-    // Re-run badge preview when colour pickers change
-    ['meta_text_color','meta_bg_color_picker','meta_border_color'].forEach(id => {
+    // Re-run badge preview when colour/size/weight controls change
+    ['meta_text_color','meta_bg_color_picker','meta_border_color','meta_font_size','meta_font_weight'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('input', applyMetaPreview);
