@@ -74,12 +74,36 @@
         <div class="card">
             <h2>Content</h2>
             <div class="form-group">
+                <label><input type="checkbox" name="content_bg_enabled" value="true" {% if hero.content_bg_enabled %}checked{% endif %}> Enable soft background behind hero text</label>
+            </div>
+            <div class="grid">
+                <div class="form-group">
+                    <label for="content_bg_color">Soft Background Color</label>
+                    <input type="text" id="content_bg_color" name="content_bg_color" value="{{ hero.content_bg_color or 'rgba(0,0,0,0.35)' }}" placeholder="rgba(0,0,0,0.35)">
+                    <div class="hint">Use rgba for soft transparency (example: rgba(0,0,0,0.35)).</div>
+                </div>
+                <div class="form-group">
+                    <label for="content_padding_px">Content Padding (px)</label>
+                    <input type="number" id="content_padding_px" name="content_padding_px" min="0" max="60" value="{{ hero.content_padding_px or 20 }}">
+                </div>
+            </div>
+            <div class="form-group">
                 <label for="editorial_label">Editorial Label</label>
                 <input type="text" id="editorial_label" name="editorial_label" value="{{ hero.editorial_label or 'Professional Cleaning' }}" placeholder="e.g. Professional Cleaning">
             </div>
             <div class="form-group">
                 <label for="title">Title</label>
                 <input type="text" id="title" name="title" value="{{ hero.title or 'Your Space, Perfectly Clean' }}" placeholder="Main headline">
+            </div>
+            <div class="grid">
+                <div class="form-group">
+                    <label for="title_size_px">Title Size (px)</label>
+                    <input type="number" id="title_size_px" name="title_size_px" min="32" max="120" value="{{ hero.title_size_px or 72 }}">
+                </div>
+                <div class="form-group">
+                    <label for="subtitle_size_px">Subtitle Size (px)</label>
+                    <input type="number" id="subtitle_size_px" name="subtitle_size_px" min="14" max="48" value="{{ hero.subtitle_size_px or 24 }}">
+                </div>
             </div>
             <div class="form-group grid-full">
                 <label for="subtitle">Subtitle</label>
@@ -90,6 +114,9 @@
         <!-- CTAs -->
         <div class="card">
             <h2>Buttons</h2>
+            <div class="form-group">
+                <label><input type="checkbox" name="cta_secondary_enabled" value="true" {% if hero.cta_secondary_enabled is not sameas false %}checked{% endif %}> Show secondary button</label>
+            </div>
             <div class="grid">
                 <div class="form-group">
                     <label for="cta_primary_text">Primary Button Text</label>
@@ -130,6 +157,9 @@
         <!-- Stats -->
         <div class="card">
             <h2>Bottom Stats</h2>
+            <div class="form-group">
+                <label><input type="checkbox" name="stats_enabled" value="true" {% if hero.stats_enabled is not sameas false %}checked{% endif %}> Show bottom stats strip</label>
+            </div>
             <div class="grid">
                 <div class="form-group">
                     <label for="stat1_value">Stat 1 Value</label>

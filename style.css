@@ -1389,7 +1389,7 @@ body.is-nav-expanded main {
 }
 
 .hero__title {
-    font-size: clamp(2.2rem, 6vw, min(var(--hero-title-size, 72px), 84px));
+    font-size: clamp(2.2rem, 6vw, var(--hero-title-size, 72px));
     font-weight: var(--hero-title-weight, 800);
     line-height: 1.05;
     color: var(--hero-title-color, #fff);
@@ -1408,7 +1408,7 @@ body.is-nav-expanded main {
 }
 
 .hero__subtitle {
-    font-size: clamp(0.95rem, 2.1vw, min(var(--hero-subtitle-size, 18px), 24px));
+    font-size: clamp(0.95rem, 2.1vw, var(--hero-subtitle-size, 24px));
     color: var(--hero-subtitle-color, #fff);
     max-width: 520px;
     font-weight: var(--hero-subtitle-weight, 600);

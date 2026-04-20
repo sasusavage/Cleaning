@@ -5983,6 +5983,13 @@ DEFAULT_HERO_CONTENT = {
     'stats_bg_color': 'rgba(0,0,0,0.5)',
     'hero_bg_color': '#000000',
     'media_brightness_offset': -0.55,
+    'content_bg_enabled': True,
+    'content_bg_color': 'rgba(0,0,0,0.35)',
+    'content_padding_px': 20,
+    'title_size_px': 72,
+    'subtitle_size_px': 24,
+    'cta_secondary_enabled': True,
+    'stats_enabled': True,
 }
 
 
@@ -6022,7 +6029,10 @@ def fetch_hero_content():
             cta_primary_text, cta_primary_link, cta_secondary_text, cta_secondary_link,
             badge_enabled, badge_text, badge_bg_color, badge_text_color,
             stat1_label, stat1_value, stat2_label, stat2_value, stat3_label, stat3_value, stats_bg_color,
-            hero_bg_color, media_brightness_offset
+            hero_bg_color, media_brightness_offset,
+            content_bg_enabled, content_bg_color, content_padding_px,
+            title_size_px, subtitle_size_px,
+            cta_secondary_enabled, stats_enabled
         FROM hero_content
         WHERE id = 1
         """
@@ -6042,7 +6052,10 @@ def fetch_hero_content():
                 cta_primary_text, cta_primary_link, cta_secondary_text, cta_secondary_link,
                 badge_enabled, badge_text, badge_bg_color, badge_text_color,
                 stat1_label, stat1_value, stat2_label, stat2_value, stat3_label, stat3_value, stats_bg_color,
-                hero_bg_color, media_brightness_offset
+                hero_bg_color, media_brightness_offset,
+                content_bg_enabled, content_bg_color, content_padding_px,
+                title_size_px, subtitle_size_px,
+                cta_secondary_enabled, stats_enabled
             ) VALUES (
                 %s,
                 %s, %s, %s,
@@ -6052,6 +6065,9 @@ def fetch_hero_content():
                 %s, %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s, %s,
+                %s, %s,
+                %s, %s, %s,
+                %s, %s,
                 %s, %s
             )
             """,
@@ -6087,6 +6103,13 @@ def fetch_hero_content():
                 DEFAULT_HERO_CONTENT['stats_bg_color'],
                 DEFAULT_HERO_CONTENT['hero_bg_color'],
                 DEFAULT_HERO_CONTENT['media_brightness_offset'],
+                DEFAULT_HERO_CONTENT['content_bg_enabled'],
+                DEFAULT_HERO_CONTENT['content_bg_color'],
+                DEFAULT_HERO_CONTENT['content_padding_px'],
+                DEFAULT_HERO_CONTENT['title_size_px'],
+                DEFAULT_HERO_CONTENT['subtitle_size_px'],
+                DEFAULT_HERO_CONTENT['cta_secondary_enabled'],
+                DEFAULT_HERO_CONTENT['stats_enabled'],
             )
         )
         conn.commit()
@@ -6103,7 +6126,10 @@ def fetch_hero_content():
                 cta_primary_text, cta_primary_link, cta_secondary_text, cta_secondary_link,
                 badge_enabled, badge_text, badge_bg_color, badge_text_color,
                 stat1_label, stat1_value, stat2_label, stat2_value, stat3_label, stat3_value, stats_bg_color,
-                hero_bg_color, media_brightness_offset
+                hero_bg_color, media_brightness_offset,
+                content_bg_enabled, content_bg_color, content_padding_px,
+                title_size_px, subtitle_size_px,
+                cta_secondary_enabled, stats_enabled
             FROM hero_content
             WHERE id = 1
             """
@@ -6177,7 +6203,14 @@ def ensure_hero_content_schema():
                 stat3_value VARCHAR(50) DEFAULT 'Always',
                 stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)',
                 hero_bg_color VARCHAR(20) DEFAULT '#000000',
-                media_brightness_offset NUMERIC(2,1) DEFAULT -0.55
+                media_brightness_offset NUMERIC(2,1) DEFAULT -0.55,
+                content_bg_enabled BOOLEAN DEFAULT TRUE,
+                content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)',
+                content_padding_px INTEGER DEFAULT 20,
+                title_size_px INTEGER DEFAULT 72,
+                subtitle_size_px INTEGER DEFAULT 24,
+                cta_secondary_enabled BOOLEAN DEFAULT TRUE,
+                stats_enabled BOOLEAN DEFAULT TRUE
             )
             """
         )
@@ -6212,6 +6245,13 @@ def ensure_hero_content_schema():
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)'")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_bg_color VARCHAR(20) DEFAULT '#000000'")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_brightness_offset NUMERIC(2,1) DEFAULT -0.55")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_enabled BOOLEAN DEFAULT TRUE")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_padding_px INTEGER DEFAULT 20")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_size_px INTEGER DEFAULT 72")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_size_px INTEGER DEFAULT 24")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_enabled BOOLEAN DEFAULT TRUE")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_enabled BOOLEAN DEFAULT TRUE")
     else:
         cursor.execute(
             """
@@ -6246,7 +6286,14 @@ def ensure_hero_content_schema():
                 stat3_value VARCHAR(50) DEFAULT 'Always',
                 stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)',
                 hero_bg_color VARCHAR(20) DEFAULT '#000000',
-                media_brightness_offset DECIMAL(2,1) DEFAULT -0.55
+                media_brightness_offset DECIMAL(2,1) DEFAULT -0.55,
+                content_bg_enabled BOOLEAN DEFAULT 1,
+                content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)',
+                content_padding_px INT DEFAULT 20,
+                title_size_px INT DEFAULT 72,
+                subtitle_size_px INT DEFAULT 24,
+                cta_secondary_enabled BOOLEAN DEFAULT 1,
+                stats_enabled BOOLEAN DEFAULT 1
             )
             """
         )
@@ -6281,6 +6328,13 @@ def ensure_hero_content_schema():
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)'")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_bg_color VARCHAR(20) DEFAULT '#000000'")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_brightness_offset DECIMAL(2,1) DEFAULT -0.55")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_enabled BOOLEAN DEFAULT 1")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_padding_px INT DEFAULT 20")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_size_px INT DEFAULT 72")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_size_px INT DEFAULT 24")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_enabled BOOLEAN DEFAULT 1")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_enabled BOOLEAN DEFAULT 1")
 
     # Fix any NULL or FALSE badge values in existing hero_content row(s) - ensure they have proper defaults
     if engine == 'postgres':
@@ -12736,6 +12790,25 @@ def admin_hero_content_page():
                 stat3_value = sanitize_text(request.form.get('stat3_value'), 50)
                 stats_bg_color = sanitize_text(request.form.get('stats_bg_color'), 60) or 'rgba(0,0,0,0.5)'
                 hero_bg_color = sanitize_css_color(request.form.get('hero_bg_color'), '#000000')
+                content_bg_enabled = str_to_bool(request.form.get('content_bg_enabled', 'false'))
+                content_bg_color = sanitize_text(request.form.get('content_bg_color'), 30) or 'rgba(0,0,0,0.35)'
+                cta_secondary_enabled = str_to_bool(request.form.get('cta_secondary_enabled', 'false'))
+                stats_enabled = str_to_bool(request.form.get('stats_enabled', 'false'))
+                try:
+                    title_size_px = int(request.form.get('title_size_px', 72))
+                    title_size_px = max(32, min(120, title_size_px))
+                except (TypeError, ValueError):
+                    title_size_px = 72
+                try:
+                    subtitle_size_px = int(request.form.get('subtitle_size_px', 24))
+                    subtitle_size_px = max(14, min(48, subtitle_size_px))
+                except (TypeError, ValueError):
+                    subtitle_size_px = 24
+                try:
+                    content_padding_px = int(request.form.get('content_padding_px', 20))
+                    content_padding_px = max(0, min(60, content_padding_px))
+                except (TypeError, ValueError):
+                    content_padding_px = 20
                 try:
                     _br = float(request.form.get('media_brightness_offset', -0.55))
                     media_brightness_offset = round(max(-1.0, min(1.0, _br)), 2)
@@ -12770,7 +12843,10 @@ def admin_hero_content_page():
                         stat2_label=%s, stat2_value=%s,
                         stat3_label=%s, stat3_value=%s,
                         stats_bg_color=%s, hero_bg_color=%s,
-                        media_brightness_offset=%s, media_type=%s, media_url=%s
+                        media_brightness_offset=%s, media_type=%s, media_url=%s,
+                        content_bg_enabled=%s, content_bg_color=%s, content_padding_px=%s,
+                        title_size_px=%s, subtitle_size_px=%s,
+                        cta_secondary_enabled=%s, stats_enabled=%s
                     WHERE id = 1
                     """,
                     (
@@ -12787,7 +12863,10 @@ def admin_hero_content_page():
                         stat2_label, stat2_value,
                         stat3_label, stat3_value,
                         stats_bg_color, hero_bg_color,
-                        media_brightness_offset, media_type, media_url
+                        media_brightness_offset, media_type, media_url,
+                        content_bg_enabled, content_bg_color, content_padding_px,
+                        title_size_px, subtitle_size_px,
+                        cta_secondary_enabled, stats_enabled
                     )
                 )
                 conn.commit()

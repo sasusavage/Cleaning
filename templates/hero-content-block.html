@@ -13,7 +13,7 @@
     {{ hero.cta_primary_text }}
   </a>
   {% endif %}
-  {% if hero.cta_secondary_text %}
+  {% if hero.cta_secondary_enabled is not sameas false and hero.cta_secondary_text %}
   <a href="{{ hero.cta_secondary_link or '#' }}" class="hero__cta hero__cta--secondary">
     {{ hero.cta_secondary_text }}
   </a>
