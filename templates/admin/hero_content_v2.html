@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Hero Content | Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background: #f3f4f6; padding: 2rem; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { margin-top: 0; }
+        .card { background: #fff; border-radius: 1rem; border: 1px solid #e5e7eb; padding: 1.75rem; margin-bottom: 1.5rem; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; font-weight: 600; font-size: 0.85rem; color: #6b7280; margin-bottom: 0.4rem; }
+        input[type="text"], input[type="number"], input[type="file"], input[type="color"], textarea, select {
+            font: inherit; font-size: 0.95rem; padding: 0.6rem 0.75rem; border: 1px solid #e5e7eb;
+            border-radius: 0.5rem; width: 100%;
+        }
+        textarea { min-height: 100px; resize: vertical; }
+        input[type="color"] { height: 2.4rem; padding: 0.25rem 0.35rem; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+        .grid-full { grid-column: 1 / -1; }
+        .btn { padding: 0.65rem 1.2rem; font-weight: 600; border-radius: 0.55rem;cursor: pointer; border: none; font-family: inherit; }
+        .btn-primary { background: #2563eb; color: #fff; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .form-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
+        .alert { padding: 0.85rem 1rem; border-radius: 0.65rem; margin-bottom: 1.25rem; }
+        .alert-success { background: rgba(16,185,129,0.12); color: #047857; border: 1px solid rgba(16,185,129,0.25); }
+        .alert-error { background: rgba(239,68,68,0.12); color: #991b1b; border: 1px solid rgba(239,68,68,0.25); }
+        .hint { font-size: 0.78rem; color: #6b7280; margin-top: 0.25rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Hero Content Editor</h1>
+
+    {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+    {% if message %}<div class="alert alert-success">{{ message }}</div>{% endif %}
+
+    <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="form_id" value="hero">
+
+        <!-- Layout Mode -->
+        <div class="card">
+            <h2>Layout Mode</h2>
+            <div class="form-group">
+                <label for="layout">Layout Style</label>
+                <select id="layout" name="layout_mode">
+                    <option value="balenciaga" {% if hero.layout_mode == 'balenciaga' %}selected{% endif %}>Balenciaga (Full-bleed)</option>
+                    <option value="puma" {% if hero.layout_mode == 'puma' %}selected{% endif %}>PUMA (Split-screen)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Announcement Bar -->
+        <div class="card">
+            <h2>Announcement Bar</h2>
+            <div class="form-group">
+                <label><input type="checkbox" name="announcement_bar_enabled" value="true" {% if hero.announcement_bar_enabled %}checked{% endif %}> Enable announcement bar</label>
+            </div>
+            <div class="grid">
+                <div class="form-group">
+                    <label for="announcement_text">Text</label>
+                    <input type="text" id="announcement_text" name="announcement_text" value="{{ hero.announcement_text or 'FREE DELIVERY' }}" placeholder="FREE DELIVERY">
+                </div>
+                <div class="form-group">
+                    <label for="announcement_bg_color">Background Color</label>
+                    <input type="color" id="announcement_bg_color" name="announcement_bg_color" value="{{ hero.announcement_bg_color or '#000000' }}">
+                </div>
+            </div>
+        </div>
+
+        <!-- Editorial & Title -->
+        <div class="card">
+            <h2>Content</h2>
+            <div class="form-group">
+                <label for="editorial_label">Editorial Label</label>
+                <input type="text" id="editorial_label" name="editorial_label" value="{{ hero.editorial_label or 'Spring Collection' }}"placeholder="e.g. Spring Collection">
+            </div>
+            <div class="form-group">
+                <label for="title">Title</label>
+                <input type="text" id="title" name="title" value="{{ hero.title or 'Editorial Excellence' }}" placeholder="Main headline">
+            </div>
+            <div class="form-group grid-full">
+                <label for="subtitle">Subtitle</label>
+                <textarea id="subtitle" name="subtitle" placeholder="Supporting text">{{ hero.subtitle or 'Premium collections, curated with care.' }}</textarea>
+            </div>
+        </div>
+
+        <!-- CTAs -->
+        <div class="card">
+            <h2>Buttons</h2>
+            <div class="grid">
+                <div class="form-group">
+                    <label for="cta_primary_text">Primary Button Text</label>
+                    <input type="text" id="cta_primary_text" name="cta_primary_text" value="{{ hero.cta_primary_text or 'Explore' }}">
+                </div>
+                <div class="form-group">
+                    <label for="cta_primary_link">Primary Button Link</label>
+                    <input type="text" id="cta_primary_link" name="cta_primary_link" value="{{ hero.cta_primary_link or '/collections' }}">
+                </div>
+                <div class="form-group">
+                    <label for="cta_secondary_text">Secondary Button Text</label>
+                    <input type="text" id="cta_secondary_text" name="cta_secondary_text" value="{{ hero.cta_secondary_text or 'Learn More' }}">
+                </div>
+                <div class="form-group">
+                    <label for="cta_secondary_link">Secondary Button Link</label>
+                    <input type="text" id="cta_secondary_link" name="cta_secondary_link" value="{{ hero.cta_secondary_link or '#about' }}">
+                </div>
+            </div>
+        </div>
+
+        <!-- Badge -->
+        <div class="card">
+            <h2>Floating Badge</h2>
+            <div class="form-group">
+                <label><input type="checkbox" name="badge_enabled" value="true" {% if hero.badge_enabled %}checked{% endif %}> Show badge</label>
+            </div> <div class="grid">
+                <div class="form-group">
+                    <label for="badge_text">Badge Text</label>
+                    <input type="text" id="badge_text" name="badge_text" value="{{ hero.badge_text or 'Limited Drops' }}">
+                </div>
+                <div class="form-group">
+                    <label for="badge_bg_color">Background</label>
+                    <input type="color" id="badge_bg_color" name="badge_bg_color" value="{{ hero.badge_bg_color or '#ffffff' }}">
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="card">
+            <h2>Bottom Stats</h2>
+            <div class="grid">
+                <div class="form-group">
+                    <label for="stat1_value">Stat 1 Value</label>
+                    <input type="text" id="stat1_value" name="stat1_value" value="{{ hero.stat1_value or '98%' }}" placeholder="98%">
+                </div>
+                <div class="form-group">
+                    <label for="stat1_label">Stat 1 Label</label>
+                    <input type="text" id="stat1_label" name="stat1_label" value="{{ hero.stat1_label or 'Premium Quality' }}" placeholder="Premium Quality">
+                </div>
+                <div class="form-group">
+                    <label for="stat2_value">Stat 2 Value</label>
+                    <input type="text" id="stat2_value" name="stat2_value" value="{{ hero.stat2_value or '150+' }}" placeholder="150+">
+                </div>
+                <div class="form-group">
+                    <label for="stat2_label">Stat 2 Label</label>
+                    <input type="text" id="stat2_label" name="stat2_label" value="{{ hero.stat2_label or 'Global Reach' }}" placeholder="Global Reach">
+                </div>
+                <div class="form-group">
+                    <label for="stat3_value">Stat 3 Value</label>
+                    <input type="text" id="stat3_value" name="stat3_value" value="{{ hero.stat3_value or 'Always' }}" placeholder="Always">
+                </div>
+                <div class="form-group">
+                    <label for="stat3_label">Stat 3 Label</label>
+                    <input type="text" id="stat3_label" name="stat3_label" value="{{ hero.stat3_label or '24/7 Support' }}" placeholder="24/7 Support">
+                </div>
+            </div>
+        </div>
+
+        <!-- Media -->
+        <div class="card">
+            <h2>Background Media</h2>
+            <div class="form-group">
+                <label for="media_url">Media URL (Image or Video)</label>
+                <input type="text" id="media_url" name="media_url" value="{{ hero.media_url or '' }}" placeholder="/uploads/hero.jpg or https://example.com/video.mp4">
+                <div class="hint">Supports: /path/to/image.jpg, https://cloudinary.url, or data URIs</div>
+            </div>
+            <div class="form-group">
+                <label for="hero_bg_color">Fallback Background Color</label>
+                <input type="color" id="hero_bg_color" name="hero_bg_color" value="{{ hero.hero_bg_color or '#000000' }}">
+            </div>
+            <div class="form-group">
+                <label for="media_brightness_offset">Brightness (-1 to 1)</label>
+                <input type="number" id="media_brightness_offset" name="media_brightness_offset" min="-1" max="1" step="0.1" value="{{ hero.media_brightness_offset or -0.55 }}">
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Hero Content</button>
+        </div>
+    </form>
+</div>
+</body>
+</html>

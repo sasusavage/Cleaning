@@ -6114,7 +6114,19 @@ def fetch_hero_content():
 
     merged = DEFAULT_HERO_CONTENT.copy()
     if hero:
-        merged.update({key: value for key, value in hero.items() if value is not None})
+        # Update with database values, but skip None, empty strings, and False for badge/critical fields
+        badge_fields = {'badge_enabled', 'badge_text', 'badge_bg_color', 'badge_text_color'}
+        for key, value in hero.items():
+            if key in badge_fields:
+                # For badge fields, only use DB value if it's truthy or explicitly set (not None/False/empty)
+                if key == 'badge_enabled':
+                    # Keep default if DB has False/None/0
+                    if value:
+                        merged[key] = value
+                elif value:  # For badge_text, badge_bg_color, badge_text_color - skip if empty
+                    merged[key] = value
+            elif value is not None:
+                merged[key] = value
     return merged
 
 
@@ -6267,6 +6279,28 @@ def ensure_hero_content_schema():
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)'")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_bg_color VARCHAR(20) DEFAULT '#000000'")
         cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_brightness_offset DECIMAL(2,1) DEFAULT -0.55")
+
+    # Fix any NULL or FALSE badge values in existing hero_content row(s) - ensure they have proper defaults
+    if engine == 'postgres':
+        cursor.execute("""
+            UPDATE hero_content
+            SET
+                badge_enabled = COALESCE(NULLIF(badge_enabled, false), true),
+                badge_text = COALESCE(NULLIF(badge_text, ''), 'Eco-Friendly'),
+                badge_bg_color = COALESCE(NULLIF(badge_bg_color, ''), '#ffffff'),
+                badge_text_color = COALESCE(NULLIF(badge_text_color, ''), '#000000')
+            WHERE id = 1 AND (badge_enabled IS NULL OR badge_enabled = false OR badge_text IS NULL OR badge_text = '')
+        """)
+    else:  # MySQL
+        cursor.execute("""
+            UPDATE hero_content
+            SET
+                badge_enabled = COALESCE(IF(badge_enabled = 0 OR badge_enabled IS NULL, 1, badge_enabled), 1),
+                badge_text = COALESCE(IF(badge_text IS NULL OR badge_text = '', 'Eco-Friendly', badge_text), 'Eco-Friendly'),
+                badge_bg_color = COALESCE(IF(badge_bg_color IS NULL OR badge_bg_color = '', '#ffffff', badge_bg_color), '#ffffff'),
+                badge_text_color = COALESCE(IF(badge_text_color IS NULL OR badge_text_color = '', '#000000', badge_text_color), '#000000')
+            WHERE id = 1 AND (badge_enabled IS NULL OR badge_enabled = 0 OR badge_text IS NULL OR badge_text = '')
+        """)
 
     conn.commit()
     cursor.close()
