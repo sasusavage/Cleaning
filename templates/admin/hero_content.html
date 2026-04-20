@@ -213,6 +213,39 @@
             <button type="submit" class="btn btn-primary">Save Hero Content</button>
         </div>
     </form>
+
+    <!-- Trust Badges Management -->
+    <div class="card" style="margin-top: 3rem; border-top: 2px solid #e5e7eb; padding-top: 2rem;">
+        <h2>Trust Badges</h2>
+        <p style="font-size: 0.9rem; color: #6b7280; margin-bottom: 1.5rem;">Upload accreditation/certification logos shown on the hero section.</p>
+
+        {% if hero_badges %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+            {% for badge in hero_badges %}
+            <div style="border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 0.75rem; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; background: #f9fafb;">
+                <img src="{{ badge.image_path | media_url }}" alt="Badge {{ loop.index }}" style="max-width: 100%; max-height: 80px; object-fit: contain;">
+                <form method="post" style="width: 100%;">
+                    <input type="hidden" name="form_id" value="badge_delete">
+                    <input type="hidden" name="badge_id" value="{{ badge.id }}">
+                    <button type="submit" class="btn" style="width: 100%; padding: 0.4rem; font-size: 0.8rem; background: #ef4444; color: #fff; border-radius: 0.4rem;" onclick="return confirm('Remove this badge?');">Remove</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data">
+            <input type="hidden" name="form_id" value="badge_upload">
+            <div class="form-group">
+                <label for="badge_image">Upload New Badge Image</label>
+                <input type="file" id="badge_image" name="image" accept="image/*" required>
+                <div class="hint">JPG, PNG, or WebP. Recommended: 200×100px or similar aspect ratio.</div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Upload Badge</button>
+            </div>
+        </form>
+    </div>
 </div>
 </body>
 </html>
