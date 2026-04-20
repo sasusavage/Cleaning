@@ -61,7 +61,7 @@
             <div class="grid">
                 <div class="form-group">
                     <label for="announcement_text">Text</label>
-                    <input type="text" id="announcement_text" name="announcement_text" value="{{ hero.announcement_text or 'FREE DELIVERY' }}" placeholder="FREE DELIVERY">
+                    <input type="text" id="announcement_text" name="announcement_text" value="{{ hero.announcement_text or 'FREE ESTIMATES • INSURED & BONDED' }}" placeholder="FREE ESTIMATES • INSURED & BONDED">
                 </div>
                 <div class="form-group">
                     <label for="announcement_bg_color">Background Color</label>
@@ -75,15 +75,15 @@
             <h2>Content</h2>
             <div class="form-group">
                 <label for="editorial_label">Editorial Label</label>
-                <input type="text" id="editorial_label" name="editorial_label" value="{{ hero.editorial_label or 'Spring Collection' }}"placeholder="e.g. Spring Collection">
+                <input type="text" id="editorial_label" name="editorial_label" value="{{ hero.editorial_label or 'Professional Cleaning' }}" placeholder="e.g. Professional Cleaning">
             </div>
             <div class="form-group">
                 <label for="title">Title</label>
-                <input type="text" id="title" name="title" value="{{ hero.title or 'Editorial Excellence' }}" placeholder="Main headline">
+                <input type="text" id="title" name="title" value="{{ hero.title or 'Your Space, Perfectly Clean' }}" placeholder="Main headline">
             </div>
             <div class="form-group grid-full">
                 <label for="subtitle">Subtitle</label>
-                <textarea id="subtitle" name="subtitle" placeholder="Supporting text">{{ hero.subtitle or 'Premium collections, curated with care.' }}</textarea>
+                <textarea id="subtitle" name="subtitle" placeholder="Supporting text">{{ hero.subtitle or 'Trusted cleaning services for homes and businesses. Reliable, thorough, and eco-friendly.' }}</textarea>
             </div>
         </div>
 
@@ -93,19 +93,19 @@
             <div class="grid">
                 <div class="form-group">
                     <label for="cta_primary_text">Primary Button Text</label>
-                    <input type="text" id="cta_primary_text" name="cta_primary_text" value="{{ hero.cta_primary_text or 'Explore' }}">
+                    <input type="text" id="cta_primary_text" name="cta_primary_text" value="{{ hero.cta_primary_text or 'Book Now' }}">
                 </div>
                 <div class="form-group">
                     <label for="cta_primary_link">Primary Button Link</label>
-                    <input type="text" id="cta_primary_link" name="cta_primary_link" value="{{ hero.cta_primary_link or '/collections' }}">
+                    <input type="text" id="cta_primary_link" name="cta_primary_link" value="{{ hero.cta_primary_link or '/services' }}">
                 </div>
                 <div class="form-group">
                     <label for="cta_secondary_text">Secondary Button Text</label>
-                    <input type="text" id="cta_secondary_text" name="cta_secondary_text" value="{{ hero.cta_secondary_text or 'Learn More' }}">
+                    <input type="text" id="cta_secondary_text" name="cta_secondary_text" value="{{ hero.cta_secondary_text or 'Get Quote' }}">
                 </div>
                 <div class="form-group">
                     <label for="cta_secondary_link">Secondary Button Link</label>
-                    <input type="text" id="cta_secondary_link" name="cta_secondary_link" value="{{ hero.cta_secondary_link or '#about' }}">
+                    <input type="text" id="cta_secondary_link" name="cta_secondary_link" value="{{ hero.cta_secondary_link or '#contact' }}">
                 </div>
             </div>
         </div>
@@ -118,7 +118,7 @@
             </div> <div class="grid">
                 <div class="form-group">
                     <label for="badge_text">Badge Text</label>
-                    <input type="text" id="badge_text" name="badge_text" value="{{ hero.badge_text or 'Limited Drops' }}">
+                    <input type="text" id="badge_text" name="badge_text" value="{{ hero.badge_text or 'Eco-Friendly' }}">
                 </div>
                 <div class="form-group">
                     <label for="badge_bg_color">Background</label>
@@ -137,23 +137,23 @@
                 </div>
                 <div class="form-group">
                     <label for="stat1_label">Stat 1 Label</label>
-                    <input type="text" id="stat1_label" name="stat1_label" value="{{ hero.stat1_label or 'Premium Quality' }}" placeholder="Premium Quality">
+                    <input type="text" id="stat1_label" name="stat1_label" value="{{ hero.stat1_label or 'Client Satisfaction' }}" placeholder="Client Satisfaction">
                 </div>
                 <div class="form-group">
                     <label for="stat2_value">Stat 2 Value</label>
-                    <input type="text" id="stat2_value" name="stat2_value" value="{{ hero.stat2_value or '150+' }}" placeholder="150+">
+                    <input type="text" id="stat2_value" name="stat2_value" value="{{ hero.stat2_value or '1000+' }}" placeholder="1000+">
                 </div>
                 <div class="form-group">
                     <label for="stat2_label">Stat 2 Label</label>
-                    <input type="text" id="stat2_label" name="stat2_label" value="{{ hero.stat2_label or 'Global Reach' }}" placeholder="Global Reach">
+                    <input type="text" id="stat2_label" name="stat2_label" value="{{ hero.stat2_label or 'Homes Served' }}" placeholder="Homes Served">
                 </div>
                 <div class="form-group">
                     <label for="stat3_value">Stat 3 Value</label>
-                    <input type="text" id="stat3_value" name="stat3_value" value="{{ hero.stat3_value or 'Always' }}" placeholder="Always">
+                    <input type="text" id="stat3_value" name="stat3_value" value="{{ hero.stat3_value or 'Available' }}" placeholder="Available">
                 </div>
                 <div class="form-group">
                     <label for="stat3_label">Stat 3 Label</label>
-                    <input type="text" id="stat3_label" name="stat3_label" value="{{ hero.stat3_label or '24/7 Support' }}" placeholder="24/7 Support">
+                    <input type="text" id="stat3_label" name="stat3_label" value="{{ hero.stat3_label or 'Same-Day Service' }}" placeholder="Same-Day Service">
                 </div>
             </div>
         </div>
