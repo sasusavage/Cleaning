@@ -6120,12 +6120,14 @@ def fetch_hero_content():
             if key in badge_fields:
                 # For badge fields, only use DB value if it's truthy or explicitly set (not None/False/empty)
                 if key == 'badge_enabled':
-                    # Keep default if DB has False/None/0
+                    # Keep default TRUE if DB has False/None/0
                     if value:
                         merged[key] = value
-                elif value:  # For badge_text, badge_bg_color, badge_text_color - skip if empty
+                    else:
+                        merged[key] = True  # Ensure badge is enabled by default
+                elif value and value.strip():  # For badge_text, badge_bg_color, badge_text_color - skip if empty or whitespace
                     merged[key] = value
-            elif value is not None:
+            elif value is not None and (not isinstance(value, str) or value.strip()):  # Skip empty strings for other fields too
                 merged[key] = value
     return merged
 
@@ -6285,21 +6287,21 @@ def ensure_hero_content_schema():
         cursor.execute("""
             UPDATE hero_content
             SET
-                badge_enabled = COALESCE(NULLIF(badge_enabled, false), true),
+                badge_enabled = TRUE,
                 badge_text = COALESCE(NULLIF(badge_text, ''), 'Eco-Friendly'),
                 badge_bg_color = COALESCE(NULLIF(badge_bg_color, ''), '#ffffff'),
                 badge_text_color = COALESCE(NULLIF(badge_text_color, ''), '#000000')
-            WHERE id = 1 AND (badge_enabled IS NULL OR badge_enabled = false OR badge_text IS NULL OR badge_text = '')
+            WHERE id = 1
         """)
     else:  # MySQL
         cursor.execute("""
             UPDATE hero_content
             SET
-                badge_enabled = COALESCE(IF(badge_enabled = 0 OR badge_enabled IS NULL, 1, badge_enabled), 1),
+                badge_enabled = 1,
                 badge_text = COALESCE(IF(badge_text IS NULL OR badge_text = '', 'Eco-Friendly', badge_text), 'Eco-Friendly'),
                 badge_bg_color = COALESCE(IF(badge_bg_color IS NULL OR badge_bg_color = '', '#ffffff', badge_bg_color), '#ffffff'),
                 badge_text_color = COALESCE(IF(badge_text_color IS NULL OR badge_text_color = '', '#000000', badge_text_color), '#000000')
-            WHERE id = 1 AND (badge_enabled IS NULL OR badge_enabled = 0 OR badge_text IS NULL OR badge_text = '')
+            WHERE id = 1
         """)
 
     conn.commit()
@@ -12720,9 +12722,12 @@ def admin_hero_content_page():
                 announcement_bg_color = sanitize_css_color(request.form.get('announcement_bg_color'), '#000000')
                 announcement_text_color = sanitize_css_color(request.form.get('announcement_text_color'), '#ffffff')
                 badge_enabled = str_to_bool(request.form.get('badge_enabled', 'false'))
-                badge_text = sanitize_text(request.form.get('badge_text'), 100)
-                badge_bg_color = sanitize_css_color(request.form.get('badge_bg_color'), '#ffffff')
-                badge_text_color = sanitize_css_color(request.form.get('badge_text_color'), '#000000')
+                badge_text = sanitize_text(request.form.get('badge_text'), 100) or 'Eco-Friendly'
+                badge_bg_color = sanitize_css_color(request.form.get('badge_bg_color'), '#ffffff') or '#ffffff'
+                badge_text_color = sanitize_css_color(request.form.get('badge_text_color'), '#000000') or '#000000'
+                # If checkbox not checked but we have badge text, check it anyway
+                if badge_text and not badge_enabled:
+                    badge_enabled = True
                 stat1_label = sanitize_text(request.form.get('stat1_label'), 100)
                 stat1_value = sanitize_text(request.form.get('stat1_value'), 50)
                 stat2_label = sanitize_text(request.form.get('stat2_label'), 100)
