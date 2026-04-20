@@ -1262,9 +1262,23 @@ body.is-nav-expanded main {
     z-index: -1;
 }
 
-.hero>* {
+.hero__announcement,
+.hero__container,
+.hero__stats,
+.hero__badge-marquee {
     position: relative;
     z-index: 1;
+}
+
+.hero__background {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+}
+
+.hero__floating-badge {
+    position: absolute;
+    z-index: 100;
 }
 
 .hero__content {
@@ -6325,5 +6339,109 @@ html, body, .shell {
     @keyframes badgeMobileScroll {
         0%   { transform: translateX(0); }
         100% { transform: translateX(-50%); }
+    }
+}
+
+/* ===== Unified Hero Responsiveness (final overrides) ===== */
+@media (max-width: 1024px) {
+    .hero[data-layout="balenciaga"] .hero__container {
+        max-width: 100%;
+    }
+
+    .hero__container {
+        padding: 3.5rem 2rem 8.5rem;
+        gap: 1.75rem;
+    }
+
+    .hero__title {
+        font-size: clamp(2.2rem, 6.8vw, 4.4rem);
+    }
+
+    .hero__subtitle {
+        max-width: 100%;
+    }
+
+    .hero__stat {
+        padding: 1.25rem 1.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .hero {
+        min-height: 100svh;
+        min-height: 100vh;
+        justify-content: flex-end;
+    }
+
+    .hero__background {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+    }
+
+    .hero__container {
+        width: 100%;
+        max-width: 100%;
+        padding: 5.5rem 1rem 9.5rem;
+        gap: 1rem;
+        align-items: flex-end;
+    }
+
+    .hero__floating-badge {
+        top: calc(env(safe-area-inset-top, 0px) + 0.9rem);
+        right: 0.75rem;
+        left: auto;
+        max-width: min(76vw, 240px);
+        padding: 0.45rem 0.7rem;
+    }
+
+    .hero__badge-label {
+        font-size: 0.68rem;
+        line-height: 1.35;
+    }
+
+    .hero__title {
+        font-size: clamp(1.7rem, 8.2vw, 2.5rem);
+        line-height: 1.1;
+    }
+
+    .hero__subtitle {
+        font-size: 0.95rem;
+        line-height: 1.45;
+    }
+
+    .hero__ctas {
+        width: 100%;
+    }
+
+    .hero__cta {
+        width: 100%;
+    }
+
+    .hero__stats {
+        grid-template-columns: 1fr;
+    }
+
+    .hero__stat {
+        padding: 0.95rem 1rem;
+    }
+}
+
+@media (max-width: 560px) {
+    .hero__container {
+        padding: 5rem 0.85rem 9rem;
+    }
+
+    .hero__floating-badge {
+        right: 0.6rem;
+        max-width: min(80vw, 220px);
+    }
+
+    .hero__title {
+        font-size: clamp(1.5rem, 9vw, 2.15rem);
+    }
+
+    .hero__subtitle {
+        font-size: 0.9rem;
     }
 }
