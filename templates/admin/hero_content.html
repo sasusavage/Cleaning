@@ -204,8 +204,8 @@
             </div>
             <div class="form-group">
                 <label for="media_brightness_offset">Image Darkening (0 = none, -0.55 = default dark overlay)</label>
-                <input type="range" id="media_brightness_offset" name="media_brightness_offset" min="-1" max="0.5" step="0.05" value="{{ hero.media_brightness_offset or -0.55 }}" oninput="this.nextElementSibling.textContent=this.value">
-                <span>{{ hero.media_brightness_offset or -0.55 }}</span>
+                <input type="range" id="media_brightness_offset" name="media_brightness_offset" min="-1" max="0.5" step="0.05" value="{{ hero.media_brightness_offset if hero.media_brightness_offset is not none else -0.55 }}" oninput="this.nextElementSibling.textContent=this.value">
+                <span>{{ hero.media_brightness_offset if hero.media_brightness_offset is not none else -0.55 }}</span>
             </div>
         </div>
 

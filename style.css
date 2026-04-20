@@ -971,7 +971,9 @@ body.is-nav-expanded main {
   z-index: 100;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
   font-weight: 600;
-  white-space: nowrap;
+  white-space: normal;
+  word-wrap: break-word;
+  max-width: 200px;
 }
 
 .hero__badge-label {
@@ -1182,8 +1184,12 @@ body.is-nav-expanded main {
   .hero__floating-badge {
     top: 5rem;
     right: 1rem;
-    padding: 0.5rem 0.85rem;
+    left: auto;
+    padding: 0.5rem 0.75rem;
     font-size: 0.7rem;
+    max-width: calc(100vw - 2rem);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 
   .hero__container {
