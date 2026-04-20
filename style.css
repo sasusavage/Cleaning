@@ -1258,7 +1258,7 @@ body.is-nav-expanded main {
     content: "";
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, var(--hero-overlay-opacity, 0.35));
+    background: transparent;
     z-index: -1;
 }
 
