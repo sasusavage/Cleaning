@@ -4356,23 +4356,23 @@ body {
         overflow: hidden;
     }
 
-    /* Stronger dark gradient for readability */
+    /* Overlay handled by .hero__overlay div — keep ::after transparent */
     .hero::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(
-            to top,
-            rgba(5, 10, 20, 0.90) 0%,
-            rgba(5, 10, 20, 0.60) 45%,
-            rgba(5, 10, 20, 0.25) 100%
-        );
-        z-index: 0;
+        background: transparent;
+        z-index: -1;
     }
 
     .hero > * {
         position: relative;
         z-index: 1;
+    }
+
+    /* Restore absolute positioning for the floating badge — must NOT be relative */
+    .hero__floating-badge {
+        position: absolute;
+        top: 5rem;
+        right: 1rem;
+        z-index: 100;
     }
 
     /* Hide badge marquee on mobile — clutters the hero */
@@ -4590,16 +4590,10 @@ body {
         text-align: left;
     }
 
-    /* Stronger dark gradient so text pops on any photo */
+    /* Overlay handled by .hero__overlay div — keep ::after transparent */
     .hero::after {
-        background: linear-gradient(
-            to bottom,
-            rgba(0,0,0,0.15) 0%,
-            rgba(0,0,0,0.35) 40%,
-            rgba(0,0,0,0.72) 75%,
-            rgba(0,0,0,0.82) 100%
-        );
-        z-index: 0;
+        background: transparent;
+        z-index: -1;
     }
 
     .hero::before {
