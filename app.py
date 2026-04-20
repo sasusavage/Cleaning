@@ -456,6 +456,7 @@ _DANGEROUS_ATTRS_RE = re.compile(
     re.IGNORECASE
 )
 _DANGEROUS_HREF_RE = re.compile(r'href\s*=\s*["\']?\s*javascript:', re.IGNORECASE)
+_EMAIL_RE = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
 
 def sanitize_rich_html(value, max_length=200000):
     """Strip dangerous tags/attributes from admin rich-text HTML."""

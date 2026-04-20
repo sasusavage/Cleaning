@@ -1365,9 +1365,8 @@ body.is-nav-expanded main {
     font-size: clamp(2.2rem, 6vw, min(var(--hero-title-size, 72px), 84px));
     font-weight: var(--hero-title-weight, 800);
     line-height: 1.05;
-    color: var(--hero-title-color, #2563eb);
-    text-shadow: 0 2px 8px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.6);
-    transform: translate(var(--hero-title-x, 0px), var(--hero-title-y, 0px));
+    color: var(--hero-title-color, #fff);
+    text-shadow: none;
     max-width: 100%;
     white-space: normal;
     overflow-wrap: anywhere;
@@ -1424,7 +1423,6 @@ body.is-nav-expanded main {
 
 .hero__cta {
     margin-top: 1rem;
-    transform: translate(var(--hero-cta-x, 0px), var(--hero-cta-y, 0px));
 }
 
 .hero__visual {
