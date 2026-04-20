@@ -4362,9 +4362,17 @@ body {
         z-index: -1;
     }
 
-    .hero > * {
+    .hero__announcement,
+    .hero__container,
+    .hero__stats {
         position: relative;
         z-index: 1;
+    }
+
+    .hero__background {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
     }
 
     /* Restore absolute positioning for the floating badge — must NOT be relative */
