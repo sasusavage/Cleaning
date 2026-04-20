@@ -161,18 +161,51 @@
         <!-- Media -->
         <div class="card">
             <h2>Background Media</h2>
+
+            {% if hero and hero.media_url %}
             <div class="form-group">
-                <label for="media_url">Media URL (Image or Video)</label>
-                <input type="text" id="media_url" name="media_url" value="{{ hero.media_url or '' }}" placeholder="/uploads/hero.jpg or https://example.com/video.mp4">
-                <div class="hint">Supports: /path/to/image.jpg, https://cloudinary.url, or data URIs</div>
+                <label>Current Background</label>
+                {% if hero.media_type == 'video' %}
+                <video src="{{ hero.media_url | media_url }}" style="max-width:100%;max-height:200px;display:block;border-radius:6px;" muted></video>
+                {% else %}
+                <img src="{{ hero.media_url | media_url }}" alt="Current hero background" style="max-width:100%;max-height:200px;display:block;border-radius:6px;object-fit:cover;">
+                {% endif %}
+                <label style="margin-top:0.5rem;display:flex;align-items:center;gap:0.5rem;font-weight:400;">
+                    <input type="checkbox" name="remove_media" value="true"> Remove current media
+                </label>
             </div>
+            {% endif %}
+
+            <input type="hidden" name="existing_media_url" value="{{ hero.media_url or '' }}">
+
+            <div class="form-group">
+                <label for="media_file">Upload New Image or Video</label>
+                <input type="file" id="media_file" name="media_file" accept="image/*,video/mp4,video/webm">
+                <div class="hint">JPG, PNG, WebP, or MP4. Uploads to Cloudinary or local storage.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="media_url">Or paste a URL</label>
+                <input type="text" id="media_url" name="media_url" value="" placeholder="https://... or /uploads/hero.jpg">
+                <div class="hint">Leave blank if uploading a file above. Uploaded file takes priority.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="media_type">Media Type</label>
+                <select id="media_type" name="media_type">
+                    <option value="image" {% if not hero or hero.media_type != 'video' %}selected{% endif %}>Image</option>
+                    <option value="video" {% if hero and hero.media_type == 'video' %}selected{% endif %}>Video</option>
+                </select>
+            </div>
+
             <div class="form-group">
                 <label for="hero_bg_color">Fallback Background Color</label>
                 <input type="color" id="hero_bg_color" name="hero_bg_color" value="{{ hero.hero_bg_color or '#000000' }}">
             </div>
             <div class="form-group">
-                <label for="media_brightness_offset">Brightness (-1 to 1)</label>
-                <input type="number" id="media_brightness_offset" name="media_brightness_offset" min="-1" max="1" step="0.1" value="{{ hero.media_brightness_offset or -0.55 }}">
+                <label for="media_brightness_offset">Image Darkening (0 = none, -0.55 = default dark overlay)</label>
+                <input type="range" id="media_brightness_offset" name="media_brightness_offset" min="-1" max="0.5" step="0.05" value="{{ hero.media_brightness_offset or -0.55 }}" oninput="this.nextElementSibling.textContent=this.value">
+                <span>{{ hero.media_brightness_offset or -0.55 }}</span>
             </div>
         </div>
 

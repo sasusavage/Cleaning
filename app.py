@@ -12670,199 +12670,90 @@ def admin_hero_content_page():
         try:
             if form_id == 'hero':
                 ensure_hero_content_schema()
-                title = sanitize_text(request.form.get('title'), 255)
-                subtitle = sanitize_text(request.form.get('subtitle'), 255)
-                tagline = sanitize_text(request.form.get('tagline'), 255)
-                small_text_line1 = sanitize_text(request.form.get('small_text_line1'), 255)
-                small_text_line2 = sanitize_text(request.form.get('small_text_line2'), 255)
-                small_text_line3 = sanitize_text(request.form.get('small_text_line3'), 255)
-                def _parse_weight(v):
-                    try:
-                        n = int(str(v).strip())
-                        # Round to nearest 100, clamp 100–900
-                        n = max(100, min(900, round(n / 100) * 100))
-                        return n
-                    except (TypeError, ValueError):
-                        return None
-                small_text_line1_pct = _parse_weight(request.form.get('small_text_line1_pct'))
-                small_text_line2_pct = _parse_weight(request.form.get('small_text_line2_pct'))
-                small_text_line3_pct = _parse_weight(request.form.get('small_text_line3_pct'))
-                meta_font_size = sanitize_int_range(request.form.get('meta_font_size'), 16, 10, 32)
-                meta_font_weight = sanitize_int_range(request.form.get('meta_font_weight'), 700, 300, 900)
-                stat1_text = sanitize_text(request.form.get('stat1_text'), 255)
-                stat2_text = sanitize_text(request.form.get('stat2_text'), 255)
-                stat3_text = sanitize_text(request.form.get('stat3_text'), 255)
-                content_offset_x = sanitize_int_range(request.form.get('content_offset_x'), 0, -420, 420)
-                content_offset_y = sanitize_int_range(request.form.get('content_offset_y'), 0, -220, 220)
-                tagline_offset_x = sanitize_int_range(request.form.get('tagline_offset_x'), 0, -320, 320)
-                tagline_offset_y = sanitize_int_range(request.form.get('tagline_offset_y'), 0, -220, 220)
-                title_offset_x = sanitize_int_range(request.form.get('title_offset_x'), 0, -320, 320)
-                title_offset_y = sanitize_int_range(request.form.get('title_offset_y'), 0, -220, 220)
-                subtitle_offset_x = sanitize_int_range(request.form.get('subtitle_offset_x'), 0, -320, 320)
-                subtitle_offset_y = sanitize_int_range(request.form.get('subtitle_offset_y'), 0, -220, 220)
-                cta_offset_x = sanitize_int_range(request.form.get('cta_offset_x'), 0, -320, 320)
-                cta_offset_y = sanitize_int_range(request.form.get('cta_offset_y'), 0, -220, 220)
-                meta_offset_x = sanitize_int_range(request.form.get('meta_offset_x'), 0, -320, 320)
-                meta_offset_y = sanitize_int_range(request.form.get('meta_offset_y'), 0, -220, 220)
-                card1_offset_x = sanitize_int_range(request.form.get('card1_offset_x'), 0, -220, 220)
-                card1_offset_y = sanitize_int_range(request.form.get('card1_offset_y'), 0, -220, 220)
-                card2_offset_x = sanitize_int_range(request.form.get('card2_offset_x'), 0, -220, 220)
-                card2_offset_y = sanitize_int_range(request.form.get('card2_offset_y'), 0, -220, 220)
-                card3_offset_x = sanitize_int_range(request.form.get('card3_offset_x'), 0, -220, 220)
-                card3_offset_y = sanitize_int_range(request.form.get('card3_offset_y'), 0, -220, 220)
-                tagline_bg_color = sanitize_css_color(request.form.get('tagline_bg_color'), '#16a34a', allow_empty=True)
-                tagline_text_color = sanitize_css_color(request.form.get('tagline_text_color'), '#ffffff')
-                title_color = sanitize_css_color(request.form.get('title_color'), '#2563eb')
-                title_size_px = sanitize_int_range(request.form.get('title_size_px'), 72, 34, 84)
-                title_weight = sanitize_int_range(request.form.get('title_weight'), 800, 400, 900)
+                # Slidin GH fields
+                layout_mode = validate_layout_mode(request.form.get('layout_mode'), 'balenciaga')
+                editorial_label = sanitize_text(request.form.get('editorial_label'), 100)
+                title = sanitize_text(request.form.get('title'), 500)
+                subtitle = sanitize_text(request.form.get('subtitle'), 500)
+                title_color = sanitize_css_color(request.form.get('title_color'), '#ffffff')
                 subtitle_color = sanitize_css_color(request.form.get('subtitle_color'), '#ffffff')
-                subtitle_size_px = sanitize_int_range(request.form.get('subtitle_size_px'), 18, 14, 24)
-                subtitle_weight = sanitize_int_range(request.form.get('subtitle_weight'), 600, 300, 900)
-                content_bg_color = sanitize_css_color(request.form.get('content_bg_color'), '', allow_empty=True)
-                meta_text_color = sanitize_css_color(request.form.get('meta_text_color'), '#ffffff')
-                meta_bg_color = sanitize_css_color(request.form.get('meta_bg_color'), '#16a34a', allow_empty=True)
-                hero_bg_color = sanitize_css_color(request.form.get('hero_bg_color'), '#0f172a')
+                cta_primary_text = sanitize_text(request.form.get('cta_primary_text'), 100)
+                cta_primary_link = sanitize_text(request.form.get('cta_primary_link'), 255)
+                cta_secondary_text = sanitize_text(request.form.get('cta_secondary_text'), 100)
+                cta_secondary_link = sanitize_text(request.form.get('cta_secondary_link'), 255)
+                announcement_bar_enabled = str_to_bool(request.form.get('announcement_bar_enabled', 'false'))
+                announcement_text = sanitize_text(request.form.get('announcement_text'), 255)
+                announcement_bg_color = sanitize_css_color(request.form.get('announcement_bg_color'), '#000000')
+                announcement_text_color = sanitize_css_color(request.form.get('announcement_text_color'), '#ffffff')
+                badge_enabled = str_to_bool(request.form.get('badge_enabled', 'false'))
+                badge_text = sanitize_text(request.form.get('badge_text'), 100)
+                badge_bg_color = sanitize_css_color(request.form.get('badge_bg_color'), '#ffffff')
+                badge_text_color = sanitize_css_color(request.form.get('badge_text_color'), '#000000')
+                stat1_label = sanitize_text(request.form.get('stat1_label'), 100)
+                stat1_value = sanitize_text(request.form.get('stat1_value'), 50)
+                stat2_label = sanitize_text(request.form.get('stat2_label'), 100)
+                stat2_value = sanitize_text(request.form.get('stat2_value'), 50)
+                stat3_label = sanitize_text(request.form.get('stat3_label'), 100)
+                stat3_value = sanitize_text(request.form.get('stat3_value'), 50)
+                stats_bg_color = sanitize_text(request.form.get('stats_bg_color'), 60) or 'rgba(0,0,0,0.5)'
+                hero_bg_color = sanitize_css_color(request.form.get('hero_bg_color'), '#000000')
                 try:
-                    _ov = float(request.form.get('hero_overlay_opacity', 0.35))
-                    hero_overlay_opacity = round(max(0.0, min(1.0, _ov)), 2)
+                    _br = float(request.form.get('media_brightness_offset', -0.55))
+                    media_brightness_offset = round(max(-1.0, min(1.0, _br)), 2)
                 except (TypeError, ValueError):
-                    hero_overlay_opacity = 0.35
-                meta_border_color = sanitize_css_color(request.form.get('meta_border_color'), '#16a34a')
-                meta_pct_color = sanitize_css_color(request.form.get('meta_pct_color'), '#4ade80')
-                cta_text = sanitize_text(request.form.get('cta_text'), 100) or 'See Reviews'
-                cta_link = sanitize_text(request.form.get('cta_link'), 255) or '#testimonials'
-                existing_background = request.form.get('existing_background', '').strip()
-                remove_background = str_to_bool(request.form.get('remove_background', 'false'))
+                    media_brightness_offset = -0.55
+                media_type = 'video' if request.form.get('media_type') == 'video' else 'image'
 
-                background_file = request.files.get('background_image')
-                has_new_background = bool(background_file and background_file.filename)
-
-                try:
-                    background_image = upload_hero_background(existing_background)
-                except ValueError as exc:
-                    raise ValueError(str(exc))
-
-                if remove_background and not has_new_background:
-                    background_image = ''
+                # Handle media upload or URL
+                existing_media_url = request.form.get('existing_media_url', '').strip()
+                remove_media = str_to_bool(request.form.get('remove_media', 'false'))
+                uploaded_media_url = handle_upload('media_file', HERO_UPLOAD_FOLDER, existing_media_url)
+                if remove_media and not request.files.get('media_file'):
+                    media_url = None
+                else:
+                    media_url = uploaded_media_url or sanitize_media_url(request.form.get('media_url'), existing_media_url) or existing_media_url or None
 
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute(
                     """
                     UPDATE hero_content SET
-                        title=%s,
-                        subtitle=%s,
-                        tagline=%s,
-                        small_text_line1=%s,
-                        small_text_line2=%s,
-                        small_text_line3=%s,
-                        stat1_text=%s,
-                        stat2_text=%s,
-                        stat3_text=%s,
-                        hero_background_image=%s,
-                        content_offset_x=%s,
-                        content_offset_y=%s,
-                        tagline_offset_x=%s,
-                        tagline_offset_y=%s,
-                        title_offset_x=%s,
-                        title_offset_y=%s,
-                        subtitle_offset_x=%s,
-                        subtitle_offset_y=%s,
-                        cta_offset_x=%s,
-                        cta_offset_y=%s,
-                        meta_offset_x=%s,
-                        meta_offset_y=%s,
-                        card1_offset_x=%s,
-                        card1_offset_y=%s,
-                        card2_offset_x=%s,
-                        card2_offset_y=%s,
-                        card3_offset_x=%s,
-                        card3_offset_y=%s,
-                        tagline_bg_color=%s,
-                        tagline_text_color=%s,
-                        title_color=%s,
-                        title_size_px=%s,
-                        title_weight=%s,
-                        subtitle_color=%s,
-                        subtitle_size_px=%s,
-                        subtitle_weight=%s,
-                        content_bg_color=%s,
-                        meta_text_color=%s,
-                        meta_bg_color=%s,
-                        small_text_line1_pct=%s,
-                        small_text_line2_pct=%s,
-                        small_text_line3_pct=%s,
-                        meta_font_size=%s,
-                        meta_font_weight=%s,
-                        hero_bg_color=%s,
-                        hero_overlay_opacity=%s,
-                        meta_border_color=%s,
-                        meta_pct_color=%s,
-                        cta_text=%s,
-                        cta_link=%s
+                        layout_mode=%s, editorial_label=%s,
+                        title=%s, title_color=%s,
+                        subtitle=%s, subtitle_color=%s,
+                        cta_primary_text=%s, cta_primary_link=%s,
+                        cta_secondary_text=%s, cta_secondary_link=%s,
+                        announcement_bar_enabled=%s, announcement_text=%s,
+                        announcement_bg_color=%s, announcement_text_color=%s,
+                        badge_enabled=%s, badge_text=%s,
+                        badge_bg_color=%s, badge_text_color=%s,
+                        stat1_label=%s, stat1_value=%s,
+                        stat2_label=%s, stat2_value=%s,
+                        stat3_label=%s, stat3_value=%s,
+                        stats_bg_color=%s, hero_bg_color=%s,
+                        media_brightness_offset=%s, media_type=%s, media_url=%s
                     WHERE id = 1
                     """,
                     (
-                        title,
-                        subtitle,
-                        tagline,
-                        small_text_line1,
-                        small_text_line2,
-                        small_text_line3,
-                        stat1_text,
-                        stat2_text,
-                        stat3_text,
-                        background_image or None,
-                        content_offset_x,
-                        content_offset_y,
-                        tagline_offset_x,
-                        tagline_offset_y,
-                        title_offset_x,
-                        title_offset_y,
-                        subtitle_offset_x,
-                        subtitle_offset_y,
-                        cta_offset_x,
-                        cta_offset_y,
-                        meta_offset_x,
-                        meta_offset_y,
-                        card1_offset_x,
-                        card1_offset_y,
-                        card2_offset_x,
-                        card2_offset_y,
-                        card3_offset_x,
-                        card3_offset_y,
-                        tagline_bg_color,
-                        tagline_text_color,
-                        title_color,
-                        title_size_px,
-                        title_weight,
-                        subtitle_color,
-                        subtitle_size_px,
-                        subtitle_weight,
-                        content_bg_color or None,
-                        meta_text_color,
-                        meta_bg_color,
-                        small_text_line1_pct,
-                        small_text_line2_pct,
-                        small_text_line3_pct,
-                        meta_font_size,
-                        meta_font_weight,
-                        hero_bg_color,
-                        hero_overlay_opacity,
-                        meta_border_color,
-                        meta_pct_color,
-                        cta_text,
-                        cta_link
+                        layout_mode, editorial_label,
+                        title, title_color,
+                        subtitle, subtitle_color,
+                        cta_primary_text, cta_primary_link,
+                        cta_secondary_text, cta_secondary_link,
+                        announcement_bar_enabled, announcement_text,
+                        announcement_bg_color, announcement_text_color,
+                        badge_enabled, badge_text,
+                        badge_bg_color, badge_text_color,
+                        stat1_label, stat1_value,
+                        stat2_label, stat2_value,
+                        stat3_label, stat3_value,
+                        stats_bg_color, hero_bg_color,
+                        media_brightness_offset, media_type, media_url
                     )
                 )
                 conn.commit()
                 cursor.close()
                 conn.close()
-
-                if has_new_background and existing_background and background_image and background_image != existing_background:
-                    delete_uploaded_file(existing_background)
-                elif remove_background and not has_new_background and existing_background:
-                    delete_uploaded_file(existing_background)
 
                 redirect_params['message'] = 'Hero content updated.'
 
