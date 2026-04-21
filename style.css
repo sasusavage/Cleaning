@@ -6343,6 +6343,20 @@ html, body, .shell {
 }
 
 /* ===== Unified Hero Responsiveness (final overrides) ===== */
+.hero {
+    width: 100vw;
+    max-width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+}
+
+.hero-badges-mobile {
+    width: 100vw;
+    max-width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+}
+
 @media (max-width: 1024px) {
     .hero[data-layout="balenciaga"] .hero__container {
         max-width: 100%;
