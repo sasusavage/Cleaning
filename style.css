@@ -1262,12 +1262,19 @@ body.is-nav-expanded main {
     z-index: -1;
 }
 
-.hero__announcement,
 .hero__container,
-.hero__stats,
-.hero__badge-marquee {
+.hero__stats {
     position: relative;
     z-index: 1;
+}
+
+.hero__announcement {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: 10;
 }
 
 .hero__background {
@@ -1279,6 +1286,14 @@ body.is-nav-expanded main {
 .hero__floating-badge {
     position: absolute;
     z-index: 100;
+}
+
+.hero__badge-marquee {
+    position: absolute;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: 4;
 }
 
 .hero__content {
@@ -4376,11 +4391,19 @@ body {
         z-index: -1;
     }
 
-    .hero__announcement,
     .hero__container,
     .hero__stats {
         position: relative;
         z-index: 1;
+    }
+
+    .hero__announcement {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        z-index: 10;
     }
 
     .hero__background {
@@ -4398,7 +4421,7 @@ body {
     }
 
     /* Hide badge marquee on mobile — clutters the hero */
-    .hero .badge-marquee {
+    .hero__badge-marquee {
         display: none;
     }
 
