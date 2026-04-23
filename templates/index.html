@@ -312,6 +312,15 @@
                 fetchpriority="{{ 'high' if loop.index <= 2 else 'auto' }}"
                 decoding="async">
       {% endfor %}
+            {% for badge in hero_badges %}
+            <img
+                class="hero__badge-image"
+                src="{{ badge.image_path | media_url }}"
+                alt="Badge {{ loop.index }}"
+                loading="lazy"
+                decoding="async"
+                aria-hidden="true">
+            {% endfor %}
     </div>
   </div>
   {% endif %}

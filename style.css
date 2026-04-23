@@ -6380,6 +6380,19 @@ html, body, .shell {
     margin-right: calc(50% - 50vw);
 }
 
+.hero__stats,
+.hero__badge-marquee {
+    width: 100vw;
+    max-width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+}
+
+.hero__marquee-inner {
+    width: max-content;
+    min-width: 100%;
+}
+
 @media (max-width: 1024px) {
     .hero[data-layout="balenciaga"] .hero__container {
         max-width: 100%;
