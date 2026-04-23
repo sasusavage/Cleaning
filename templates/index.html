@@ -304,7 +304,13 @@
   <div class="hero__badge-marquee" aria-label="Trust badges">
     <div class="hero__marquee-inner">
       {% for badge in hero_badges %}
-      <img class="hero__badge-image" src="{{ badge.image_path | media_url }}" alt="Badge {{ loop.index }}" loading="lazy">
+            <img
+                class="hero__badge-image"
+                src="{{ badge.image_path | media_url }}"
+                alt="Badge {{ loop.index }}"
+                loading="{{ 'eager' if loop.index <= 4 else 'lazy' }}"
+                fetchpriority="{{ 'high' if loop.index <= 2 else 'auto' }}"
+                decoding="async">
       {% endfor %}
     </div>
   </div>
@@ -318,12 +324,22 @@
                 <div class="hero-badges-mobile__inner">
                     {% for badge in hero_badges[:10] %}
                     <div class="hero-badges-mobile__item">
-                        <img src="{{ badge.image_path | media_url }}" alt="Certification badge {{ loop.index }}" loading="lazy">
+                        <img
+                            src="{{ badge.image_path | media_url }}"
+                            alt="Certification badge {{ loop.index }}"
+                            loading="{{ 'eager' if loop.index <= 4 else 'lazy' }}"
+                            fetchpriority="{{ 'high' if loop.index <= 2 else 'auto' }}"
+                            decoding="async">
                     </div>
                     {% endfor %}
                     {% for badge in hero_badges[:10] %}
                     <div class="hero-badges-mobile__item">
-                        <img src="{{ badge.image_path | media_url }}" alt="Certification badge {{ loop.index }}" loading="lazy" aria-hidden="true">
+                        <img
+                            src="{{ badge.image_path | media_url }}"
+                            alt="Certification badge {{ loop.index }}"
+                            loading="lazy"
+                            decoding="async"
+                            aria-hidden="true">
                     </div>
                     {% endfor %}
                 </div>
