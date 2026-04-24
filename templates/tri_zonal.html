@@ -19,6 +19,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
         *, *::before, *::after { box-sizing: border-box; }
         body { margin: 0; font-family: 'Inter', Arial, sans-serif; background: #f8fafc; color: #1f2937; }
@@ -121,15 +122,7 @@
     </style>
 </head>
 <body>
-    <nav class="tz-nav">
-        <a class="tz-nav__brand" href="/">{{ company_name }}</a>
-        <div class="tz-nav__links">
-            <a href="/">Home</a>
-            <a href="/services">Services</a>
-            <a href="/tri-zonal" style="color:#16a34a;font-weight:600;">{{ tz_title }}</a>
-            <a href="/blog">Blog</a>
-        </div>
-    </nav>
+    {% include 'nav.html' %}
 
     <!-- Hero with scalable background image -->
     <header class="tz-hero" id="tz-hero">

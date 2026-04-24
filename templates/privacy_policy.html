@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://app.termly.io/resource-blocker/419d7b8d-1457-4e96-aaa8-2068fe8f1863?autoBlock=on"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; }
@@ -37,15 +38,7 @@
     </style>
 </head>
 <body>
-    <nav class="policy-nav">
-        <a href="/">← Back to {{ company_name }}</a>
-        <span class="sep">·</span>
-        <a href="/terms-of-service">Terms of Service</a>
-        <span class="sep">·</span>
-        <a href="/cookie-policy">Cookie Policy</a>
-        <span class="sep">·</span>
-        <a href="#" class="termly-display-preferences">Cookie Preferences</a>
-    </nav>
+    {% include 'nav.html' %}
     <div class="policy-wrap">
         <div class="policy-card">
 <style>

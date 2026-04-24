@@ -13311,18 +13311,22 @@ def admin_applications():
 @app.route('/privacy-policy')
 def privacy_policy():
     site_settings = {}
+    footer_info = {}
     try:
         site_settings = fetch_site_settings() or {}
+        footer_info = fetch_footer_info() or {}
     except Exception:
         pass
-    return render_template('privacy_policy.html', site_settings=site_settings)
+    return render_template('privacy_policy.html', site_settings=site_settings, footer_info=footer_info, services=[])
 
 
 @app.route('/terms-of-service')
 def terms_of_service():
     site_settings = {}
+    footer_info = {}
     try:
         site_settings = fetch_site_settings() or {}
+        footer_info = fetch_footer_info() or {}
         content = fetch_site_content() or {}
         tos_data = content.get('terms_of_service')
         if isinstance(tos_data, dict):
@@ -13331,17 +13335,19 @@ def terms_of_service():
             site_settings['_terms_content'] = tos_data
     except Exception:
         pass
-    return render_template('terms_of_service.html', site_settings=site_settings)
+    return render_template('terms_of_service.html', site_settings=site_settings, footer_info=footer_info, services=[])
 
 
 @app.route('/cookie-policy')
 def cookie_policy():
     site_settings = {}
+    footer_info = {}
     try:
         site_settings = fetch_site_settings() or {}
+        footer_info = fetch_footer_info() or {}
     except Exception:
         pass
-    return render_template('cookie_policy.html', site_settings=site_settings)
+    return render_template('cookie_policy.html', site_settings=site_settings, footer_info=footer_info, services=[])
 
 
 # ============================================================
@@ -13429,9 +13435,14 @@ def _blog_unique_slug(base_slug, exclude_id=None):
 @app.route('/tri-zonal')
 def tri_zonal_page():
     site_settings = fetch_site_settings() or {}
+    footer_info = {}
+    try:
+        footer_info = fetch_footer_info() or {}
+    except Exception:
+        pass
     content = fetch_site_content() or {}
     tz = content.get('tri_zonal') or {}
-    return render_template('tri_zonal.html', site_settings=site_settings, tz=tz)
+    return render_template('tri_zonal.html', site_settings=site_settings, footer_info=footer_info, tz=tz, services=[])
 
 
 @app.route('/blog')
@@ -13448,7 +13459,12 @@ def blog_index():
     posts = cursor.fetchall() or []
     cursor.close()
     conn.close()
-    return render_template('blog_index.html', posts=posts, site_settings=site_settings)
+    footer_info = {}
+    try:
+        footer_info = fetch_footer_info() or {}
+    except Exception:
+        pass
+    return render_template('blog_index.html', posts=posts, site_settings=site_settings, footer_info=footer_info, services=[])
 
 
 @app.route('/blog/<slug>')
@@ -13467,7 +13483,12 @@ def blog_post(slug):
     conn.close()
     if not post:
         abort(404)
-    return render_template('blog_post.html', post=post, site_settings=site_settings)
+    footer_info = {}
+    try:
+        footer_info = fetch_footer_info() or {}
+    except Exception:
+        pass
+    return render_template('blog_post.html', post=post, site_settings=site_settings, footer_info=footer_info, services=[])
 
 
 # Admin blog routes
@@ -13912,12 +13933,19 @@ def service_detail_page(service_id):
     except Exception:
         app.logger.exception('Error fetching footer info for service detail page')
 
+    all_services = []
+    try:
+        all_services = fetch_services_from_db(include_inactive=False)
+    except Exception:
+        pass
+
     return render_template(
         'service_detail.html',
         service=service,
         site_settings=site_settings,
         domestic_cleaning=domestic_cleaning,
-        footer_info=footer_info
+        footer_info=footer_info,
+        services=all_services
     )
 
 

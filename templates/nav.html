@@ -1,0 +1,95 @@
+{% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Done-Well Cleaning Limited' %}
+{% set company_logo = site_settings.logo_path if site_settings and site_settings.logo_path else '' %}
+{% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
+{% set _nav_phone_raw = footer_info.phone if footer_info and footer_info.phone else '' %}
+{% set _nav_phone = _nav_phone_raw.split('/')[0].strip() %}
+{% set _nav_email = footer_info.email if footer_info and footer_info.email else '' %}
+{% set _nav_phone_href = _nav_phone | replace(' ', '') | replace('-', '') | replace('(', '') | replace(')', '') %}
+
+<nav class="nav is-sticky" aria-label="Main navigation">
+    <div class="nav__rail">
+        <a class="nav__item nav__item--brand" href="{{ url_for('index') }}" title="{{ company_name }}">
+            {% if company_logo_url %}
+            <img class="nav__brand-logo" src="{{ company_logo_url }}" alt="{{ company_name }} logo">
+            {% endif %}
+            <span class="nav__brand-text">{{ company_name }}</span>
+        </a>
+
+        <div class="nav__items" id="primary-nav" role="navigation" aria-label="Primary">
+            <div class="nav__dropdown" data-nav-dropdown>
+                <a class="nav__item nav__dropdown-toggle"
+                   href="{{ url_for('services_page') }}"
+                   title="Services"
+                   data-nav-dropdown-toggle
+                   aria-expanded="false"
+                   aria-controls="services-nav-menu">
+                    <span class="nav__label">Services</span>
+                    <svg class="nav__dropdown-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </a>
+                <div class="nav__dropdown-menu" id="services-nav-menu">
+                    {% if services %}
+                        {% for service in services %}
+                        <a class="nav__dropdown-link" href="{{ url_for('services_page') }}#service-{{ service.id }}">{{ service.name }}</a>
+                        {% endfor %}
+                    {% else %}
+                        <a class="nav__dropdown-link" href="{{ url_for('services_page') }}">All Services</a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <a class="nav__item" href="{{ url_for('index') }}#who-we-are" title="About Done-Well">
+                <span class="nav__label">About</span>
+            </a>
+
+            <a class="nav__item" href="{{ url_for('index') }}#areas-we-cover" title="Areas We Cover">
+                <span class="nav__label">Coverage</span>
+            </a>
+
+            <a class="nav__item" href="{{ url_for('index') }}#testimonials" title="Testimonials">
+                <span class="nav__label">Testimonials</span>
+            </a>
+
+            <a class="nav__item" href="{{ url_for('index') }}#careers" title="Careers">
+                <span class="nav__label">Careers</span>
+            </a>
+
+            <a class="nav__item" href="{{ url_for('index') }}#faqs" title="FAQs">
+                <span class="nav__label">FAQs</span>
+            </a>
+
+            <a class="nav__item" href="{{ url_for('blog_index') }}" title="Blog">
+                <span class="nav__label">Blog</span>
+            </a>
+
+            <a class="nav__item" href="{{ url_for('tri_zonal_page') }}" title="Colour Codes">
+                <span class="nav__label">Colour Codes</span>
+            </a>
+        </div>
+
+        <div class="nav__contact">
+            {% if _nav_phone %}
+            <a class="nav__contact-item" href="tel:{{ _nav_phone_href }}">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8a19.79 19.79 0 01-3.07-8.68A2 2 0 012 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+                {{ _nav_phone }}
+            </a>
+            {% endif %}
+            {% if _nav_phone and _nav_email %}
+            <span class="nav__contact-sep">·</span>
+            {% endif %}
+            {% if _nav_email %}
+            <a class="nav__contact-item" href="mailto:{{ _nav_email }}">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                {{ _nav_email }}
+            </a>
+            {% endif %}
+        </div>
+
+        <button class="nav__toggle" aria-label="Toggle navigation" aria-controls="primary-nav" aria-expanded="false">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M3 6h18M3 12h18M3 18h18"/>
+            </svg>
+        </button>
+    </div>
+</nav>
