@@ -234,7 +234,7 @@
         {% set hero_tagline_text = hero.tagline if hero else 'Trusted Cleaning Experts' %}
         {% set hero_title_text = hero.title if hero else 'Professional Cleaning Services' %}
         {% set hero_subtitle_text = hero.subtitle if hero else 'Reliable, affordable cleaning for your home or office. Get your free, no-obligation quote today!' %}
-        <section class="hero{% if hero_badges %} hero--with-badges{% endif %}" role="region" aria-label="Hero" data-layout="{{ hero.layout_mode or 'balenciaga' }}" style="{{ hero_inline_style }}">
+        <section class="hero{% if hero_badges %} hero--with-badges{% endif %}{% if hero and hero.announcement_bar_enabled %} hero--with-announcement{% endif %}" role="region" aria-label="Hero" data-layout="{{ hero.layout_mode or 'balenciaga' }}" style="{{ hero_inline_style }}">
   <!-- Announcement Bar (toggleable) -->
   {% if hero and hero.announcement_bar_enabled %}
   <div class="hero__announcement" style="--announcement-bg:{{ hero.announcement_bg_color or '#000' }};--announcement-text:{{ hero.announcement_text_color or '#fff' }};">

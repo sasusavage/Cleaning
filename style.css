@@ -969,12 +969,17 @@ body.is-nav-expanded main {
   color: var(--badge-text, #000);
   padding: 0.75rem 1.25rem;
   border-radius: 12px;
-  z-index: 100;
+  z-index: 9;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
   font-weight: 600;
   white-space: normal;
   word-wrap: break-word;
   max-width: 200px;
+}
+
+/* Push badge below announcement bar when bar is present */
+.hero--with-announcement .hero__floating-badge {
+  top: calc(2.5rem + 1.25rem);
 }
 
 .hero__badge-label {
@@ -4424,9 +4429,13 @@ body {
     /* Restore absolute positioning for the floating badge — must NOT be relative */
     .hero__floating-badge {
         position: absolute;
-        top: 5rem;
+        top: 3.5rem;
         right: 1rem;
-        z-index: 100;
+        z-index: 9;
+    }
+
+    .hero--with-announcement .hero__floating-badge {
+        top: calc(2.5rem + 1rem);
     }
 
     /* Hide badge marquee on mobile — clutters the hero */
