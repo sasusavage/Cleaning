@@ -34,40 +34,33 @@
                 {% endif %}
             {% endfor %}
 
-            <section class="panel services" style="padding-top: 8.5rem;">
-                <div class="section__header">
-                    <p class="section__eyebrow">Service Directory</p>
-                    <h1 class="section__title">Choose the right cleaning service for your home or business.</h1>
-                </div>
-
-                <div class="services__grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 1.25rem;">
-                    <article class="service-card">
-                        <div class="service-card__body">
-                            <h3>One-Time Services</h3>
-                            <p class="service-card__description">Deep cleans, move-in/move-out, post-build and one-off specialist jobs.</p>
-                            <p class="service-card__price">{{ one_time_services|length }} service{{ 's' if one_time_services|length != 1 else '' }}</p>
-                            <a class="button button--ghost" href="#one-time" style="margin-top: 1rem; width:100%; justify-content:center;">Browse One-Time</a>
-                        </div>
-                    </article>
-                    <article class="service-card">
-                        <div class="service-card__body">
-                            <h3>Contract-Based Services</h3>
-                            <p class="service-card__description">Recurring plans with weekly, fortnightly, and monthly options.</p>
-                            <p class="service-card__price">{{ contract_services|length }} service{{ 's' if contract_services|length != 1 else '' }}</p>
-                            <a class="button button--ghost" href="#contract-based" style="margin-top: 1rem; width:100%; justify-content:center;">Browse Contract Plans</a>
-                        </div>
-                    </article>
-                </div>
-
-                <div class="drawer-toggle" style="justify-content:flex-start; margin-top: 1rem;">
-                    <a class="button button--ghost" href="{{ url_for('index') }}#services">Back to Homepage Booking</a>
+            <!-- Hero / intro -->
+            <section class="services-hero">
+                <div class="services-hero__inner">
+                    <p class="section__eyebrow">Our Services</p>
+                    <h1 class="services-hero__title">Professional cleaning<br>for every need</h1>
+                    <p class="services-hero__sub">Choose from one-time specialist cleans or flexible recurring contracts tailored to your home or business.</p>
+                    <div class="services-hero__jumps">
+                        <a href="#one-time" class="services-hero__jump">
+                            <span class="services-hero__jump-count">{{ one_time_services|length }}</span>
+                            <span class="services-hero__jump-label">One-Time Services</span>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
+                        </a>
+                        <a href="#contract-based" class="services-hero__jump services-hero__jump--blue">
+                            <span class="services-hero__jump-count">{{ contract_services|length }}</span>
+                            <span class="services-hero__jump-label">Contract Plans</span>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
+                        </a>
+                    </div>
                 </div>
             </section>
 
-            <section class="panel services" id="one-time" data-home-section="services">
+            <!-- One-Time Services -->
+            <section class="panel services" id="one-time">
                 <div class="section__header">
-                    <p class="section__eyebrow">Category</p>
+                    <p class="section__eyebrow">One-Time</p>
                     <h2 class="section__title">One-Time Services</h2>
+                    <p class="section__desc">Book when you need — no commitment required.</p>
                 </div>
                 <div class="services__grid">
                     {% for service in one_time_services %}
@@ -87,27 +80,29 @@
                     <article class="service-card" id="service-{{ service.id }}">
                         {% if image_url %}
                         <div class="card-image-container">
-                            <img src="{{ image_url }}" class="card-image" alt="{{ service.name }} image" loading="lazy">
+                            <img src="{{ image_url }}" class="card-image" alt="{{ service.name }}" loading="lazy">
                         </div>
                         {% endif %}
                         <div class="service-card__body">
-                            <h3>{{ service.name }}</h3>
-                            <p class="service-card__description">{{ service.short_description or service.description }}</p>
+                            <h3 class="service-card__name">{{ service.name }}</h3>
+                            <p class="service-card__description">{{ (service.short_description or service.description or '')[:120] }}{% if (service.short_description or service.description or '')|length > 120 %}…{% endif %}</p>
                             <p class="service-card__price">{{ price_label }}</p>
-                            <a class="button button--ghost" href="/services/{{ service.id }}" style="margin-top: 1rem; width:100%; justify-content:center;">Read More</a>
+                            <a class="button button--primary svc-btn" href="/services/{{ service.id }}">Read More</a>
                         </div>
                     </article>
                     {% endfor %}
+                    {% if not one_time_services %}
+                    <p class="services__empty">No one-time services available yet.</p>
+                    {% endif %}
                 </div>
-                {% if not one_time_services %}
-                <p class="text-muted services__empty">No one-time services are available yet.</p>
-                {% endif %}
             </section>
 
-            <section class="panel services" id="contract-based" data-home-section="services">
+            <!-- Contract Services -->
+            <section class="panel services services--alt" id="contract-based">
                 <div class="section__header">
-                    <p class="section__eyebrow">Category</p>
+                    <p class="section__eyebrow">Contract Plans</p>
                     <h2 class="section__title">Contract-Based Services</h2>
+                    <p class="section__desc">Flexible recurring plans — weekly, fortnightly or monthly.</p>
                 </div>
                 <div class="services__grid">
                     {% if residential_contract.item %}
@@ -137,23 +132,21 @@
                     <article class="service-card" id="service-{{ service.id }}">
                         {% if image_url %}
                         <div class="card-image-container">
-                            <img src="{{ image_url }}" class="card-image" alt="{{ service.name }} image" loading="lazy">
+                            <img src="{{ image_url }}" class="card-image" alt="{{ service.name }}" loading="lazy">
                         </div>
                         {% endif %}
                         <div class="service-card__body">
-                            <h3>Residential Cleaning</h3>
-                            <p class="service-card__description">{{ service.short_description or service.description }}</p>
+                            <h3 class="service-card__name">{{ service.name }}</h3>
+                            <p class="service-card__description">{{ (service.short_description or service.description or '')[:120] }}{% if (service.short_description or service.description or '')|length > 120 %}…{% endif %}</p>
                             {% if service.contract_pricing_plans and service.contract_pricing_plans|length > 0 %}
-                            <div style="margin: 0.5rem 0; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <div class="svc-plans">
                                 {% for plan in service.contract_pricing_plans %}
-                                <span style="font-size: 0.8rem; background: var(--surface-alt, #f3f4f6); border-radius: 0.375rem; padding: 0.2rem 0.5rem; font-weight: 500;">
-                                    {{ plan.label }}: {% if plan.price is not none %}£{{ '%.2f'|format(plan.price) }}{% else %}Quote{% endif %}
-                                </span>
+                                <span class="svc-plan">{{ plan.label }}: {% if plan.price is not none %}£{{ '%.2f'|format(plan.price) }}{% else %}Quote{% endif %}</span>
                                 {% endfor %}
                             </div>
                             {% endif %}
                             <p class="service-card__price">{{ price_label }}</p>
-                            <a class="button button--ghost" href="/services/{{ service.id }}" style="margin-top: 1rem; width:100%; justify-content:center;">Read More</a>
+                            <a class="button button--primary svc-btn" href="/services/{{ service.id }}">Read More</a>
                         </div>
                     </article>
                     {% endif %}
@@ -185,31 +178,29 @@
                     <article class="service-card" id="service-{{ service.id }}">
                         {% if image_url %}
                         <div class="card-image-container">
-                            <img src="{{ image_url }}" class="card-image" alt="{{ service.name }} image" loading="lazy">
+                            <img src="{{ image_url }}" class="card-image" alt="{{ service.name }}" loading="lazy">
                         </div>
                         {% endif %}
                         <div class="service-card__body">
-                            <h3>{{ service.name }}</h3>
-                            <p class="service-card__description">{{ service.short_description or service.description }}</p>
+                            <h3 class="service-card__name">{{ service.name }}</h3>
+                            <p class="service-card__description">{{ (service.short_description or service.description or '')[:120] }}{% if (service.short_description or service.description or '')|length > 120 %}…{% endif %}</p>
                             {% if service.contract_pricing_plans and service.contract_pricing_plans|length > 0 %}
-                            <div style="margin: 0.5rem 0; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <div class="svc-plans">
                                 {% for plan in service.contract_pricing_plans %}
-                                <span style="font-size: 0.8rem; background: var(--surface-alt, #f3f4f6); border-radius: 0.375rem; padding: 0.2rem 0.5rem; font-weight: 500;">
-                                    {{ plan.label }}: {% if plan.price is not none %}£{{ '%.2f'|format(plan.price) }}{% else %}Quote{% endif %}
-                                </span>
+                                <span class="svc-plan">{{ plan.label }}: {% if plan.price is not none %}£{{ '%.2f'|format(plan.price) }}{% else %}Quote{% endif %}</span>
                                 {% endfor %}
                             </div>
                             {% endif %}
                             <p class="service-card__price">{{ price_label }}</p>
-                            <a class="button button--ghost" href="/services/{{ service.id }}" style="margin-top: 1rem; width:100%; justify-content:center;">Read More</a>
+                            <a class="button button--primary svc-btn" href="/services/{{ service.id }}">Read More</a>
                         </div>
                     </article>
                     {% endif %}
                     {% endfor %}
+                    {% if not contract_services %}
+                    <p class="services__empty">No contract-based services available yet.</p>
+                    {% endif %}
                 </div>
-                {% if not contract_services %}
-                <p class="text-muted services__empty">No contract-based services are available yet.</p>
-                {% endif %}
             </section>
         </main>
     </div>
