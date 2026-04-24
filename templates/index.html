@@ -1626,23 +1626,27 @@
 
             try { bases = JSON.parse(rawBases); } catch (e) { bases = []; }
 
-            if (!window.tt) return;
-
             // Fallback to OSM iframe if TomTom fails or no key
+            var _fellBack = false;
             function fallbackToOSM() {
+                if (_fellBack) return;
+                _fellBack = true;
                 var lat = 51.9021, lng = -0.2060;
                 if (bases && bases[0]) {
                     var b = bases[0];
                     if (Number.isFinite(Number(b.lat))) lat = Number(b.lat);
                     if (Number.isFinite(Number(b.lng))) lng = Number(b.lng);
                 }
+                mapEl.style.borderRadius = '1rem';
+                mapEl.style.overflow = 'hidden';
+                mapEl.style.border = '1px solid #e5e7eb';
                 mapEl.innerHTML = '<iframe src="https://www.openstreetmap.org/export/embed.html?bbox=' +
                     (lng-0.35) + ',' + (lat-0.25) + ',' + (lng+0.35) + ',' + (lat+0.25) +
                     '&layer=mapnik&marker=' + lat + ',' + lng +
                     '" style="width:100%;height:100%;min-height:360px;border:none;display:block;" loading="lazy" title="Service coverage area map" referrerpolicy="no-referrer"></iframe>';
             }
 
-            if (!apiKey) { fallbackToOSM(); return; }
+            if (!apiKey || !window.tt) { fallbackToOSM(); return; }
 
             var map;
             try {
@@ -1666,10 +1670,20 @@
                 });
             } catch(e) { fallbackToOSM(); return; }
 
+            // Fallback if map tiles fail to load (bad key, network, etc.)
+            var _mapLoaded = false;
+            var _fallbackTimer = setTimeout(function() {
+                if (!_mapLoaded) fallbackToOSM();
+            }, 8000);
+
+            map.on('load', function() {
+                _mapLoaded = true;
+                clearTimeout(_fallbackTimer);
+            });
+
             map.on('error', function(e) {
-                if (e && e.error && (String(e.error).includes('401') || String(e.error).includes('403') || String(e.error).includes('Unauthorized'))) {
-                    fallbackToOSM();
-                }
+                clearTimeout(_fallbackTimer);
+                fallbackToOSM();
             });
 
             map.addControl(new tt.NavigationControl({ showZoom: true, showCompass: false }));
