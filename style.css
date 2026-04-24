@@ -895,6 +895,7 @@ body.is-nav-expanded main {
 /* ─── HERO SECTION ─── */
 .hero {
   position: relative;
+    --hero-badge-strip-height: 0px;
   width: 100%;
   min-height: 100svh;
   display: flex;
@@ -1012,6 +1013,10 @@ body.is-nav-expanded main {
   grid-template-columns: 1fr 1fr;
 }
 
+.hero.hero--with-badges {
+    --hero-badge-strip-height: 4.75rem;
+}
+
 /* Content Block */
 .hero__editorial {
   margin-bottom: 1.5rem;
@@ -1102,7 +1107,7 @@ body.is-nav-expanded main {
 /* Bottom Stats Strip */
 .hero__stats {
   position: absolute;
-  bottom: 0;
+    bottom: var(--hero-badge-strip-height, 0px);
   left: 0;
   right: 0;
   background-color: var(--stats-bg, rgba(0, 0, 0, 0.5));
@@ -1148,7 +1153,7 @@ body.is-nav-expanded main {
   overflow: hidden;
   z-index: 4;
   padding: 1rem 0;
-  bottom: var(--stats-height, 0);
+    bottom: 0;
 }
 
 .hero__marquee-inner {
@@ -1175,6 +1180,10 @@ body.is-nav-expanded main {
   .hero {
     min-height: 100vh;
   }
+
+    .hero.hero--with-badges {
+        --hero-badge-strip-height: 0px;
+    }
 
   .hero__announcement {
     padding: 0.4rem 1rem;
@@ -6493,5 +6502,147 @@ html, body, .shell {
 
     .hero__subtitle {
         font-size: 0.9rem;
+    }
+}
+
+/* ============================================
+   GLOBAL MOBILE RESPONSIVENESS FIXES
+   ============================================ */
+
+/* --- Panel padding: reduce vertical whitespace on small screens --- */
+@media (max-width: 640px) {
+    .panel {
+        padding: 3.5rem 1.1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .panel {
+        padding: 2.75rem 1rem;
+    }
+
+    .section__header {
+        margin-bottom: 2.25rem;
+    }
+
+    .section__title {
+        font-size: clamp(1.6rem, 7vw, 2.2rem);
+    }
+}
+
+/* --- Coverage map: smaller height and readable chips on phones --- */
+@media (max-width: 480px) {
+    .coverage-map__media,
+    .coverage-map__media iframe,
+    .coverage-zones-map {
+        min-height: 220px;
+        height: 220px;
+    }
+
+    .coverage-map__chip {
+        font-size: 0.75rem;
+        padding: 0.3rem 0.6rem;
+    }
+
+    .coverage-map__chips {
+        gap: 0.4rem;
+    }
+}
+
+/* --- Areas covered: stack on phones --- */
+@media (max-width: 540px) {
+    .areas-covered {
+        padding: 2.5rem 1rem;
+    }
+
+    .areas-covered__inner {
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .areas-covered__icon {
+        width: 52px;
+        height: 52px;
+    }
+
+    .areas-covered__content {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .areas-covered__title {
+        font-size: 1.2rem;
+    }
+
+    .areas-covered__text {
+        font-size: 0.9rem;
+    }
+}
+
+/* --- Who we are: content padding on small screens --- */
+@media (max-width: 480px) {
+    .who-we-are__content {
+        gap: 1rem;
+    }
+
+    .who-we-are__title {
+        font-size: clamp(1.4rem, 7vw, 2rem);
+    }
+}
+
+/* --- Testimonials: readable on small screens --- */
+@media (max-width: 480px) {
+    .testimonials .panel {
+        padding: 2.5rem 1rem;
+    }
+
+    .testimonial-card {
+        padding: 1.25rem;
+    }
+}
+
+/* --- FAQs: tighter on very small screens --- */
+@media (max-width: 380px) {
+    .faq-item__question {
+        padding: 0.85rem 1rem;
+    }
+
+    .faq-item__answer {
+        padding: 0 1rem 1rem;
+        padding-left: calc(1rem + 32px + 0.5rem);
+    }
+}
+
+/* --- Footer: single column from 768px --- */
+@media (max-width: 768px) {
+    .footer__content {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .footer__content {
+        gap: 1.5rem;
+    }
+}
+
+/* --- Contact / Quote section: small phone tweaks --- */
+@media (max-width: 480px) {
+    .contact {
+        padding: 2.5rem 1rem !important;
+    }
+
+    .quote {
+        padding: 1.25rem !important;
+    }
+}
+
+/* --- General overflow guard --- */
+@media (max-width: 768px) {
+    html, body {
+        overflow-x: hidden;
+        max-width: 100%;
     }
 }

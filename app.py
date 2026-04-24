@@ -6140,21 +6140,16 @@ def fetch_hero_content():
 
     merged = DEFAULT_HERO_CONTENT.copy()
     if hero:
-        # Update with database values, but skip None, empty strings, and False for badge/critical fields
-        badge_fields = {'badge_enabled', 'badge_text', 'badge_bg_color', 'badge_text_color'}
         for key, value in hero.items():
-            if key in badge_fields:
-                # For badge fields, only use DB value if it's truthy or explicitly set (not None/False/empty)
-                if key == 'badge_enabled':
-                    # Keep default TRUE if DB has False/None/0
-                    if value:
-                        merged[key] = value
-                    else:
-                        merged[key] = True  # Ensure badge is enabled by default
-                elif value and value.strip():  # For badge_text, badge_bg_color, badge_text_color - skip if empty or whitespace
-                    merged[key] = value
-            elif value is not None and (not isinstance(value, str) or value.strip()):  # Skip empty strings for other fields too
+            if value is not None:
                 merged[key] = value
+        # Ensure badge fields always have safe defaults if they ended up empty/falsy
+        if not merged.get('badge_text', '').strip():
+            merged['badge_text'] = DEFAULT_HERO_CONTENT.get('badge_text', 'Eco-Friendly')
+        if not merged.get('badge_bg_color', '').strip():
+            merged['badge_bg_color'] = DEFAULT_HERO_CONTENT.get('badge_bg_color', '#ffffff')
+        if not merged.get('badge_text_color', '').strip():
+            merged['badge_text_color'] = DEFAULT_HERO_CONTENT.get('badge_text_color', '#000000')
     return merged
 
 
