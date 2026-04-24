@@ -5022,63 +5022,102 @@ body {
 }
 
 .coverage-map {
-    padding: 2.5rem 2rem;
+    background: linear-gradient(135deg, #0f172a 0%, #1a2e4a 60%, #0f2a1a 100%);
+    padding: 5rem 2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.coverage-map::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 70% 50%, rgba(34, 197, 94, 0.08) 0%, transparent 60%);
+    pointer-events: none;
+}
+
+.coverage-map .section__eyebrow {
+    color: #4ade80;
+}
+
+.coverage-map .section__title {
+    color: #ffffff;
 }
 
 .coverage-map__grid {
     display: grid;
-    grid-template-columns: 1fr 1.2fr;
-    gap: 1.5rem;
-    align-items: stretch;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 2.5rem;
+    align-items: center;
+    position: relative;
+    z-index: 1;
 }
 
 .coverage-map__content {
-    border: 1px solid var(--surface-2);
-    background: rgba(255, 255, 255, 0.84);
-    border-radius: var(--radius-large);
-    padding: 1.4rem;
     display: flex;
     flex-direction: column;
-    gap: 0.8rem;
+    gap: 1.25rem;
 }
 
 .coverage-map__intro,
 .coverage-map__areas {
-    color: var(--text-secondary);
+    color: rgba(255, 255, 255, 0.75);
     line-height: 1.7;
     margin: 0;
+    font-size: 0.95rem;
+}
+
+.coverage-map__areas strong {
+    color: #ffffff;
+    font-weight: 600;
 }
 
 .coverage-map__chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.45rem;
+    gap: 0.5rem;
 }
 
 .coverage-map__chip {
     display: inline-flex;
     align-items: center;
     border-radius: 999px;
-    padding: 0.25rem 0.7rem;
-    background: var(--accent-soft);
-    color: var(--text-primary);
-    font-size: 0.82rem;
-    font-weight: 600;
+    padding: 0.3rem 0.8rem;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.coverage-map__chip:hover {
+    background: rgba(74, 222, 128, 0.15);
+    border-color: rgba(74, 222, 128, 0.4);
+    color: #4ade80;
 }
 
 .coverage-map__media {
-    border: 1px solid var(--surface-2);
-    border-radius: var(--radius-large);
+    border-radius: 1.25rem;
     overflow: hidden;
-    min-height: 360px;
-    height: 380px;
-    background: var(--bg-2);
+    height: 420px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.06);
+    position: relative;
+}
+
+.coverage-map__media::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 1.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 1;
+    pointer-events: none;
 }
 
 .coverage-zones-map {
     width: 100%;
-    height: 380px;
-    min-height: 360px;
+    height: 420px;
 }
 
 .coverage-map__marker {
@@ -5088,8 +5127,7 @@ body {
 
 .coverage-map__media iframe {
     width: 100%;
-    height: 380px;
-    min-height: 360px;
+    height: 420px;
     border: 0;
     display: block;
 }
@@ -5105,13 +5143,17 @@ body {
 
     .coverage-map__grid {
         grid-template-columns: 1fr;
+        gap: 1.5rem;
     }
 
     .coverage-map__media,
     .coverage-map__media iframe,
     .coverage-zones-map {
-        min-height: 280px;
-        height: 280px;
+        height: 300px;
+    }
+
+    .coverage-map {
+        padding: 3.5rem 1.25rem;
     }
 }
 
