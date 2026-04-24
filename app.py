@@ -203,6 +203,7 @@ BRAND_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'brand')
 ABOUT_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'about')
 DOMESTIC_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'domestic')
 TZ_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'trizonal')
+SERVICES_HERO_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'services_hero')
 for folder in (
     UPLOAD_ROOT,
     SERVICE_UPLOAD_FOLDER,
@@ -214,7 +215,8 @@ for folder in (
     BRAND_UPLOAD_FOLDER,
     ABOUT_UPLOAD_FOLDER,
     DOMESTIC_UPLOAD_FOLDER,
-    TZ_UPLOAD_FOLDER
+    TZ_UPLOAD_FOLDER,
+    SERVICES_HERO_UPLOAD_FOLDER
 ):
     os.makedirs(folder, exist_ok=True)
 
@@ -314,6 +316,10 @@ def upload_team_photo(existing_path=''):
 
 def upload_domestic_card_image(existing_path=''):
     return handle_upload('image', DOMESTIC_UPLOAD_FOLDER, existing_path)
+
+
+def upload_services_hero_bg(existing_path=''):
+    return handle_upload('services_hero_bg', SERVICES_HERO_UPLOAD_FOLDER, existing_path)
 
 
 def delete_uploaded_file(relative_path):
@@ -11339,6 +11345,51 @@ def admin_trizonal_image_api():
     return jsonify({'url': url, 'field': field})
 
 
+@app.route('/admin/api/services-hero-image', methods=['POST', 'DELETE'])
+@admin_login_required
+def admin_services_hero_image_api():
+    """Upload or delete background image for the Services page hero section."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT content_text FROM site_content WHERE section_key = 'services_hero_bg'")
+        row = cursor.fetchone()
+        existing_path = row['content_text'] if row else ''
+    except Exception:
+        existing_path = ''
+    finally:
+        cursor.close()
+        conn.close()
+
+    if request.method == 'DELETE':
+        if existing_path:
+            delete_uploaded_file(existing_path)
+        conn2 = get_db_connection()
+        cur2 = conn2.cursor()
+        cur2.execute("UPDATE site_content SET content_text='', updated_at=CURRENT_TIMESTAMP WHERE section_key='services_hero_bg'")
+        conn2.commit()
+        cur2.close()
+        conn2.close()
+        return jsonify({'message': 'Deleted.'})
+
+    url = upload_services_hero_bg(existing_path)
+    if not url or url == existing_path:
+        return jsonify({'error': 'No file uploaded.'}), 400
+    if existing_path and url != existing_path:
+        delete_uploaded_file(existing_path)
+    conn3 = get_db_connection()
+    cur3 = conn3.cursor()
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    active_val = True if 'postgres' in engine else 1
+    cur3.execute("UPDATE site_content SET content_text=%s, is_active=%s, updated_at=CURRENT_TIMESTAMP WHERE section_key='services_hero_bg'", (url, active_val))
+    if cur3.rowcount == 0:
+        cur3.execute("INSERT INTO site_content (section_key, content_text, is_active) VALUES ('services_hero_bg', %s, %s)", (url, active_val))
+    conn3.commit()
+    cur3.close()
+    conn3.close()
+    return jsonify({'url': url})
+
+
 @app.route('/admin/api/team-photo', methods=['POST', 'DELETE'])
 @admin_login_required
 def admin_team_photo_api():
@@ -13892,13 +13943,21 @@ def services_page():
     except Exception:
         app.logger.exception('Error fetching footer info for services page')
 
+    services_hero_bg = ''
+    try:
+        site_content = fetch_site_content()
+        services_hero_bg = site_content.get('services_hero_bg') or ''
+    except Exception:
+        app.logger.exception('Error fetching services hero bg')
+
     return render_template(
         'services.html',
         services=services,
         one_time_services=one_time_services,
         contract_services=contract_services,
         site_settings=site_settings,
-        footer_info=footer_info
+        footer_info=footer_info,
+        services_hero_bg=services_hero_bg
     )
 
 

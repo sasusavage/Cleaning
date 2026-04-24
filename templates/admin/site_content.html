@@ -725,6 +725,28 @@
                 </div>
             </div>
 
+            <!-- Services Page Hero Background -->
+            <div class="card">
+                <h2 class="card__title">Services Page Hero Image</h2>
+                <p class="card__desc">Upload a background image for the hero banner on the Services page. The dark gradient overlay is applied automatically.</p>
+                <div id="services-hero-bg-preview" style="margin-bottom: 1rem;">
+                    {% if site_content and site_content.services_hero_bg %}
+                    <img src="{{ site_content.services_hero_bg | media_url }}" alt="Services Hero Background" style="max-width: 100%; max-height: 200px; border-radius: 0.5rem; border: 1px solid var(--border); object-fit: cover;">
+                    {% else %}
+                    <p style="color: #6b7280; font-style: italic;">No background image uploaded yet.</p>
+                    {% endif %}
+                </div>
+                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+                    <label for="services_hero_bg_input" class="btn btn-primary" style="cursor: pointer; margin: 0;">
+                        <input type="file" id="services_hero_bg_input" accept="image/png,image/jpeg,image/webp" style="display: none;">
+                        {{ 'Change Image' if site_content and site_content.services_hero_bg else 'Upload Image' }}
+                    </label>
+                    {% if site_content and site_content.services_hero_bg %}
+                    <button type="button" class="btn btn-back" id="remove-services-hero-bg-btn" style="color: #ef4444; border-color: #ef4444;">Remove Image</button>
+                    {% endif %}
+                </div>
+            </div>
+
             <!-- Why Us Section -->
             <div class="card">
                 <h2 class="card__title">Why Us Section</h2>
@@ -1073,6 +1095,64 @@
                     showToast('Network error. Please try again.', 'error');
                 }
             });
+        }
+
+        // Services Hero Background Upload
+        const servicesHeroBgInput = document.getElementById('services_hero_bg_input');
+        const servicesHeroBgPreview = document.getElementById('services-hero-bg-preview');
+
+        if (servicesHeroBgInput) {
+            servicesHeroBgInput.addEventListener('change', async function() {
+                const file = this.files[0];
+                if (!file) return;
+                const formData = new FormData();
+                formData.append('services_hero_bg', file);
+                try {
+                    const res = await fetch('/admin/api/services-hero-image', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (res.ok && data.url) {
+                        const src = normalizeMediaPath(data.url);
+                        servicesHeroBgPreview.innerHTML = '<img src="' + src + '" alt="Services Hero Background" style="max-width:100%;max-height:200px;border-radius:0.5rem;border:1px solid var(--border);object-fit:cover;">';
+                        servicesHeroBgInput.parentElement.childNodes[0].nodeValue = 'Change Image';
+                        if (!document.getElementById('remove-services-hero-bg-btn')) {
+                            const rb = document.createElement('button');
+                            rb.type = 'button'; rb.className = 'btn btn-back'; rb.id = 'remove-services-hero-bg-btn';
+                            rb.style.cssText = 'color:#ef4444;border-color:#ef4444;';
+                            rb.textContent = 'Remove Image';
+                            rb.addEventListener('click', removeServicesHeroBg);
+                            servicesHeroBgInput.parentElement.parentElement.appendChild(rb);
+                        }
+                        showToast('Services hero image uploaded!', 'success');
+                    } else {
+                        showToast(data.error || 'Upload failed.', 'error');
+                    }
+                } catch (err) {
+                    showToast('Network error. Please try again.', 'error');
+                }
+            });
+        }
+
+        const removeServicesHeroBgBtn = document.getElementById('remove-services-hero-bg-btn');
+        if (removeServicesHeroBgBtn) {
+            removeServicesHeroBgBtn.addEventListener('click', removeServicesHeroBg);
+        }
+
+        async function removeServicesHeroBg() {
+            if (!confirm('Remove the services page hero background image?')) return;
+            try {
+                const res = await fetch('/admin/api/services-hero-image', { method: 'DELETE' });
+                const data = await res.json();
+                if (res.ok) {
+                    servicesHeroBgPreview.innerHTML = '<p style="color:#6b7280;font-style:italic;">No background image uploaded yet.</p>';
+                    const rb = document.getElementById('remove-services-hero-bg-btn');
+                    if (rb) rb.remove();
+                    showToast('Image removed.', 'success');
+                } else {
+                    showToast(data.error || 'Failed to remove.', 'error');
+                }
+            } catch (err) {
+                showToast('Network error.', 'error');
+            }
         }
 
         async function removeTeamPhoto() {

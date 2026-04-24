@@ -35,7 +35,8 @@
             {% endfor %}
 
             <!-- Hero / intro -->
-            <section class="services-hero">
+            {% set hero_bg_url = (services_hero_bg | media_url) if services_hero_bg else '' %}
+            <section class="services-hero"{% if hero_bg_url %} style="background-image: linear-gradient(135deg, rgba(10,20,40,0.82) 0%, rgba(0,80,60,0.72) 100%), url('{{ hero_bg_url }}'); background-size: cover; background-position: center;"{% endif %}>
                 <div class="services-hero__inner">
                     <p class="section__eyebrow">Our Services</p>
                     <h1 class="services-hero__title">Professional cleaning<br>for every need</h1>
