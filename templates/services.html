@@ -6,8 +6,11 @@
     {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Clean Co.' %}
     {% set company_logo = site_settings.logo_path if site_settings and site_settings.logo_path else '' %}
     {% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
-    <title>Services | {{ company_name }}</title>
-    <meta name="description" content="Browse one-time and contract-based cleaning services offered by {{ company_name }}.">
+    <title>Cleaning Services Stevenage &amp; Hertfordshire | {{ company_name }}</title>
+    <meta name="description" content="Professional cleaning services in Stevenage &amp; Hertfordshire — domestic, commercial, end of tenancy, deep cleaning, Airbnb turnover &amp; more. DBS-checked, insured cleaners. Get a free quote from Done-Well Cleaning.">
+    <meta name="keywords" content="cleaning services Stevenage, cleaners Hertfordshire, domestic cleaning, commercial cleaning, end of tenancy cleaning, deep cleaning, Airbnb cleaning, office cleaning, carpet cleaning, professional cleaners">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://done-wellcleaninglimited.org/services">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('favicon_asset', filename='apple-touch-icon.png') }}">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('favicon_asset', filename='favicon-32x32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('favicon_asset', filename='favicon-16x16.png') }}">

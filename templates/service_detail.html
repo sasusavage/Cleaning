@@ -7,6 +7,9 @@
     {% set company_logo = site_settings.logo_path if site_settings and site_settings.logo_path else '' %}
     {% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
     <title>{{ service.name }} | {{ company_name }}</title>
+    <meta name="description" content="{{ service.short_description or service.name ~ ' — professional cleaning service by Done-Well Cleaning Limited in Stevenage, Hertfordshire. Fully insured, DBS-checked cleaners. Book today.' }}">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://done-wellcleaninglimited.org/services/{{ service.id }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600&display=swap" rel="stylesheet">

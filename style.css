@@ -1238,18 +1238,12 @@ body.is-nav-expanded main {
   }
 
   .hero__stats {
-    grid-template-columns: 1fr;
-    padding: 1.5rem 0;
+    grid-template-columns: repeat(3, 1fr);
+    padding: 1rem 0;
   }
 
   .hero__stat {
-    padding: 1.5rem;
-    border-right: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  }
-
-  .hero__stat:last-child {
-    border-bottom: none;
+    padding: 0.75rem 0.5rem;
   }
 
   .hero__badge-marquee {
@@ -4524,9 +4518,9 @@ body {
         text-align: center;
     }
 
-    /* Title */
+    /* Title — large bold like desktop */
     .hero__title {
-        font-size: clamp(2rem, 8vw, 3rem) !important;
+        font-size: clamp(2.2rem, 9vw, 3.5rem) !important;
         line-height: 1.05;
         margin-top: 0;
         padding-top: 0.5rem;
@@ -4534,6 +4528,9 @@ body {
         hyphens: none;
         -webkit-hyphens: none;
         word-break: keep-all;
+        text-transform: uppercase;
+        font-weight: 900;
+        letter-spacing: -0.01em;
     }
 
     /* Subtitle */
@@ -4542,27 +4539,27 @@ body {
         max-width: 100%;
         margin: 0.55rem 0 0;
         transform: none !important;
+        line-height: 1.5;
     }
 
-    /* CTAs — keep side by side */
+    /* CTAs — side by side like desktop */
     .hero__cta {
         justify-content: center;
         margin-top: 0;
         transform: none !important;
-        flex: 1 1 auto;
-        min-width: 120px;
+        flex: 0 1 auto;
+        min-width: 0;
+        padding: 0.75rem 1.8rem;
+        font-size: 0.85rem;
+        width: auto;
     }
 
     .hero__ctas {
+        display: flex;
         flex-direction: row;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         gap: 0.75rem;
         margin-top: 1.1rem;
-    }
-
-    .hero__cta .button {
-        width: 100%;
-        justify-content: center;
     }
 
     /* Meta badge pills */

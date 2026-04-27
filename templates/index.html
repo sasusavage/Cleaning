@@ -7,18 +7,22 @@
     {% set company_logo = site_settings.logo_path if site_settings and site_settings.logo_path else '' %}
     {% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
     {% set page_title_text = hero.title if hero else 'Professional Cleaning Services' %}
-    <title>Done-Well Cleaning Limited — Professional Cleaning Services in Stevenage &amp; Hertfordshire</title>
+    <title>Done-Well Cleaning Limited | Stevenage - Hertfordshire</title>
     {% set _site_url = 'https://done-wellcleaninglimited.org' %}
-    {% set _meta_desc = 'Done-Well Cleaning Limited offers professional residential and commercial cleaning in Stevenage, Hertfordshire and surrounding areas. Fully vetted, insured cleaners. Get a free quote today.' %}
+    {% set _meta_desc = 'Done-Well Cleaning Limited — trusted professional cleaning company in Stevenage, Hertfordshire. DBS-checked, insured cleaners for homes, offices, end of tenancy, Airbnb & commercial spaces. Same-day service. Free quotes.' %}
     {% set _og_image = company_logo_url if company_logo_url else (_site_url ~ '/favicon/apple-touch-icon.png') %}
     <meta name="description" content="{{ _meta_desc }}">
-    <meta name="robots" content="index, follow">
+    <meta name="keywords" content="cleaning services Stevenage, cleaners Hertfordshire, domestic cleaning, commercial cleaning, end of tenancy cleaning, office cleaning, deep cleaning, Airbnb cleaning, carpet cleaning, Done-Well Cleaning, professional cleaners near me, DBS checked cleaners, insured cleaning company, same day cleaning service, Stevenage cleaners, Hertfordshire cleaning company, residential cleaning, contract cleaning, one-off cleaning">
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+    <meta name="author" content="Done-Well Cleaning Limited">
+    <meta name="geo.region" content="GB-HRT">
+    <meta name="geo.placename" content="Stevenage, Hertfordshire">
     <link rel="canonical" href="{{ _site_url }}/">
 
     <!-- Open Graph (Facebook, WhatsApp, Google) -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ _site_url }}/">
-    <meta property="og:title" content="Done-Well Cleaning Limited — Professional Cleaning Services in Stevenage">
+    <meta property="og:title" content="Done-Well Cleaning Limited | Stevenage - Hertfordshire">
     <meta property="og:description" content="{{ _meta_desc }}">
     <meta property="og:image" content="{{ _og_image }}">
     <meta property="og:locale" content="en_GB">
@@ -26,7 +30,7 @@
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="Done-Well Cleaning Limited — Professional Cleaning Services in Stevenage">
+    <meta name="twitter:title" content="Done-Well Cleaning Limited | Stevenage - Hertfordshire">
     <meta name="twitter:description" content="{{ _meta_desc }}">
     <meta name="twitter:image" content="{{ _og_image }}">
 
@@ -41,8 +45,9 @@
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "LocalBusiness",
-      "name": "{{ company_name }}",
+      "@type": "CleaningService",
+      "name": "Done-Well Cleaning Limited",
+      "alternateName": "Done-Well Cleaning",
       "url": "{{ _site_url }}",
       "logo": "{{ _og_image }}",
       "image": "{{ _og_image }}",
@@ -51,13 +56,50 @@
       "email": "{{ footer_email }}",
       "address": {
         "@type": "PostalAddress",
+        "streetAddress": "",
         "addressLocality": "Stevenage",
         "addressRegion": "Hertfordshire",
+        "postalCode": "",
         "addressCountry": "GB"
       },
-      "areaServed": ["Stevenage", "Enfield", "Barnet", "Hatfield", "St Albans", "Watford", "Luton", "Hitchin", "Letchworth", "Welwyn Garden City"],
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": "51.9022",
+        "longitude": "-0.2020"
+      },
+      "areaServed": [
+        {"@type": "City", "name": "Stevenage"},
+        {"@type": "City", "name": "Hitchin"},
+        {"@type": "City", "name": "Letchworth Garden City"},
+        {"@type": "City", "name": "Welwyn Garden City"},
+        {"@type": "City", "name": "Hatfield"},
+        {"@type": "City", "name": "St Albans"},
+        {"@type": "City", "name": "Watford"},
+        {"@type": "City", "name": "Luton"},
+        {"@type": "City", "name": "Enfield"},
+        {"@type": "City", "name": "Barnet"},
+        {"@type": "AdministrativeArea", "name": "Hertfordshire"}
+      ],
       "priceRange": "££",
-      "openingHours": "Mo-Fr 08:00-18:00",
+      "currenciesAccepted": "GBP",
+      "paymentAccepted": "Cash, Credit Card, Bank Transfer",
+      "openingHoursSpecification": [
+        {"@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday"], "opens": "07:00", "closes": "19:00"},
+        {"@type": "OpeningHoursSpecification", "dayOfWeek": "Saturday", "opens": "08:00", "closes": "17:00"}
+      ],
+      "hasOfferCatalog": {
+        "@type": "OfferCatalog",
+        "name": "Cleaning Services",
+        "itemListElement": [
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Domestic Cleaning"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Commercial Cleaning"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "End of Tenancy Cleaning"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Deep Cleaning"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Airbnb Cleaning"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Office Cleaning"}},
+          {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Carpet Cleaning"}}
+        ]
+      },
       "sameAs": []
     }
     </script>
