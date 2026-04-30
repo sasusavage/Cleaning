@@ -6568,7 +6568,7 @@ html, body, .shell {
         max-width: 100%;
         padding: 5.5rem 1rem 9.5rem;
         gap: 1rem;
-        align-items: flex-end;
+        align-items: flex-start;
     }
 
     .hero__floating-badge {
@@ -6596,10 +6596,14 @@ html, body, .shell {
 
     .hero__ctas {
         width: 100%;
+        flex-wrap: nowrap;
     }
 
     .hero__cta {
-        width: 100%;
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 0.85rem 1.25rem;
+        font-size: 0.85rem;
     }
 
     .hero__stats {
