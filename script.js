@@ -5213,14 +5213,3 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 
-/* Responsive hero stats grid on mobile */
-window.addEventListener('resize', function () {
-    var stats = document.querySelector('.hero__stats');
-    if (!stats) return;
-
-    if (window.innerWidth <= 768) {
-        stats.style.gridTemplateColumns = '1fr';
-    } else {
-        stats.style.gridTemplateColumns = 'repeat(3, 1fr)';
-    }
-});
