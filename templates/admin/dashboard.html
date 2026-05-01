@@ -1411,6 +1411,7 @@
             display: -webkit-box;
             -webkit-box-orient: vertical;
             -webkit-line-clamp: 3;
+            line-clamp: 3;
         }
 
         .request-card__footer {
@@ -2699,7 +2700,7 @@
                     <p style="margin: 0; color: #6b7280; font-size: 0.95rem;">Edit catalog items and configure granular pricing/options in one place.</p>
                 </div>
                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-                    <button class="btn btn-ghost" type="button" onclick="window.location.href='{{ url_for('admin_domestic_cleaning_page') }}'">Manage Domestic Cleaning</button>
+                    <a class="btn btn-ghost" href="{{ url_for('admin_domestic_cleaning_page') }}">Manage Domestic Cleaning</a>
                     <button class="btn btn-primary" onclick="openServiceModal()">Add Service</button>
                 </div>
             </div>
