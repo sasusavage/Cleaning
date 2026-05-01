@@ -561,7 +561,7 @@
                     {% if operating_bases and operating_bases|length > 0 %}
                     <div class="coverage-map__chips">
                         {% for base in operating_bases %}
-                        <span class="coverage-map__chip">{{ base.name }}{% if base.postcode %} ({{ base.postcode }}){% endif %}</span>
+                        <span class="coverage-map__chip">{{ base.name }}</span>
                         {% endfor %}
                     </div>
                     {% endif %}
@@ -1693,18 +1693,19 @@
             };
 
             function buildCircleFeatures(resolvedBases) {
-                return resolvedBases.map(function (base) {
-                    var coords = [];
-                    var R = 6371000;
-                    var lat0 = base.lat * Math.PI / 180;
-                    for (var a = 0; a <= 360; a += 5) {
-                        var angle = a * Math.PI / 180;
-                        var dLat = (radiusMeters / R) * Math.cos(angle);
-                        var dLng = (radiusMeters / R) * Math.sin(angle) / Math.cos(lat0);
-                        coords.push([base.lng + dLng * 180 / Math.PI, base.lat + dLat * 180 / Math.PI]);
-                    }
-                    return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} };
-                });
+                if (!resolvedBases || resolvedBases.length === 0) return [];
+                // Only draw radius for the primary base to avoid massive visual clutter
+                var primaryBase = resolvedBases[0];
+                var coords = [];
+                var R = 6371000;
+                var lat0 = primaryBase.lat * Math.PI / 180;
+                for (var a = 0; a <= 360; a += 5) {
+                    var angle = a * Math.PI / 180;
+                    var dLat = (radiusMeters / R) * Math.cos(angle);
+                    var dLng = (radiusMeters / R) * Math.sin(angle) / Math.cos(lat0);
+                    coords.push([primaryBase.lng + dLng * 180 / Math.PI, primaryBase.lat + dLat * 180 / Math.PI]);
+                }
+                return [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} }];
             }
 
             map.on('load', function () {
