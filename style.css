@@ -6570,6 +6570,11 @@ html, body, .shell {
         align-items: flex-start;
     }
 
+    .hero[data-layout="puma"] .hero__container {
+        display: flex;
+        flex-direction: column;
+    }
+
     .hero__floating-badge {
         top: calc(env(safe-area-inset-top, 0px) + 0.9rem);
         right: 0.75rem;
