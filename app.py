@@ -8687,7 +8687,6 @@ def update_pricing_tier(tier_id):
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    updates.append('updated_at = CURRENT_TIMESTAMP')
     set_clause = ', '.join(updates)
     cursor.execute(
         f"UPDATE service_pricing_tiers SET {set_clause} WHERE id = %s",
