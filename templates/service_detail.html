@@ -388,7 +388,40 @@
                             <a class="button button--primary" href="#one-time-booking">Book Now</a>
                             {% endif %}
                             <a class="button button--ghost" href="{{ url_for('services_page') }}">All Services</a>
+                            <button type="button" class="button button--ghost svc-share-btn" id="svc-share-btn" aria-label="Share this service" title="Share">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                                Share
+                            </button>
                         </div>
+                        <script>
+                        (function() {
+                            document.getElementById('svc-share-btn').addEventListener('click', function() {
+                                var url = window.location.href;
+                                var title = document.title;
+                                if (navigator.share) {
+                                    navigator.share({ title: title, url: url }).catch(function(){});
+                                } else if (navigator.clipboard && navigator.clipboard.writeText) {
+                                    navigator.clipboard.writeText(url).then(function() {
+                                        var btn = document.getElementById('svc-share-btn');
+                                        btn.textContent = 'Copied!';
+                                        setTimeout(function() { btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Share'; }, 2000);
+                                    });
+                                } else {
+                                    var ta = document.createElement('textarea');
+                                    ta.value = url;
+                                    ta.style.position = 'fixed';
+                                    ta.style.opacity = '0';
+                                    document.body.appendChild(ta);
+                                    ta.select();
+                                    document.execCommand('copy');
+                                    document.body.removeChild(ta);
+                                    var btn = document.getElementById('svc-share-btn');
+                                    btn.textContent = 'Copied!';
+                                    setTimeout(function() { btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Share'; }, 2000);
+                                }
+                            });
+                        })();
+                        </script>
 
                         {% if service.description %}
                         <div class="svc-included">

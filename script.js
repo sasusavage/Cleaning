@@ -2330,12 +2330,16 @@ document.addEventListener("DOMContentLoaded", function () {
             staffLabel.style.display = "flex";
             staffLabel.style.flexDirection = "column";
             staffLabel.style.gap = "0.35rem";
-            staffLabel.textContent = "Number of Staff";
+            var staffLabelText = document.createElement("span");
+            staffLabel.appendChild(staffLabelText);
             var staffInput = document.createElement("input");
             staffInput.type = "number";
-            staffInput.min = 1;
             staffInput.step = 1;
-            staffInput.value = previousStaff || 1;
+            var _initTier = tiers.find(function(t) { return String(t.id) === String(selectedId); }) || tiers[0];
+            var _initMin = Math.max(Number(_initTier && _initTier.min_staff) || 1, 1);
+            staffLabelText.textContent = "Number of Staff (min " + _initMin + ")";
+            staffInput.min = _initMin;
+            staffInput.value = previousStaff ? Math.max(Number(previousStaff), _initMin) : _initMin;
             staffLabel.appendChild(staffInput);
 
             var hoursLabel = document.createElement("label");
@@ -2369,6 +2373,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 var tier = tiers.find(function (t) { return String(t.id) === String(selectedId); }) || tiers[0];
                 var minStaff = Math.max(Number(tier.min_staff) || 1, 1);
+                staffInput.min = minStaff;
+                staffLabelText.textContent = "Number of Staff (min " + minStaff + ")";
                 var staff = Number(staffInput.value);
                 if (!Number.isFinite(staff) || staff < minStaff) {
                     staff = minStaff;

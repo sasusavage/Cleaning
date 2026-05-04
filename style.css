@@ -508,8 +508,9 @@ main {
 
 .nav__dropdown-menu {
     position: absolute;
-    top: calc(100% + 0.45rem);
+    top: 100%;
     left: 0;
+    padding-top: 0.45rem;
     min-width: 250px;
     max-height: 340px;
     overflow-y: auto;
