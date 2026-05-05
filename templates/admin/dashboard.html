@@ -6278,11 +6278,17 @@
                 const equip = tier.equipment_fee ?? '';
                 const det = tier.detergent_fee ?? '';
                 const minStaff = tier.min_staff ?? '';
+                const minHours = tier.min_hours ?? '';
+                const staffLabel = tier.staff_label ?? '';
+                const hoursLabel = tier.hours_label ?? '';
                 return `
                     <tr data-tier-id="${tier.id}">
                         <td><input type="text" name="tier-name" value="${escapeHtml(tier.tier_name || '')}" required></td>
                         <td><input type="number" step="0.01" min="0" name="tier-rate" value="${escapeHtml(rate === '' ? '' : String(rate))}"></td>
-                        <td><input type="number" step="1" min="1" name="tier-staff" value="${escapeHtml(minStaff === '' ? '' : String(minStaff))}"></td>
+                        <td><input type="number" step="1" min="1" name="tier-staff" value="${escapeHtml(minStaff === '' ? '' : String(minStaff))}" placeholder="1"></td>
+                        <td><input type="text" name="tier-staff-label" value="${escapeHtml(staffLabel)}" placeholder="Number of Staff"></td>
+                        <td><input type="number" step="0.5" min="0.5" name="tier-hours" value="${escapeHtml(minHours === '' ? '' : String(minHours))}" placeholder="1"></td>
+                        <td><input type="text" name="tier-hours-label" value="${escapeHtml(hoursLabel)}" placeholder="Hours Required"></td>
                         <td><input type="number" step="0.01" min="0" name="tier-equip" value="${escapeHtml(equip === '' ? '' : String(equip))}"></td>
                         <td><input type="number" step="0.01" min="0" name="tier-det" value="${escapeHtml(det === '' ? '' : String(det))}"></td>
                         <td style="display:flex; gap:0.35rem; flex-wrap:wrap;">
@@ -6290,16 +6296,19 @@
                             <button class="btn btn-sm btn-danger" type="button" data-tier-action="delete">Delete</button>
                         </td>
                     </tr>`;
-            }).join('') : '<tr><td colspan="6" style="text-align:center; padding:0.75rem; color:#6b7280;">No deep tiers yet.</td></tr>';
+            }).join('') : '<tr><td colspan="9" style="text-align:center; padding:0.75rem; color:#6b7280;">No deep tiers yet.</td></tr>';
 
             return `
                 <div style="overflow:auto; margin-top:0.75rem;">
-                    <table style="width:100%; min-width:720px; border-collapse:separate; border-spacing:0;">
+                    <table style="width:100%; min-width:960px; border-collapse:separate; border-spacing:0;">
                         <thead>
                             <tr>
-                                <th>Tier</th>
+                                <th>Tier Name</th>
                                 <th>Hourly (£)</th>
                                 <th>Min Staff</th>
+                                <th>Staff Label</th>
+                                <th>Min Hours</th>
+                                <th>Hours Label</th>
                                 <th>Equipment (£)</th>
                                 <th>Detergent (£)</th>
                                 <th>Actions</th>
@@ -6313,7 +6322,10 @@
                     <div style="display:grid; gap:0.75rem; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Name<input type="text" name="tier_name" required></label>
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Hourly (£)<input type="number" step="0.01" min="0" name="hourly_rate" required></label>
-                        <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Min staff<input type="number" step="1" min="1" name="min_staff"></label>
+                        <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Min Staff<input type="number" step="1" min="1" name="min_staff" placeholder="1"></label>
+                        <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Staff Label<input type="text" name="staff_label" placeholder="Number of Staff"></label>
+                        <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Min Hours<input type="number" step="0.5" min="0.5" name="min_hours" placeholder="1"></label>
+                        <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Hours Label<input type="text" name="hours_label" placeholder="Hours Required"></label>
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Equipment (£)<input type="number" step="0.01" min="0" name="equipment_fee"></label>
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Detergent (£)<input type="number" step="0.01" min="0" name="detergent_fee"></label>
                     </div>
@@ -6761,6 +6773,9 @@
                 tier_name: (form.tier_name.value || '').trim(),
                 hourly_rate: form.hourly_rate.value,
                 min_staff: form.min_staff.value,
+                staff_label: form.staff_label.value.trim(),
+                min_hours: form.min_hours.value,
+                hours_label: form.hours_label.value.trim(),
                 equipment_fee: form.equipment_fee.value,
                 detergent_fee: form.detergent_fee.value
             };
@@ -6789,6 +6804,9 @@
                 tier_name: row.querySelector('[name="tier-name"]').value.trim(),
                 hourly_rate: row.querySelector('[name="tier-rate"]').value,
                 min_staff: row.querySelector('[name="tier-staff"]').value,
+                staff_label: row.querySelector('[name="tier-staff-label"]').value.trim(),
+                min_hours: row.querySelector('[name="tier-hours"]').value,
+                hours_label: row.querySelector('[name="tier-hours-label"]').value.trim(),
                 equipment_fee: row.querySelector('[name="tier-equip"]').value,
                 detergent_fee: row.querySelector('[name="tier-det"]').value
             };

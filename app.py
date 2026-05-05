@@ -5277,7 +5277,7 @@ def fetch_services_from_db(include_inactive=False):
         # Pricing tiers (deep cleaning hourly)
         cursor.execute(
             f"""
-            SELECT id, service_id, tier_name, hourly_rate, min_staff, equipment_fee, detergent_fee
+            SELECT id, service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, equipment_fee, detergent_fee
             FROM service_pricing_tiers
             WHERE service_id IN ({placeholders})
             ORDER BY service_id ASC, id ASC
@@ -5292,6 +5292,9 @@ def fetch_services_from_db(include_inactive=False):
                     'tier_name': tier.get('tier_name'),
                     'hourly_rate': normalize_price_value(tier.get('hourly_rate')),
                     'min_staff': tier.get('min_staff'),
+                    'min_hours': tier.get('min_hours'),
+                    'staff_label': tier.get('staff_label'),
+                    'hours_label': tier.get('hours_label'),
                     'equipment_fee': normalize_price_value(tier.get('equipment_fee')),
                     'detergent_fee': normalize_price_value(tier.get('detergent_fee'))
                 })
@@ -8611,6 +8614,15 @@ def add_pricing_tier(service_id):
     except (TypeError, ValueError):
         return jsonify({'error': 'min_staff must be a whole number or blank.'}), 400
 
+    try:
+        min_hours_raw = payload.get('min_hours')
+        min_hours = float(min_hours_raw) if min_hours_raw not in (None, '') else None
+    except (TypeError, ValueError):
+        return jsonify({'error': 'min_hours must be a number or blank.'}), 400
+
+    staff_label = sanitize_text(payload.get('staff_label'), 100) or None
+    hours_label = sanitize_text(payload.get('hours_label'), 100) or None
+
     if not tier_name:
         return jsonify({'error': 'Tier name is required.'}), 400
 
@@ -8626,10 +8638,10 @@ def add_pricing_tier(service_id):
     cursor = conn.cursor()
     cursor.execute(
         """
-        INSERT INTO service_pricing_tiers (service_id, tier_name, hourly_rate, min_staff, equipment_fee, detergent_fee)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO service_pricing_tiers (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, equipment_fee, detergent_fee)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
-        (service_id, tier_name, hourly_rate, min_staff, equipment_fee, detergent_fee)
+        (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, equipment_fee, detergent_fee)
     )
     conn.commit()
     tier_id = cursor.lastrowid
@@ -8681,6 +8693,23 @@ def update_pricing_tier(tier_id):
             return jsonify({'error': 'min_staff must be a whole number or blank.'}), 400
         updates.append('min_staff = %s')
         params.append(min_staff)
+
+    if 'min_hours' in payload:
+        try:
+            min_hours_raw = payload.get('min_hours')
+            min_hours = float(min_hours_raw) if min_hours_raw not in (None, '') else None
+        except (TypeError, ValueError):
+            return jsonify({'error': 'min_hours must be a number or blank.'}), 400
+        updates.append('min_hours = %s')
+        params.append(min_hours)
+
+    if 'staff_label' in payload:
+        updates.append('staff_label = %s')
+        params.append(sanitize_text(payload.get('staff_label'), 100) or None)
+
+    if 'hours_label' in payload:
+        updates.append('hours_label = %s')
+        params.append(sanitize_text(payload.get('hours_label'), 100) or None)
 
     if not updates:
         return jsonify({'error': 'No updates supplied.'}), 400

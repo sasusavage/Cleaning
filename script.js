@@ -2346,12 +2346,15 @@ document.addEventListener("DOMContentLoaded", function () {
             hoursLabel.style.display = "flex";
             hoursLabel.style.flexDirection = "column";
             hoursLabel.style.gap = "0.35rem";
-            hoursLabel.textContent = "Hours Required";
+            var hoursLabelText = document.createElement("span");
+            hoursLabel.appendChild(hoursLabelText);
             var hoursInput = document.createElement("input");
             hoursInput.type = "number";
-            hoursInput.min = 1;
             hoursInput.step = 0.5;
-            hoursInput.value = previousHours || 2;
+            var _initMinHours = Math.max(Number(_initTier && _initTier.min_hours) || 1, 0.5);
+            hoursLabelText.textContent = (_initTier && _initTier.hours_label) || "Hours Required";
+            hoursInput.min = _initMinHours;
+            hoursInput.value = previousHours ? Math.max(Number(previousHours), _initMinHours) : _initMinHours;
             hoursLabel.appendChild(hoursInput);
 
             controls.appendChild(staffLabel);
@@ -2373,17 +2376,20 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 var tier = tiers.find(function (t) { return String(t.id) === String(selectedId); }) || tiers[0];
                 var minStaff = Math.max(Number(tier.min_staff) || 1, 1);
+                var minHours = Math.max(Number(tier.min_hours) || 1, 0.5);
                 staffInput.min = minStaff;
-                staffLabelText.textContent = "Number of Staff (min " + minStaff + ")";
+                hoursInput.min = minHours;
+                staffLabelText.textContent = (tier.staff_label || "Number of Staff") + " (min " + minStaff + ")";
+                hoursLabelText.textContent = (tier.hours_label || "Hours Required") + " (min " + minHours + ")";
                 var staff = Number(staffInput.value);
                 if (!Number.isFinite(staff) || staff < minStaff) {
                     staff = minStaff;
                     staffInput.value = minStaff;
                 }
                 var hours = Number(hoursInput.value);
-                if (!Number.isFinite(hours) || hours <= 0) {
-                    hours = 1;
-                    hoursInput.value = 1;
+                if (!Number.isFinite(hours) || hours < minHours) {
+                    hours = minHours;
+                    hoursInput.value = minHours;
                 }
 
                 var rate = normalizePriceValue(tier.hourly_rate);
