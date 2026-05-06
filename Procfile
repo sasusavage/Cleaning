@@ -1,1 +1,1 @@
-web: python migrate_db.py && gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 1 --threads 4 --worker-class gthread --graceful-timeout 30 --keep-alive 5 --access-logfile - --error-logfile -
+web: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 1 --threads 4 --worker-class gthread --graceful-timeout 30 --keep-alive 5 --access-logfile - --error-logfile -

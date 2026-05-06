@@ -15361,6 +15361,36 @@ def admin_api_analytics_detailed():
     })
 
 
+def ensure_db_schema():
+    """Ensure that the database schema is up to date."""
+    try:
+        # Use the existing get_db_connection() helper
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # SQL to add columns if they don't exist
+        # Both modern Postgres (Render default) and MySQL 8.0.19+ support IF NOT EXISTS
+        sql = """
+        ALTER TABLE service_pricing_tiers
+          ADD COLUMN IF NOT EXISTS min_hours DECIMAL(5,2) DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS staff_label VARCHAR(100) DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS hours_label VARCHAR(100) DEFAULT NULL;
+        """
+        
+        app.logger.info("Running database migration: Updating service_pricing_tiers table...")
+        cursor.execute(sql)
+        conn.commit()
+        cursor.close()
+        conn.close()
+        app.logger.info("Database migration completed successfully.")
+    except Exception as e:
+        app.logger.error(f"Database migration failed: {e}")
+
+# Run schema check on startup during module import (Gunicorn)
+with app.app_context():
+    ensure_db_schema()
+
+
 configure_telegram_error_log_handler()
 
 
