@@ -2326,6 +2326,12 @@ document.addEventListener("DOMContentLoaded", function () {
             controls.style.gridTemplateColumns = "repeat(auto-fit, minmax(180px, 1fr))";
             controls.style.marginTop = "1rem";
 
+            var _initTier = tiers.find(function(t) { return String(t.id) === String(selectedId); }) || tiers[0];
+            var _initMin = Math.max(Number(_initTier && _initTier.min_staff) || 1, 1);
+            var _initMinHours = Math.max(Number(_initTier && _initTier.min_hours) || 1, 0.5);
+            var _initFixed = _initTier && _initTier.fixed_staff != null ? Number(_initTier.fixed_staff) : null;
+            var _initFixedHours = _initTier && _initTier.fixed_hours != null ? Number(_initTier.fixed_hours) : null;
+
             var staffLabel = document.createElement("label");
             staffLabel.style.display = "flex";
             staffLabel.style.flexDirection = "column";
@@ -2335,11 +2341,10 @@ document.addEventListener("DOMContentLoaded", function () {
             var staffInput = document.createElement("input");
             staffInput.type = "number";
             staffInput.step = 1;
-            var _initTier = tiers.find(function(t) { return String(t.id) === String(selectedId); }) || tiers[0];
-            var _initMin = Math.max(Number(_initTier && _initTier.min_staff) || 1, 1);
-            staffLabelText.textContent = "Number of Staff (min " + _initMin + ")";
-            staffInput.min = _initMin;
-            staffInput.value = previousStaff ? Math.max(Number(previousStaff), _initMin) : _initMin;
+            staffInput.min = _initFixed != null ? _initFixed : _initMin;
+            staffInput.value = _initFixed != null ? _initFixed : (previousStaff ? Math.max(Number(previousStaff), _initMin) : _initMin);
+            if (_initFixed != null) { staffInput.readOnly = true; staffInput.style.background = '#f1f5f9'; staffInput.style.cursor = 'not-allowed'; }
+            staffLabelText.textContent = (_initTier && _initTier.staff_label || "Number of Staff") + (_initFixed != null ? " (fixed: " + _initFixed + ")" : " (min " + _initMin + ")");
             staffLabel.appendChild(staffInput);
 
             var hoursLabel = document.createElement("label");
@@ -2351,10 +2356,10 @@ document.addEventListener("DOMContentLoaded", function () {
             var hoursInput = document.createElement("input");
             hoursInput.type = "number";
             hoursInput.step = 0.5;
-            var _initMinHours = Math.max(Number(_initTier && _initTier.min_hours) || 1, 0.5);
-            hoursLabelText.textContent = (_initTier && _initTier.hours_label) || "Hours Required";
-            hoursInput.min = _initMinHours;
-            hoursInput.value = previousHours ? Math.max(Number(previousHours), _initMinHours) : _initMinHours;
+            hoursInput.min = _initFixedHours != null ? _initFixedHours : _initMinHours;
+            hoursInput.value = _initFixedHours != null ? _initFixedHours : (previousHours ? Math.max(Number(previousHours), _initMinHours) : _initMinHours);
+            if (_initFixedHours != null) { hoursInput.readOnly = true; hoursInput.style.background = '#f1f5f9'; hoursInput.style.cursor = 'not-allowed'; }
+            hoursLabelText.textContent = (_initTier && _initTier.hours_label || "Hours Required") + (_initFixedHours != null ? " (fixed: " + _initFixedHours + ")" : " (min " + _initMinHours + ")");
             hoursLabel.appendChild(hoursInput);
 
             controls.appendChild(staffLabel);
@@ -2377,20 +2382,49 @@ document.addEventListener("DOMContentLoaded", function () {
                 var tier = tiers.find(function (t) { return String(t.id) === String(selectedId); }) || tiers[0];
                 var minStaff = Math.max(Number(tier.min_staff) || 1, 1);
                 var minHours = Math.max(Number(tier.min_hours) || 1, 0.5);
-                staffInput.min = minStaff;
-                hoursInput.min = minHours;
-                staffLabelText.textContent = (tier.staff_label || "Number of Staff") + " (min " + minStaff + ")";
-                hoursLabelText.textContent = (tier.hours_label || "Hours Required") + " (min " + minHours + ")";
+                var fixedStaff = tier.fixed_staff != null ? Number(tier.fixed_staff) : null;
+                var fixedHours = tier.fixed_hours != null ? Number(tier.fixed_hours) : null;
+
+                // Staff input
+                if (fixedStaff != null) {
+                    staffInput.readOnly = true;
+                    staffInput.style.background = '#f1f5f9';
+                    staffInput.style.cursor = 'not-allowed';
+                    staffInput.value = fixedStaff;
+                    staffInput.min = fixedStaff;
+                    staffLabelText.textContent = (tier.staff_label || "Number of Staff") + " (fixed: " + fixedStaff + ")";
+                } else {
+                    staffInput.readOnly = false;
+                    staffInput.style.background = '';
+                    staffInput.style.cursor = '';
+                    staffInput.min = minStaff;
+                    staffLabelText.textContent = (tier.staff_label || "Number of Staff") + " (min " + minStaff + ")";
+                    if (!Number.isFinite(Number(staffInput.value)) || Number(staffInput.value) < minStaff) {
+                        staffInput.value = minStaff;
+                    }
+                }
+
+                // Hours input
+                if (fixedHours != null) {
+                    hoursInput.readOnly = true;
+                    hoursInput.style.background = '#f1f5f9';
+                    hoursInput.style.cursor = 'not-allowed';
+                    hoursInput.value = fixedHours;
+                    hoursInput.min = fixedHours;
+                    hoursLabelText.textContent = (tier.hours_label || "Hours Required") + " (fixed: " + fixedHours + ")";
+                } else {
+                    hoursInput.readOnly = false;
+                    hoursInput.style.background = '';
+                    hoursInput.style.cursor = '';
+                    hoursInput.min = minHours;
+                    hoursLabelText.textContent = (tier.hours_label || "Hours Required") + " (min " + minHours + ")";
+                    if (!Number.isFinite(Number(hoursInput.value)) || Number(hoursInput.value) < minHours) {
+                        hoursInput.value = minHours;
+                    }
+                }
+
                 var staff = Number(staffInput.value);
-                if (!Number.isFinite(staff) || staff < minStaff) {
-                    staff = minStaff;
-                    staffInput.value = minStaff;
-                }
                 var hours = Number(hoursInput.value);
-                if (!Number.isFinite(hours) || hours < minHours) {
-                    hours = minHours;
-                    hoursInput.value = minHours;
-                }
 
                 var rate = normalizePriceValue(tier.hourly_rate);
                 var equipment = normalizePriceValue(tier.equipment_fee) || 0;

@@ -6281,13 +6281,17 @@
                 const minHours = tier.min_hours ?? '';
                 const staffLabel = tier.staff_label ?? '';
                 const hoursLabel = tier.hours_label ?? '';
+                const fixedStaff = tier.fixed_staff ?? '';
+                const fixedHours = tier.fixed_hours ?? '';
                 return `
                     <tr data-tier-id="${tier.id}">
                         <td><input type="text" name="tier-name" value="${escapeHtml(tier.tier_name || '')}" required></td>
                         <td><input type="number" step="0.01" min="0" name="tier-rate" value="${escapeHtml(rate === '' ? '' : String(rate))}"></td>
-                        <td><input type="number" step="1" min="1" name="tier-staff" value="${escapeHtml(minStaff === '' ? '' : String(minStaff))}" placeholder="1"></td>
+                        <td><input type="number" step="1" min="1" name="tier-staff" value="${escapeHtml(minStaff === '' ? '' : String(minStaff))}" placeholder="1" title="Minimum — user cannot go below this"></td>
+                        <td><input type="number" step="1" min="1" name="tier-fixed-staff" value="${escapeHtml(fixedStaff === '' ? '' : String(fixedStaff))}" placeholder="Leave blank" title="Fixed — locks the input to this exact number"></td>
                         <td><input type="text" name="tier-staff-label" value="${escapeHtml(staffLabel)}" placeholder="Number of Staff"></td>
-                        <td><input type="number" step="0.5" min="0.5" name="tier-hours" value="${escapeHtml(minHours === '' ? '' : String(minHours))}" placeholder="1"></td>
+                        <td><input type="number" step="0.5" min="0.5" name="tier-hours" value="${escapeHtml(minHours === '' ? '' : String(minHours))}" placeholder="1" title="Minimum — user cannot go below this"></td>
+                        <td><input type="number" step="0.5" min="0.5" name="tier-fixed-hours" value="${escapeHtml(fixedHours === '' ? '' : String(fixedHours))}" placeholder="Leave blank" title="Fixed — locks the input to this exact number"></td>
                         <td><input type="text" name="tier-hours-label" value="${escapeHtml(hoursLabel)}" placeholder="Hours Required"></td>
                         <td><input type="number" step="0.01" min="0" name="tier-equip" value="${escapeHtml(equip === '' ? '' : String(equip))}"></td>
                         <td><input type="number" step="0.01" min="0" name="tier-det" value="${escapeHtml(det === '' ? '' : String(det))}"></td>
@@ -6296,18 +6300,20 @@
                             <button class="btn btn-sm btn-danger" type="button" data-tier-action="delete">Delete</button>
                         </td>
                     </tr>`;
-            }).join('') : '<tr><td colspan="9" style="text-align:center; padding:0.75rem; color:#6b7280;">No deep tiers yet.</td></tr>';
+            }).join('') : '<tr><td colspan="11" style="text-align:center; padding:0.75rem; color:#6b7280;">No tiers yet.</td></tr>';
 
             return `
                 <div style="overflow:auto; margin-top:0.75rem;">
-                    <table style="width:100%; min-width:960px; border-collapse:separate; border-spacing:0;">
+                    <table style="width:100%; min-width:1100px; border-collapse:separate; border-spacing:0;">
                         <thead>
                             <tr>
                                 <th>Tier Name</th>
                                 <th>Hourly (£)</th>
                                 <th>Min Staff</th>
+                                <th>Fixed Staff</th>
                                 <th>Staff Label</th>
                                 <th>Min Hours</th>
+                                <th>Fixed Hours</th>
                                 <th>Hours Label</th>
                                 <th>Equipment (£)</th>
                                 <th>Detergent (£)</th>
@@ -6317,14 +6323,20 @@
                         <tbody>${body}</tbody>
                     </table>
                 </div>
+                <p style="font-size:0.82rem; color:#6b7280; margin:0.5rem 0 0;">
+                    <strong>Min</strong> = customer can't go below this number but can increase. &nbsp;|&nbsp;
+                    <strong>Fixed</strong> = customer cannot change this at all (input is locked).
+                </p>
                 <form id="tier-add-form" style="margin-top:1rem; display:grid; gap:0.75rem;">
                     <h4 style="margin:0;">Add Tier</h4>
                     <div style="display:grid; gap:0.75rem; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Name<input type="text" name="tier_name" required></label>
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Hourly (£)<input type="number" step="0.01" min="0" name="hourly_rate" required></label>
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Min Staff<input type="number" step="1" min="1" name="min_staff" placeholder="1"></label>
+                        <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Fixed Staff<input type="number" step="1" min="1" name="fixed_staff" placeholder="Leave blank"></label>
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Staff Label<input type="text" name="staff_label" placeholder="Number of Staff"></label>
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Min Hours<input type="number" step="0.5" min="0.5" name="min_hours" placeholder="1"></label>
+                        <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Fixed Hours<input type="number" step="0.5" min="0.5" name="fixed_hours" placeholder="Leave blank"></label>
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Hours Label<input type="text" name="hours_label" placeholder="Hours Required"></label>
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Equipment (£)<input type="number" step="0.01" min="0" name="equipment_fee"></label>
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Detergent (£)<input type="number" step="0.01" min="0" name="detergent_fee"></label>
@@ -6773,8 +6785,10 @@
                 tier_name: (form.tier_name.value || '').trim(),
                 hourly_rate: form.hourly_rate.value,
                 min_staff: form.min_staff.value,
+                fixed_staff: form.fixed_staff.value,
                 staff_label: form.staff_label.value.trim(),
                 min_hours: form.min_hours.value,
+                fixed_hours: form.fixed_hours.value,
                 hours_label: form.hours_label.value.trim(),
                 equipment_fee: form.equipment_fee.value,
                 detergent_fee: form.detergent_fee.value
@@ -6804,8 +6818,10 @@
                 tier_name: row.querySelector('[name="tier-name"]').value.trim(),
                 hourly_rate: row.querySelector('[name="tier-rate"]').value,
                 min_staff: row.querySelector('[name="tier-staff"]').value,
+                fixed_staff: row.querySelector('[name="tier-fixed-staff"]').value,
                 staff_label: row.querySelector('[name="tier-staff-label"]').value.trim(),
                 min_hours: row.querySelector('[name="tier-hours"]').value,
+                fixed_hours: row.querySelector('[name="tier-fixed-hours"]').value,
                 hours_label: row.querySelector('[name="tier-hours-label"]').value.trim(),
                 equipment_fee: row.querySelector('[name="tier-equip"]').value,
                 detergent_fee: row.querySelector('[name="tier-det"]').value

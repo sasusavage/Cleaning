@@ -5278,7 +5278,7 @@ def fetch_services_from_db(include_inactive=False):
         try:
             cursor.execute(
                 f"""
-                SELECT id, service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, equipment_fee, detergent_fee
+                SELECT id, service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, fixed_staff, fixed_hours, equipment_fee, detergent_fee
                 FROM service_pricing_tiers
                 WHERE service_id IN ({placeholders})
                 ORDER BY service_id ASC, id ASC
@@ -5306,6 +5306,8 @@ def fetch_services_from_db(include_inactive=False):
                     'min_hours': tier.get('min_hours'),
                     'staff_label': tier.get('staff_label'),
                     'hours_label': tier.get('hours_label'),
+                    'fixed_staff': tier.get('fixed_staff'),
+                    'fixed_hours': tier.get('fixed_hours'),
                     'equipment_fee': normalize_price_value(tier.get('equipment_fee')),
                     'detergent_fee': normalize_price_value(tier.get('detergent_fee'))
                 })
@@ -8631,6 +8633,18 @@ def add_pricing_tier(service_id):
     except (TypeError, ValueError):
         return jsonify({'error': 'min_hours must be a number or blank.'}), 400
 
+    try:
+        fixed_staff_raw = payload.get('fixed_staff')
+        fixed_staff = int(fixed_staff_raw) if fixed_staff_raw not in (None, '') else None
+    except (TypeError, ValueError):
+        return jsonify({'error': 'fixed_staff must be a whole number or blank.'}), 400
+
+    try:
+        fixed_hours_raw = payload.get('fixed_hours')
+        fixed_hours = float(fixed_hours_raw) if fixed_hours_raw not in (None, '') else None
+    except (TypeError, ValueError):
+        return jsonify({'error': 'fixed_hours must be a number or blank.'}), 400
+
     staff_label = sanitize_text(payload.get('staff_label'), 100) or None
     hours_label = sanitize_text(payload.get('hours_label'), 100) or None
 
@@ -8650,10 +8664,10 @@ def add_pricing_tier(service_id):
     try:
         cursor.execute(
             """
-            INSERT INTO service_pricing_tiers (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, equipment_fee, detergent_fee)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO service_pricing_tiers (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, fixed_staff, fixed_hours, equipment_fee, detergent_fee)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, equipment_fee, detergent_fee)
+            (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, fixed_staff, fixed_hours, equipment_fee, detergent_fee)
         )
     except Exception:
         conn.rollback()
@@ -8731,6 +8745,24 @@ def update_pricing_tier(tier_id):
     if 'hours_label' in payload:
         updates.append('hours_label = %s')
         params.append(sanitize_text(payload.get('hours_label'), 100) or None)
+
+    if 'fixed_staff' in payload:
+        try:
+            fixed_staff_raw = payload.get('fixed_staff')
+            fixed_staff = int(fixed_staff_raw) if fixed_staff_raw not in (None, '') else None
+        except (TypeError, ValueError):
+            return jsonify({'error': 'fixed_staff must be a whole number or blank.'}), 400
+        updates.append('fixed_staff = %s')
+        params.append(fixed_staff)
+
+    if 'fixed_hours' in payload:
+        try:
+            fixed_hours_raw = payload.get('fixed_hours')
+            fixed_hours = float(fixed_hours_raw) if fixed_hours_raw not in (None, '') else None
+        except (TypeError, ValueError):
+            return jsonify({'error': 'fixed_hours must be a number or blank.'}), 400
+        updates.append('fixed_hours = %s')
+        params.append(fixed_hours)
 
     if not updates:
         return jsonify({'error': 'No updates supplied.'}), 400
