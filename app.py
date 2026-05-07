@@ -5275,15 +5275,26 @@ def fetch_services_from_db(include_inactive=False):
                 })
 
         # Pricing tiers (deep cleaning hourly)
-        cursor.execute(
-            f"""
-            SELECT id, service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, equipment_fee, detergent_fee
-            FROM service_pricing_tiers
-            WHERE service_id IN ({placeholders})
-            ORDER BY service_id ASC, id ASC
-            """,
-            service_ids
-        )
+        try:
+            cursor.execute(
+                f"""
+                SELECT id, service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, equipment_fee, detergent_fee
+                FROM service_pricing_tiers
+                WHERE service_id IN ({placeholders})
+                ORDER BY service_id ASC, id ASC
+                """,
+                service_ids
+            )
+        except Exception:
+            cursor.execute(
+                f"""
+                SELECT id, service_id, tier_name, hourly_rate, min_staff, equipment_fee, detergent_fee
+                FROM service_pricing_tiers
+                WHERE service_id IN ({placeholders})
+                ORDER BY service_id ASC, id ASC
+                """,
+                service_ids
+            )
         for tier in cursor.fetchall():
             svc = services.get(tier['service_id'])
             if svc:
@@ -8636,13 +8647,23 @@ def add_pricing_tier(service_id):
 
     cursor.close()
     cursor = conn.cursor()
-    cursor.execute(
-        """
-        INSERT INTO service_pricing_tiers (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, equipment_fee, detergent_fee)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """,
-        (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, equipment_fee, detergent_fee)
-    )
+    try:
+        cursor.execute(
+            """
+            INSERT INTO service_pricing_tiers (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, equipment_fee, detergent_fee)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, equipment_fee, detergent_fee)
+        )
+    except Exception:
+        conn.rollback()
+        cursor.execute(
+            """
+            INSERT INTO service_pricing_tiers (service_id, tier_name, hourly_rate, min_staff, equipment_fee, detergent_fee)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (service_id, tier_name, hourly_rate, min_staff, equipment_fee, detergent_fee)
+        )
     conn.commit()
     tier_id = cursor.lastrowid
     cursor.close()
