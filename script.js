@@ -2302,6 +2302,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     summary.innerHTML = rate !== null ? [
                         '<div class="row"><span>Hours:</span><span>' + hours + ' hrs</span></div>',
                         '<div class="row"><span>Price per hour:</span><span>' + formatPrice(rate) + '</span></div>',
+                        equipment > 0 ? '<div class="row"><span>Equipment fee:</span><span>' + formatPrice(equipment) + '</span></div>' : '',
+                        detergent > 0 ? '<div class="row"><span>Materials:</span><span>' + formatPrice(detergent) + '</span></div>' : '',
                         '<div class="total-row"><span>ESTIMATED TOTAL:</span><span>' + formatPrice(total) + '</span></div>'
                     ].join('') : 'Custom quote';
                 } else {

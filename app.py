@@ -8140,7 +8140,7 @@ def add_service():
             return jsonify({'error': 'Description is required.'}), 400
 
         # Validate pricing_model
-        valid_pricing_models = ('simple', 'options', 'tenancy', 'deep', 'airbnb', 'itemized')
+        valid_pricing_models = ('simple', 'options', 'tenancy', 'deep', 'airbnb', 'itemized', 'survey')
         if pricing_model not in valid_pricing_models:
             pricing_model = 'simple'
 
@@ -8281,7 +8281,7 @@ def edit_service(service_id):
             return jsonify({'error': 'Description is required.'}), 400
 
         # Validate pricing_model
-        valid_pricing_models = ('simple', 'options', 'tenancy', 'deep', 'airbnb', 'itemized')
+        valid_pricing_models = ('simple', 'options', 'tenancy', 'deep', 'airbnb', 'itemized', 'survey')
         if pricing_model and pricing_model not in valid_pricing_models:
             pricing_model = None
 
