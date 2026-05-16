@@ -6646,7 +6646,8 @@
                 'tenancy': 'Tenancy',
                 'deep': 'Deep Cleaning',
                 'airbnb': 'Airbnb',
-                'itemized': 'Itemized'
+                'itemized': 'Itemized',
+                'survey': 'Survey Required'
             };
             const typeLabel = TYPE_LABELS[type] || (type.charAt(0).toUpperCase() + type.slice(1));
             
@@ -6665,6 +6666,15 @@
                     <div style="margin-top: 1rem; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 0.6rem; background: #f9fafb; color: #6b7280; text-align: center;">
                         <p style="margin: 0;">This service uses <strong>Simple (Fixed Price)</strong> pricing.</p>
                         <p style="margin: 0.5rem 0 0;">The base price above is shown to customers. To add options or tiers, change the Pricing Logic in the Edit Service modal.</p>
+                    </div>`;
+                return;
+            }
+
+            if (type === 'survey') {
+                panel.innerHTML = header + `
+                    <div style="margin-top: 1rem; padding: 1.25rem; border: 1px solid #e5e7eb; border-radius: 0.6rem; background: #f9fafb;">
+                        <p style="margin: 0 0 0.5rem; font-weight: 600; color: #1e3a5f;">Survey Required — no pricing config needed.</p>
+                        <p style="margin: 0; color: #6b7280; font-size: 0.9rem;">Customers will see a request panel with no price inputs. They submit an enquiry and you confirm the price after an on-site survey. No tiers, options, or rates to configure here.</p>
                     </div>`;
                 return;
             }
@@ -7286,6 +7296,9 @@
                 const serviceId = document.getElementById('service-id')?.value;
                 if (serviceId) loadRoomCards(serviceId);
             }
+
+            // Survey — no config sections at all
+            if (pricingModel === 'survey') return;
 
             // Show relevant config based on pricing model
             if (pricingModel === 'tenancy') {
