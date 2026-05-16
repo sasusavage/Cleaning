@@ -3366,9 +3366,9 @@ def migrate_domestic_to_services():
     description = content.get('intro_body') or 'Regular domestic cleaning service tailored to your home.'
 
     is_pg = 'postgres' in engine
-    active_val = 1
+    active_val = True if is_pg else 1
     is_contract_val = True if is_pg else 1
-    inactive_val = 0
+    inactive_val = False if is_pg else 0
 
     cursor.close()
     cursor = conn.cursor()
