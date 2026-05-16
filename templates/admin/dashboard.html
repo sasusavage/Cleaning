@@ -6406,6 +6406,55 @@
                 </form>`;
         }
 
+        function renderRoomsEditor(containerId, existingRooms) {
+            // existingRooms: array of {name, hours} or null
+            const rooms = Array.isArray(existingRooms) ? existingRooms : [];
+            return `<div class="rooms-editor" id="${containerId}" style="margin-top:0.75rem;border:1px solid #e5e7eb;border-radius:0.5rem;padding:0.75rem;background:#f9fafb;">
+                <div style="font-size:0.82rem;font-weight:600;color:#374151;margin-bottom:0.5rem;">
+                    Room Types &amp; Hours
+                    <span style="font-weight:400;color:#6b7280;margin-left:0.5rem;">— each room type added here replaces the Hours input for customers</span>
+                </div>
+                <div class="rooms-list" style="display:flex;flex-direction:column;gap:0.35rem;margin-bottom:0.5rem;">
+                    ${rooms.map((r, i) => `
+                    <div class="room-row" style="display:flex;gap:0.5rem;align-items:center;">
+                        <input type="text" class="room-name" placeholder="e.g. Bedroom" value="${escapeHtml(r.name||'')}" style="flex:1;padding:0.35rem 0.5rem;border:1px solid #d1d5db;border-radius:0.4rem;font-size:0.85rem;">
+                        <input type="number" class="room-hours" placeholder="hrs" value="${r.hours||''}" min="0.5" step="0.5" style="width:70px;padding:0.35rem 0.5rem;border:1px solid #d1d5db;border-radius:0.4rem;font-size:0.85rem;" title="Hours per room">
+                        <button type="button" class="btn btn-sm btn-danger room-remove" style="padding:0.25rem 0.5rem;">✕</button>
+                    </div>`).join('')}
+                </div>
+                <button type="button" class="btn btn-sm room-add-btn" style="font-size:0.82rem;">+ Add Room Type</button>
+                <p style="margin:0.4rem 0 0;font-size:0.78rem;color:#6b7280;">Leave empty to use a manual Hours input instead.</p>
+            </div>`;
+        }
+
+        function collectRoomsConfig(editorEl) {
+            const rows = editorEl ? editorEl.querySelectorAll('.room-row') : [];
+            const result = [];
+            rows.forEach(row => {
+                const name = row.querySelector('.room-name').value.trim();
+                const hrs = parseFloat(row.querySelector('.room-hours').value);
+                if (name) result.push({ name, hours: isNaN(hrs) ? 0.5 : hrs });
+            });
+            return result.length ? result : null;
+        }
+
+        function bindRoomsEditor(editorEl) {
+            editorEl.querySelector('.room-add-btn').addEventListener('click', () => {
+                const list = editorEl.querySelector('.rooms-list');
+                const row = document.createElement('div');
+                row.className = 'room-row';
+                row.style.cssText = 'display:flex;gap:0.5rem;align-items:center;';
+                row.innerHTML = `<input type="text" class="room-name" placeholder="e.g. Bedroom" style="flex:1;padding:0.35rem 0.5rem;border:1px solid #d1d5db;border-radius:0.4rem;font-size:0.85rem;">
+                    <input type="number" class="room-hours" placeholder="hrs" min="0.5" step="0.5" style="width:70px;padding:0.35rem 0.5rem;border:1px solid #d1d5db;border-radius:0.4rem;font-size:0.85rem;" title="Hours per room">
+                    <button type="button" class="btn btn-sm btn-danger room-remove" style="padding:0.25rem 0.5rem;">✕</button>`;
+                row.querySelector('.room-remove').addEventListener('click', () => row.remove());
+                list.appendChild(row);
+            });
+            editorEl.querySelectorAll('.room-remove').forEach(btn => {
+                btn.addEventListener('click', () => btn.closest('.room-row').remove());
+            });
+        }
+
         function renderDeepTierUI(service) {
             const rows = Array.isArray(service.pricing_tiers) ? service.pricing_tiers : [];
             const body = rows.length ? rows.map(tier => {
@@ -6418,6 +6467,7 @@
                 const hoursLabel = tier.hours_label ?? '';
                 const fixedStaff = tier.fixed_staff ?? '';
                 const fixedHours = tier.fixed_hours ?? '';
+                const hasRooms = Array.isArray(tier.rooms_config) && tier.rooms_config.length > 0;
                 return `
                     <tr data-tier-id="${tier.id}">
                         <td><input type="text" name="tier-name" value="${escapeHtml(tier.tier_name || '')}" required></td>
@@ -6432,7 +6482,13 @@
                         <td><input type="number" step="0.01" min="0" name="tier-det" value="${escapeHtml(det === '' ? '' : String(det))}"></td>
                         <td style="display:flex; gap:0.35rem; flex-wrap:wrap;">
                             <button class="btn btn-sm btn-primary" type="button" data-tier-action="save">Save</button>
+                            <button class="btn btn-sm" type="button" data-tier-action="rooms" style="background:#f3f4f6;border:1px solid #d1d5db;">${hasRooms ? 'Rooms (' + tier.rooms_config.length + ')' : 'Rooms'}</button>
                             <button class="btn btn-sm btn-danger" type="button" data-tier-action="delete">Delete</button>
+                        </td>
+                    </tr>
+                    <tr class="tier-rooms-row" data-tier-rooms-for="${tier.id}" style="display:none;">
+                        <td colspan="11" style="padding:0 0.5rem 0.75rem;">
+                            ${renderRoomsEditor('rooms-editor-' + tier.id, tier.rooms_config)}
                         </td>
                     </tr>`;
             }).join('') : '<tr><td colspan="11" style="text-align:center; padding:0.75rem; color:#6b7280;">No tiers yet.</td></tr>';
@@ -6459,8 +6515,9 @@
                     </table>
                 </div>
                 <p style="font-size:0.82rem; color:#6b7280; margin:0.5rem 0 0;">
-                    <strong>Min</strong> = customer can't go below this number but can increase. &nbsp;|&nbsp;
-                    <strong>Fixed</strong> = customer cannot change this at all (input is locked).
+                    <strong>Min</strong> = customer can't go below. &nbsp;|&nbsp;
+                    <strong>Fixed</strong> = input locked completely. &nbsp;|&nbsp;
+                    <strong>Rooms</strong> = replaces Hours input with a room picker (hours calculated automatically).
                 </p>
                 <form id="tier-add-form" style="margin-top:1rem; display:grid; gap:0.75rem;">
                     <h4 style="margin:0;">Add Tier</h4>
@@ -6476,6 +6533,7 @@
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Equipment (£)<input type="number" step="0.01" min="0" name="equipment_fee"></label>
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Detergent (£)<input type="number" step="0.01" min="0" name="detergent_fee"></label>
                     </div>
+                    <div id="new-tier-rooms-wrap">${renderRoomsEditor('rooms-editor-new', null)}</div>
                     <div style="display:flex; justify-content:flex-end;"><button class="btn btn-primary" type="submit">Add Tier</button></div>
                 </form>`;
         }
@@ -6534,7 +6592,25 @@
                 const action = button.getAttribute('data-tier-action');
                 if (action === 'save') button.addEventListener('click', () => saveTier(row, tierId));
                 if (action === 'delete') button.addEventListener('click', () => deleteTier(tierId));
+                if (action === 'rooms') {
+                    button.addEventListener('click', () => {
+                        const roomsRow = panel.querySelector(`tr[data-tier-rooms-for="${tierId}"]`);
+                        if (!roomsRow) return;
+                        const hidden = roomsRow.style.display === 'none';
+                        roomsRow.style.display = hidden ? 'table-row' : 'none';
+                        if (hidden) {
+                            const editor = roomsRow.querySelector('.rooms-editor');
+                            if (editor && !editor.dataset.bound) {
+                                bindRoomsEditor(editor);
+                                editor.dataset.bound = '1';
+                            }
+                        }
+                    });
+                }
             });
+            // Bind new-tier rooms editor
+            const newEditor = panel.querySelector('#rooms-editor-new');
+            if (newEditor) bindRoomsEditor(newEditor);
             const addForm = panel.querySelector('#tier-add-form');
             if (addForm) addForm.addEventListener('submit', event => handleCreateTier(event, serviceId));
         }
@@ -6916,6 +6992,7 @@
         async function handleCreateTier(event, serviceId) {
             event.preventDefault();
             const form = event.target;
+            const newRoomsEditor = form.querySelector('#rooms-editor-new');
             const payload = {
                 tier_name: (form.tier_name.value || '').trim(),
                 hourly_rate: form.hourly_rate.value,
@@ -6926,7 +7003,8 @@
                 fixed_hours: form.fixed_hours.value,
                 hours_label: form.hours_label.value.trim(),
                 equipment_fee: form.equipment_fee.value,
-                detergent_fee: form.detergent_fee.value
+                detergent_fee: form.detergent_fee.value,
+                rooms_config: collectRoomsConfig(newRoomsEditor)
             };
             if (!payload.tier_name) {
                 showToast('Tier name is required.', 'error');
@@ -6949,6 +7027,8 @@
         }
 
         async function saveTier(row, tierId) {
+            const roomsRow = row.closest('tbody') && row.closest('tbody').querySelector(`tr[data-tier-rooms-for="${tierId}"]`);
+            const roomsEditor = roomsRow ? roomsRow.querySelector('.rooms-editor') : null;
             const payload = {
                 tier_name: row.querySelector('[name="tier-name"]').value.trim(),
                 hourly_rate: row.querySelector('[name="tier-rate"]').value,
@@ -6959,7 +7039,8 @@
                 fixed_hours: row.querySelector('[name="tier-fixed-hours"]').value,
                 hours_label: row.querySelector('[name="tier-hours-label"]').value.trim(),
                 equipment_fee: row.querySelector('[name="tier-equip"]').value,
-                detergent_fee: row.querySelector('[name="tier-det"]').value
+                detergent_fee: row.querySelector('[name="tier-det"]').value,
+                rooms_config: collectRoomsConfig(roomsEditor)
             };
             if (!payload.tier_name) {
                 showToast('Tier name is required.', 'error');

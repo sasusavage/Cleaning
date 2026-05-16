@@ -2765,6 +2765,27 @@ def ensure_travel_tables():
             )
         """)
 
+    # Migration: Add new columns to service_pricing_tiers (min_hours, staff_label, hours_label, fixed_staff, fixed_hours, rooms_config)
+    if engine == 'postgres':
+        cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS min_hours DECIMAL(5,2) DEFAULT NULL")
+        cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS staff_label VARCHAR(100) DEFAULT NULL")
+        cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS hours_label VARCHAR(100) DEFAULT NULL")
+        cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS fixed_staff INTEGER DEFAULT NULL")
+        cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS fixed_hours DECIMAL(5,2) DEFAULT NULL")
+        cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS rooms_config TEXT DEFAULT NULL")
+    else:
+        for col, defn in [
+            ('min_hours', 'DECIMAL(5,2) DEFAULT NULL'),
+            ('staff_label', 'VARCHAR(100) DEFAULT NULL'),
+            ('hours_label', 'VARCHAR(100) DEFAULT NULL'),
+            ('fixed_staff', 'INT DEFAULT NULL'),
+            ('fixed_hours', 'DECIMAL(5,2) DEFAULT NULL'),
+            ('rooms_config', 'TEXT DEFAULT NULL'),
+        ]:
+            cursor.execute(f"SHOW COLUMNS FROM service_pricing_tiers LIKE '{col}'")
+            if not cursor.fetchone():
+                cursor.execute(f"ALTER TABLE service_pricing_tiers ADD COLUMN {col} {defn}")
+
     # Auto-populate pricing_model based on existing pricing data
     cursor.execute("SELECT id FROM services WHERE pricing_model IS NULL OR pricing_model = 'simple'")
     services_to_update = cursor.fetchall()
@@ -5281,7 +5302,7 @@ def fetch_services_from_db(include_inactive=False):
         try:
             cursor.execute(
                 f"""
-                SELECT id, service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, fixed_staff, fixed_hours, equipment_fee, detergent_fee
+                SELECT id, service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, fixed_staff, fixed_hours, rooms_config, equipment_fee, detergent_fee
                 FROM service_pricing_tiers
                 WHERE service_id IN ({placeholders})
                 ORDER BY service_id ASC, id ASC
@@ -5301,6 +5322,12 @@ def fetch_services_from_db(include_inactive=False):
         for tier in cursor.fetchall():
             svc = services.get(tier['service_id'])
             if svc:
+                rooms_raw = tier.get('rooms_config')
+                if isinstance(rooms_raw, str):
+                    try:
+                        rooms_raw = json.loads(rooms_raw)
+                    except Exception:
+                        rooms_raw = None
                 svc['pricing_tiers'].append({
                     'id': tier['id'],
                     'tier_name': tier.get('tier_name'),
@@ -5311,6 +5338,7 @@ def fetch_services_from_db(include_inactive=False):
                     'hours_label': tier.get('hours_label'),
                     'fixed_staff': tier.get('fixed_staff'),
                     'fixed_hours': tier.get('fixed_hours'),
+                    'rooms_config': rooms_raw,
                     'equipment_fee': normalize_price_value(tier.get('equipment_fee')),
                     'detergent_fee': normalize_price_value(tier.get('detergent_fee'))
                 })
@@ -8641,6 +8669,21 @@ def add_pricing_tier(service_id):
     staff_label = sanitize_text(payload.get('staff_label'), 100) or None
     hours_label = sanitize_text(payload.get('hours_label'), 100) or None
 
+    rooms_config_raw = payload.get('rooms_config')
+    if rooms_config_raw is not None:
+        if isinstance(rooms_config_raw, (list, dict)):
+            rooms_config = json.dumps(rooms_config_raw)
+        elif isinstance(rooms_config_raw, str) and rooms_config_raw.strip():
+            try:
+                json.loads(rooms_config_raw)
+                rooms_config = rooms_config_raw
+            except Exception:
+                rooms_config = None
+        else:
+            rooms_config = None
+    else:
+        rooms_config = None
+
     if not tier_name:
         return jsonify({'error': 'Tier name is required.'}), 400
 
@@ -8657,10 +8700,10 @@ def add_pricing_tier(service_id):
     try:
         cursor.execute(
             """
-            INSERT INTO service_pricing_tiers (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, fixed_staff, fixed_hours, equipment_fee, detergent_fee)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO service_pricing_tiers (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, fixed_staff, fixed_hours, rooms_config, equipment_fee, detergent_fee)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, fixed_staff, fixed_hours, equipment_fee, detergent_fee)
+            (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, fixed_staff, fixed_hours, rooms_config, equipment_fee, detergent_fee)
         )
     except Exception:
         conn.rollback()
@@ -8756,6 +8799,22 @@ def update_pricing_tier(tier_id):
             return jsonify({'error': 'fixed_hours must be a number or blank.'}), 400
         updates.append('fixed_hours = %s')
         params.append(fixed_hours)
+
+    if 'rooms_config' in payload:
+        rc = payload.get('rooms_config')
+        if rc is None or rc == '':
+            updates.append('rooms_config = %s')
+            params.append(None)
+        elif isinstance(rc, (list, dict)):
+            updates.append('rooms_config = %s')
+            params.append(json.dumps(rc))
+        elif isinstance(rc, str):
+            try:
+                json.loads(rc)
+                updates.append('rooms_config = %s')
+                params.append(rc)
+            except Exception:
+                return jsonify({'error': 'rooms_config must be valid JSON.'}), 400
 
     if not updates:
         return jsonify({'error': 'No updates supplied.'}), 400

@@ -2067,184 +2067,255 @@ document.addEventListener("DOMContentLoaded", function () {
             var selectedId = (previousSelection && previousSelection.payload && previousSelection.payload.tier_id) || tiers[0].id;
             var previousStaff = previousSelection && previousSelection.payload ? previousSelection.payload.staff : null;
             var previousHours = previousSelection && previousSelection.payload ? previousSelection.payload.hours : null;
+            var previousRooms = (previousSelection && previousSelection.payload && previousSelection.payload.rooms) || {};
 
-            var form = document.createElement("div");
-            form.className = "deep-tier-form";
+            // ── Tier list (same style as Airbnb) ──────────────────────────────
+            var listWrap = document.createElement('div');
+            listWrap.style.cssText = 'display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;';
 
-            var cardsRow = document.createElement("div");
-            cardsRow.className = "tier-card-grid";
+            tiers.forEach(function (tier) {
+                var minS = Math.max(Number(tier.min_staff) || 1, 1);
+                var rate = normalizePriceValue(tier.hourly_rate);
+                var label = document.createElement('button');
+                label.type = 'button';
+                label.className = 'flow-option';
+                label.setAttribute('data-tier-id', tier.id);
+                var fixedS = tier.fixed_staff != null ? Number(tier.fixed_staff) : null;
+                var staffHint = fixedS != null ? fixedS + ' staff (fixed)' : 'Min ' + minS + ' staff';
+                label.innerHTML =
+                    '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">' +
+                    '<strong>' + escapeHtml(tier.tier_name || 'Deep clean') + '</strong>' +
+                    '<span style="font-size:0.85rem;color:#6b7280;">' + staffHint + (rate !== null ? ' • From ' + formatPrice(rate) + '/hr' : '') + '</span>' +
+                    '</div>';
+                label.addEventListener('click', function () { selectTier(tier.id); });
+                listWrap.appendChild(label);
+            });
 
-            var staffLabel = document.createElement("label");
-            staffLabel.style.display = "flex";
-            staffLabel.style.flexDirection = "column";
-            staffLabel.style.gap = "0.35rem";
-            staffLabel.textContent = "Number of Staff";
-            var staffInput = document.createElement("input");
-            staffInput.type = "number";
-            staffInput.min = 1;
+            // ── Controls area (staff, hours/rooms) ────────────────────────────
+            var controls = document.createElement('div');
+            controls.style.cssText = 'display:grid;gap:0.75rem;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-top:0.5rem;';
+
+            var _initTier = tiers.find(function(t) { return String(t.id) === String(selectedId); }) || tiers[0];
+            var _initMin = Math.max(Number(_initTier && _initTier.min_staff) || 1, 1);
+            var _initMinHours = Math.max(Number(_initTier && _initTier.min_hours) || 1, 0.5);
+            var _initFixed = _initTier && _initTier.fixed_staff != null ? Number(_initTier.fixed_staff) : null;
+            var _initFixedHours = _initTier && _initTier.fixed_hours != null ? Number(_initTier.fixed_hours) : null;
+
+            // Staff input
+            var staffLabelEl = document.createElement('label');
+            staffLabelEl.style.cssText = 'display:flex;flex-direction:column;gap:0.35rem;';
+            var staffLabelText = document.createElement('span');
+            staffLabelEl.appendChild(staffLabelText);
+            var staffInput = document.createElement('input');
+            staffInput.type = 'number';
             staffInput.step = 1;
-            staffInput.value = previousStaff || "";
-            staffLabel.appendChild(staffInput);
+            staffInput.min = _initFixed != null ? _initFixed : _initMin;
+            staffInput.value = _initFixed != null ? _initFixed : (previousStaff ? Math.max(Number(previousStaff), _initMin) : _initMin);
+            if (_initFixed != null) { staffInput.readOnly = true; staffInput.style.background = '#f1f5f9'; staffInput.style.cursor = 'not-allowed'; }
+            staffLabelText.textContent = (_initTier && _initTier.staff_label || 'Number of Staff') + (_initFixed != null ? ' (fixed: ' + _initFixed + ')' : ' (min ' + _initMin + ')');
+            staffLabelEl.appendChild(staffInput);
+            controls.appendChild(staffLabelEl);
 
-            var hoursLabel = document.createElement("label");
-            hoursLabel.style.display = "flex";
-            hoursLabel.style.flexDirection = "column";
-            hoursLabel.style.gap = "0.35rem";
-            hoursLabel.textContent = "Hours Required";
-            var hoursInput = document.createElement("input");
-            hoursInput.type = "number";
-            hoursInput.min = 1;
+            // Hours input (shown when no rooms_config)
+            var hoursLabelEl = document.createElement('label');
+            hoursLabelEl.style.cssText = 'display:flex;flex-direction:column;gap:0.35rem;';
+            var hoursLabelText = document.createElement('span');
+            hoursLabelEl.appendChild(hoursLabelText);
+            var hoursInput = document.createElement('input');
+            hoursInput.type = 'number';
             hoursInput.step = 0.5;
-            hoursInput.value = previousHours || 2;
-            hoursLabel.appendChild(hoursInput);
+            hoursInput.min = _initFixedHours != null ? _initFixedHours : _initMinHours;
+            hoursInput.value = _initFixedHours != null ? _initFixedHours : (previousHours ? Math.max(Number(previousHours), _initMinHours) : _initMinHours);
+            if (_initFixedHours != null) { hoursInput.readOnly = true; hoursInput.style.background = '#f1f5f9'; hoursInput.style.cursor = 'not-allowed'; }
+            hoursLabelText.textContent = (_initTier && _initTier.hours_label || 'Hours Required') + (_initFixedHours != null ? ' (fixed: ' + _initFixedHours + ')' : ' (min ' + _initMinHours + ')');
+            hoursLabelEl.appendChild(hoursInput);
 
-            var breakdown = document.createElement("div");
-            breakdown.className = "price-summary-box";
+            // Rooms section (shown when tier has rooms_config)
+            var roomsSection = document.createElement('div');
+            roomsSection.style.cssText = 'grid-column:1/-1;display:none;flex-direction:column;gap:0.5rem;margin-top:0.25rem;';
+            var roomsTitle = document.createElement('div');
+            roomsTitle.style.cssText = 'font-size:0.85rem;font-weight:600;color:#374151;margin-bottom:0.1rem;';
+            roomsTitle.textContent = 'Select Rooms';
+            roomsSection.appendChild(roomsTitle);
+            var roomsGrid = document.createElement('div');
+            roomsGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:0.5rem;';
+            roomsSection.appendChild(roomsGrid);
+            var roomsNote = document.createElement('div');
+            roomsNote.style.cssText = 'font-size:0.8rem;color:#6b7280;margin-top:0.15rem;';
+            roomsSection.appendChild(roomsNote);
 
-            var errorRow = document.createElement("div");
-            errorRow.className = "inline-error";
+            var summary = document.createElement('div');
+            summary.className = 'price-summary-box';
+            summary.style.marginTop = '0.85rem';
 
-            form.appendChild(cardsRow);
-            form.appendChild(staffLabel);
-            form.appendChild(hoursLabel);
-            form.appendChild(breakdown);
-            form.appendChild(errorRow);
+            flowOptionsContainer.appendChild(listWrap);
+            flowOptionsContainer.appendChild(controls);
+            flowOptionsContainer.appendChild(roomsSection);
+            flowOptionsContainer.appendChild(summary);
 
-            flowOptionsContainer.appendChild(form);
+            var roomQty = {}; // { roomName: qty }
+
+            var buildRoomsUI = function (tier) {
+                roomsGrid.innerHTML = '';
+                var rc = Array.isArray(tier.rooms_config) ? tier.rooms_config : null;
+                if (!rc || !rc.length) {
+                    roomsSection.style.display = 'none';
+                    if (!hoursLabelEl.parentNode) controls.appendChild(hoursLabelEl);
+                    return;
+                }
+                // Hide hours input, show rooms
+                if (hoursLabelEl.parentNode) hoursLabelEl.parentNode.removeChild(hoursLabelEl);
+                roomsSection.style.display = 'flex';
+
+                rc.forEach(function (room) {
+                    var name = room.name || room.label || 'Room';
+                    var hrs = Number(room.hours) || 0.5;
+                    if (!(name in roomQty)) roomQty[name] = previousRooms[name] || 0;
+
+                    var row = document.createElement('div');
+                    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;background:#f8fafc;border:1px solid #e5e7eb;border-radius:0.5rem;padding:0.5rem 0.75rem;gap:0.5rem;';
+
+                    var nameEl = document.createElement('div');
+                    nameEl.style.cssText = 'font-size:0.875rem;font-weight:500;flex:1;';
+                    nameEl.textContent = name;
+                    var hrsEl = document.createElement('div');
+                    hrsEl.style.cssText = 'font-size:0.75rem;color:#6b7280;';
+                    hrsEl.textContent = hrs + 'hr';
+
+                    var stepper = document.createElement('div');
+                    stepper.style.cssText = 'display:flex;align-items:center;gap:0.3rem;';
+                    var minusBtn = document.createElement('button');
+                    minusBtn.type = 'button';
+                    minusBtn.textContent = '−';
+                    minusBtn.style.cssText = 'width:26px;height:26px;border-radius:50%;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:1rem;line-height:1;display:flex;align-items:center;justify-content:center;';
+                    var qtyEl = document.createElement('span');
+                    qtyEl.style.cssText = 'min-width:18px;text-align:center;font-weight:600;font-size:0.9rem;';
+                    qtyEl.textContent = roomQty[name];
+                    var plusBtn = document.createElement('button');
+                    plusBtn.type = 'button';
+                    plusBtn.textContent = '+';
+                    plusBtn.style.cssText = minusBtn.style.cssText;
+
+                    minusBtn.addEventListener('click', function () {
+                        roomQty[name] = Math.max(0, roomQty[name] - 1);
+                        qtyEl.textContent = roomQty[name];
+                        emit();
+                    });
+                    plusBtn.addEventListener('click', function () {
+                        roomQty[name] = (roomQty[name] || 0) + 1;
+                        qtyEl.textContent = roomQty[name];
+                        emit();
+                    });
+
+                    stepper.appendChild(minusBtn);
+                    stepper.appendChild(qtyEl);
+                    stepper.appendChild(plusBtn);
+                    row.appendChild(nameEl);
+                    row.appendChild(hrsEl);
+                    row.appendChild(stepper);
+                    roomsGrid.appendChild(row);
+                });
+            };
 
             var selectTier = function (tierId) {
                 selectedId = tierId;
-                Array.from(cardsRow.querySelectorAll('.tier-card')).forEach(function (card) {
-                    if (String(card.getAttribute('data-tier-id')) === String(tierId)) {
-                        card.classList.add('is-selected');
-                    } else {
-                        card.classList.remove('is-selected');
-                    }
+                Array.from(listWrap.querySelectorAll('.flow-option')).forEach(function (row) {
+                    row.classList.toggle('is-selected', String(row.getAttribute('data-tier-id')) === String(tierId));
                 });
+                var tier = tiers.find(function (t) { return String(t.id) === String(selectedId); }) || tiers[0];
+                var minS = Math.max(Number(tier.min_staff) || 1, 1);
+                var minH = Math.max(Number(tier.min_hours) || 1, 0.5);
+                var fixS = tier.fixed_staff != null ? Number(tier.fixed_staff) : null;
+                var fixH = tier.fixed_hours != null ? Number(tier.fixed_hours) : null;
 
-                var tier = tiers.find(function (t) { return String(t.id) === String(selectedId); });
-                var minStaff = 1;
-                if (tier) {
-                    var explicit = Number(tier.min_staff);
-                    if (Number.isFinite(explicit) && explicit > 0) {
-                        minStaff = explicit;
-                    }
-                    var name = (tier.tier_name || "").toLowerCase();
-                    if (name.includes('extreme')) {
-                        minStaff = Math.max(minStaff, 3);
-                    } else if (name.includes('standard')) {
-                        minStaff = Math.max(minStaff, 2);
-                    }
+                if (fixS != null) {
+                    staffInput.readOnly = true; staffInput.style.background = '#f1f5f9'; staffInput.style.cursor = 'not-allowed';
+                    staffInput.value = fixS; staffInput.min = fixS;
+                    staffLabelText.textContent = (tier.staff_label || 'Number of Staff') + ' (fixed: ' + fixS + ')';
+                } else {
+                    staffInput.readOnly = false; staffInput.style.background = ''; staffInput.style.cursor = '';
+                    staffInput.min = minS;
+                    staffLabelText.textContent = (tier.staff_label || 'Number of Staff') + ' (min ' + minS + ')';
+                    if (!Number.isFinite(Number(staffInput.value)) || Number(staffInput.value) < minS) staffInput.value = minS;
                 }
 
-                var currentStaff = Number(staffInput.value);
-                if (!Number.isFinite(currentStaff) || currentStaff < minStaff) {
-                    staffInput.value = minStaff;
+                if (fixH != null) {
+                    hoursInput.readOnly = true; hoursInput.style.background = '#f1f5f9'; hoursInput.style.cursor = 'not-allowed';
+                    hoursInput.value = fixH; hoursInput.min = fixH;
+                    hoursLabelText.textContent = (tier.hours_label || 'Hours Required') + ' (fixed: ' + fixH + ')';
+                } else {
+                    hoursInput.readOnly = false; hoursInput.style.background = ''; hoursInput.style.cursor = '';
+                    hoursInput.min = minH;
+                    hoursLabelText.textContent = (tier.hours_label || 'Hours Required') + ' (min ' + minH + ')';
+                    if (!Number.isFinite(Number(hoursInput.value)) || Number(hoursInput.value) < minH) hoursInput.value = minH;
                 }
+
+                buildRoomsUI(tier);
                 emit();
             };
 
-            tiers.forEach(function (tier) {
-                var card = document.createElement('button');
-                card.type = 'button';
-                card.className = 'tier-card';
-                card.setAttribute('data-tier-id', tier.id);
-
-                var title = document.createElement('div');
-                title.className = 'tier-card__title';
-                title.textContent = tier.tier_name || 'Deep clean';
-
-                var subtitle = document.createElement('div');
-                subtitle.className = 'tier-card__subtitle';
-                subtitle.textContent = (tier.tier_name || '').toLowerCase().includes('extreme')
-                    ? 'Min 3 Staff • From £30/hr'
-                    : 'Min 2 Staff • From £20/hr';
-
-                card.appendChild(title);
-                card.appendChild(subtitle);
-
-                card.addEventListener('click', function () {
-                    selectTier(tier.id);
-                });
-
-                cardsRow.appendChild(card);
-            });
-
-            // Only visually select tier if there was a previous selection
-            if (previousSelection && previousSelection.payload && previousSelection.payload.tier_id) {
-                selectTier(selectedId);
-            } else {
-                // Just update visual state without emitting
-                Array.from(cardsRow.querySelectorAll('.tier-card')).forEach(function (card) {
-                    card.classList.remove('is-selected');
-                });
-            }
-
             function emit() {
                 var tier = tiers.find(function (t) { return String(t.id) === String(selectedId); }) || tiers[0];
-                var minStaff = 1;
-                if (tier) {
-                    var explicit = Number(tier.min_staff);
-                    if (Number.isFinite(explicit) && explicit > 0) {
-                        minStaff = explicit;
-                    }
-                    var name = (tier.tier_name || "").toLowerCase();
-                    if (name.includes('extreme')) {
-                        minStaff = Math.max(minStaff, 3);
-                    } else if (name.includes('standard')) {
-                        minStaff = Math.max(minStaff, 2);
-                    }
-                }
-                var staff = Number(staffInput.value);
-                if (!Number.isFinite(staff) || staff <= 0) staff = minStaff;
-                var hours = Number(hoursInput.value);
-                if (!Number.isFinite(hours) || hours <= 0) hours = 1;
+                var fixS = tier.fixed_staff != null ? Number(tier.fixed_staff) : null;
+                var fixH = tier.fixed_hours != null ? Number(tier.fixed_hours) : null;
+                var minS = Math.max(Number(tier.min_staff) || 1, 1);
+                var minH = Math.max(Number(tier.min_hours) || 1, 0.5);
+                var staff = fixS != null ? fixS : Math.max(Number(staffInput.value) || minS, minS);
+                var rc = Array.isArray(tier.rooms_config) ? tier.rooms_config : null;
 
-                var validationError = "";
-                if (staff < minStaff) {
-                    validationError = tier && (tier.tier_name || "").toLowerCase().includes('extreme')
-                        ? "Extreme requires min 3 staff."
-                        : "Minimum staff for this tier is " + minStaff + ".";
-                    staffInput.value = minStaff;
-                    staff = minStaff;
+                var hours;
+                if (rc && rc.length) {
+                    // Hours derived from rooms
+                    hours = 0;
+                    rc.forEach(function (room) {
+                        var name = room.name || room.label || 'Room';
+                        hours += (roomQty[name] || 0) * (Number(room.hours) || 0.5);
+                    });
+                    hours = Math.max(hours, minH);
+                    var roomSummary = rc.filter(function(r){ return (roomQty[r.name||r.label||'Room']||0) > 0; })
+                        .map(function(r){ var n=r.name||r.label||'Room'; return roomQty[n]+'× '+n; }).join(', ');
+                    roomsNote.textContent = roomSummary ? 'Selected: ' + roomSummary + ' → ' + hours + ' hrs estimated' : 'Add rooms above to calculate hours';
+                } else {
+                    hours = fixH != null ? fixH : Math.max(Number(hoursInput.value) || minH, minH);
                 }
 
-                var rate = tier ? normalizePriceValue(tier.hourly_rate) : null;
-                var equipment = tier ? normalizePriceValue(tier.equipment_fee) || 0 : 0;
-                var detergent = tier ? normalizePriceValue(tier.detergent_fee) || 0 : 0;
+                var rate = normalizePriceValue(tier.hourly_rate);
+                var equipment = normalizePriceValue(tier.equipment_fee) || 0;
+                var detergent = normalizePriceValue(tier.detergent_fee) || 0;
                 var materialsTotal = equipment + detergent;
-                var total = rate !== null ? (rate * staff * hours) + materialsTotal : null;
+                var total = rate !== null ? Math.round(((rate * staff * hours) + materialsTotal) * 100) / 100 : null;
 
-                breakdown.innerHTML = rate !== null ? [
-                    '<div class="row"><span>Labor Rate:</span><span>' + formatPrice(rate) + ' /hr per person</span></div>',
-                    '<div class="row"><span>Staff Count:</span><span>' + staff + ' Cleaners</span></div>',
-                    '<div class="row"><span>Hours:</span><span>' + hours + ' hrs</span></div>',
-                    '<div class="row"><span>Materials & Equip:</span><span>' + formatPrice(materialsTotal) + ' (Fixed Fee)</span></div>',
+                summary.innerHTML = rate !== null ? [
+                    '<div class="row"><span>Package:</span><span>' + escapeHtml(tier.tier_name || 'Deep clean') + '</span></div>',
+                    '<div class="row"><span>Rate:</span><span>' + formatPrice(rate) + ' /hr per cleaner</span></div>',
+                    '<div class="row"><span>Staff:</span><span>' + staff + '</span></div>',
+                    '<div class="row"><span>Hours:</span><span>' + hours + '</span></div>',
+                    materialsTotal > 0 ? '<div class="row"><span>Materials:</span><span>' + formatPrice(materialsTotal) + '</span></div>' : '',
                     '<div class="total-row"><span>ESTIMATED TOTAL:</span><span>' + formatPrice(total) + '</span></div>'
-                ].join('') : "Custom quote";
-                errorRow.textContent = validationError;
+                ].join('') : 'Custom quote';
 
-                var payload = {
+                onChange({
                     optionId: tier ? tier.id : null,
-                    optionLabel: tier ? (tier.tier_name || "Deep clean") : "Deep clean",
-                    optionDetails: "Tier: " + (tier ? tier.tier_name : "") + " • Staff: " + staff + " • Hours: " + hours,
+                    optionLabel: tier ? (tier.tier_name || 'Deep clean') : 'Deep clean',
+                    optionDetails: 'Staff: ' + staff + ' • Hours: ' + hours,
                     price: total,
-                    priceDisplay: typeof total === "number" ? formatPrice(total) : "Custom quote",
-                    modelType: "deep",
+                    priceDisplay: typeof total === 'number' ? formatPrice(total) : 'Custom quote',
+                    modelType: 'deep',
                     payload: {
-                        type: "deep",
+                        type: 'deep',
                         tier_id: tier ? tier.id : null,
                         staff: staff,
                         hours: hours,
+                        rooms: rc ? Object.assign({}, roomQty) : undefined,
                         equipment_fee: equipment,
                         detergent_fee: detergent
                     }
-                };
-                onChange(payload);
+                });
             }
 
-            staffInput.addEventListener("input", emit);
-            hoursInput.addEventListener("input", emit);
+            staffInput.addEventListener('input', emit);
+            hoursInput.addEventListener('input', emit);
+            selectTier(selectedId);
             // Only auto-select if there was a previous selection, otherwise let user choose
             if (previousSelection && previousSelection.payload && previousSelection.payload.tier_id) {
                 emit();
