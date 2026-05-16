@@ -317,6 +317,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 element.classList.add("is-visible");
             });
         } else {
+            var isMobile = window.innerWidth <= 768;
             var revealObserver = new IntersectionObserver(function (entries, observer) {
                 entries.forEach(function (entry) {
                     if (entry.isIntersecting) {
@@ -325,8 +326,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     }
                 });
             }, {
-                threshold: 0.25,
-                rootMargin: "0px 0px -10% 0px"
+                threshold: isMobile ? 0 : 0.1,
+                rootMargin: isMobile ? "0px" : "0px 0px -5% 0px"
             });
 
             animatedElements.forEach(function (element) {
@@ -5253,6 +5254,17 @@ document.addEventListener('DOMContentLoaded', function () {
     // Video playback optimization
     var video = heroEl.querySelector('.hero__video');
     if (video) {
+        // On mobile, defer video load so it doesn't block page render
+        if (window.innerWidth <= 768) {
+            video.removeAttribute('autoplay');
+            video.setAttribute('preload', 'none');
+            // Load and play after page is fully loaded
+            window.addEventListener('load', function () {
+                video.setAttribute('preload', 'metadata');
+                video.load();
+                video.play().catch(function () {});
+            });
+        }
         video.addEventListener('play', function () {
             video.style.willChange = 'auto';
         });
