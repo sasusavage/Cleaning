@@ -2083,7 +2083,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 var hasRooms = Array.isArray(tier.rooms_config) && tier.rooms_config.length > 0;
                 var fixedS = tier.fixed_staff != null ? Number(tier.fixed_staff) : null;
                 var hint = hasRooms
-                    ? (rate !== null ? 'From ' + formatPrice(rate) + '/hr' : '')
+                    ? (rate !== null ? formatPrice(rate) + '/hr' : '')
                     : (fixedS != null ? fixedS + ' staff (fixed)' : 'Min ' + minS + ' staff') + (rate !== null ? ' • From ' + formatPrice(rate) + '/hr' : '');
                 label.innerHTML =
                     '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">' +
@@ -2300,10 +2300,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     summary.innerHTML = '<div style="color:#6b7280;font-size:0.9rem;text-align:center;padding:0.5rem 0;">Select rooms above to see your price.</div>';
                 } else if (hasRoomsMode) {
                     summary.innerHTML = rate !== null ? [
-                        '<div class="row"><span>Package:</span><span>' + escapeHtml(tier.tier_name || 'Deep clean') + '</span></div>',
-                        '<div class="row"><span>Rate:</span><span>' + formatPrice(rate) + ' /hr</span></div>',
-                        '<div class="row"><span>Hours:</span><span>' + hours + '</span></div>',
-                        materialsTotal > 0 ? '<div class="row"><span>Materials:</span><span>' + formatPrice(materialsTotal) + '</span></div>' : '',
+                        '<div class="row"><span>Hours:</span><span>' + hours + ' hrs</span></div>',
+                        '<div class="row"><span>Price per hour:</span><span>' + formatPrice(rate) + '</span></div>',
                         '<div class="total-row"><span>ESTIMATED TOTAL:</span><span>' + formatPrice(total) + '</span></div>'
                     ].join('') : 'Custom quote';
                 } else {
