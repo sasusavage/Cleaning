@@ -6919,23 +6919,18 @@ class TelegramErrorLogHandler(logging.Handler):
             ts = _dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
 
             if count == 0:
-                lines = [
-                    '✅ Hourly System Health Report',
-                    f'🕐 {ts}',
-                    f'Status: All systems healthy — no errors in the past {self.health_report_hours}h.',
-                    'Database ✓  |  Routes ✓  |  Background jobs ✓'
-                ]
-            else:
-                lines = [
-                    f'⚠️ Hourly System Health Report',
-                    f'🕐 {ts}',
-                    f'Status: {count} error(s) logged in the past {self.health_report_hours}h.',
-                    ''
-                ]
-                for i, e in enumerate(recent, 1):
-                    lines.append(f'{i}. {e}')
-                lines.append('')
-                lines.append('Check server logs for full tracebacks.')
+                return  # no errors — stay silent
+
+            lines = [
+                f'⚠️ System Health Report',
+                f'🕐 {ts}',
+                f'Status: {count} error(s) logged in the past {self.health_report_hours}h.',
+                ''
+            ]
+            for i, e in enumerate(recent, 1):
+                lines.append(f'{i}. {e}')
+            lines.append('')
+            lines.append('Check server logs for full tracebacks.')
 
             text = '\n'.join(lines)
             if len(text) > 4000:
