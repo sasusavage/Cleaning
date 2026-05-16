@@ -2080,28 +2080,32 @@ document.addEventListener("DOMContentLoaded", function () {
                 label.type = 'button';
                 label.className = 'flow-option';
                 label.setAttribute('data-tier-id', tier.id);
+                var hasRooms = Array.isArray(tier.rooms_config) && tier.rooms_config.length > 0;
                 var fixedS = tier.fixed_staff != null ? Number(tier.fixed_staff) : null;
-                var staffHint = fixedS != null ? fixedS + ' staff (fixed)' : 'Min ' + minS + ' staff';
+                var hint = hasRooms
+                    ? (rate !== null ? 'From ' + formatPrice(rate) + '/hr' : '')
+                    : (fixedS != null ? fixedS + ' staff (fixed)' : 'Min ' + minS + ' staff') + (rate !== null ? ' • From ' + formatPrice(rate) + '/hr' : '');
                 label.innerHTML =
                     '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">' +
                     '<strong>' + escapeHtml(tier.tier_name || 'Deep clean') + '</strong>' +
-                    '<span style="font-size:0.85rem;color:#6b7280;">' + staffHint + (rate !== null ? ' • From ' + formatPrice(rate) + '/hr' : '') + '</span>' +
+                    '<span style="font-size:0.85rem;color:#6b7280;">' + hint + '</span>' +
                     '</div>';
                 label.addEventListener('click', function () { selectTier(tier.id); });
                 listWrap.appendChild(label);
             });
 
-            // ── Controls area (staff, hours/rooms) ────────────────────────────
+            // ── Controls area (staff hidden in rooms mode, hours/rooms) ──────
             var controls = document.createElement('div');
             controls.style.cssText = 'display:grid;gap:0.75rem;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-top:0.5rem;';
 
             var _initTier = tiers.find(function(t) { return String(t.id) === String(selectedId); }) || tiers[0];
+            var _initHasRooms = Array.isArray(_initTier && _initTier.rooms_config) && _initTier.rooms_config.length > 0;
             var _initMin = Math.max(Number(_initTier && _initTier.min_staff) || 1, 1);
             var _initMinHours = Math.max(Number(_initTier && _initTier.min_hours) || 1, 0.5);
             var _initFixed = _initTier && _initTier.fixed_staff != null ? Number(_initTier.fixed_staff) : null;
             var _initFixedHours = _initTier && _initTier.fixed_hours != null ? Number(_initTier.fixed_hours) : null;
 
-            // Staff input
+            // Staff input — hidden when rooms_config present (staff decided internally)
             var staffLabelEl = document.createElement('label');
             staffLabelEl.style.cssText = 'display:flex;flex-direction:column;gap:0.35rem;';
             var staffLabelText = document.createElement('span');
@@ -2114,7 +2118,7 @@ document.addEventListener("DOMContentLoaded", function () {
             if (_initFixed != null) { staffInput.readOnly = true; staffInput.style.background = '#f1f5f9'; staffInput.style.cursor = 'not-allowed'; }
             staffLabelText.textContent = (_initTier && _initTier.staff_label || 'Number of Staff') + (_initFixed != null ? ' (fixed: ' + _initFixed + ')' : ' (min ' + _initMin + ')');
             staffLabelEl.appendChild(staffInput);
-            controls.appendChild(staffLabelEl);
+            if (!_initHasRooms) controls.appendChild(staffLabelEl);
 
             // Hours input (shown when no rooms_config)
             var hoursLabelEl = document.createElement('label');
@@ -2159,11 +2163,14 @@ document.addEventListener("DOMContentLoaded", function () {
                 roomsGrid.innerHTML = '';
                 var rc = Array.isArray(tier.rooms_config) ? tier.rooms_config : null;
                 if (!rc || !rc.length) {
+                    // No rooms — show staff + hours inputs
                     roomsSection.style.display = 'none';
+                    if (!staffLabelEl.parentNode) controls.insertBefore(staffLabelEl, controls.firstChild);
                     if (!hoursLabelEl.parentNode) controls.appendChild(hoursLabelEl);
                     return;
                 }
-                // Hide hours input, show rooms
+                // Rooms mode — hide staff input and hours input, show rooms picker
+                if (staffLabelEl.parentNode) staffLabelEl.parentNode.removeChild(staffLabelEl);
                 if (hoursLabelEl.parentNode) hoursLabelEl.parentNode.removeChild(hoursLabelEl);
                 roomsSection.style.display = 'flex';
 
@@ -2282,14 +2289,23 @@ document.addEventListener("DOMContentLoaded", function () {
                 var equipment = normalizePriceValue(tier.equipment_fee) || 0;
                 var detergent = normalizePriceValue(tier.detergent_fee) || 0;
                 var materialsTotal = equipment + detergent;
-                // When rooms drive hours, no rooms selected = no price yet
+                // Rooms mode: price = rate × hours (staff handled internally, not shown)
+                // Non-rooms mode: price = rate × staff × hours
                 var hasRoomsMode = rc && rc.length;
                 var total = (rate !== null && (!hasRoomsMode || hours > 0))
-                    ? Math.round(((rate * staff * hours) + materialsTotal) * 100) / 100
+                    ? Math.round(((hasRoomsMode ? rate * hours : rate * staff * hours) + materialsTotal) * 100) / 100
                     : null;
 
                 if (hasRoomsMode && hours === 0) {
                     summary.innerHTML = '<div style="color:#6b7280;font-size:0.9rem;text-align:center;padding:0.5rem 0;">Select rooms above to see your price.</div>';
+                } else if (hasRoomsMode) {
+                    summary.innerHTML = rate !== null ? [
+                        '<div class="row"><span>Package:</span><span>' + escapeHtml(tier.tier_name || 'Deep clean') + '</span></div>',
+                        '<div class="row"><span>Rate:</span><span>' + formatPrice(rate) + ' /hr</span></div>',
+                        '<div class="row"><span>Hours:</span><span>' + hours + '</span></div>',
+                        materialsTotal > 0 ? '<div class="row"><span>Materials:</span><span>' + formatPrice(materialsTotal) + '</span></div>' : '',
+                        '<div class="total-row"><span>ESTIMATED TOTAL:</span><span>' + formatPrice(total) + '</span></div>'
+                    ].join('') : 'Custom quote';
                 } else {
                     summary.innerHTML = rate !== null ? [
                         '<div class="row"><span>Package:</span><span>' + escapeHtml(tier.tier_name || 'Deep clean') + '</span></div>',
@@ -2304,7 +2320,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 onChange({
                     optionId: tier ? tier.id : null,
                     optionLabel: tier ? (tier.tier_name || 'Deep clean') : 'Deep clean',
-                    optionDetails: 'Staff: ' + staff + ' • Hours: ' + hours,
+                    optionDetails: hasRoomsMode ? 'Hours: ' + hours : 'Staff: ' + staff + ' • Hours: ' + hours,
                     price: total,
                     priceDisplay: total !== null ? formatPrice(total) : (hasRoomsMode ? 'Select rooms' : 'Custom quote'),
                     modelType: 'deep',
