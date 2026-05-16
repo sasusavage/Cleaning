@@ -29,6 +29,12 @@
         </script>
 
         <main>
+            <div style="padding:1rem 1.5rem 0;">
+                <a href="{{ url_for('index') }}" style="display:inline-flex;align-items:center;gap:0.35rem;color:var(--brand-green,#16a34a);font-weight:600;font-size:0.9rem;text-decoration:none;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                    Back to Home
+                </a>
+            </div>
             {% set residential_contract = namespace(item=None) %}
             {% for svc in contract_services %}
                 {% set svc_name = (svc.name or svc.title or '')|lower %}

@@ -36,6 +36,12 @@
 </head>
 <body>
     {% include 'nav.html' %}
+    <div style="max-width:820px;margin:1.25rem auto 0;padding:0 1.25rem;">
+        <a href="{{ url_for('index') }}" style="display:inline-flex;align-items:center;gap:0.35rem;color:#1d4ed8;font-weight:600;font-size:0.9rem;text-decoration:none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Back to Home
+        </a>
+    </div>
     <div class="policy-wrap">
         <div class="policy-card">
             <h1>COOKIE POLICY</h1>
