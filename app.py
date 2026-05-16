@@ -5370,7 +5370,9 @@ def fetch_services_from_db(include_inactive=False):
         # Set pricing_type based on pricing_model or infer from data for backwards compatibility
         for svc in services.values():
             pricing_model = svc.get('pricing_model')
-            if pricing_model and pricing_model != 'simple':
+            if pricing_model == 'survey':
+                svc['pricing_type'] = 'survey'
+            elif pricing_model and pricing_model != 'simple':
                 # Use explicit pricing_model as pricing_type
                 svc['pricing_type'] = pricing_model
             elif svc['tenancy_rates']:

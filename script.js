@@ -2251,6 +2251,58 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         };
 
+        var renderSurveyConfigurator = function (service, onChange) {
+            flowOptionsContainer.innerHTML = '';
+
+            var wrap = document.createElement('div');
+            wrap.style.cssText = 'border:1px solid #e5e7eb;border-radius:0.75rem;overflow:hidden;';
+
+            var header = document.createElement('div');
+            header.style.cssText = 'background:#1e3a5f;color:#fff;padding:1.25rem 1.5rem;';
+            header.innerHTML = '<div style="font-size:1.05rem;font-weight:700;margin-bottom:0.3rem;">Survey Required</div>' +
+                '<div style="font-size:0.85rem;opacity:0.85;">This service is priced individually after an on-site survey by one of our specialists.</div>';
+
+            var body = document.createElement('div');
+            body.style.cssText = 'background:#f8fafc;padding:1.25rem 1.5rem;display:flex;flex-direction:column;gap:0.75rem;';
+
+            var points = [
+                'We visit your property to assess the scope of work',
+                'You receive a tailored, no-obligation quote',
+                'No payment is taken until you approve the quote'
+            ];
+            var list = document.createElement('ul');
+            list.style.cssText = 'margin:0;padding-left:1.25rem;display:flex;flex-direction:column;gap:0.4rem;';
+            points.forEach(function(p) {
+                var li = document.createElement('li');
+                li.style.cssText = 'font-size:0.9rem;color:#374151;';
+                li.textContent = p;
+                list.appendChild(li);
+            });
+
+            var priceNote = document.createElement('div');
+            priceNote.style.cssText = 'background:#fff;border:1px solid #e5e7eb;border-radius:0.5rem;padding:0.75rem 1rem;font-size:0.9rem;color:#6b7280;text-align:center;';
+            priceNote.textContent = 'Price: To be confirmed after survey';
+
+            body.appendChild(list);
+            body.appendChild(priceNote);
+            wrap.appendChild(header);
+            wrap.appendChild(body);
+            flowOptionsContainer.appendChild(wrap);
+
+            onChange({
+                optionId: 'survey',
+                optionLabel: 'Survey Required',
+                optionDetails: 'Price confirmed after on-site assessment',
+                price: null,
+                priceDisplay: 'Survey Required',
+                modelType: 'survey',
+                payload: {
+                    type: 'survey',
+                    is_survey_request: true
+                }
+            });
+        };
+
         var renderAirbnbConfigurator = function (service, previousSelection, onChange) {
             var tiers = Array.isArray(service.pricing_tiers) ? service.pricing_tiers : [];
             if (!tiers.length) {
@@ -2753,7 +2805,9 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             var pricingType = service.pricing_type || (service.tenancy_rates && service.tenancy_rates.length ? "tenancy" : service.pricing_tiers && service.pricing_tiers.length ? "deep" : service.pricing_items && service.pricing_items.length ? "itemized" : "options");
-            if (pricingType === "tenancy") {
+            if (pricingType === "survey") {
+                renderSurveyConfigurator(service, handleSelectionChange);
+            } else if (pricingType === "tenancy") {
                 renderTenancyConfigurator(service, previousSelection, handleSelectionChange);
             } else if (pricingType === "airbnb") {
                 renderAirbnbConfigurator(service, previousSelection, handleSelectionChange);
