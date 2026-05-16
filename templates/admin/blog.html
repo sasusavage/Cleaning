@@ -14,12 +14,7 @@
         body { margin: 0; font-family: 'Inter', Arial, sans-serif; background: var(--bg); color: #1f2937; min-height: 100vh; }
 
         /* Layout */
-        .layout { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
-        .sidebar { background: #1e3a5f; color: #fff; padding: 1.5rem 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
-        .sidebar__brand { padding: 0 1.25rem 1.25rem; font-weight: 700; font-size: 1rem; color: #a7f3d0; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 1rem; }
-        .sidebar__link { display: block; padding: 0.55rem 1.25rem; color: rgba(255,255,255,0.75); font-size: 0.88rem; text-decoration: none; transition: background 0.15s, color 0.15s; }
-        .sidebar__link:hover, .sidebar__link.active { background: rgba(255,255,255,0.08); color: #fff; }
-        .sidebar__sep { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 0.5rem 0; }
+        .layout { display: flex; min-height: 100vh; }
 
         /* Main */
         .main { padding: 2rem; max-width: 1100px; }
@@ -97,16 +92,7 @@
 </head>
 <body>
 <div class="layout">
-    <aside class="sidebar">
-        <div class="sidebar__brand">{{ company_name }}</div>
-        <a class="sidebar__link" href="{{ url_for('admin_dashboard') }}">← Dashboard</a>
-        <hr class="sidebar__sep">
-        <a class="sidebar__link" href="{{ url_for('admin_hero_content_page') }}">🖼 Hero Content</a>
-        <a class="sidebar__link" href="{{ url_for('admin_site_content_page') }}">✏️ Site Content</a>
-        <a class="sidebar__link active" href="{{ url_for('admin_blog_page') }}">📝 Blog Posts</a>
-        <a class="sidebar__link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
-        <a class="sidebar__link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
-    </aside>
+    {% set active_page = 'blog' %}{% include 'admin/_sidebar.html' %}
 
     <main class="main">
         <div class="page-header">

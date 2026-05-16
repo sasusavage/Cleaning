@@ -34,90 +34,6 @@
             color: var(--text);
         }
 
-        .sidebar {
-            width: 240px;
-            background: #111827;
-            color: #f9fafb;
-            padding: 2rem 1.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-            position: sticky;
-            top: 0;
-            height: 100vh;
-            overflow-y: auto;
-            align-self: flex-start;
-            z-index: 120;
-        }
-
-        .sidebar__header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.75rem;
-            margin-bottom: 0.75rem;
-        }
-
-        .sidebar__toggle {
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 0.45rem 0.7rem;
-            border-radius: 0.5rem;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            background: rgba(255, 255, 255, 0.08);
-            color: #f9fafb;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        .sidebar__nav {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-        }
-
-        .sidebar--menu-open .sidebar__nav { display: flex; }
-
-        .sidebar__logout-form { margin-top: 0.75rem; }
-
-        .sidebar__logout-button {
-            width: 100%;
-            display: block;
-            padding: 0.75rem 1rem;
-            border-radius: 0.5rem;
-            border: 1px solid rgba(248, 113, 113, 0.25);
-            background: rgba(248, 113, 113, 0.12);
-            color: #fca5a5;
-            font-weight: 600;
-            font-size: 0.9rem;
-            font-family: inherit;
-            cursor: pointer;
-            transition: background 0.2s ease;
-        }
-
-        .sidebar__logout-button:hover { background: rgba(248, 113, 113, 0.2); color: #fef2f2; }
-
-        .sidebar__brand {
-            font-size: 1.05rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-        }
-
-        .sidebar__link {
-            display: block;
-            padding: 0.65rem 0.85rem;
-            border-radius: 0.5rem;
-            color: #d1d5db;
-            text-decoration: none;
-            font-size: 0.9rem;
-            font-weight: 500;
-            transition: background 0.2s ease, color 0.2s ease;
-        }
-
-        .sidebar__link:hover, .sidebar__link--active { background: rgba(255, 255, 255, 0.08); color: #fff; }
-        .sidebar__link--active { background: rgba(37, 99, 235, 0.25); color: #93c5fd; }
-
         .main { flex: 1; padding: 2rem; overflow-y: auto; }
 
         .page-header { margin-bottom: 2rem; }
@@ -321,22 +237,6 @@
             body {
                 flex-direction: column;
             }
-            .sidebar {
-                position: relative;
-                width: 100%;
-                height: auto;
-                padding: 1rem 1.25rem;
-                gap: 0;
-                z-index: 1000;
-            }
-            .sidebar__header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            }
-            .sidebar__toggle { display: flex; }
-            .sidebar__nav { display: none; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 1rem; }
-            .sidebar--menu-open .sidebar__nav { display: flex; }
             .main { padding: 1.5rem; }
         }
         @media (max-width: 640px) {
@@ -345,7 +245,6 @@
             .toggle-row { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
         }
         @media (max-width: 480px) {
-            .sidebar { padding: 0.9rem 1rem; }
             .page-header__title { font-size: 1.35rem; }
             .card { padding: 1rem; }
             .form-group label { font-size: 0.85rem; }
@@ -354,58 +253,7 @@
     </style>
 </head>
 <body>
-    <aside class="sidebar">
-        <div class="sidebar__header">
-            <span class="sidebar__brand">{{ company_name }} Admin</span>
-            <button type="button" class="sidebar__toggle" aria-expanded="false">Menu</button>
-        </div>
-                <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
-
-            <!-- Operations -->
-            <span class="nav-group__label">Operations</span>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">📊 Analytics</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">📋 Requests</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#contracts">📄 Contracts</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">💳 Payments</a>
-
-            <hr class="nav-divider">
-
-            <!-- Services -->
-            <span class="nav-group__label">Services</span>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">🛠 Service Management</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">🚗 Travel Pricing</a>
-            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">🏠 Domestic Cleaning</a>
-
-            <hr class="nav-divider">
-
-            <!-- Content -->
-            <span class="nav-group__label">Content</span>
-            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">🖼 Hero Content</a>
-            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">✏️ Site Content</a>
-            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
-            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">⭐ Testimonials</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">💼 Job Positions</a>
-
-            <hr class="nav-divider">
-
-            <!-- Settings -->
-            <span class="nav-group__label">Settings</span>
-            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">🎨 Brand &amp; Logo</a>
-            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">💬 Quote &amp; Contact</a>
-            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">🔗 Footer</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">📧 Email Settings</a>
-            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">✈️ Telegram</a>
-            <a class="nav-link active" href="{{ url_for('admin_ai_settings_page') }}">🤖 AI Assistant</a>
-            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">💬 Chat Conversations</a>
-
-            <hr class="nav-divider">
-
-            <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
-                <button type="submit" class="sidebar__logout-button">Log Out</button>
-            </form>
-        </nav>
-    </aside>
+    {% set active_page = 'ai' %}{% include 'admin/_sidebar.html' %}
 
     <main class="main">
         <header class="page-header">
@@ -631,34 +479,6 @@
     <div id="toast" class="toast"></div>
 
     <script>
-        const sidebar = document.querySelector('.sidebar');
-        const sidebarToggle = document.querySelector('.sidebar__toggle');
-        const sidebarLinks = document.querySelectorAll('.sidebar__nav .sidebar__link');
-
-        if (sidebar && sidebarToggle) {
-            sidebarToggle.addEventListener('click', () => {
-                const expanded = sidebarToggle.getAttribute('aria-expanded') === 'true';
-                sidebarToggle.setAttribute('aria-expanded', String(!expanded));
-                sidebar.classList.toggle('sidebar--menu-open', !expanded);
-            });
-
-            sidebarLinks.forEach((link) => {
-                link.addEventListener('click', () => {
-                    if (window.innerWidth <= 1024 && sidebar.classList.contains('sidebar--menu-open')) {
-                        sidebar.classList.remove('sidebar--menu-open');
-                        sidebarToggle.setAttribute('aria-expanded', 'false');
-                    }
-                });
-            });
-
-            window.addEventListener('resize', () => {
-                if (window.innerWidth > 1024 && sidebar.classList.contains('sidebar--menu-open')) {
-                    sidebar.classList.remove('sidebar--menu-open');
-                    sidebarToggle.setAttribute('aria-expanded', 'false');
-                }
-            });
-        }
-
         function updateModelOptions() {
             const provider = document.getElementById('ai_provider').value;
             const modelSelect = document.getElementById('model');

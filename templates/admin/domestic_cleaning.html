@@ -20,16 +20,6 @@
         }
         * { box-sizing: border-box; }
         body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; min-height: 100vh; }
-        .sidebar { width: 240px; background: #111827; color: #f9fafb; padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; position: sticky; top: 0; height: 100vh; overflow-y: auto; z-index: 120; }
-        .sidebar__header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
-        .logo { font-size: 1.1rem; font-weight: 700; color: #f9fafb; }
-        .sidebar__toggle { display:none; align-items:center; justify-content:center; padding:.45rem .7rem; border-radius:.5rem; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.08); color:#f9fafb; font-weight:600; cursor:pointer; }
-        .sidebar__nav { display:flex; flex-direction:column; gap:.25rem; }
-        .nav-link { display:block; padding:.65rem .9rem; color:#9ca3af; text-decoration:none; border-radius:.5rem; font-size:.9rem; transition: background .2s, color .2s; }
-        .nav-link:hover { background: rgba(255,255,255,.08); color:#f9fafb; }
-        .nav-link.active { background: rgba(37, 99, 235, 0.25); color: #93c5fd; }
-        .sidebar__logout-form { margin-top:.75rem; }
-        .sidebar__logout-button { width:100%; display:block; padding:.75rem 1rem; border-radius:.5rem; border:1px solid rgba(248,113,113,.25); background: rgba(248,113,113,.12); color:#fca5a5; font-weight:600; font-size:.9rem; cursor:pointer; }
 
         .main-content { flex:1; padding:2rem; overflow-y:auto; }
         .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem; gap:1rem; }
@@ -62,69 +52,12 @@
         .toast.error { background: var(--error); }
         @media (max-width: 1024px) { .grid.two { grid-template-columns: 1fr; } }
         @media (max-width: 768px) {
-            .sidebar { position: fixed; left:-240px; transition:left .3s; }
-            .sidebar.sidebar--menu-open { left:0; }
-            .sidebar__toggle { display:flex; position:fixed; top:1rem; left:1rem; z-index:130; }
-            .main-content { padding:4rem 1rem 1rem; }
+            .main-content { padding: 1.5rem 1rem 1rem; }
         }
     </style>
 </head>
 <body>
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar__header">
-            <div class="logo">{{ company_name }} Admin</div>
-            <button type="button" class="sidebar__toggle" id="sidebarToggle">Menu</button>
-        </div>
-                <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
-
-            <!-- Operations -->
-            <span class="nav-group__label">Operations</span>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">📊 Analytics</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">📋 Requests</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#contracts">📄 Contracts</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">💳 Payments</a>
-
-            <hr class="nav-divider">
-
-            <!-- Services -->
-            <span class="nav-group__label">Services</span>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">🛠 Service Management</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">🚗 Travel Pricing</a>
-            <a class="nav-link active" href="{{ url_for('admin_domestic_cleaning_page') }}">🏠 Domestic Cleaning</a>
-
-            <hr class="nav-divider">
-
-            <!-- Content -->
-            <span class="nav-group__label">Content</span>
-            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">🖼 Hero Content</a>
-            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">✏️ Site Content</a>
-            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
-            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">⭐ Testimonials</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">💼 Job Positions</a>
-
-            <hr class="nav-divider">
-
-            <!-- Settings -->
-            <span class="nav-group__label">Settings</span>
-            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">🎨 Brand &amp; Logo</a>
-            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">💬 Quote &amp; Contact</a>
-            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">🔗 Footer</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">📧 Email Settings</a>
-            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">✈️ Telegram</a>
-            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">🤖 AI Assistant</a>
-            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">💬 Chat Conversations</a>
-
-            <hr class="nav-divider">
-
-            <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
-                <button type="submit" class="sidebar__logout-button">Log Out</button>
-            </form>
-        </nav>
-        <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
-            <button type="submit" class="sidebar__logout-button">Log Out</button>
-        </form>
-    </aside>
+    {% set active_page = 'domestic' %}{% include 'admin/_sidebar.html' %}
 
     <main class="main-content">
         <div class="header">

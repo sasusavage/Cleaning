@@ -29,110 +29,6 @@
             min-height: 100vh;
         }
 
-        .sidebar {
-            width: 240px;
-            background: #111827;
-            color: #f9fafb;
-            padding: 2rem 1.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-            position: sticky;
-            top: 0;
-            height: 100vh;
-            overflow-y: auto;
-            align-self: flex-start;
-            z-index: 120;
-        }
-
-        .sidebar__header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.75rem;
-            margin-bottom: 0.75rem;
-        }
-
-        .sidebar__toggle {
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 0.45rem 0.7rem;
-            border-radius: 0.5rem;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            background: rgba(255, 255, 255, 0.08);
-            color: #f9fafb;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        .sidebar__toggle:hover {
-            background: rgba(255, 255, 255, 0.14);
-        }
-
-        .sidebar__nav {
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
-        }
-
-        .sidebar--menu-open .sidebar__nav {
-            display: flex;
-        }
-
-        .sidebar__logout-form {
-            margin-top: 0.75rem;
-        }
-
-        .sidebar__logout-button {
-            width: 100%;
-            display: block;
-            padding: 0.75rem 1rem;
-            border-radius: 0.5rem;
-            border: 1px solid rgba(248, 113, 113, 0.25);
-            background: rgba(248, 113, 113, 0.12);
-            color: #fca5a5;
-            font-weight: 600;
-            font-size: 0.9rem;
-            font-family: inherit;
-            cursor: pointer;
-            transition: background 0.2s ease;
-        }
-
-        .sidebar__logout-button:hover,
-        .sidebar__logout-button:focus {
-            background: rgba(248, 113, 113, 0.2);
-            color: #fef2f2;
-            outline: none;
-        }
-
-        .logo {
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: #f9fafb;
-        }
-
-        .nav-link {
-            display: block;
-            padding: 0.65rem 0.9rem;
-            color: #9ca3af;
-            text-decoration: none;
-            border-radius: 0.5rem;
-            font-size: 0.9rem;
-            transition: background 0.2s, color 0.2s;
-            cursor: pointer;
-        }
-
-        .nav-link:hover {
-            background: rgba(255, 255, 255, 0.08);
-            color: #f9fafb;
-        }
-
-        .nav-link.active {
-            background: rgba(37, 99, 235, 0.25);
-            color: #93c5fd;
-        }
-
         .main-content {
             flex: 1;
             padding: 2rem;
@@ -353,34 +249,6 @@
             body {
                 flex-direction: column;
             }
-            .sidebar {
-                position: relative;
-                width: 100%;
-                height: auto;
-                max-height: none;
-                padding: 1rem 1.25rem;
-                padding-bottom: 1rem;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            }
-            .sidebar__header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 0;
-            }
-            .sidebar__toggle {
-                display: flex;
-            }
-            .sidebar__nav {
-                display: none;
-                margin-top: 1rem;
-                padding-top: 1rem;
-                border-top: 1px solid rgba(255, 255, 255, 0.1);
-                gap: 0.25rem;
-            }
-            .sidebar--menu-open .sidebar__nav {
-                display: flex;
-            }
             .main-content {
                 padding: 1.5rem;
             }
@@ -404,10 +272,6 @@
         }
 
         @media (max-width: 600px) {
-            .sidebar {
-                padding: 1rem 1.25rem;
-            }
-
             .main-content {
                 padding: 1.25rem;
             }
@@ -427,10 +291,6 @@
         }
 
         @media (max-width: 480px) {
-            .sidebar {
-                padding: 0.9rem 1rem;
-            }
-
             .page-header h1 {
                 font-size: 1.5rem;
             }
@@ -451,58 +311,7 @@
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="sidebar__header">
-            <div class="logo">{{ company_name }} Admin</div>
-            <button type="button" class="sidebar__toggle" aria-expanded="false" aria-controls="sidebar-nav">Menu</button>
-        </div>
-                <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
-
-            <!-- Operations -->
-            <span class="nav-group__label">Operations</span>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">📊 Analytics</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#requests">📋 Requests</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#contracts">📄 Contracts</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#payments">💳 Payments</a>
-
-            <hr class="nav-divider">
-
-            <!-- Services -->
-            <span class="nav-group__label">Services</span>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#services">🛠 Service Management</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#travel">🚗 Travel Pricing</a>
-            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">🏠 Domestic Cleaning</a>
-
-            <hr class="nav-divider">
-
-            <!-- Content -->
-            <span class="nav-group__label">Content</span>
-            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">🖼 Hero Content</a>
-            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">✏️ Site Content</a>
-            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">❓ FAQs</a>
-            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">📜 Policies</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#testimonials">⭐ Testimonials</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#positions">💼 Job Positions</a>
-
-            <hr class="nav-divider">
-
-            <!-- Settings -->
-            <span class="nav-group__label">Settings</span>
-            <a class="nav-link active" href="{{ url_for('admin_brand_settings') }}">🎨 Brand &amp; Logo</a>
-            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">💬 Quote &amp; Contact</a>
-            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">🔗 Footer</a>
-            <a class="nav-link" href="{{ url_for('admin_dashboard') }}#email">📧 Email Settings</a>
-            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">✈️ Telegram</a>
-            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">🤖 AI Assistant</a>
-            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">💬 Chat Conversations</a>
-
-            <hr class="nav-divider">
-
-            <form class="sidebar__logout-form" method="post" action="{{ url_for('admin_logout') }}">
-                <button type="submit" class="sidebar__logout-button">Log Out</button>
-            </form>
-        </nav>
-    </div>
+    {% set active_page = 'brand' %}{% include 'admin/_sidebar.html' %}
 
     <div class="main-content">
         <div class="page-header">
@@ -614,32 +423,6 @@
             }
         })();
 
-        const sidebar = document.querySelector('.sidebar');
-        const sidebarToggle = document.querySelector('.sidebar__toggle');
-        const sidebarLinks = document.querySelectorAll('.sidebar__nav .nav-link');
-
-        if (sidebar && sidebarToggle) {
-            sidebarToggle.addEventListener('click', () => {
-                const isOpen = sidebar.classList.toggle('sidebar--menu-open');
-                sidebarToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-            });
-
-            sidebarLinks.forEach((link) => {
-                link.addEventListener('click', () => {
-                    if (window.innerWidth <= 1024 && sidebar.classList.contains('sidebar--menu-open')) {
-                        sidebar.classList.remove('sidebar--menu-open');
-                        sidebarToggle.setAttribute('aria-expanded', 'false');
-                    }
-                });
-            });
-
-            window.addEventListener('resize', () => {
-                if (window.innerWidth > 1024 && sidebar.classList.contains('sidebar--menu-open')) {
-                    sidebar.classList.remove('sidebar--menu-open');
-                    sidebarToggle.setAttribute('aria-expanded', 'false');
-                }
-            });
-        }
     </script>
 </body>
 </html>
