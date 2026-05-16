@@ -2265,16 +2265,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 var hours;
                 if (rc && rc.length) {
-                    // Hours derived from rooms
+                    // Hours derived purely from rooms — no min_hours floor
                     hours = 0;
                     rc.forEach(function (room) {
                         var name = room.name || room.label || 'Room';
                         hours += (roomQty[name] || 0) * (Number(room.hours) || 0.5);
                     });
-                    hours = Math.max(hours, minH);
                     var roomSummary = rc.filter(function(r){ return (roomQty[r.name||r.label||'Room']||0) > 0; })
                         .map(function(r){ var n=r.name||r.label||'Room'; return roomQty[n]+'× '+n; }).join(', ');
-                    roomsNote.textContent = roomSummary ? 'Selected: ' + roomSummary + ' → ' + hours + ' hrs estimated' : 'Add rooms above to calculate hours';
+                    roomsNote.textContent = roomSummary ? 'Selected: ' + roomSummary + ' → ' + hours + ' hrs' : 'Select rooms above to calculate price';
                 } else {
                     hours = fixH != null ? fixH : Math.max(Number(hoursInput.value) || minH, minH);
                 }
@@ -2283,23 +2282,31 @@ document.addEventListener("DOMContentLoaded", function () {
                 var equipment = normalizePriceValue(tier.equipment_fee) || 0;
                 var detergent = normalizePriceValue(tier.detergent_fee) || 0;
                 var materialsTotal = equipment + detergent;
-                var total = rate !== null ? Math.round(((rate * staff * hours) + materialsTotal) * 100) / 100 : null;
+                // When rooms drive hours, no rooms selected = no price yet
+                var hasRoomsMode = rc && rc.length;
+                var total = (rate !== null && (!hasRoomsMode || hours > 0))
+                    ? Math.round(((rate * staff * hours) + materialsTotal) * 100) / 100
+                    : null;
 
-                summary.innerHTML = rate !== null ? [
-                    '<div class="row"><span>Package:</span><span>' + escapeHtml(tier.tier_name || 'Deep clean') + '</span></div>',
-                    '<div class="row"><span>Rate:</span><span>' + formatPrice(rate) + ' /hr per cleaner</span></div>',
-                    '<div class="row"><span>Staff:</span><span>' + staff + '</span></div>',
-                    '<div class="row"><span>Hours:</span><span>' + hours + '</span></div>',
-                    materialsTotal > 0 ? '<div class="row"><span>Materials:</span><span>' + formatPrice(materialsTotal) + '</span></div>' : '',
-                    '<div class="total-row"><span>ESTIMATED TOTAL:</span><span>' + formatPrice(total) + '</span></div>'
-                ].join('') : 'Custom quote';
+                if (hasRoomsMode && hours === 0) {
+                    summary.innerHTML = '<div style="color:#6b7280;font-size:0.9rem;text-align:center;padding:0.5rem 0;">Select rooms above to see your price.</div>';
+                } else {
+                    summary.innerHTML = rate !== null ? [
+                        '<div class="row"><span>Package:</span><span>' + escapeHtml(tier.tier_name || 'Deep clean') + '</span></div>',
+                        '<div class="row"><span>Rate:</span><span>' + formatPrice(rate) + ' /hr per cleaner</span></div>',
+                        '<div class="row"><span>Staff:</span><span>' + staff + '</span></div>',
+                        '<div class="row"><span>Hours:</span><span>' + hours + '</span></div>',
+                        materialsTotal > 0 ? '<div class="row"><span>Materials:</span><span>' + formatPrice(materialsTotal) + '</span></div>' : '',
+                        '<div class="total-row"><span>ESTIMATED TOTAL:</span><span>' + formatPrice(total) + '</span></div>'
+                    ].join('') : 'Custom quote';
+                }
 
                 onChange({
                     optionId: tier ? tier.id : null,
                     optionLabel: tier ? (tier.tier_name || 'Deep clean') : 'Deep clean',
                     optionDetails: 'Staff: ' + staff + ' • Hours: ' + hours,
                     price: total,
-                    priceDisplay: typeof total === 'number' ? formatPrice(total) : 'Custom quote',
+                    priceDisplay: total !== null ? formatPrice(total) : (hasRoomsMode ? 'Select rooms' : 'Custom quote'),
                     modelType: 'deep',
                     payload: {
                         type: 'deep',
