@@ -712,6 +712,8 @@
                 <h1>Policy Management</h1>
                 <p>Manage your company policies displayed on the homepage</p>
             </div>
+            <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+            <a class="btn btn-outline" href="{{ url_for('admin_dashboard') }}">← Back to Dashboard</a>
             <button class="btn btn-primary" id="add-policy-btn">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -719,6 +721,7 @@
                 </svg>
                 Add Policy
             </button>
+            </div>
         </div>
 
         <div class="card">

@@ -92,6 +92,9 @@ except ImportError:  # cryptography is optional; fallback handlers will be used
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
 
 @app.teardown_appcontext
 def _close_leaked_db_conns(exc):
@@ -7170,10 +7173,10 @@ def apply_job():
 @app.route('/api/services', methods=['GET'])
 def get_services():
     try:
-        include_inactive = str_to_bool(request.args.get('include_inactive', '0'))
-        services = fetch_services_from_db(include_inactive=include_inactive)
+        services = fetch_services_from_db(include_inactive=False)
         return jsonify(services)
-    except Exception as e:
+    except Exception:
+        app.logger.exception('get_services failed')
         return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
@@ -7678,13 +7681,6 @@ def start_stripe_checkout():
         payment_settings = fetch_payment_settings()
         payment_option = prepared.get('payment_option') or PAYMENT_OPTION_IN_PERSON
         
-        # DEBUG: Log the payment option for troubleshooting
-        app.logger.info(f"start_stripe_checkout - Received payment_option from payload: {payload.get('payment_option')}")
-        app.logger.info(f"start_stripe_checkout - Prepared payment_option: {prepared.get('payment_option')}")
-        app.logger.info(f"start_stripe_checkout - Final payment_option after fallback: {payment_option}")
-        app.logger.info(f"start_stripe_checkout - PAYMENT_OPTION_PREBOOK constant: {PAYMENT_OPTION_PREBOOK}")
-        app.logger.info(f"start_stripe_checkout - Comparison result (payment_option != PAYMENT_OPTION_PREBOOK): {payment_option != PAYMENT_OPTION_PREBOOK}")
-        app.logger.info(f"start_stripe_checkout - Payment settings: {payment_settings}")
 
         if payment_option != PAYMENT_OPTION_PREBOOK:
             submission = finalize_prepared_service_booking(prepared, remote_addr=request.remote_addr, mark_paid=False)
@@ -9619,12 +9615,11 @@ def submit_testimonial():
         # Check if this name exists in our requests table (existing customer)
         # Use case-insensitive comparison and look for exact or partial match
         cursor.execute("""
-            SELECT DISTINCT name 
-            FROM requests 
-            WHERE LOWER(TRIM(name)) = LOWER(%s)
-            OR LOWER(TRIM(name)) LIKE LOWER(%s)
+            SELECT DISTINCT name
+            FROM requests
+            WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s))
             LIMIT 1
-        """, (name, f'%{name}%'))
+        """, (name,))
         
         existing_customer = cursor.fetchone()
         is_verified = existing_customer is not None
@@ -9662,38 +9657,51 @@ def submit_testimonial():
 
 
 @app.route('/api/testimonials/add', methods=['POST'])
+@admin_login_required
 def add_testimonial():
-    data = request.json
+    data = request.json or {}
+    name = sanitize_text(data.get('name'), 120)
+    message = sanitize_text(data.get('message'), 1000)
+    image_url = sanitize_text(data.get('image_url'), 500) or ''
+    if not name or not message:
+        return jsonify({'error': 'Name and message are required.'}), 400
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        query = "INSERT INTO testimonials (name, message, image_url) VALUES (%s, %s, %s)"
-        cursor.execute(query, (data['name'], data['message'], data.get('image_url', '')))
+        cursor.execute("INSERT INTO testimonials (name, message, image_url) VALUES (%s, %s, %s)", (name, message, image_url))
         conn.commit()
         cursor.close()
         conn.close()
         return jsonify({'message': 'Testimonial added!'}), 201
-    except Exception as e:
+    except Exception:
+        app.logger.exception('add_testimonial failed')
         return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/testimonials/edit/<int:id>', methods=['PUT'])
+@admin_login_required
 def edit_testimonial(id):
-    data = request.json
+    data = request.json or {}
+    name = sanitize_text(data.get('name'), 120)
+    message = sanitize_text(data.get('message'), 1000)
+    image_url = sanitize_text(data.get('image_url'), 500) or ''
+    if not name or not message:
+        return jsonify({'error': 'Name and message are required.'}), 400
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        query = "UPDATE testimonials SET name=%s, message=%s, image_url=%s WHERE id=%s"
-        cursor.execute(query, (data['name'], data['message'], data.get('image_url', ''), id))
+        cursor.execute("UPDATE testimonials SET name=%s, message=%s, image_url=%s WHERE id=%s", (name, message, image_url, id))
         conn.commit()
         cursor.close()
         conn.close()
         return jsonify({'message': 'Testimonial updated!'})
-    except Exception as e:
+    except Exception:
+        app.logger.exception('edit_testimonial failed')
         return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/testimonials/delete/<int:id>', methods=['DELETE'])
+@admin_login_required
 def delete_testimonial(id):
     try:
         conn = get_db_connection()
@@ -9703,13 +9711,14 @@ def delete_testimonial(id):
         cursor.close()
         conn.close()
         return jsonify({'message': 'Testimonial deleted!'})
-    except Exception as e:
+    except Exception:
+        app.logger.exception('delete_testimonial failed')
         return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/testimonials/approve/<int:id>', methods=['POST'])
+@admin_login_required
 def approve_testimonial(id):
-    """Approve a pending testimonial."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -9718,13 +9727,14 @@ def approve_testimonial(id):
         cursor.close()
         conn.close()
         return jsonify({'message': 'Testimonial approved!'})
-    except Exception as e:
+    except Exception:
+        app.logger.exception('approve_testimonial failed')
         return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
 @app.route('/api/testimonials/reject/<int:id>', methods=['POST'])
+@admin_login_required
 def reject_testimonial(id):
-    """Reject a pending testimonial (deletes it)."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -9733,7 +9743,8 @@ def reject_testimonial(id):
         cursor.close()
         conn.close()
         return jsonify({'message': 'Testimonial rejected and removed.'})
-    except Exception as e:
+    except Exception:
+        app.logger.exception('reject_testimonial failed')
         return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
@@ -10201,15 +10212,15 @@ def admin_analytics_ai_summary():
 
         # Gather snapshot data
         if engine == 'postgres':
-            cursor.execute(f"SELECT COUNT(*) AS cnt FROM analytics WHERE event_type = 'homepage_visit' AND created_at >= NOW() - INTERVAL '{days} days'")
+            cursor.execute("SELECT COUNT(*) AS cnt FROM analytics WHERE event_type = 'homepage_visit' AND created_at >= NOW() - (%s || ' days')::interval", (str(days),))
         else:
-            cursor.execute(f"SELECT COUNT(*) AS cnt FROM analytics WHERE event_type = 'homepage_visit' AND created_at >= DATE_SUB(NOW(), INTERVAL {days} DAY)")
+            cursor.execute("SELECT COUNT(*) AS cnt FROM analytics WHERE event_type = 'homepage_visit' AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)", (days,))
         visits = (cursor.fetchone() or {}).get('cnt') or 0
 
         if engine == 'postgres':
-            cursor.execute(f"SELECT COUNT(*) AS cnt, COALESCE(SUM(total_price),0) AS rev FROM service_requests WHERE created_at >= NOW() - INTERVAL '{days} days'")
+            cursor.execute("SELECT COUNT(*) AS cnt, COALESCE(SUM(total_price),0) AS rev FROM service_requests WHERE created_at >= NOW() - (%s || ' days')::interval", (str(days),))
         else:
-            cursor.execute(f"SELECT COUNT(*) AS cnt, COALESCE(SUM(total_price),0) AS rev FROM service_requests WHERE created_at >= DATE_SUB(NOW(), INTERVAL {days} DAY)")
+            cursor.execute("SELECT COUNT(*) AS cnt, COALESCE(SUM(total_price),0) AS rev FROM service_requests WHERE created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)", (days,))
         row = cursor.fetchone() or {}
         bookings = int(row.get('cnt') or 0)
         period_revenue = float(row.get('rev') or 0)
@@ -13372,7 +13383,7 @@ def admin_login():
     return render_template('admin_login.html', error=error, site_settings=site_settings)
 
 
-@app.route('/admin/logout', methods=['POST', 'GET'])
+@app.route('/admin/logout', methods=['POST'])
 def admin_logout():
     username = session.get('admin_username')
     was_logged_in = session.get('admin_logged_in')
@@ -13679,8 +13690,11 @@ def admin_api_blog_create():
         try:
             from werkzeug.utils import secure_filename as _sf
             import os as _os
-            ext = _os.path.splitext(_sf(img_file.filename))[1].lower()
-            fname = f"blog_{slug}{ext}"
+            _allowed_img_exts = {'png', 'jpg', 'jpeg', 'webp', 'gif'}
+            ext = _os.path.splitext(_sf(img_file.filename))[1].lower().lstrip('.')
+            if ext not in _allowed_img_exts:
+                return jsonify({'error': 'Only PNG, JPG, JPEG, WEBP, GIF images are allowed.'}), 400
+            fname = f"blog_{slug}.{ext}"
             upload_dir = _os.path.join(app.root_path, 'static', 'uploads', 'blog')
             _os.makedirs(upload_dir, exist_ok=True)
             img_file.save(_os.path.join(upload_dir, fname))
@@ -14586,7 +14600,8 @@ def handle_telegram_ai_query(query: str, chat_id: str) -> str:
         else:
             return f"❌ {result.get('message', 'AI error occurred')}"
     except Exception as e:
-        return f"❌ AI Error: {str(e)}"
+        app.logger.exception('AI command error')
+        return "❌ An error occurred while processing the AI request."
 
 
 def get_system_status_for_telegram() -> str:
@@ -14832,8 +14847,9 @@ def set_telegram_webhook():
                 'success': False, 
                 'message': result.get('description', 'Failed to set webhook')
             })
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        app.logger.exception('set_telegram_webhook failed')
+        return jsonify({'success': False, 'message': 'Failed to set webhook. Please try again.'})
 
 
 @app.route('/admin/api/telegram/webhook-info', methods=['GET'])
@@ -14854,8 +14870,9 @@ def get_telegram_webhook_info():
         url = f"https://api.telegram.org/bot{settings['bot_token']}/getWebhookInfo"
         response = requests.get(url, timeout=10)
         return jsonify(response.json())
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        app.logger.exception('get_telegram_webhook_info failed')
+        return jsonify({'success': False, 'message': 'Failed to retrieve webhook info.'})
 
 
 @app.route('/admin/api/analytics/chart-data', methods=['GET'])

@@ -5144,7 +5144,7 @@ document.addEventListener("DOMContentLoaded", function () {
     function showChatError(message) {
         var errorDiv = document.createElement('div');
         errorDiv.className = 'chat-message chat-message--assistant';
-        errorDiv.innerHTML = '<div class="chat-message__avatar" style="background:#ef4444"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div class="chat-message__content" style="background:#fef2f2;color:#991b1b">' + message + '</div>';
+        errorDiv.innerHTML = '<div class="chat-message__avatar" style="background:#ef4444"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div class="chat-message__content" style="background:#fef2f2;color:#991b1b">' + escapeHtml(message) + '</div>';
         chatMessages.appendChild(errorDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }

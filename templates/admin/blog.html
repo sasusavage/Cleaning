@@ -111,7 +111,10 @@
     <main class="main">
         <div class="page-header">
             <h1>📝 Blog Posts</h1>
-            <button class="btn btn-primary" onclick="openModal()">+ New Post</button>
+            <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                <a class="btn btn-outline" href="{{ url_for('admin_dashboard') }}">← Back to Dashboard</a>
+                <button class="btn btn-primary" onclick="openModal()">+ New Post</button>
+            </div>
         </div>
 
         <div class="card">

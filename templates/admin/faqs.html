@@ -771,10 +771,13 @@
                 <h1>❓ FAQ Management</h1>
                 <p>Create and manage frequently asked questions displayed on your website.</p>
             </div>
+            <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+            <a class="btn btn-outline" href="{{ url_for('admin_dashboard') }}">← Back to Dashboard</a>
             <button class="btn btn-primary" onclick="openModal()">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
                 Add FAQ
             </button>
+            </div>
         </div>
 
         <div class="faq-controls">
