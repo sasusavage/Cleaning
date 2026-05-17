@@ -8,8 +8,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #6366f1;
-            --primary-dark: #4f46e5;
+            --primary: #1e3a5f;
+            --primary-dark: #152d4a;
+            --primary-accent: #2563eb;
             --bg: #f3f4f6;
             --surface: #ffffff;
             --text: #1f2937;
@@ -53,7 +54,24 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            color: var(--primary);
         }
+
+        .btn-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.5rem 1rem;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text);
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .btn-back:hover { background: #f9fafb; border-color: #2563eb; color: #2563eb; }
 
         .stats-grid {
             display: grid;
@@ -64,10 +82,17 @@
 
         .stat-card {
             background: white;
-            padding: 1.25rem;
+            padding: 1.25rem 1.25rem 1.25rem 1.5rem;
             border-radius: 0.75rem;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-left: 4px solid var(--primary-accent);
+            position: relative;
+            overflow: hidden;
         }
+        .stat-card:nth-child(1) { border-left-color: #2563eb; }
+        .stat-card:nth-child(2) { border-left-color: #0ea5e9; }
+        .stat-card:nth-child(3) { border-left-color: #f59e0b; }
+        .stat-card:nth-child(4) { border-left-color: #10b981; }
 
         .stat-card__value {
             font-size: 1.75rem;
@@ -101,7 +126,7 @@
         }
 
         .tab:hover { background: #f3f4f6; color: var(--text); }
-        .tab.active { background: var(--primary); color: white; }
+        .tab.active { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color: white; }
 
         .card {
             background: white;
@@ -142,7 +167,7 @@
             background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' fill='none' stroke='%236b7280' stroke-width='2' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat 0.5rem center;
             outline: none;
         }
-        .conv-filter-bar input[type="search"]:focus { border-color: var(--primary); }
+        .conv-filter-bar input[type="search"]:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
         .conv-filter-bar select {
             padding: 0.4rem 0.6rem;
             border: 1px solid var(--border);
@@ -155,7 +180,7 @@
         .conv-unread-dot {
             width: 8px;
             height: 8px;
-            background: var(--primary);
+            background: #2563eb;
             border-radius: 50%;
             flex-shrink: 0;
             margin-top: 0.4rem;
@@ -218,12 +243,12 @@
         }
 
         .conversation-item:hover { background: #f9fafb; }
-        .conversation-item.selected { background: #ede9fe; }
+        .conversation-item.selected { background: #eff6ff; border-left: 3px solid #2563eb; }
 
         .conversation-item__avatar {
             width: 40px;
             height: 40px;
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            background: linear-gradient(135deg, #1e3a5f, #2563eb);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -263,11 +288,15 @@
 
         .chat-viewer__header {
             padding: 1rem 1.5rem;
-            border-bottom: 1px solid var(--border);
+            background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+            color: white;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border-radius: 0.75rem 0.75rem 0 0;
         }
+        .chat-viewer__header strong { color: white; }
+        .chat-viewer__header span { color: rgba(255,255,255,0.75) !important; }
 
         .chat-viewer__messages {
             flex: 1;
@@ -298,8 +327,8 @@
             font-size: 0.7rem;
         }
 
-        .chat-msg--assistant .chat-msg__avatar { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; }
-        .chat-msg--user .chat-msg__avatar { background: #e5e7eb; color: #6b7280; }
+        .chat-msg--assistant .chat-msg__avatar { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: white; }
+        .chat-msg--user .chat-msg__avatar { background: #dbeafe; color: #1e40af; }
         .chat-msg--admin .chat-msg__avatar { background: #111827; color: #f9fafb; }
 
         .chat-msg__bubble {
@@ -309,8 +338,8 @@
             line-height: 1.5;
         }
 
-        .chat-msg--assistant .chat-msg__bubble { background: white; border-bottom-left-radius: 0.25rem; }
-        .chat-msg--user .chat-msg__bubble { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border-bottom-right-radius: 0.25rem; }
+        .chat-msg--assistant .chat-msg__bubble { background: white; border-left: 3px solid #e0e7ff; border-bottom-left-radius: 0.25rem; }
+        .chat-msg--user .chat-msg__bubble { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: white; border-bottom-right-radius: 0.25rem; }
         .chat-msg--admin .chat-msg__bubble { background: #111827; color: #f9fafb; border-bottom-left-radius: 0.25rem; }
 
         .chat-msg__time {
@@ -373,8 +402,8 @@
         }
 
         .btn:hover { background: #f3f4f6; }
-        .btn--primary { background: var(--primary); color: white; border-color: var(--primary); }
-        .btn--primary:hover { background: var(--primary-dark); }
+        .btn--primary { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color: white; border-color: #1e3a5f; }
+        .btn--primary:hover { background: linear-gradient(135deg, #152d4a 0%, #1d4ed8 100%); }
         .btn--danger { background: var(--error); color: white; border-color: var(--error); }
         .btn--danger:hover { background: #dc2626; }
         .btn--success { background: var(--success); color: white; border-color: var(--success); }
@@ -421,14 +450,14 @@
             padding: 0.2rem 0.55rem;
             font-size: 0.7rem;
             font-weight: 600;
-            border: 1px solid rgba(99,102,241,0.35);
-            background: rgba(99,102,241,0.08);
-            color: #4f46e5;
+            border: 1px solid rgba(37,99,235,0.35);
+            background: rgba(37,99,235,0.08);
+            color: #1d4ed8;
             border-radius: 4px;
             cursor: pointer;
             transition: background 0.15s;
         }
-        .train-btn:hover { background: rgba(99,102,241,0.18); }
+        .train-btn:hover { background: rgba(37,99,235,0.18); }
 
         /* Persona Settings Tab */
         .persona-section { padding: 1.5rem; }
@@ -445,8 +474,8 @@
         .form-group textarea { min-height: 100px; resize: vertical; }
         .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
             outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
         }
         .form-hint { font-size: 0.8rem; color: var(--muted); margin-top: 0.35rem; }
 
@@ -522,8 +551,10 @@
                 </svg>
                 Chat Conversations
             </h1>
-            <a class="btn btn-outline" href="{{ url_for('admin_dashboard') }}">← Back to Dashboard</a>
-            <a href="{{ url_for('admin_dashboard') }}" class="btn">← Back to Dashboard</a>
+            <a href="{{ url_for('admin_dashboard') }}" class="btn-back">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                Back to Dashboard
+            </a>
         </div>
 
         <!-- Stats -->
@@ -839,18 +870,17 @@
             const label = document.getElementById('conv-count-label');
             if (label) label.textContent = sessions.length + ' conversation' + (sessions.length === 1 ? '' : 's');
 
-            list.innerHTML = sessions.map(s => `
-                <div class="conversation-item" data-session="${s.session_id}" data-resolved="${s.is_resolved ? '1' : '0'}">
-                    <div class="conversation-item__avatar">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-                        </svg>
-                    </div>
+            list.innerHTML = sessions.map(s => {
+                const initials = (s.visitor_name || 'V').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+                return `
+                <div class="conversation-item" data-session="${s.session_id}" data-resolved="${s.is_resolved ? '1' : '0'}" style="${!s.is_resolved ? 'border-left: 3px solid #f59e0b;' : ''}">
+                    <div class="conversation-item__avatar">${initials}</div>
                     <div class="conversation-item__content">
                         <div class="conversation-item__header">
                             <span class="conversation-item__id">${escapeHtml(s.visitor_name || 'Visitor')}</span>
                             <span class="conversation-item__time" title="${formatDate(s.last_message_at)}">${timeAgo(s.last_message_at)}</span>
                         </div>
+                        ${s.visitor_email ? `<div style="font-size:0.78rem;color:#6b7280;margin-bottom:0.2rem;">${escapeHtml(s.visitor_email)}</div>` : ''}
                         <div class="conversation-item__preview">${escapeHtml(s.first_message || 'No messages')}</div>
                         <div class="conversation-item__meta">
                             <span class="badge badge--info">${s.message_count || 0} msgs</span>
@@ -858,7 +888,8 @@
                         </div>
                     </div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
 
             list.querySelectorAll('.conversation-item').forEach(item => {
                 item.addEventListener('click', () => {
@@ -938,7 +969,8 @@
                     viewer.classList.add('active');
 
                     document.getElementById('viewerSessionId').textContent = data.session.visitor_name || 'Visitor';
-                    document.getElementById('viewerMeta').textContent = `IP: ${data.session.visitor_ip || 'Unknown'} • Started: ${formatDate(data.session.started_at)}`;
+                    const emailPart = data.session.visitor_email ? ` • ${data.session.visitor_email}` : '';
+                    document.getElementById('viewerMeta').textContent = `Started: ${formatDate(data.session.started_at)}${emailPart}`;
                     document.getElementById('viewerStatus').textContent = data.session.is_resolved ? 'Resolved' : 'Open';
                     document.getElementById('viewerStatus').className = 'badge ' + (data.session.is_resolved ? 'badge--success' : 'badge--warning');
 
