@@ -2848,48 +2848,49 @@
                 </div>
             </div>
             <div class="card section-card">
-                <div class="service-management-grid">
-                    <div class="service-catalog-table" style="overflow: auto;">
-                        <div class="toolbar" style="margin-bottom: 0.75rem;">
-                            <div class="toolbar__title">
-                                <h3>Service Catalog</h3>
-                                <p>List includes both active and hidden services.</p>
-                            </div>
-                            <div class="toolbar__actions">
-                                <span class="pill pill--muted">Live</span>
-                                <button class="btn btn-ghost" type="button" onclick="loadServices()">Refresh</button>
-                            </div>
-                        </div>
-                        <table id="services-table" class="table-compact">
-                            <thead>
-                                <tr>
-                                    <th>Service</th>
-                                    <th>Category</th>
-                                    <th>Status</th>
-                                    <th>Options</th>
-                                    <th>Updated</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
+                <div class="toolbar" style="margin-bottom: 0.75rem;">
+                    <div class="toolbar__title">
+                        <h3 style="margin:0;">Service Catalog</h3>
+                        <p style="margin:0.2rem 0 0; color:#6b7280; font-size:0.85rem;">All active and hidden services. Click Pricing to manage options/tiers.</p>
                     </div>
-                    <div class="service-options-panel options-card">
-                        <div class="toolbar" style="align-items: flex-start;">
-                            <div class="toolbar__title">
-                                <h3>Pricing Options</h3>
-                                <p>Select a service to add, edit, or reorder its options.</p>
-                            </div>
-                            <div class="toolbar__actions">
-                                <button class="btn btn-ghost" type="button" onclick="refreshSelectedServiceOptions()">Reload</button>
-                            </div>
-                        </div>
-                        <div id="service-options-panel" style="margin-top: 1rem;">
-                            <div style="padding: 1rem; border: 1px dashed #d1d5db; border-radius: 0.85rem; background: #fff; color: #6b7280; text-align: center; font-size: 0.95rem;">
-                                Select a service from the table to manage its pricing options.
-                            </div>
-                        </div>
+                    <div class="toolbar__actions">
+                        <button class="btn btn-ghost" type="button" onclick="loadServices()">Refresh</button>
                     </div>
+                </div>
+                <!-- Service cards grid -->
+                <div id="services-cards-grid" style="display:grid; gap:0.75rem; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));"></div>
+                <!-- Hidden legacy table kept for JS compatibility -->
+                <table id="services-table" class="table-compact" style="display:none;"><thead><tr></tr></thead><tbody></tbody></table>
+                <!-- Hidden legacy panel kept for JS compatibility -->
+                <div id="service-options-panel" style="display:none;"></div>
+            </div>
+
+            <!-- Pricing Manager Modal -->
+            <div id="pricing-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="pricing-modal-title">
+                <div class="modal__box" style="max-width:760px; width:95vw; max-height:90vh; overflow:hidden; display:flex; flex-direction:column; background:#fff; border-radius:0.85rem; box-shadow:0 20px 48px rgba(15,23,42,0.18);">
+                    <div style="display:flex; align-items:center; justify-content:space-between; padding:1.25rem 1.5rem; border-bottom:1px solid var(--border); flex-shrink:0;">
+                        <div>
+                            <h2 id="pricing-modal-title" style="margin:0; font-size:1.1rem;">Pricing Manager</h2>
+                            <p id="pricing-modal-subtitle" style="margin:0.2rem 0 0; font-size:0.85rem; color:#6b7280;"></p>
+                        </div>
+                        <button type="button" class="modal__close" onclick="closePricingModal()" aria-label="Close" style="position:static;flex-shrink:0;">&times;</button>
+                    </div>
+                    <div id="pricing-modal-body" style="overflow-y:auto; padding:1.25rem 1.5rem; flex:1;"></div>
+                    <div style="padding:1rem 1.5rem; border-top:1px solid var(--border); display:flex; justify-content:flex-end; flex-shrink:0;">
+                        <button type="button" class="btn" onclick="closePricingModal()">Close</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Item Edit Sheet (tier / option / rate) -->
+            <div id="item-edit-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="item-edit-title">
+                <div class="modal__box" style="max-width:560px; width:95vw; max-height:90vh; overflow:hidden; display:flex; flex-direction:column; background:#fff; border-radius:0.85rem; box-shadow:0 20px 48px rgba(15,23,42,0.18);">
+                    <div style="display:flex; align-items:center; justify-content:space-between; padding:1.25rem 1.5rem; border-bottom:1px solid var(--border); flex-shrink:0;">
+                        <h2 id="item-edit-title" style="margin:0; font-size:1.05rem;">Edit</h2>
+                        <button type="button" class="modal__close" onclick="closeItemEditModal()" aria-label="Close" style="position:static;flex-shrink:0;">&times;</button>
+                    </div>
+                    <div id="item-edit-body" style="overflow-y:auto; padding:1.25rem 1.5rem; flex:1;"></div>
+                    <div id="item-edit-footer" style="padding:1rem 1.5rem; border-top:1px solid var(--border); display:flex; gap:0.75rem; justify-content:flex-end; flex-shrink:0;"></div>
                 </div>
             </div>
         </div>
@@ -6139,18 +6140,7 @@
                 const data = await res.json();
                 window.servicesData = Array.isArray(data) ? data : [];
                 renderServicesTable(window.servicesData);
-
-                if (preserveSelection && serviceOptionsState.selectedServiceId) {
-                    const selected = window.servicesData.find(service => Number(service.id) === Number(serviceOptionsState.selectedServiceId));
-                    if (selected) {
-                        renderServiceOptionsPanel(selected);
-                    } else {
-                        serviceOptionsState.selectedServiceId = null;
-                        renderServiceOptionsPanel(null);
-                    }
-                } else if (!serviceOptionsState.selectedServiceId) {
-                    renderServiceOptionsPanel(null);
-                }
+                refreshPricingModal();
 
                 return window.servicesData;
             } catch (error) {
@@ -6350,45 +6340,452 @@
             if (e.target === this) closeContractScheduleModal();
         });
 
+        // ─── Service card grid ──────────────────────────────────────────────────
+        var _pricingModalServiceId = null; // tracks which service the pricing modal is open for
+
+        const PRICING_TYPE_LABELS = {
+            'simple': 'Simple',
+            'options': 'Options',
+            'tenancy': 'Tenancy',
+            'deep': 'Deep Cleaning',
+            'airbnb': 'Airbnb',
+            'itemized': 'Itemized',
+            'survey': 'Survey Required'
+        };
+        const PRICING_TYPE_COLORS = {
+            'simple':   '#e0f2fe:#0369a1',
+            'options':  '#f3e8ff:#7c3aed',
+            'tenancy':  '#fef9c3:#854d0e',
+            'deep':     '#dcfce7:#166534',
+            'airbnb':   '#ffe4e6:#be123c',
+            'itemized': '#f1f5f9:#334155',
+            'survey':   '#fff7ed:#c2410c'
+        };
+
         function renderServicesTable(services) {
+            // Keep legacy hidden table in sync (for any residual JS that references it)
             const tbody = document.querySelector('#services-table tbody');
-            if (!tbody) {
-                return;
-            }
+            if (tbody) tbody.innerHTML = '';
+
+            const grid = document.getElementById('services-cards-grid');
+            if (!grid) return;
 
             if (!Array.isArray(services) || services.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.25rem; color:#6b7280;">No services configured yet.</td></tr>';
+                grid.innerHTML = '<p style="color:#6b7280;padding:1.5rem 0;">No services configured yet.</p>';
                 return;
             }
 
-            tbody.innerHTML = services.map(service => {
-                const optionCount = Array.isArray(service.options) ? service.options.length : 0;
-                const selectedId = serviceOptionsState.selectedServiceId;
-                const isSelected = selectedId !== null && selectedId !== undefined && Number(selectedId) === Number(service.id);
-                const description = truncateText(service.description || '', 90);
-                const updatedLabel = service.updated_at ? formatDateTime(service.updated_at) : '—';
-                const rowHighlight = isSelected ? ' style="background:#eef2ff;"' : '';
-
+            grid.innerHTML = services.map(service => {
+                const type = service.pricing_model || service.pricing_type || 'simple';
+                const typeLabel = PRICING_TYPE_LABELS[type] || type;
+                const [bgColor, txColor] = (PRICING_TYPE_COLORS[type] || '#f1f5f9:#334155').split(':');
+                const statusActive = Boolean(service.is_active);
+                const category = service.is_contract ? 'contract' : 'one_time';
+                const desc = truncateText(service.description || '', 80);
+                const base = service.price !== null && service.price !== undefined && service.price !== '' ? `£${Number(service.price).toFixed(2)}` : 'Custom quote';
                 return `
-                    <tr data-service-id="${service.id}"${rowHighlight}>
-                        <td>
-                            <div style="display:flex; flex-direction:column; gap:0.2rem;">
-                                <strong>${escapeHtml(service.title || '')}</strong>
-                                <small style="color:#6b7280;">${escapeHtml(description)}</small>
-                            </div>
-                        </td>
-                        <td>${renderServiceCategoryBadge(service.is_contract ? 'contract' : 'one_time')}</td>
-                        <td>${renderStatusBadge(service.is_active)}</td>
-                        <td style="text-align:center; font-weight:600;">${optionCount}</td>
-                        <td style="white-space:nowrap;">${escapeHtml(updatedLabel)}</td>
-                        <td style="display:flex; flex-wrap:wrap; gap:0.35rem;">
-                            <button class="btn btn-sm" type="button" onclick="selectServiceForOptions(${service.id})">${isSelected ? 'Selected' : 'Manage'}</button>
-                            <button class="btn btn-sm btn-primary" type="button" onclick="editService(${service.id})">Edit</button>
-                            <button class="btn btn-sm btn-danger" type="button" onclick="deleteService(${service.id})">Delete</button>
-                        </td>
-                    </tr>
-                `;
+                <div class="svc-card" style="background:#fff;border:1px solid #e5e7eb;border-radius:0.75rem;padding:1.1rem 1.25rem;display:flex;flex-direction:column;gap:0.6rem;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.5rem;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:700;font-size:0.97rem;color:#1e3a5f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(service.title || '')}</div>
+                            ${desc ? `<div style="font-size:0.8rem;color:#6b7280;margin-top:0.15rem;">${escapeHtml(desc)}</div>` : ''}
+                        </div>
+                        <span style="flex-shrink:0;font-size:0.75rem;font-weight:700;border-radius:999px;padding:0.15rem 0.6rem;background:${bgColor};color:${txColor};">${typeLabel}</span>
+                    </div>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                        ${renderServiceCategoryBadge(category)}
+                        ${renderStatusBadge(statusActive)}
+                        <span style="font-size:0.8rem;color:#6b7280;margin-left:auto;">Base: <strong>${base}</strong></span>
+                    </div>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;border-top:1px solid #f3f4f6;padding-top:0.65rem;">
+                        <button class="btn btn-sm btn-primary" type="button" onclick="openPricingModal(${service.id})">Manage Pricing</button>
+                        <button class="btn btn-sm" type="button" onclick="editService(${service.id})">Edit</button>
+                        <button class="btn btn-sm btn-danger" type="button" onclick="deleteService(${service.id})">Delete</button>
+                    </div>
+                </div>`;
             }).join('');
+        }
+
+        // ─── Pricing Manager Modal ──────────────────────────────────────────────
+
+        function openPricingModal(serviceId) {
+            const service = (window.servicesData || []).find(s => Number(s.id) === Number(serviceId));
+            if (!service) { showToast('Service not found.', 'error'); return; }
+            _pricingModalServiceId = Number(serviceId);
+            serviceOptionsState.selectedServiceId = _pricingModalServiceId;
+            _renderPricingModalContent(service);
+            document.getElementById('pricing-modal').classList.add('open');
+        }
+
+        function closePricingModal() {
+            document.getElementById('pricing-modal').classList.remove('open');
+            _pricingModalServiceId = null;
+        }
+
+        function refreshPricingModal() {
+            if (!_pricingModalServiceId) return;
+            const service = (window.servicesData || []).find(s => Number(s.id) === _pricingModalServiceId);
+            if (service) _renderPricingModalContent(service);
+        }
+
+        function _renderPricingModalContent(service) {
+            const type = service.pricing_model || service.pricing_type || 'simple';
+            const typeLabel = PRICING_TYPE_LABELS[type] || type;
+            document.getElementById('pricing-modal-title').textContent = escapeHtml(service.title || 'Pricing Manager');
+            document.getElementById('pricing-modal-subtitle').textContent = `${typeLabel} pricing · Base: ${formatCurrencyLabel(service.price)}`;
+            const body = document.getElementById('pricing-modal-body');
+
+            if (type === 'simple') {
+                body.innerHTML = `<div style="padding:1.5rem;text-align:center;color:#6b7280;border:1px dashed #d1d5db;border-radius:0.6rem;"><p style="margin:0;">This service uses <strong>Simple (Fixed Price)</strong> pricing — no tiers or options to configure.</p><p style="margin:0.5rem 0 0;font-size:0.85rem;">Change the Pricing Logic in Edit Service to unlock tier/option management.</p></div>`;
+                return;
+            }
+            if (type === 'survey') {
+                body.innerHTML = `<div style="padding:1.5rem;text-align:center;color:#6b7280;border:1px dashed #d1d5db;border-radius:0.6rem;"><p style="margin:0;font-weight:600;color:#1e3a5f;">Survey Required — no pricing configuration needed.</p><p style="margin:0.5rem 0 0;font-size:0.85rem;">Customers submit an enquiry; you confirm the price after a site visit.</p></div>`;
+                return;
+            }
+
+            if (type === 'tenancy') { _renderTenancyModalBody(body, service); return; }
+            if (type === 'deep' || type === 'airbnb') { _renderDeepTierModalBody(body, service); return; }
+            if (type === 'itemized') { _renderItemizedModalBody(body, service); return; }
+
+            // options
+            _renderOptionsModalBody(body, service);
+        }
+
+        // ── Tenancy modal body ──────────────────────────────────────────────────
+
+        function _renderTenancyModalBody(body, service) {
+            const rates = Array.isArray(service.tenancy_rates) ? service.tenancy_rates : [];
+            body.innerHTML = `
+                <div id="pm-tenancy-list" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
+                    ${rates.length ? rates.map(r => `
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;border:1px solid #e5e7eb;border-radius:0.6rem;background:#f9fafb;gap:0.5rem;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;font-size:0.9rem;">${escapeHtml(r.label || '')}</div>
+                            <div style="font-size:0.8rem;color:#6b7280;margin-top:0.1rem;">
+                                Standard: ${r.standard_price != null ? '£'+Number(r.standard_price).toFixed(2) : '—'}
+                                &nbsp;·&nbsp; Deep: ${r.deep_clean_price != null ? '£'+Number(r.deep_clean_price).toFixed(2) : '—'}
+                                ${r.is_blocker ? '&nbsp;·&nbsp; <span style="color:#b45309;font-weight:600;">Blocker</span>' : ''}
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:0.4rem;">
+                            <button class="btn btn-sm btn-primary" type="button" onclick="_editTenancyRate(${r.id},${service.id})">Edit</button>
+                            <button class="btn btn-sm btn-danger" type="button" onclick="deleteTenancyRate(${r.id})">Delete</button>
+                        </div>
+                    </div>`).join('') : '<p style="color:#6b7280;font-size:0.9rem;">No tenancy rates yet.</p>'}
+                </div>
+                <button class="btn btn-primary" type="button" onclick="_addTenancyRate(${service.id})">+ Add Rate</button>`;
+        }
+
+        window._addTenancyRate = function(serviceId) {
+            _openItemSheet('tenancy-new', null, serviceId);
+        };
+        window._editTenancyRate = function(rateId, serviceId) {
+            const service = (window.servicesData || []).find(s => Number(s.id) === Number(serviceId));
+            const rate = service && Array.isArray(service.tenancy_rates) ? service.tenancy_rates.find(r => Number(r.id) === Number(rateId)) : null;
+            _openItemSheet('tenancy-edit', rate, serviceId);
+        };
+
+        // ── Deep/Airbnb tier modal body ─────────────────────────────────────────
+
+        function _renderDeepTierModalBody(body, service) {
+            const tiers = Array.isArray(service.pricing_tiers) ? service.pricing_tiers : [];
+            body.innerHTML = `
+                <div id="pm-tier-list" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
+                    ${tiers.length ? tiers.map(t => {
+                        const hasRooms = Array.isArray(t.rooms_config) && t.rooms_config.length > 0;
+                        const meta = [
+                            t.hourly_rate != null ? `£${Number(t.hourly_rate).toFixed(2)}/hr` : null,
+                            t.fixed_staff ? `${t.fixed_staff} staff (fixed)` : t.min_staff ? `Min ${t.min_staff} staff` : null,
+                            t.fixed_hours ? `${t.fixed_hours}hrs (fixed)` : t.min_hours ? `Min ${t.min_hours}hrs` : null,
+                            t.equipment_fee > 0 ? `Equip £${Number(t.equipment_fee).toFixed(2)}` : null,
+                            hasRooms ? `${t.rooms_config.length} room type${t.rooms_config.length > 1 ? 's' : ''}` : null
+                        ].filter(Boolean).join(' · ');
+                        return `
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;border:1px solid #e5e7eb;border-radius:0.6rem;background:#f9fafb;gap:0.5rem;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;font-size:0.9rem;">${escapeHtml(t.tier_name || '')}</div>
+                            ${meta ? `<div style="font-size:0.8rem;color:#6b7280;margin-top:0.1rem;">${meta}</div>` : ''}
+                        </div>
+                        <div style="display:flex;gap:0.4rem;">
+                            <button class="btn btn-sm btn-primary" type="button" onclick="_editDeepTier(${t.id},${service.id})">Edit</button>
+                            <button class="btn btn-sm btn-danger" type="button" onclick="deleteTier(${t.id})">Delete</button>
+                        </div>
+                    </div>`;
+                    }).join('') : '<p style="color:#6b7280;font-size:0.9rem;">No tiers yet.</p>'}
+                </div>
+                <button class="btn btn-primary" type="button" onclick="_addDeepTier(${service.id})">+ Add Tier</button>`;
+        }
+
+        window._addDeepTier = function(serviceId) {
+            _openItemSheet('tier-new', null, serviceId);
+        };
+        window._editDeepTier = function(tierId, serviceId) {
+            const service = (window.servicesData || []).find(s => Number(s.id) === Number(serviceId));
+            const tier = service && Array.isArray(service.pricing_tiers) ? service.pricing_tiers.find(t => Number(t.id) === Number(tierId)) : null;
+            _openItemSheet('tier-edit', tier, serviceId);
+        };
+
+        // ── Itemized modal body ─────────────────────────────────────────────────
+
+        function _renderItemizedModalBody(body, service) {
+            const items = Array.isArray(service.pricing_items) ? service.pricing_items : [];
+            body.innerHTML = `
+                <div id="pm-item-list" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
+                    ${items.length ? items.map(item => `
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;border:1px solid #e5e7eb;border-radius:0.6rem;background:#f9fafb;gap:0.5rem;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;font-size:0.9rem;">${escapeHtml(item.item_name || '')}</div>
+                            <div style="font-size:0.8rem;color:#6b7280;margin-top:0.1rem;">${item.price != null ? '£'+Number(item.price).toFixed(2) : '—'}</div>
+                        </div>
+                        <div style="display:flex;gap:0.4rem;">
+                            <button class="btn btn-sm btn-primary" type="button" onclick="_editPricingItem(${item.id},${service.id})">Edit</button>
+                            <button class="btn btn-sm btn-danger" type="button" onclick="deleteItem(${item.id})">Delete</button>
+                        </div>
+                    </div>`).join('') : '<p style="color:#6b7280;font-size:0.9rem;">No items yet.</p>'}
+                </div>
+                <button class="btn btn-primary" type="button" onclick="_addPricingItem(${service.id})">+ Add Item</button>`;
+        }
+
+        window._addPricingItem = function(serviceId) {
+            _openItemSheet('item-new', null, serviceId);
+        };
+        window._editPricingItem = function(itemId, serviceId) {
+            const service = (window.servicesData || []).find(s => Number(s.id) === Number(serviceId));
+            const item = service && Array.isArray(service.pricing_items) ? service.pricing_items.find(i => Number(i.id) === Number(itemId)) : null;
+            _openItemSheet('item-edit', item, serviceId);
+        };
+
+        // ── Options modal body ──────────────────────────────────────────────────
+
+        function _renderOptionsModalBody(body, service) {
+            const options = sortServiceOptions(service.options || []);
+            body.innerHTML = `
+                <div id="pm-option-list" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
+                    ${options.length ? options.map(opt => `
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;border:1px solid #e5e7eb;border-radius:0.6rem;background:#f9fafb;gap:0.5rem;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;font-size:0.9rem;">${escapeHtml(opt.label || '')}</div>
+                            <div style="font-size:0.8rem;color:#6b7280;margin-top:0.1rem;">
+                                ${opt.price != null && opt.price !== '' ? '£'+Number(opt.price).toFixed(2) : 'Custom quote'}
+                                &nbsp;·&nbsp; Sort: ${opt.sort_order ?? 0}
+                                &nbsp;·&nbsp; ${opt.is_active ? '<span style="color:#166534;font-weight:600;">Active</span>' : '<span style="color:#991b1b;">Hidden</span>'}
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:0.4rem;">
+                            <button class="btn btn-sm" type="button" onclick="handleReorderOption_modal(${opt.id},'up',${service.id})" title="Move up">↑</button>
+                            <button class="btn btn-sm" type="button" onclick="handleReorderOption_modal(${opt.id},'down',${service.id})" title="Move down">↓</button>
+                            <button class="btn btn-sm btn-primary" type="button" onclick="_editOption(${opt.id},${service.id})">Edit</button>
+                            <button class="btn btn-sm btn-danger" type="button" onclick="handleDeleteServiceOption_modal(${opt.id},${service.id})">Delete</button>
+                        </div>
+                    </div>`).join('') : '<p style="color:#6b7280;font-size:0.9rem;">No options yet.</p>'}
+                </div>
+                <button class="btn btn-primary" type="button" onclick="_addOption(${service.id})">+ Add Option</button>`;
+        }
+
+        window._addOption = function(serviceId) {
+            _openItemSheet('option-new', null, serviceId);
+        };
+        window._editOption = function(optionId, serviceId) {
+            const service = (window.servicesData || []).find(s => Number(s.id) === Number(serviceId));
+            const opt = service && Array.isArray(service.options) ? service.options.find(o => Number(o.id) === Number(optionId)) : null;
+            _openItemSheet('option-edit', opt, serviceId);
+        };
+
+        window.handleReorderOption_modal = async function(optionId, direction, serviceId) {
+            const service = (window.servicesData || []).find(s => Number(s.id) === Number(serviceId));
+            if (!service) return;
+            const ordered = sortServiceOptions(service.options || []);
+            const idx = ordered.findIndex(o => Number(o.id) === Number(optionId));
+            const target = direction === 'up' ? idx - 1 : idx + 1;
+            if (idx === -1 || target < 0 || target >= ordered.length) return;
+            const ids = ordered.map(o => Number(o.id));
+            const [moved] = ids.splice(idx, 1);
+            ids.splice(target, 0, moved);
+            try {
+                const res = await fetch(`/admin/api/services/${serviceId}/options/reorder`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({order: ids}) });
+                const rb = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(rb.error || 'Unable to reorder.');
+                await loadServices(true);
+                showToast('Order updated.', 'success');
+            } catch(e) { showToast(e.message || 'Failed.', 'error'); }
+        };
+
+        window.handleDeleteServiceOption_modal = async function(optionId, serviceId) {
+            if (!confirm('Delete this option?')) return;
+            try {
+                const res = await fetch(`/admin/api/services/${serviceId}/options/${optionId}`, { method: 'DELETE' });
+                const rb = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(rb.error || 'Failed to delete option.');
+                await loadServices(true);
+                showToast('Option deleted.', 'success');
+            } catch(e) { showToast(e.message || 'Unable to delete option.', 'error'); }
+        };
+
+        // ─── Item Edit Sheet ────────────────────────────────────────────────────
+
+        function openItemEditModal() { /* external API – use _openItemSheet */ }
+        function closeItemEditModal() {
+            document.getElementById('item-edit-modal').classList.remove('open');
+        }
+
+        function _openItemSheet(mode, data, serviceId) {
+            const modal = document.getElementById('item-edit-modal');
+            const titleEl = document.getElementById('item-edit-title');
+            const bodyEl = document.getElementById('item-edit-body');
+            const footerEl = document.getElementById('item-edit-footer');
+
+            if (mode === 'tier-new' || mode === 'tier-edit') {
+                titleEl.textContent = mode === 'tier-new' ? 'Add Tier' : 'Edit Tier';
+                const d = data || {};
+                bodyEl.innerHTML = `
+                <div style="display:grid;gap:0.85rem;">
+                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Tier Name <span style="color:#ef4444">*</span><input id="ies-name" type="text" value="${escapeHtml(d.tier_name||'')}" required style="padding:0.45rem 0.65rem;border:1px solid #d1d5db;border-radius:0.45rem;font-size:0.9rem;"></label>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Hourly Rate (£)<input id="ies-rate" type="number" step="0.01" min="0" value="${escapeHtml(d.hourly_rate!=null?String(d.hourly_rate):'')}"></label>
+                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Equipment Fee (£)<input id="ies-equip" type="number" step="0.01" min="0" value="${escapeHtml(d.equipment_fee!=null?String(d.equipment_fee):'')}"></label>
+                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Materials Fee (£)<input id="ies-det" type="number" step="0.01" min="0" value="${escapeHtml(d.detergent_fee!=null?String(d.detergent_fee):'')}"></label>
+                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Min Staff<input id="ies-mstaff" type="number" step="1" min="1" value="${escapeHtml(d.min_staff!=null?String(d.min_staff):'')}" placeholder="1"></label>
+                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Fixed Staff<input id="ies-fstaff" type="number" step="1" min="1" value="${escapeHtml(d.fixed_staff!=null?String(d.fixed_staff):'')}">
+                            <span style="font-size:0.75rem;color:#6b7280;">Locks staff input to this number</span></label>
+                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Staff Label<input id="ies-slabel" type="text" value="${escapeHtml(d.staff_label||'')}" placeholder="Number of Staff"></label>
+                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Min Hours<input id="ies-mhours" type="number" step="0.5" min="0.5" value="${escapeHtml(d.min_hours!=null?String(d.min_hours):'')}"></label>
+                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Fixed Hours<input id="ies-fhours" type="number" step="0.5" min="0.5" value="${escapeHtml(d.fixed_hours!=null?String(d.fixed_hours):'')}">
+                            <span style="font-size:0.75rem;color:#6b7280;">Locks hours input to this number</span></label>
+                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Hours Label<input id="ies-hlabel" type="text" value="${escapeHtml(d.hours_label||'')}" placeholder="Hours Required"></label>
+                    </div>
+                    <div id="ies-rooms-wrap">${renderRoomsEditor('ies-rooms', d.rooms_config || null)}</div>
+                </div>`;
+                // bind rooms editor
+                const re = bodyEl.querySelector('#ies-rooms');
+                if (re) bindRoomsEditor(re);
+                footerEl.innerHTML = `<button class="btn" type="button" onclick="closeItemEditModal()">Cancel</button><button class="btn btn-primary" type="button" id="ies-save-btn">${mode === 'tier-new' ? 'Add Tier' : 'Save Changes'}</button>`;
+                footerEl.querySelector('#ies-save-btn').addEventListener('click', async () => {
+                    const payload = {
+                        tier_name: document.getElementById('ies-name').value.trim(),
+                        hourly_rate: document.getElementById('ies-rate').value,
+                        equipment_fee: document.getElementById('ies-equip').value,
+                        detergent_fee: document.getElementById('ies-det').value,
+                        min_staff: document.getElementById('ies-mstaff').value,
+                        fixed_staff: document.getElementById('ies-fstaff').value,
+                        staff_label: document.getElementById('ies-slabel').value.trim(),
+                        min_hours: document.getElementById('ies-mhours').value,
+                        fixed_hours: document.getElementById('ies-fhours').value,
+                        hours_label: document.getElementById('ies-hlabel').value.trim(),
+                        rooms_config: collectRoomsConfig(bodyEl.querySelector('#ies-rooms'))
+                    };
+                    if (!payload.tier_name) { showToast('Tier name is required.', 'error'); return; }
+                    if (validatePriceField(payload.hourly_rate, 'Hourly rate') === false) return;
+                    if (validatePriceField(payload.equipment_fee, 'Equipment fee') === false) return;
+                    if (validatePriceField(payload.detergent_fee, 'Materials fee') === false) return;
+                    try {
+                        const url = mode === 'tier-new' ? `/admin/api/services/${serviceId}/pricing/tiers` : `/admin/api/pricing/tiers/${data.id}`;
+                        const method = mode === 'tier-new' ? 'POST' : 'PUT';
+                        const res = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                        const rb = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(rb.error || 'Unable to save tier.');
+                        closeItemEditModal();
+                        await loadServices(true);
+                        showToast(mode === 'tier-new' ? 'Tier added.' : 'Tier saved.', 'success');
+                    } catch(e) { showToast(e.message || 'Failed.', 'error'); }
+                });
+
+            } else if (mode === 'tenancy-new' || mode === 'tenancy-edit') {
+                titleEl.textContent = mode === 'tenancy-new' ? 'Add Tenancy Rate' : 'Edit Tenancy Rate';
+                const d = data || {};
+                bodyEl.innerHTML = `
+                <div style="display:grid;gap:0.85rem;">
+                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Label <span style="color:#ef4444">*</span><input id="ies-label" type="text" value="${escapeHtml(d.label||'')}" required></label>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Standard Price (£)<input id="ies-std" type="number" step="0.01" min="0" value="${escapeHtml(d.standard_price!=null?String(d.standard_price):'')}"></label>
+                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Deep Clean Price (£)<input id="ies-deep" type="number" step="0.01" min="0" value="${escapeHtml(d.deep_clean_price!=null?String(d.deep_clean_price):'')}"></label>
+                    </div>
+                    <label style="display:flex;align-items:center;gap:0.5rem;font-weight:600;"><input id="ies-blocker" type="checkbox" ${d.is_blocker ? 'checked' : ''}> This rate is a blocker (prevents booking)</label>
+                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Blocker Message<input id="ies-bmsg" type="text" value="${escapeHtml(d.blocker_msg||'')}" placeholder="We need a site survey first."></label>
+                </div>`;
+                footerEl.innerHTML = `<button class="btn" type="button" onclick="closeItemEditModal()">Cancel</button><button class="btn btn-primary" type="button" id="ies-save-btn">${mode === 'tenancy-new' ? 'Add Rate' : 'Save Changes'}</button>`;
+                footerEl.querySelector('#ies-save-btn').addEventListener('click', async () => {
+                    const payload = {
+                        label: document.getElementById('ies-label').value.trim(),
+                        standard_price: document.getElementById('ies-std').value,
+                        deep_clean_price: document.getElementById('ies-deep').value,
+                        is_blocker: document.getElementById('ies-blocker').checked ? 1 : 0,
+                        blocker_msg: document.getElementById('ies-bmsg').value.trim()
+                    };
+                    if (!payload.label) { showToast('Label is required.', 'error'); return; }
+                    try {
+                        const url = mode === 'tenancy-new' ? `/admin/api/services/${serviceId}/pricing/tenancy` : `/admin/api/pricing/tenancy/${data.id}`;
+                        const method = mode === 'tenancy-new' ? 'POST' : 'PUT';
+                        const res = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                        const rb = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(rb.error || 'Unable to save rate.');
+                        closeItemEditModal();
+                        await loadServices(true);
+                        showToast(mode === 'tenancy-new' ? 'Rate added.' : 'Rate saved.', 'success');
+                    } catch(e) { showToast(e.message || 'Failed.', 'error'); }
+                });
+
+            } else if (mode === 'item-new' || mode === 'item-edit') {
+                titleEl.textContent = mode === 'item-new' ? 'Add Item' : 'Edit Item';
+                const d = data || {};
+                bodyEl.innerHTML = `
+                <div style="display:grid;gap:0.85rem;">
+                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Item Name <span style="color:#ef4444">*</span><input id="ies-iname" type="text" value="${escapeHtml(d.item_name||'')}" required></label>
+                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Price (£) <span style="color:#ef4444">*</span><input id="ies-iprice" type="number" step="0.01" min="0" value="${escapeHtml(d.price!=null?String(d.price):'')}" required></label>
+                </div>`;
+                footerEl.innerHTML = `<button class="btn" type="button" onclick="closeItemEditModal()">Cancel</button><button class="btn btn-primary" type="button" id="ies-save-btn">${mode === 'item-new' ? 'Add Item' : 'Save Changes'}</button>`;
+                footerEl.querySelector('#ies-save-btn').addEventListener('click', async () => {
+                    const payload = {
+                        item_name: document.getElementById('ies-iname').value.trim(),
+                        price: document.getElementById('ies-iprice').value
+                    };
+                    if (!payload.item_name) { showToast('Item name is required.', 'error'); return; }
+                    if (validatePriceField(payload.price, 'Price') === false) return;
+                    try {
+                        const url = mode === 'item-new' ? `/admin/api/services/${serviceId}/pricing/items` : `/admin/api/pricing/items/${data.id}`;
+                        const method = mode === 'item-new' ? 'POST' : 'PUT';
+                        const res = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                        const rb = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(rb.error || 'Unable to save item.');
+                        closeItemEditModal();
+                        await loadServices(true);
+                        showToast(mode === 'item-new' ? 'Item added.' : 'Item saved.', 'success');
+                    } catch(e) { showToast(e.message || 'Failed.', 'error'); }
+                });
+
+            } else if (mode === 'option-new' || mode === 'option-edit') {
+                titleEl.textContent = mode === 'option-new' ? 'Add Option' : 'Edit Option';
+                const d = data || {};
+                bodyEl.innerHTML = `
+                <div style="display:grid;gap:0.85rem;">
+                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Label <span style="color:#ef4444">*</span><input id="ies-olabel" type="text" value="${escapeHtml(d.label||'')}" required></label>
+                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Price (£) <span style="color:#6b7280;font-weight:400;">(optional)</span><input id="ies-oprice" type="number" step="0.01" min="0" value="${escapeHtml(d.price!=null&&d.price!==''?String(d.price):'')}"></label>
+                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Sort Order<input id="ies-osort" type="number" step="1" min="0" value="${escapeHtml(d.sort_order!=null?String(d.sort_order):'0')}"></label>
+                    <label style="display:flex;align-items:center;gap:0.5rem;font-weight:600;"><input id="ies-oactive" type="checkbox" ${d.is_active || mode==='option-new' ? 'checked' : ''}> Active (visible to customers)</label>
+                </div>`;
+                footerEl.innerHTML = `<button class="btn" type="button" onclick="closeItemEditModal()">Cancel</button><button class="btn btn-primary" type="button" id="ies-save-btn">${mode === 'option-new' ? 'Add Option' : 'Save Changes'}</button>`;
+                footerEl.querySelector('#ies-save-btn').addEventListener('click', async () => {
+                    const payload = {
+                        label: document.getElementById('ies-olabel').value.trim(),
+                        price: document.getElementById('ies-oprice').value,
+                        sort_order: document.getElementById('ies-osort').value,
+                        is_active: document.getElementById('ies-oactive').checked ? 1 : 0
+                    };
+                    if (!payload.label) { showToast('Label is required.', 'error'); return; }
+                    try {
+                        const url = mode === 'option-new' ? `/admin/api/services/${serviceId}/options` : `/admin/api/services/${serviceId}/options/${data.id}`;
+                        const method = mode === 'option-new' ? 'POST' : 'PUT';
+                        const res = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                        const rb = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(rb.error || 'Unable to save option.');
+                        closeItemEditModal();
+                        await loadServices(true);
+                        showToast(mode === 'option-new' ? 'Option added.' : 'Option saved.', 'success');
+                    } catch(e) { showToast(e.message || 'Failed.', 'error'); }
+                });
+            }
+
+            modal.classList.add('open');
         }
 
         function renderStatusBadge(isActive) {
@@ -6454,8 +6851,7 @@
                 return;
             }
             serviceOptionsState.selectedServiceId = numericId;
-            renderServicesTable(window.servicesData || []);
-            renderServiceOptionsPanel(selected);
+            openPricingModal(numericId);
         }
 
         async function refreshSelectedServiceOptions() {
@@ -6742,168 +7138,7 @@
             if (addForm) addForm.addEventListener('submit', event => handleCreateItem(event, serviceId));
         }
 
-        function renderServiceOptionsPanel(service) {
-            const panel = document.getElementById('service-options-panel');
-            if (!panel) return;
-
-            if (!service) {
-                panel.innerHTML = '<div style="padding: 1rem; border: 1px dashed #d1d5db; border-radius: 0.85rem; background: #fff; color: #6b7280; text-align: center; font-size: 0.95rem;">Select a service from the table to manage its pricing options.</div>';
-                return;
-            }
-
-            // Use pricing_model from DB if set, otherwise fall back to pricing_type inference
-            const type = service.pricing_model || service.pricing_type || (service.tenancy_rates?.length ? 'tenancy' : service.pricing_tiers?.length ? 'deep' : service.pricing_items?.length ? 'itemized' : 'options');
-            
-            const TYPE_LABELS = {
-                'simple': 'Simple',
-                'options': 'Options',
-                'tenancy': 'Tenancy',
-                'deep': 'Deep Cleaning',
-                'airbnb': 'Airbnb',
-                'itemized': 'Itemized',
-                'survey': 'Survey Required'
-            };
-            const typeLabel = TYPE_LABELS[type] || (type.charAt(0).toUpperCase() + type.slice(1));
-            
-            const header = `
-                <div style="display:flex; flex-direction:column; gap:0.25rem;">
-                    <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-                        <strong style="font-size:1rem;">${escapeHtml(service.title || '')}</strong>
-                        <span class="pill pill--muted">${typeLabel} pricing</span>
-                    </div>
-                    <span style="font-size:0.9rem; color:#6b7280;">Base price: ${formatCurrencyLabel(service.price)}</span>
-                </div>`;
-
-            // Simple pricing - no additional configurator needed
-            if (type === 'simple') {
-                panel.innerHTML = header + `
-                    <div style="margin-top: 1rem; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 0.6rem; background: #f9fafb; color: #6b7280; text-align: center;">
-                        <p style="margin: 0;">This service uses <strong>Simple (Fixed Price)</strong> pricing.</p>
-                        <p style="margin: 0.5rem 0 0;">The base price above is shown to customers. To add options or tiers, change the Pricing Logic in the Edit Service modal.</p>
-                    </div>`;
-                return;
-            }
-
-            if (type === 'survey') {
-                panel.innerHTML = header + `
-                    <div style="margin-top: 1rem; padding: 1.25rem; border: 1px solid #e5e7eb; border-radius: 0.6rem; background: #f9fafb;">
-                        <p style="margin: 0 0 0.5rem; font-weight: 600; color: #1e3a5f;">Survey Required — no pricing config needed.</p>
-                        <p style="margin: 0; color: #6b7280; font-size: 0.9rem;">Customers will see a request panel with no price inputs. They submit an enquiry and you confirm the price after an on-site survey. No tiers, options, or rates to configure here.</p>
-                    </div>`;
-                return;
-            }
-
-            if (type === 'tenancy') {
-                panel.innerHTML = header + renderTenancyRatesUI(service);
-                wireTenancyHandlers(panel, service.id);
-                return;
-            }
-
-            if (type === 'deep' || type === 'airbnb') {
-                panel.innerHTML = header + renderDeepTierUI(service);
-                wireDeepTierHandlers(panel, service.id);
-                return;
-            }
-
-            if (type === 'itemized') {
-                panel.innerHTML = header + renderItemizedUI(service);
-                wireItemizedHandlers(panel, service.id);
-                return;
-            }
-
-            // Fallback to legacy options
-            const options = sortServiceOptions(service.options || []);
-            const optionRows = options.length ? options.map(option => {
-                const labelValue = escapeHtml(option.label || '');
-                const priceSource = option.price !== null && option.price !== undefined ? option.price : '';
-                const priceValue = escapeHtml(priceSource === '' ? '' : String(priceSource));
-                const sortSource = option.sort_order !== null && option.sort_order !== undefined ? option.sort_order : '';
-                const sortValue = escapeHtml(sortSource === '' ? '' : String(sortSource));
-                const checked = option.is_active ? 'checked' : '';
-                return `
-                    <tr data-option-id="${option.id}">
-                        <td>
-                            <input type="text" name="option-label" value="${labelValue}" placeholder="Deep clean" required>
-                        </td>
-                        <td>
-                            <input type="number" name="option-price" step="0.01" min="0" value="${priceValue}" placeholder="Custom">
-                        </td>
-                        <td>
-                            <input type="number" name="option-sort" step="1" min="0" value="${sortValue}">
-                        </td>
-                        <td>
-                            <label style="display:flex; align-items:center; gap:0.35rem; font-weight:600;">
-                                <input type="checkbox" name="option-active" ${checked}>
-                                Active
-                            </label>
-                        </td>
-                        <td style="display:flex; gap:0.3rem; flex-wrap:wrap;">
-                            <button class="btn btn-sm btn-primary" type="button" data-option-action="save">Save</button>
-                            <button class="btn btn-sm" type="button" data-option-action="move-up" aria-label="Move up">Up</button>
-                            <button class="btn btn-sm" type="button" data-option-action="move-down" aria-label="Move down">Down</button>
-                            <button class="btn btn-sm btn-danger" type="button" data-option-action="delete">Delete</button>
-                        </td>
-                    </tr>
-                `;
-            }).join('') : '<tr><td colspan="5" style="text-align:center; padding:0.75rem; color:#6b7280;">No options yet. Add one below.</td></tr>';
-
-            panel.innerHTML = `
-                ${header}
-                <div style="overflow:auto; margin-top:0.75rem;">
-                    <table style="width:100%; border-collapse:separate; border-spacing:0; min-width: 480px;">
-                        <thead>
-                            <tr>
-                                <th style="text-align:left;">Option</th>
-                                <th style="text-align:left;">Price</th>
-                                <th style="text-align:left;">Sort</th>
-                                <th style="text-align:left;">Status</th>
-                                <th style="text-align:left;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${optionRows}
-                        </tbody>
-                    </table>
-                </div>
-                <form id="service-option-form" style="margin-top:1rem; display:grid; gap:0.75rem;">
-                    <h4 style="margin:0;">Add Option</h4>
-                    <div style="display:grid; gap:0.75rem; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
-                        <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">
-                            Label
-                            <input type="text" name="option_label" placeholder="Move-out deep clean" required>
-                        </label>
-                        <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">
-                            Price (optional)
-                            <input type="number" name="option_price" step="0.01" min="0" placeholder="Custom">
-                        </label>
-                        <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">
-                            Sort order
-                            <input type="number" name="option_sort" step="1" min="0" placeholder="0">
-                        </label>
-                        <label style="display:flex; align-items:center; gap:0.4rem; font-weight:600;">
-                            <input type="checkbox" name="option_active" checked>
-                            Active
-                        </label>
-                    </div>
-                    <div style="display:flex; justify-content:flex-end;">
-                        <button class="btn btn-primary" type="submit">Add Option</button>
-                    </div>
-                </form>
-            `;
-
-            const addForm = panel.querySelector('#service-option-form');
-            if (addForm) {
-                addForm.addEventListener('submit', event => handleCreateServiceOption(event, service.id));
-            }
-
-            panel.querySelectorAll('[data-option-action]').forEach(button => {
-                const action = button.getAttribute('data-option-action');
-                if (action === 'save') button.addEventListener('click', () => handleSaveServiceOption(button, service.id));
-                if (action === 'delete') button.addEventListener('click', () => handleDeleteServiceOption(button, service.id));
-                if (action === 'move-up') button.addEventListener('click', () => handleReorderOption(button, 'up', service.id));
-                if (action === 'move-down') button.addEventListener('click', () => handleReorderOption(button, 'down', service.id));
-            });
-        }
+        function renderServiceOptionsPanel(service) { /* replaced by openPricingModal */ }
 
         async function handleCreateServiceOption(event, serviceId) {
             event.preventDefault();
@@ -7654,7 +7889,7 @@
                 }
                 if (Number(serviceOptionsState.selectedServiceId) === Number(id)) {
                     serviceOptionsState.selectedServiceId = null;
-                    renderServiceOptionsPanel(null);
+                    closePricingModal();
                 }
                 await loadServices(true);
                 showToast('Service deleted.', 'success');
