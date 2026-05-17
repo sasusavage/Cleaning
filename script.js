@@ -2977,6 +2977,26 @@ document.addEventListener("DOMContentLoaded", function () {
                 currentServiceIndex += 1;
                 renderServiceStep();
             } else {
+                // Prevent advancing to summary if nothing has been selected
+                var orderedSels = getOrderedSelections();
+                var bookable = orderedSels.filter(function (s) { return !s.isDomestic; });
+                var hasDomesticPlan = Boolean(flowState.domesticPlan || flowState.domesticConfig);
+                if (!bookable.length && !hasDomesticPlan) {
+                    if (flowChoicePrompt) {
+                        flowChoicePrompt.style.display = 'none';
+                    }
+                    if (flowOptionsContainer) {
+                        var warn = document.createElement('p');
+                        warn.style.cssText = 'color:#b91c1c;text-align:center;padding:1rem;font-weight:600;';
+                        warn.textContent = 'Please select at least one service before continuing.';
+                        flowOptionsContainer.innerHTML = '';
+                        flowOptionsContainer.appendChild(warn);
+                    }
+                    // Go back to the first service in the queue
+                    currentServiceIndex = 0;
+                    renderServiceStep();
+                    return;
+                }
                 setActiveStep(2);
                 renderSummary();
             }

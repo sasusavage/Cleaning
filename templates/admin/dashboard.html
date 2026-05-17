@@ -2391,11 +2391,20 @@
                     <button class="filter-clear-btn" type="button" onclick="clearRequestFilters()">✕ Clear filters</button>
                     <span id="requests-count-label" style="font-size:0.8rem; color:#6b7280; margin-left:auto;"></span>
                 </div>
+                <!-- Bulk action bar -->
+                <div id="bulk-action-bar" style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 1rem;background:#eff6ff;border-bottom:1px solid #dbeafe;">
+                    <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;color:#1e40af;cursor:pointer;">
+                        <input type="checkbox" id="bulk-select-all" onchange="toggleAllBulkSelect(this)" style="accent-color:#2563eb;">
+                        Select all
+                    </label>
+                    <button class="btn btn-primary" type="button" onclick="bulkMarkPaid()" style="font-size:0.82rem;padding:0.35rem 0.85rem;">£✓ Mark selected as paid</button>
+                </div>
                 <div id="request-board" class="requests-table-container">
                     <div style="overflow-x: auto;">
                         <table class="requests-table">
                             <thead>
                                 <tr>
+                                    <th style="width:30px;"></th>
                                     <th>Date</th>
                                     <th>Client</th>
                                     <th>Service / Type</th>
@@ -3378,17 +3387,39 @@
                         <h3 style="margin: 0 0 0.75rem; font-size: 0.88rem; color: #92400e;">Pricing</h3>
                         <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
                             <label style="font-weight: 600; color: #92400e; font-size: 0.9rem;">Total Cost (£):</label>
-                            <input type="number" id="request-detail-total-cost" step="0.01" min="0" placeholder="0.00" style="padding: 0.5rem 0.75rem; border-radius: 0.4rem; border: 1px solid #d97706; width: 140px; font-size: 1rem; font-weight: 600;">
+                            <input type="number" id="request-detail-total-cost" step="0.01" min="0" placeholder="0.00" style="padding: 0.5rem 0.75rem; border-radius: 0.4rem; border: 1px solid #d97706; width: 100%; max-width: 160px; font-size: 1rem; font-weight: 600;">
                             <span id="request-detail-price-hint" style="font-size: 0.85rem; color: #78350f;"></span>
                         </div>
                         <p style="margin: 0.75rem 0 0; font-size: 0.82rem; color: #92400e;">Save from the Actions tab after updating the price.</p>
                     </div>
                     <div style="background: #f9fafb; border: 1px solid var(--border); border-radius: 0.6rem; padding: 1rem;">
                         <h3 style="margin: 0 0 0.75rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.07em; color: #6b7280;">Payment Status</h3>
-                        <div style="display: grid; gap: 0.4rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); font-size: 0.9rem;">
+                        <div style="display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); font-size: 0.9rem;">
                             <div><span style="color:#6b7280;">Status:</span> <strong id="request-detail-payment-status">—</strong></div>
                             <div><span style="color:#6b7280;">Amount Due:</span> <strong id="request-detail-amount-due">—</strong></div>
                         </div>
+                    </div>
+                    <!-- Mark Paid -->
+                    <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 0.6rem; padding: 1rem;">
+                        <h3 style="margin: 0 0 0.75rem; font-size: 0.88rem; color: #166534;">Mark Payment Received</h3>
+                        <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: 600; color: #166534; cursor: pointer;">
+                                <input type="checkbox" id="request-detail-is-paid" style="width: 18px; height: 18px; cursor: pointer; accent-color: #16a34a;">
+                                Payment received (mark as paid)
+                            </label>
+                        </div>
+                        <p style="margin: 0.6rem 0 0; font-size: 0.82rem; color: #166534;">Tick to record cash or manual payment. Untick to revert. Click Save Changes in the Actions tab.</p>
+                    </div>
+                    <!-- Payment Type -->
+                    <div style="background: #f9fafb; border: 1px solid var(--border); border-radius: 0.6rem; padding: 1rem;">
+                        <h3 style="margin: 0 0 0.75rem; font-size: 0.88rem; color: #374151;">Payment Method</h3>
+                        <select id="request-detail-payment-type" style="padding: 0.5rem 0.75rem; border-radius: 0.4rem; border: 1px solid #d1d5db; font-size: 0.9rem; width: 100%; max-width: 260px;">
+                            <option value="in_person">Pay After Service (In Person)</option>
+                            <option value="stripe">Paid Online (Stripe)</option>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <p style="margin: 0.6rem 0 0; font-size: 0.82rem; color: #6b7280;">Change how payment was/will be collected. Click Save Changes in the Actions tab.</p>
                     </div>
                 </div>
             </div>
@@ -4617,6 +4648,24 @@
                 ? `<span class="contract-tag">📄${entry.contract_frequency ? ' ' + escapeHtml(entry.contract_frequency) : ''}</span>`
                 : '';
 
+            // Email sent badges
+            const adminEmailBadge = entry.email_sent_admin
+                ? `<span title="Admin notified" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#16a34a;margin-left:3px;" ></span>`
+                : `<span title="Admin not notified" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#d1d5db;margin-left:3px;"></span>`;
+            const userEmailBadge = entry.email_sent_user
+                ? `<span title="Customer notified" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#2563eb;margin-left:3px;"></span>`
+                : `<span title="Customer not notified" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#fbbf24;margin-left:3px;"></span>`;
+
+            // Survey badge
+            const surveyTag = status === 'survey_needed'
+                ? `<span style="display:inline-block;background:#fef3c7;color:#d97706;border:1px solid #fcd34d;border-radius:0.3rem;font-size:0.68rem;font-weight:700;padding:1px 5px;margin-left:4px;vertical-align:middle;">SURVEY</span>`
+                : '';
+
+            // Paid badge
+            const paidTag = entry.is_paid
+                ? `<span style="display:inline-block;background:#dcfce7;color:#16a34a;border:1px solid #86efac;border-radius:0.3rem;font-size:0.68rem;font-weight:700;padding:1px 5px;margin-left:4px;vertical-align:middle;">PAID</span>`
+                : '';
+
             // Quick action buttons based on status
             let quickBtns = '';
             if (status === 'pending' || status === 'survey_needed') {
@@ -4625,13 +4674,18 @@
             if (status === 'in_progress') {
                 quickBtns += `<button class="row-action-btn row-action-btn--complete" type="button" onclick="event.stopPropagation(); quickStatusChange(${entry.id}, 'completed')" title="Mark Complete">✓</button>`;
             }
+            // Quick mark paid button for unpaid in-person
+            if (!entry.is_paid && entry.payment_type !== 'stripe') {
+                quickBtns += `<button class="row-action-btn" type="button" style="background:#dcfce7;color:#166534;border-color:#86efac;" onclick="event.stopPropagation(); quickMarkPaid(${entry.id})" title="Mark as Paid">£✓</button>`;
+            }
 
             return `
                 <tr data-request-id="${entry.id}" data-status="${status}" data-name="${name.toLowerCase()}" data-email="${email.toLowerCase()}" data-type="${(entry.request_type || '').toLowerCase()}">
+                    <td onclick="event.stopPropagation()"><input type="checkbox" class="bulk-select-cb" data-request-id="${entry.id}" style="accent-color:#2563eb;cursor:pointer;"></td>
                     <td class="text-muted" style="white-space:nowrap;">${dateDisplay}</td>
                     <td>
-                        <div class="client-name">${name}</div>
-                        ${email ? `<div class="text-muted" style="font-size:0.78rem;">${email}</div>` : ''}
+                        <div class="client-name">${name}${surveyTag}${paidTag}</div>
+                        ${email ? `<div class="text-muted" style="font-size:0.78rem;">${email} ${adminEmailBadge}${userEmailBadge}</div>` : ''}
                     </td>
                     <td class="text-muted">${escapeHtml(serviceOrPosition)}<br><span style="font-size:0.75rem; color:#9ca3af;">${escapeHtml(typeLabel)}${contractTag}</span></td>
                     <td><span class="${getStatusBadgeClass(status)}">${escapeHtml(statusLabel)}</span></td>
@@ -4706,6 +4760,44 @@
 
         function quickStatusChange(requestId, newStatus) {
             updateRequestStatusInline(requestId, newStatus, null, null);
+        }
+
+        async function quickMarkPaid(requestId) {
+            try {
+                const res = await fetch(`/admin/api/requests/${requestId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_paid: true })
+                });
+                if (!res.ok) throw new Error('Failed to mark as paid');
+                showToast('Marked as paid.', 'success', 1800);
+                loadRequests();
+            } catch (e) {
+                showToast(e.message || 'Failed to mark as paid.', 'error');
+            }
+        }
+
+        async function bulkMarkPaid() {
+            const checked = Array.from(document.querySelectorAll('.bulk-select-cb:checked'));
+            if (!checked.length) { showToast('Select at least one request.', 'info'); return; }
+            const ids = checked.map(cb => Number(cb.dataset.requestId));
+            let done = 0;
+            for (const id of ids) {
+                try {
+                    const res = await fetch(`/admin/api/requests/${id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ is_paid: true })
+                    });
+                    if (res.ok) done++;
+                } catch (_) {}
+            }
+            showToast(`${done} of ${ids.length} marked as paid.`, done === ids.length ? 'success' : 'info', 2400);
+            loadRequests();
+        }
+
+        function toggleAllBulkSelect(masterCb) {
+            document.querySelectorAll('.bulk-select-cb').forEach(cb => { cb.checked = masterCb.checked; });
         }
 
         function switchModalTab(tabName, btn) {
@@ -5051,6 +5143,23 @@
             (getEl('request-detail-payment-status') || {}).textContent = detail.payment_status_label || '—';
             (getEl('request-detail-amount-due') || {}).textContent = formatAmountDue(detail.amount_due);
 
+            // Populate is_paid checkbox
+            const isPaidCb = getEl('request-detail-is-paid');
+            if (isPaidCb) isPaidCb.checked = Boolean(detail.is_paid);
+
+            // Populate payment type selector
+            const ptSelect = getEl('request-detail-payment-type');
+            if (ptSelect) {
+                const pt = (detail.payment_type || 'in_person').toLowerCase();
+                const opt = ptSelect.querySelector(`option[value="${pt}"]`);
+                if (opt) ptSelect.value = pt;
+                else ptSelect.value = 'in_person';
+            }
+
+            // Populate total cost field
+            const tcInput = getEl('request-detail-total-cost');
+            if (tcInput) tcInput.value = detail.amount_due != null && detail.amount_due !== '—' ? Number(detail.amount_due).toFixed(2) : '';
+
             const travel = detail.travel || {};
             const travelFee = typeof travel.travel_fee === 'number' ? `£${Number(travel.travel_fee).toFixed(2)}` : '—';
             const travelDistance = typeof travel.distance_miles === 'number' ? `${travel.distance_miles} mi` : '—';
@@ -5196,11 +5305,15 @@
 
             const totalCostInput = document.getElementById('request-detail-total-cost');
             const totalCostValue = totalCostInput ? parseFloat(totalCostInput.value) : null;
+            const isPaidInput = document.getElementById('request-detail-is-paid');
+            const paymentTypeInput = document.getElementById('request-detail-payment-type');
 
             const payload = {
                 status: requestStatusUpdate ? requestStatusUpdate.value : undefined,
                 admin_notes: requestDetailNotes ? requestDetailNotes.value : undefined,
-                total_cost: (!isNaN(totalCostValue) && totalCostValue >= 0) ? totalCostValue : null
+                total_cost: (!isNaN(totalCostValue) && totalCostValue >= 0) ? totalCostValue : null,
+                is_paid: isPaidInput ? isPaidInput.checked : undefined,
+                payment_type: paymentTypeInput ? paymentTypeInput.value : undefined
             };
 
             try {

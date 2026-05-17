@@ -40,10 +40,10 @@
 
                     <!-- Status Banner -->
                     <tr>
-                        <td style="background-color: {% if payment and payment.is_paid %}#17a81a{% else %}#2ecc24{% endif %}; padding: 22px 40px; text-align: center;">
-                            <span style="font-size: 30px; display: block; margin-bottom: 6px;">{% if payment and payment.is_paid %}💳{% else %}✅{% endif %}</span>
+                        <td style="background-color: {% if is_survey_request %}#d97706{% elif payment and payment.is_paid %}#17a81a{% else %}#2ecc24{% endif %}; padding: 22px 40px; text-align: center;">
+                            <span style="font-size: 30px; display: block; margin-bottom: 6px;">{% if is_survey_request %}📋{% elif payment and payment.is_paid %}💳{% else %}✅{% endif %}</span>
                             <h2 style="margin: 0; font-size: 19px; font-weight: 700; color: #ffffff; background-color: transparent;">
-                                {% if payment and payment.is_paid %}Booking Confirmed — Payment Received{% else %}Request Received Successfully{% endif %}
+                                {% if is_survey_request %}Survey Request Received{% elif payment and payment.is_paid %}Booking Confirmed — Payment Received{% else %}Request Received Successfully{% endif %}
                             </h2>
                         </td>
                     </tr>
@@ -56,7 +56,9 @@
                                 Dear <strong style="color: #1a6fce;">{{ request.name }}</strong>,
                             </p>
                             <p class="dark-mode-text" style="margin: 0 0 28px; font-size: 14px; color: #6b7280; line-height: 1.7; background-color: #ffffff;">
-                                {% if payment and payment.is_paid %}
+                                {% if is_survey_request %}
+                                    Thank you for your enquiry. This service requires an <strong style="color: #d97706;">on-site survey</strong> before we can provide pricing. One of our specialists will contact you to arrange a convenient time to visit your property. <strong>No payment is required at this stage.</strong>
+                                {% elif payment and payment.is_paid %}
                                     Your booking is confirmed and payment has been received. We look forward to serving you!
                                 {% else %}
                                     Thank you for choosing Done-Well Cleaning. We've received your <strong style="color: #1a6fce;">{{ request.service_name or request.request_type }}</strong> request and our team will be in touch shortly.
@@ -225,23 +227,38 @@
 
                             <!-- What's Next -->
                             {% if not (payment and payment.is_paid) %}
-                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 20px; background-color: #f8fafc; border-radius: 10px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 20px; background-color: {% if is_survey_request %}#fffbeb{% else %}#f8fafc{% endif %}; border-radius: 10px; border: 1px solid {% if is_survey_request %}#fcd34d{% else %}#e5e7eb{% endif %};">
                                 <tr>
-                                    <td style="padding: 20px; background-color: #f8fafc;">
-                                        <h3 style="margin: 0 0 14px; font-size: 13px; font-weight: 700; color: #1a6fce; background-color: #f8fafc;">What happens next?</h3>
-                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc;">
-                                            <tr><td style="padding: 6px 0; font-size: 14px; color: #4b5563; background-color: #f8fafc;">
+                                    <td style="padding: 20px; background-color: transparent;">
+                                        <h3 style="margin: 0 0 14px; font-size: 13px; font-weight: 700; color: {% if is_survey_request %}#d97706{% else %}#1a6fce{% endif %}; background-color: transparent;">What happens next?</h3>
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: transparent;">
+                                            {% if is_survey_request %}
+                                            <tr><td style="padding: 6px 0; font-size: 14px; color: #4b5563; background-color: transparent;">
+                                                <span style="display: inline-block; width: 22px; height: 22px; background-color: #d97706; color: #fff; border-radius: 50%; text-align: center; line-height: 22px; font-size: 11px; font-weight: 700; margin-right: 10px;">1</span>
+                                                We'll call you within 24 hours to arrange a survey visit
+                                            </td></tr>
+                                            <tr><td style="padding: 6px 0; font-size: 14px; color: #4b5563; background-color: transparent;">
+                                                <span style="display: inline-block; width: 22px; height: 22px; background-color: #d97706; color: #fff; border-radius: 50%; text-align: center; line-height: 22px; font-size: 11px; font-weight: 700; margin-right: 10px;">2</span>
+                                                Our specialist visits your property and assesses the work
+                                            </td></tr>
+                                            <tr><td style="padding: 6px 0; font-size: 14px; color: #4b5563; background-color: transparent;">
+                                                <span style="display: inline-block; width: 22px; height: 22px; background-color: #d97706; color: #fff; border-radius: 50%; text-align: center; line-height: 22px; font-size: 11px; font-weight: 700; margin-right: 10px;">3</span>
+                                                You receive a tailored, no-obligation quote — no payment until you approve
+                                            </td></tr>
+                                            {% else %}
+                                            <tr><td style="padding: 6px 0; font-size: 14px; color: #4b5563; background-color: transparent;">
                                                 <span style="display: inline-block; width: 22px; height: 22px; background-color: #1a6fce; color: #fff; border-radius: 50%; text-align: center; line-height: 22px; font-size: 11px; font-weight: 700; margin-right: 10px;">1</span>
                                                 Our team will review your request within 24 hours
                                             </td></tr>
-                                            <tr><td style="padding: 6px 0; font-size: 14px; color: #4b5563; background-color: #f8fafc;">
+                                            <tr><td style="padding: 6px 0; font-size: 14px; color: #4b5563; background-color: transparent;">
                                                 <span style="display: inline-block; width: 22px; height: 22px; background-color: #1a6fce; color: #fff; border-radius: 50%; text-align: center; line-height: 22px; font-size: 11px; font-weight: 700; margin-right: 10px;">2</span>
                                                 We'll contact you to confirm details and schedule
                                             </td></tr>
-                                            <tr><td style="padding: 6px 0; font-size: 14px; color: #4b5563; background-color: #f8fafc;">
+                                            <tr><td style="padding: 6px 0; font-size: 14px; color: #4b5563; background-color: transparent;">
                                                 <span style="display: inline-block; width: 22px; height: 22px; background-color: #1a6fce; color: #fff; border-radius: 50%; text-align: center; line-height: 22px; font-size: 11px; font-weight: 700; margin-right: 10px;">3</span>
                                                 Sit back and let us handle the rest!
                                             </td></tr>
+                                            {% endif %}
                                         </table>
                                     </td>
                                 </tr>

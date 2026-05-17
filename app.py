@@ -1882,22 +1882,29 @@ def send_request_notifications(request_record, attachments=None):
                 schedule_info=schedule_info,
                 customer_notes=customer_notes,
                 location_info=location_info,
-                logo_url=logo_url
+                logo_url=logo_url,
+                is_survey_request=is_survey_request
             )
         except Exception:
             app.logger.exception('Failed to render user confirmation email template.')
             user_html = None
-        user_text = (
-            "Thanks for reaching out! We'll get back to you soon.\n\n" +
-            build_request_summary_text(context)
-        )
         service_name_for_subject = context.get('service_name') or context.get('request_type') or 'service'
         payment_info_for_subject = service_flow.get('payment') or {}
         is_paid_for_subject = bool(payment_info_for_subject.get('is_paid'))
-        if is_paid_for_subject:
+        if is_survey_request:
+            user_subject = f"Survey request received – {service_name_for_subject}"
+            user_text = (
+                "Thanks for your enquiry! This service requires a site survey before we can provide pricing.\n"
+                "One of our specialists will contact you to arrange a convenient time to visit your property.\n"
+                "No payment is required at this stage.\n\n" +
+                build_request_summary_text(context)
+            )
+        elif is_paid_for_subject:
             user_subject = f"Booking confirmed – {service_name_for_subject} (Paid)"
+            user_text = "Thanks for reaching out! We'll get back to you soon.\n\n" + build_request_summary_text(context)
         else:
             user_subject = f"We received your request – {service_name_for_subject}"
+            user_text = "Thanks for reaching out! We'll get back to you soon.\n\n" + build_request_summary_text(context)
         result['user_sent'] = send_email_via_settings(
             subject=user_subject,
             html_body=user_html,
@@ -10783,13 +10790,32 @@ def admin_request_detail(request_id):
                         new_total_cost = None
                 except (ValueError, TypeError):
                     new_total_cost = None
-            # Update service_requests table
             cursor.execute(
                 "UPDATE service_requests SET total_price = %s WHERE legacy_request_id = %s",
                 (new_total_cost, request_id)
             )
             if cursor.rowcount > 0:
                 total_cost_updated = True
+
+        # Handle is_paid toggle (mark cash payment received / unmark)
+        if 'is_paid' in data:
+            is_paid_val = bool(data.get('is_paid'))
+            engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+            is_paid_db = True if is_paid_val else (False if 'postgres' in engine else 0)
+            cursor.execute(
+                "UPDATE service_requests SET is_paid = %s WHERE legacy_request_id = %s",
+                (is_paid_db, request_id)
+            )
+
+        # Handle payment_type change
+        if 'payment_type' in data:
+            allowed_payment_types = ('in_person', 'stripe', 'prebook_save', 'bank_transfer', 'other')
+            new_payment_type = (data.get('payment_type') or '').strip().lower()
+            if new_payment_type in allowed_payment_types:
+                cursor.execute(
+                    "UPDATE service_requests SET payment_type = %s WHERE legacy_request_id = %s",
+                    (new_payment_type, request_id)
+                )
 
         if updates:
             updates.append('updated_at = CURRENT_TIMESTAMP')
