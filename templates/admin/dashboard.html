@@ -5833,6 +5833,7 @@
 
         async function deleteOperatingBase(baseId) {
             if (!baseId) return;
+            if (!confirm('Delete this operating base? This cannot be undone.')) return;
             try {
                 const res = await fetch(`/admin/api/operating-bases/${baseId}`, { method: 'DELETE' });
                 const body = await res.json().catch(() => ({}));
@@ -6999,6 +7000,14 @@
             }
         }
 
+        function validatePriceField(value, label) {
+            if (value === '' || value === null || value === undefined) return null; // optional
+            const n = parseFloat(value);
+            if (isNaN(n)) { showToast(`${label} must be a valid number.`, 'error'); return false; }
+            if (n < 0) { showToast(`${label} cannot be negative.`, 'error'); return false; }
+            return true;
+        }
+
         async function handleCreateTier(event, serviceId) {
             event.preventDefault();
             const form = event.target;
@@ -7016,10 +7025,10 @@
                 detergent_fee: form.detergent_fee.value,
                 rooms_config: collectRoomsConfig(newRoomsEditor)
             };
-            if (!payload.tier_name) {
-                showToast('Tier name is required.', 'error');
-                return;
-            }
+            if (!payload.tier_name) { showToast('Tier name is required.', 'error'); return; }
+            if (validatePriceField(payload.hourly_rate, 'Hourly rate') === false) return;
+            if (validatePriceField(payload.equipment_fee, 'Equipment fee') === false) return;
+            if (validatePriceField(payload.detergent_fee, 'Materials fee') === false) return;
             try {
                 const res = await fetch(`/admin/api/services/${serviceId}/pricing/tiers`, {
                     method: 'POST',
@@ -7052,10 +7061,10 @@
                 detergent_fee: row.querySelector('[name="tier-det"]').value,
                 rooms_config: collectRoomsConfig(roomsEditor)
             };
-            if (!payload.tier_name) {
-                showToast('Tier name is required.', 'error');
-                return;
-            }
+            if (!payload.tier_name) { showToast('Tier name is required.', 'error'); return; }
+            if (validatePriceField(payload.hourly_rate, 'Hourly rate') === false) return;
+            if (validatePriceField(payload.equipment_fee, 'Equipment fee') === false) return;
+            if (validatePriceField(payload.detergent_fee, 'Materials fee') === false) return;
             try {
                 const res = await fetch(`/admin/api/pricing/tiers/${tierId}`, {
                     method: 'PUT',
@@ -7091,10 +7100,8 @@
                 item_name: (form.item_name.value || '').trim(),
                 price: form.price.value
             };
-            if (!payload.item_name) {
-                showToast('Item name is required.', 'error');
-                return;
-            }
+            if (!payload.item_name) { showToast('Item name is required.', 'error'); return; }
+            if (validatePriceField(payload.price, 'Price') === false) return;
             try {
                 const res = await fetch(`/admin/api/services/${serviceId}/pricing/items`, {
                     method: 'POST',
@@ -7116,10 +7123,8 @@
                 item_name: row.querySelector('[name="item-name"]').value.trim(),
                 price: row.querySelector('[name="item-price"]').value
             };
-            if (!payload.item_name) {
-                showToast('Item name is required.', 'error');
-                return;
-            }
+            if (!payload.item_name) { showToast('Item name is required.', 'error'); return; }
+            if (validatePriceField(payload.price, 'Price') === false) return;
             try {
                 const res = await fetch(`/admin/api/pricing/items/${itemId}`, {
                     method: 'PUT',

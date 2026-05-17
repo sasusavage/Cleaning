@@ -915,6 +915,18 @@ document.addEventListener("DOMContentLoaded", function () {
             if (!flowSubmitButton) {
                 return;
             }
+            // Hide prebook (Pay Online) option for survey/custom services — no payment taken
+            var prebookLabel = serviceFlowForm ? serviceFlowForm.querySelector('.flow-payment-choice__option input[value="prebook_save"]') : null;
+            var prebookWrap = prebookLabel ? prebookLabel.closest('.flow-payment-choice__option') : null;
+            if (prebookWrap) {
+                prebookWrap.style.display = hasSurvey ? 'none' : '';
+                // If prebook was selected and we're switching to survey, reset to pay_in_person
+                if (hasSurvey && normalizePaymentOptionValue(flowState && flowState.payment_option) === 'prebook_save') {
+                    flowState.payment_option = 'pay_in_person';
+                    var inPersonInput = serviceFlowForm ? serviceFlowForm.querySelector('input[name="flow_payment_option"][value="pay_in_person"]') : null;
+                    if (inPersonInput) inPersonInput.checked = true;
+                }
+            }
             if (hasSurvey) {
                 flowSubmitButton.textContent = surveySubmitLabel;
                 return;
@@ -3963,13 +3975,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 var errors = [];
                 if (!flowState.customer.name) errors.push("Please enter your full name.");
-                if (!flowState.customer.email || flowState.customer.email.indexOf("@") === -1) errors.push("Enter a valid email address.");
-                if (!flowState.customer.phone || flowState.customer.phone.replace(/[^0-9]/g, "").length < 6) errors.push("Phone number looks incorrect.");
+                if (!flowState.customer.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(flowState.customer.email)) errors.push("Enter a valid email address.");
+                if (!flowState.customer.phone || flowState.customer.phone.replace(/[^0-9]/g, "").length < 10) errors.push("Enter a valid UK phone number (at least 10 digits).");
                 if (!flowState.customer.location) errors.push("Add your address or location.");
                 if (askForPostcode && !flowState.customer.postcode) errors.push("Please add your postcode or address.");
                 if (!flowState.schedule.preferred_date) errors.push("Choose a preferred date.");
                 if (!flowState.schedule.preferred_time) errors.push("Choose a preferred time.");
                 if (hasContractSelections() && !flowState.schedule.contract_frequency) errors.push("Choose a contract frequency.");
+                if (hasContractSelections() && !flowState.contract.service_day) errors.push("Choose your preferred service day.");
                 if (hasContractSelections() && !flowState.contract.signer_name) errors.push("Enter the contract signer name.");
                 if (hasContractSelections() && !flowState.contract.agreed) errors.push("You must accept the contract terms.");
 
@@ -3990,8 +4003,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 var bookableSelections = selections.filter(function (selection) {
                     return !selection.isDomestic;
                 });
+                var hasDomesticOnly = selections.length > 0 && bookableSelections.length === 0;
                 if (!bookableSelections.length) {
-                    flowFeedback.textContent = "Please select at least one service option.";
+                    flowFeedback.textContent = hasDomesticOnly
+                        ? "Your domestic cleaning plan is managed separately. Please use the domestic booking section."
+                        : "Please select at least one service option.";
                     flowFeedback.classList.add("is-error");
                     if (flowSubmitButton) {
                         flowSubmitButton.disabled = false;
@@ -4050,7 +4066,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 var domesticCtx = flowState.domesticConfig || flowState.domesticPlan || window.__domesticPlanContext || null;
                 if (domesticCtx) {
                     payload.domestic_plan = domesticCtx;
-                    window.__domesticPlanContext = null;
+                    // Context cleared only on success below, not here, so re-submission retains it
                 }
 
                 console.log("Starting checkout/direct processing...", payload);
@@ -4077,12 +4093,17 @@ document.addEventListener("DOMContentLoaded", function () {
                         return;
                     }
 
-                    flowFeedback.textContent = data.message || "Request received! We will confirm shortly.";
+                    var refId = data.service_request_id || data.request_id || null;
+                    var successMsg = (data.message || "Request received! We will confirm shortly.");
+                    if (refId) successMsg += " Your reference: #" + refId;
+                    flowFeedback.textContent = successMsg;
                     flowFeedback.classList.add("is-success");
                     sendAnalyticsEvent("request_submission", { form: "service-flow", request_id: data.request_id });
+                    // Clear domestic context only on success
+                    window.__domesticPlanContext = null;
                     resetFlow();
                     submissionPending = false;
-                    window.setTimeout(closeServiceModal, 1500);
+                    window.setTimeout(closeServiceModal, 3000);
                 } else {
                     flowFeedback.textContent = data.error || "Unable to submit right now. Please retry.";
                     flowFeedback.classList.add("is-error");

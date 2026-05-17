@@ -7264,6 +7264,8 @@ def prepare_service_booking(payload):
     if not customer_name:
         raise ValueError('Please provide your full name.')
     customer_email = sanitize_email(customer_data.get('email'))
+    if not customer_email:
+        raise ValueError('Please enter a valid email address.')
     customer_phone = sanitize_phone(customer_data.get('phone'))
     if not customer_phone:
         raise ValueError('Please enter a phone number so we can reach you.')
@@ -7286,8 +7288,6 @@ def prepare_service_booking(payload):
     contract_service_day = contract_service_day.title() if contract_service_day else ''
     if contract_service_day not in set(calendar.day_name):
         contract_service_day = ''
-    if has_contract_service and not contract_service_day:
-        contract_service_day = calendar.day_name[datetime.now(timezone.utc).weekday()]
     if has_contract_service and not contract_terms_agreed:
         raise ValueError('Contract terms must be accepted for contract-based services.')
 
@@ -7677,6 +7677,66 @@ def move_stale_stripe_pending_requests_to_draft(max_age_minutes=STRIPE_PENDING_T
     conn.close()
 
 
+def move_stale_inperson_pending_requests_to_draft(max_age_days=30, limit=100):
+    """Archive in-person pending requests older than max_age_days with no activity."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    try:
+        if 'postgres' in engine:
+            cursor.execute(
+                """
+                SELECT r.id
+                FROM requests r
+                LEFT JOIN service_requests sr ON sr.legacy_request_id = r.id
+                WHERE r.status = 'pending'
+                  AND (sr.payment_type = 'in_person' OR sr.payment_type IS NULL)
+                  AND r.source NOT IN ('stripe_checkout_pending')
+                  AND r.created_at <= NOW() - (%s * INTERVAL '1 day')
+                ORDER BY r.created_at ASC
+                LIMIT %s
+                """,
+                (max_age_days, max(1, int(limit)))
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT r.id
+                FROM requests r
+                LEFT JOIN service_requests sr ON sr.legacy_request_id = r.id
+                WHERE r.status = 'pending'
+                  AND (sr.payment_type = 'in_person' OR sr.payment_type IS NULL)
+                  AND r.source NOT IN ('stripe_checkout_pending')
+                  AND r.created_at <= DATE_SUB(NOW(), INTERVAL %s DAY)
+                ORDER BY r.created_at ASC
+                LIMIT %s
+                """,
+                (max_age_days, max(1, int(limit)))
+            )
+        stale_rows = cursor.fetchall() or []
+        if stale_rows:
+            writer = conn.cursor()
+            for row in stale_rows:
+                request_id = row.get('id')
+                if request_id:
+                    writer.execute(
+                        """
+                        UPDATE requests
+                        SET status = 'draft', updated_at = CURRENT_TIMESTAMP
+                        WHERE id = %s AND status = 'pending'
+                        """,
+                        (request_id,)
+                    )
+            conn.commit()
+            writer.close()
+            app.logger.info(f'move_stale_inperson_pending_requests_to_draft: archived {len(stale_rows)} stale in-person requests')
+    except Exception:
+        app.logger.exception('move_stale_inperson_pending_requests_to_draft failed')
+    finally:
+        cursor.close()
+        conn.close()
+
+
 @app.route('/api/service-requests', methods=['POST'])
 def create_service_request():
     payload = request.get_json(silent=True) or {}
@@ -7712,10 +7772,11 @@ def start_stripe_checkout():
             submission['mode'] = 'direct'
             return jsonify(submission), 201
 
-        if prepared.get('has_survey_request'):
-            return jsonify({'error': 'This request requires a survey first, so payment cannot be taken yet.'}), 400
-        if prepared.get('has_custom'):
-            return jsonify({'error': 'This selection needs a custom quote before payment.'}), 400
+        if prepared.get('has_survey_request') or prepared.get('has_custom'):
+            # Survey/custom quote — finalise as direct (no payment), should have been caught earlier
+            submission = finalize_prepared_service_booking(prepared, remote_addr=request.remote_addr, mark_paid=False)
+            submission['mode'] = 'direct'
+            return jsonify(submission), 201
         payable_total = normalize_price_value(prepared.get('payable_total'))
         if payable_total is None or payable_total <= 0:
             return jsonify({'error': 'Unable to calculate a payable total for this booking.'}), 400
@@ -10530,6 +10591,7 @@ def admin_list_requests():
 def admin_list_requests_grouped():
     ensure_travel_tables()
     move_stale_stripe_pending_requests_to_draft()
+    move_stale_inperson_pending_requests_to_draft()
     request_type_filter = (request.args.get('request_type') or '').strip().lower()
     limit_param = request.args.get('limit', '200')
 
