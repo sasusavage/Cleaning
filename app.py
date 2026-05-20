@@ -3524,6 +3524,8 @@ def ensure_residential_contract_service():
         )
         found = cursor.fetchone()
         if found:
+            # Row exists (active or inactive) — do not recreate it
+            _done_ensure_residential_contract_service = True
             return
 
         default_plans = json.dumps(default_contract_pricing_plans())
@@ -3711,7 +3713,7 @@ def _serialize_domestic_pricing_for_service(rows):
     return json.dumps(payload)
 
 
-def get_domestic_service_record(create_if_missing=True):
+def get_domestic_service_record(create_if_missing=False):
     if create_if_missing:
         ensure_residential_contract_service()
 
@@ -5150,11 +5152,6 @@ def fetch_services_from_db(include_inactive=False):
         migrate_domestic_to_services()
     except Exception:
         app.logger.exception('Error during domestic-to-services migration (fetch_services_from_db)')
-
-    try:
-        ensure_residential_contract_service()
-    except Exception:
-        app.logger.exception('Error ensuring fallback Residential Cleaning contract service')
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
