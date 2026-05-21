@@ -3395,7 +3395,7 @@ def migrate_domestic_to_services():
 
     is_pg = 'postgres' in engine
     active_val = 1
-    is_contract_val = 1
+    is_contract_val = True if is_pg else 1
     inactive_val = 0
 
     cursor.close()
@@ -3550,7 +3550,7 @@ def ensure_residential_contract_service():
                 17.99,
                 'contract',
                 default_plans,
-                1,
+                True if 'postgres' in engine else 1,
                 'Domestic Cleaning',
                 'Lifestyle-led home care designed around your routine.',
                 'Our Regular Domestic Cleaning Service',
