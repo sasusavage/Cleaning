@@ -15,6 +15,7 @@ import re
 import smtplib
 import base64
 import hashlib
+import hmac
 import traceback
 import math
 import mimetypes
@@ -124,10 +125,11 @@ def favicon():
 
 @app.route('/favicon/<path:filename>')
 def favicon_asset(filename):
-    return send_from_directory(
-        os.path.join(app.root_path, 'favicon'),
-        filename
-    )
+    # Reject any path containing directory traversal sequences
+    if '..' in filename or filename.startswith('/'):
+        abort(404)
+    safe_dir = os.path.join(app.root_path, 'favicon')
+    return send_from_directory(safe_dir, filename)
 
 
 @app.route('/android-chrome-192x192.png')
@@ -169,31 +171,99 @@ def _add_security_headers(response):
     return response
 
 # ── Login brute-force protection ──────────────────────────────────────────────
-# In-memory store: ip -> [timestamp, ...] of recent failed attempts
-_login_attempts: dict = {}
-_login_attempts_lock = threading.Lock()
+# Persisted to DB so lockouts survive process restarts (important on Render).
 _LOGIN_MAX_ATTEMPTS = 10       # max failures per window
 _LOGIN_WINDOW_SECONDS = 300    # 5-minute sliding window
-_LOGIN_LOCKOUT_SECONDS = 900   # 15-minute lockout after limit hit
+
+def _ensure_login_attempts_table():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS login_attempts (
+                    ip VARCHAR(64) NOT NULL,
+                    attempted_at TIMESTAMPTZ DEFAULT NOW(),
+                    PRIMARY KEY (ip, attempted_at)
+                )
+            """)
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+    except Exception:
+        pass  # Non-fatal; falls back to always-allow if table unavailable
 
 def _check_login_rate_limit(ip: str) -> bool:
     """Return True if IP is allowed to attempt login, False if locked out."""
-    now = time.time()
-    with _login_attempts_lock:
-        timestamps = _login_attempts.get(ip, [])
-        # Prune entries outside the window
-        timestamps = [t for t in timestamps if now - t < _LOGIN_WINDOW_SECONDS]
-        _login_attempts[ip] = timestamps
-        return len(timestamps) < _LOGIN_MAX_ATTEMPTS
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cutoff = datetime.utcnow() - timedelta(seconds=_LOGIN_WINDOW_SECONDS)
+            cursor.execute(
+                "SELECT COUNT(*) FROM login_attempts WHERE ip = %s AND attempted_at > %s",
+                (ip, cutoff)
+            )
+            row = cursor.fetchone()
+            count = row[0] if row else 0
+            return count < _LOGIN_MAX_ATTEMPTS
+        finally:
+            cursor.close()
+            conn.close()
+    except Exception:
+        return True  # Fail open — don't block login if DB is unavailable
 
 def _record_login_failure(ip: str):
-    now = time.time()
-    with _login_attempts_lock:
-        _login_attempts.setdefault(ip, []).append(now)
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT INTO login_attempts (ip, attempted_at) VALUES (%s, NOW())",
+                (ip,)
+            )
+            # Prune old entries (keep table small)
+            cursor.execute(
+                "DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL '1 hour'"
+            )
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+    except Exception:
+        pass
 
 def _clear_login_failures(ip: str):
-    with _login_attempts_lock:
-        _login_attempts.pop(ip, None)
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("DELETE FROM login_attempts WHERE ip = %s", (ip,))
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+    except Exception:
+        pass
+
+# ── Generic endpoint rate limiter ─────────────────────────────────────────────
+# Keyed by (bucket, ip) -> [timestamps]. Separate from login limiter.
+_rate_buckets: dict = {}
+_rate_buckets_lock = threading.Lock()
+
+def _is_rate_limited(bucket: str, ip: str, max_calls: int, window_seconds: int) -> bool:
+    """Return True if this ip has exceeded max_calls in the last window_seconds for bucket."""
+    now = time.time()
+    key = (bucket, ip)
+    with _rate_buckets_lock:
+        timestamps = _rate_buckets.get(key, [])
+        timestamps = [t for t in timestamps if now - t < window_seconds]
+        _rate_buckets[key] = timestamps
+        if len(timestamps) >= max_calls:
+            return True
+        timestamps.append(now)
+        return False
 
 UPLOAD_ROOT = os.path.join(app.static_folder, 'static', 'uploads')
 SERVICE_UPLOAD_FOLDER = os.path.join(UPLOAD_ROOT, 'services')
@@ -7139,6 +7209,9 @@ def normalize_message(text):
 
 @app.route('/api/requests', methods=['POST'])
 def create_request_entry():
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip()
+    if _is_rate_limited('public_requests', ip, max_calls=10, window_seconds=3600):
+        return jsonify({'error': 'Too many submissions. Please try again later.'}), 429
     is_json = request.content_type and 'application/json' in request.content_type
     payload = request.get_json(silent=True) if is_json else request.form.to_dict()
     payload = payload or {}
@@ -9053,6 +9126,7 @@ def delete_tenancy_rate(rate_id):
 
 
 @app.route('/api/job-positions/add', methods=['POST'])
+@admin_login_required
 def add_job_position():
     try:
         title = request.form['title']
@@ -9076,6 +9150,7 @@ def add_job_position():
 
 
 @app.route('/api/job-positions/edit/<int:id>', methods=['PUT'])
+@admin_login_required
 def edit_job_position(id):
     try:
         title = request.form['title']
@@ -9111,6 +9186,7 @@ def edit_job_position(id):
 
 
 @app.route('/api/job-positions/delete/<int:id>', methods=['DELETE'])
+@admin_login_required
 def delete_job_position(id):
     try:
         conn = get_db_connection()
@@ -9233,6 +9309,9 @@ def detect_contact_details(message):
 @app.route('/api/chat/init', methods=['POST'])
 def init_chat_session():
     """Initialize a new chat session and return persona info."""
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip()
+    if _is_rate_limited('chat_init', ip, max_calls=20, window_seconds=3600):
+        return jsonify({'error': 'Too many requests. Please try again later.'}), 429
     try:
         ensure_chat_tables()
         conn = get_db_connection()
@@ -9282,6 +9361,9 @@ def init_chat_session():
 @app.route('/api/chat/message', methods=['POST'])
 def send_chat_message():
     """Send a message and get AI response."""
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip()
+    if _is_rate_limited('chat_message', ip, max_calls=30, window_seconds=60):
+        return jsonify({'error': 'Too many messages. Please slow down.'}), 429
     conn = None
     cursor = None
     try:
@@ -10945,7 +11027,10 @@ def admin_request_detail(request_id):
 @admin_login_required
 def admin_contracts_api():
     try:
-        limit = request.args.get('limit', 250)
+        try:
+            limit = max(1, min(int(request.args.get('limit', 250)), 500))
+        except (TypeError, ValueError):
+            limit = 250
         contracts = fetch_contract_records(limit=limit)
         return jsonify(contracts)
     except Exception:
@@ -11219,7 +11304,10 @@ def admin_payment_settings_api():
 @admin_login_required
 def admin_payment_transactions_api():
     try:
-        limit = request.args.get('limit', 200)
+        try:
+            limit = max(1, min(int(request.args.get('limit', 200)), 500))
+        except (TypeError, ValueError):
+            limit = 200
         rows = fetch_payment_transactions(limit=limit)
         return jsonify(rows)
     except Exception:
@@ -12487,8 +12575,11 @@ def admin_get_conversations():
     cursor = conn.cursor(dictionary=True)
     
     # Get pagination params
-    page = int(request.args.get('page', 1))
-    per_page = int(request.args.get('per_page', 20))
+    try:
+        page = max(1, int(request.args.get('page', 1)))
+        per_page = max(1, min(int(request.args.get('per_page', 20)), 100))
+    except (TypeError, ValueError):
+        page, per_page = 1, 20
     offset = (page - 1) * per_page
     
     # Get total count
@@ -13478,9 +13569,22 @@ def admin_login():
     if session.get('admin_logged_in'):
         return redirect(url_for('admin_dashboard'))
 
+    _ensure_login_attempts_table()
+    import secrets as _secrets
     error = ''
     site_settings = fetch_site_settings()
+
+    if request.method == 'GET':
+        session['_csrf_token'] = _secrets.token_hex(32)
+
     if request.method == 'POST':
+        submitted_token = request.form.get('_csrf_token', '')
+        expected_token = session.get('_csrf_token', '')
+        if not submitted_token or not expected_token or not hmac.compare_digest(submitted_token, expected_token):
+            error = 'Invalid request. Please refresh the page and try again.'
+            session['_csrf_token'] = _secrets.token_hex(32)
+            return render_template('admin_login.html', error=error, site_settings=site_settings, csrf_token=session['_csrf_token'])
+
         remote_ip = request.headers.get('X-Forwarded-For', request.remote_addr or 'unknown').split(',')[0].strip()
         user_agent = sanitize_text(request.headers.get('User-Agent'), 150) or 'unknown'
 
@@ -13536,7 +13640,8 @@ def admin_login():
                 details.append('Reason: Missing username or password.')
             send_telegram_notification('notify_login_failure', details)
 
-    return render_template('admin_login.html', error=error, site_settings=site_settings)
+    csrf_token = session.get('_csrf_token') or ''
+    return render_template('admin_login.html', error=error, site_settings=site_settings, csrf_token=csrf_token)
 
 
 @app.route('/admin/logout', methods=['POST'])
@@ -13849,9 +13954,18 @@ def admin_api_blog_create():
             from werkzeug.utils import secure_filename as _sf
             import os as _os
             _allowed_img_exts = {'png', 'jpg', 'jpeg', 'webp', 'gif'}
+            _allowed_img_mimes = {'image/png', 'image/jpeg', 'image/webp', 'image/gif'}
             ext = _os.path.splitext(_sf(img_file.filename))[1].lower().lstrip('.')
             if ext not in _allowed_img_exts:
                 return jsonify({'error': 'Only PNG, JPG, JPEG, WEBP, GIF images are allowed.'}), 400
+            # Validate MIME type from file content (not just filename)
+            header = img_file.read(16)
+            img_file.seek(0)
+            import imghdr as _imghdr
+            detected = _imghdr.what(None, h=header)
+            detected_mime = f"image/{detected}" if detected else (img_file.mimetype or '')
+            if detected_mime not in _allowed_img_mimes and (img_file.mimetype or '') not in _allowed_img_mimes:
+                return jsonify({'error': 'File content does not match an allowed image type.'}), 400
             fname = f"blog_{slug}.{ext}"
             upload_dir = _os.path.join(app.root_path, 'static', 'uploads', 'blog')
             _os.makedirs(upload_dir, exist_ok=True)
@@ -13933,8 +14047,23 @@ def admin_api_blog_update(post_id):
         try:
             from werkzeug.utils import secure_filename as _sf
             import os as _os
-            ext = _os.path.splitext(_sf(img_file.filename))[1].lower()
-            fname = f"blog_{slug}{ext}"
+            _allowed_img_exts = {'png', 'jpg', 'jpeg', 'webp', 'gif'}
+            _allowed_img_mimes = {'image/png', 'image/jpeg', 'image/webp', 'image/gif'}
+            ext = _os.path.splitext(_sf(img_file.filename))[1].lower().lstrip('.')
+            if ext not in _allowed_img_exts:
+                cursor.close()
+                conn.close()
+                return jsonify({'error': 'Only PNG, JPG, JPEG, WEBP, GIF images are allowed.'}), 400
+            header = img_file.read(16)
+            img_file.seek(0)
+            import imghdr as _imghdr
+            detected = _imghdr.what(None, h=header)
+            detected_mime = f"image/{detected}" if detected else (img_file.mimetype or '')
+            if detected_mime not in _allowed_img_mimes and (img_file.mimetype or '') not in _allowed_img_mimes:
+                cursor.close()
+                conn.close()
+                return jsonify({'error': 'File content does not match an allowed image type.'}), 400
+            fname = f"blog_{slug}.{ext}"
             upload_dir = _os.path.join(app.root_path, 'static', 'uploads', 'blog')
             _os.makedirs(upload_dir, exist_ok=True)
             img_file.save(_os.path.join(upload_dir, fname))
@@ -15593,6 +15722,12 @@ configure_telegram_error_log_handler()
 
 
 if __name__ == '__main__':
+    # Ensure login_attempts table exists for persistent brute-force protection
+    try:
+        _ensure_login_attempts_table()
+    except Exception:
+        pass
+
     # Pre-warm the DB connection pool so the first request is fast
     try:
         _db_engine = (os.environ.get('DB_ENGINE') or '').strip().lower()

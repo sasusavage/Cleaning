@@ -143,6 +143,7 @@
         <div class="alert" role="alert">{{ error }}</div>
         {% endif %}
         <form method="post" novalidate>
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
             <div class="form-group">
                 <label for="username">Username</label>
                 <input id="username" name="username" type="text" autocomplete="username" required>
