@@ -3394,9 +3394,13 @@ def migrate_domestic_to_services():
     description = content.get('intro_body') or 'Regular domestic cleaning service tailored to your home.'
 
     is_pg = 'postgres' in engine
+    # services.is_active is smallint on this DB — use integer
     active_val = 1
-    is_contract_val = True if is_pg else 1
     inactive_val = 0
+    # is_contract is boolean; service_room_cards.is_active is boolean — use Python bool on pg
+    is_contract_val = True if is_pg else 1
+    card_active_val = True if is_pg else 1
+    card_inactive_val = False if is_pg else 0
 
     cursor.close()
     cursor = conn.cursor()
@@ -3480,7 +3484,7 @@ def migrate_domestic_to_services():
                 card.get('lifestyle_copy', ''),
                 card.get('image_path'),
                 card.get('sort_order', 0),
-                active_val if card.get('is_active') else inactive_val
+                card_active_val if card.get('is_active') else card_inactive_val
             )
         )
 
