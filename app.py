@@ -1657,7 +1657,7 @@ def persist_contract_record(prepared, submission, service_request_id=None):
                 preferred_date,
                 next_reminder_at,
                 signer_name,
-                (True if 'postgres' in engine else (1 if terms_agreed else 0)),
+                ((True if terms_agreed else False) if 'postgres' in engine else (1 if terms_agreed else 0)),
                 service_day,
                 1 if 'postgres' not in engine else True,
                 'active',
@@ -2839,38 +2839,38 @@ def ensure_faq_table():
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-
-    if engine == 'postgres':
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS faqs (
-                id BIGSERIAL PRIMARY KEY,
-                question TEXT NOT NULL,
-                answer TEXT NOT NULL,
-                category VARCHAR(100) DEFAULT 'General',
-                sort_order INTEGER DEFAULT 0,
-                is_active BOOLEAN DEFAULT TRUE,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """)
-    else:
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS faqs (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                question TEXT NOT NULL,
-                answer TEXT NOT NULL,
-                category VARCHAR(100) DEFAULT 'General',
-                sort_order INT DEFAULT 0,
-                is_active TINYINT(1) DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-        """)
-
-    conn.commit()
-    cursor.close()
-    conn.close()
-    _done_ensure_faq_table = True
+    try:
+        if engine == 'postgres':
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS faqs (
+                    id BIGSERIAL PRIMARY KEY,
+                    question TEXT NOT NULL,
+                    answer TEXT NOT NULL,
+                    category VARCHAR(100) DEFAULT 'General',
+                    sort_order INTEGER DEFAULT 0,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+        else:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS faqs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    question TEXT NOT NULL,
+                    answer TEXT NOT NULL,
+                    category VARCHAR(100) DEFAULT 'General',
+                    sort_order INT DEFAULT 0,
+                    is_active TINYINT(1) DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+            """)
+        conn.commit()
+        _done_ensure_faq_table = True
+    finally:
+        cursor.close()
+        conn.close()
 
 
 DEFAULT_HOME_PAGE_SECTIONS = [
@@ -2899,51 +2899,52 @@ def ensure_home_page_sections_table():
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-
-    if engine == 'postgres':
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS home_page_sections (
-                section_key VARCHAR(64) PRIMARY KEY,
-                section_label VARCHAR(120) NOT NULL,
-                sort_order INTEGER NOT NULL DEFAULT 0,
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            )
-            """
-        )
-    else:
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS home_page_sections (
-                section_key VARCHAR(64) PRIMARY KEY,
-                section_label VARCHAR(120) NOT NULL,
-                sort_order INT NOT NULL DEFAULT 0,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-            """
-        )
-
-    cursor.execute("SELECT section_key FROM home_page_sections")
-    existing_keys = {row[0] for row in cursor.fetchall()}
-
-    for index, section in enumerate(DEFAULT_HOME_PAGE_SECTIONS):
-        section_key = section['section_key']
-        section_label = section['section_label']
-        if section_key in existing_keys:
+    try:
+        if engine == 'postgres':
             cursor.execute(
-                "UPDATE home_page_sections SET section_label = %s WHERE section_key = %s",
-                (section_label, section_key)
+                """
+                CREATE TABLE IF NOT EXISTS home_page_sections (
+                    section_key VARCHAR(64) PRIMARY KEY,
+                    section_label VARCHAR(120) NOT NULL,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+                """
             )
         else:
             cursor.execute(
-                "INSERT INTO home_page_sections (section_key, section_label, sort_order) VALUES (%s, %s, %s)",
-                (section_key, section_label, index)
+                """
+                CREATE TABLE IF NOT EXISTS home_page_sections (
+                    section_key VARCHAR(64) PRIMARY KEY,
+                    section_label VARCHAR(120) NOT NULL,
+                    sort_order INT NOT NULL DEFAULT 0,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+                """
             )
 
-    conn.commit()
-    cursor.close()
-    conn.close()
-    _done_ensure_home_page_sections_table = True
+        cursor.execute("SELECT section_key FROM home_page_sections")
+        existing_keys = {row[0] for row in cursor.fetchall()}
+
+        for index, section in enumerate(DEFAULT_HOME_PAGE_SECTIONS):
+            section_key = section['section_key']
+            section_label = section['section_label']
+            if section_key in existing_keys:
+                cursor.execute(
+                    "UPDATE home_page_sections SET section_label = %s WHERE section_key = %s",
+                    (section_label, section_key)
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO home_page_sections (section_key, section_label, sort_order) VALUES (%s, %s, %s)",
+                    (section_key, section_label, index)
+                )
+
+        conn.commit()
+        _done_ensure_home_page_sections_table = True
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def fetch_home_page_sections():
@@ -3005,62 +3006,63 @@ def ensure_policy_table():
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-
-    if engine == 'postgres':
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS policies (
-                id BIGSERIAL PRIMARY KEY,
-                title VARCHAR(255) NOT NULL,
-                description TEXT NOT NULL,
-                icon VARCHAR(100) DEFAULT 'shield',
-                sort_order INTEGER DEFAULT 0,
-                is_active BOOLEAN DEFAULT TRUE,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """)
-    else:
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS policies (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                title VARCHAR(255) NOT NULL,
-                description TEXT NOT NULL,
-                icon VARCHAR(100) DEFAULT 'shield',
-                sort_order INT DEFAULT 0,
-                is_active TINYINT(1) DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-        """)
-
-    # Seed default policies if empty
-    cursor.execute("SELECT COUNT(*) FROM policies")
-    count = cursor.fetchone()[0]
-    if count == 0:
-        default_policies = [
-            ('Satisfaction Guarantee', "If you're not completely satisfied with our service, let us know within 24 hours and we'll make it right—free of charge.", 'shield-check', 1),
-            ('Cancellation Policy', 'We understand plans change. Cancel or reschedule at least 24 hours before your appointment to avoid any cancellation fees.', 'clock', 2),
-            ('Payment Terms', 'Payment is due upon completion of service. We accept all major credit/debit cards, bank transfers, and cash payments.', 'credit-card', 3),
-            ('Late Arrivals', "If we're running late, we'll notify you immediately. Traffic delays of more than 15 minutes? We'll offer a discount or reschedule at your convenience.", 'clock-alert', 4),
-            ('Insurance & Liability', "We're fully insured. In the rare event of accidental damage during cleaning, we'll handle the claim process and cover repair or replacement costs.", 'shield', 5),
-            ('Privacy Policy', 'Your personal information is safe with us. We never share your data with third parties and comply with all data protection regulations.', 'users', 6),
-        ]
-        for title, description, icon, sort_order in default_policies:
-            if engine == 'postgres':
-                cursor.execute(
-                    "INSERT INTO policies (title, description, icon, sort_order, is_active) VALUES (%s, %s, %s, %s, TRUE)",
-                    (title, description, icon, sort_order)
+    try:
+        if engine == 'postgres':
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS policies (
+                    id BIGSERIAL PRIMARY KEY,
+                    title VARCHAR(255) NOT NULL,
+                    description TEXT NOT NULL,
+                    icon VARCHAR(100) DEFAULT 'shield',
+                    sort_order INTEGER DEFAULT 0,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
                 )
-            else:
-                cursor.execute(
-                    "INSERT INTO policies (title, description, icon, sort_order, is_active) VALUES (%s, %s, %s, %s, 1)",
-                    (title, description, icon, sort_order)
+            """)
+        else:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS policies (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    title VARCHAR(255) NOT NULL,
+                    description TEXT NOT NULL,
+                    icon VARCHAR(100) DEFAULT 'shield',
+                    sort_order INT DEFAULT 0,
+                    is_active TINYINT(1) DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 )
+            """)
 
-    conn.commit()
-    cursor.close()
-    conn.close()
-    _done_ensure_policy_table = True
+        # Seed default policies if empty
+        cursor.execute("SELECT COUNT(*) FROM policies")
+        count = cursor.fetchone()[0]
+        if count == 0:
+            default_policies = [
+                ('Satisfaction Guarantee', "If you're not completely satisfied with our service, let us know within 24 hours and we'll make it right—free of charge.", 'shield-check', 1),
+                ('Cancellation Policy', 'We understand plans change. Cancel or reschedule at least 24 hours before your appointment to avoid any cancellation fees.', 'clock', 2),
+                ('Payment Terms', 'Payment is due upon completion of service. We accept all major credit/debit cards, bank transfers, and cash payments.', 'credit-card', 3),
+                ('Late Arrivals', "If we're running late, we'll notify you immediately. Traffic delays of more than 15 minutes? We'll offer a discount or reschedule at your convenience.", 'clock-alert', 4),
+                ('Insurance & Liability', "We're fully insured. In the rare event of accidental damage during cleaning, we'll handle the claim process and cover repair or replacement costs.", 'shield', 5),
+                ('Privacy Policy', 'Your personal information is safe with us. We never share your data with third parties and comply with all data protection regulations.', 'users', 6),
+            ]
+            for title, description, icon, sort_order in default_policies:
+                if engine == 'postgres':
+                    cursor.execute(
+                        "INSERT INTO policies (title, description, icon, sort_order, is_active) VALUES (%s, %s, %s, %s, TRUE)",
+                        (title, description, icon, sort_order)
+                    )
+                else:
+                    cursor.execute(
+                        "INSERT INTO policies (title, description, icon, sort_order, is_active) VALUES (%s, %s, %s, %s, 1)",
+                        (title, description, icon, sort_order)
+                    )
+
+        conn.commit()
+        _done_ensure_policy_table = True
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def fetch_policies_from_db(include_inactive=False):
@@ -3836,169 +3838,171 @@ def ensure_chat_tables():
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    try:
 
-    if engine == 'postgres':
-        # Chat sessions table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS chat_sessions (
-                id BIGSERIAL PRIMARY KEY,
-                session_id VARCHAR(64) UNIQUE NOT NULL,
-                visitor_name VARCHAR(100),
-                visitor_email VARCHAR(255),
-                visitor_ip VARCHAR(45),
-                user_agent TEXT,
-                started_at TIMESTAMPTZ DEFAULT NOW(),
-                last_message_at TIMESTAMPTZ DEFAULT NOW(),
-                is_resolved BOOLEAN DEFAULT FALSE,
-                admin_notes TEXT,
-                message_count INTEGER DEFAULT 0
-            )
-        """)
-        
-        # Chat messages table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS chat_messages (
-                id BIGSERIAL PRIMARY KEY,
-                session_id VARCHAR(64) NOT NULL,
-                role VARCHAR(20) NOT NULL,
-                content TEXT NOT NULL,
-                created_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """)
-        
-        # AI persona settings table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS ai_persona (
-                id BIGSERIAL PRIMARY KEY,
-                persona_name VARCHAR(100) DEFAULT 'Assistant',
-                greeting_message TEXT DEFAULT 'Hello! How can I help you today?',
-                persona_description TEXT,
-                personality_traits TEXT,
-                response_style VARCHAR(50) DEFAULT 'friendly',
-                avatar_url TEXT,
-                contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com',
-                contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN',
-                whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN',
-                is_enabled BOOLEAN DEFAULT TRUE,
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """)
-        
-        # Knowledge base entries (beyond FAQs)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS ai_knowledge_base (
-                id BIGSERIAL PRIMARY KEY,
-                title VARCHAR(255) NOT NULL,
-                content TEXT NOT NULL,
-                category VARCHAR(100) DEFAULT 'General',
-                keywords TEXT,
-                is_active BOOLEAN DEFAULT TRUE,
-                created_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """)
-        
-        # Create index for faster session lookups
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_chat_messages_session 
-            ON chat_messages(session_id)
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_chat_sessions_date 
-            ON chat_sessions(started_at DESC)
-        """)
-        
-    else:
-        # MySQL versions
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS chat_sessions (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                session_id VARCHAR(64) UNIQUE NOT NULL,
-                visitor_name VARCHAR(100),
-                visitor_email VARCHAR(255),
-                visitor_ip VARCHAR(45),
-                user_agent TEXT,
-                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                is_resolved TINYINT(1) DEFAULT 0,
-                admin_notes TEXT,
-                message_count INT DEFAULT 0,
-                INDEX idx_session_id (session_id),
-                INDEX idx_started_at (started_at)
-            )
-        """)
-        
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS chat_messages (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                session_id VARCHAR(64) NOT NULL,
-                role VARCHAR(20) NOT NULL,
-                content TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_session_id (session_id)
-            )
-        """)
-        
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS ai_persona (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                persona_name VARCHAR(100) DEFAULT 'Assistant',
-                greeting_message TEXT,
-                persona_description TEXT,
-                personality_traits TEXT,
-                response_style VARCHAR(50) DEFAULT 'friendly',
-                avatar_url TEXT,
-                contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com',
-                contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN',
-                whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN',
-                is_enabled TINYINT(1) DEFAULT 1,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-        """)
-        
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS ai_knowledge_base (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                title VARCHAR(255) NOT NULL,
-                content TEXT NOT NULL,
-                category VARCHAR(100) DEFAULT 'General',
-                keywords TEXT,
-                is_active TINYINT(1) DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+        if engine == 'postgres':
+            # Chat sessions table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS chat_sessions (
+                    id BIGSERIAL PRIMARY KEY,
+                    session_id VARCHAR(64) UNIQUE NOT NULL,
+                    visitor_name VARCHAR(100),
+                    visitor_email VARCHAR(255),
+                    visitor_ip VARCHAR(45),
+                    user_agent TEXT,
+                    started_at TIMESTAMPTZ DEFAULT NOW(),
+                    last_message_at TIMESTAMPTZ DEFAULT NOW(),
+                    is_resolved BOOLEAN DEFAULT FALSE,
+                    admin_notes TEXT,
+                    message_count INTEGER DEFAULT 0
+                )
+            """)
+            
+            # Chat messages table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id BIGSERIAL PRIMARY KEY,
+                    session_id VARCHAR(64) NOT NULL,
+                    role VARCHAR(20) NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            
+            # AI persona settings table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ai_persona (
+                    id BIGSERIAL PRIMARY KEY,
+                    persona_name VARCHAR(100) DEFAULT 'Assistant',
+                    greeting_message TEXT DEFAULT 'Hello! How can I help you today?',
+                    persona_description TEXT,
+                    personality_traits TEXT,
+                    response_style VARCHAR(50) DEFAULT 'friendly',
+                    avatar_url TEXT,
+                    contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com',
+                    contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN',
+                    whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN',
+                    is_enabled BOOLEAN DEFAULT TRUE,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            
+            # Knowledge base entries (beyond FAQs)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ai_knowledge_base (
+                    id BIGSERIAL PRIMARY KEY,
+                    title VARCHAR(255) NOT NULL,
+                    content TEXT NOT NULL,
+                    category VARCHAR(100) DEFAULT 'General',
+                    keywords TEXT,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            
+            # Create index for faster session lookups
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_chat_messages_session 
+                ON chat_messages(session_id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_chat_sessions_date 
+                ON chat_sessions(started_at DESC)
+            """)
+            
+        else:
+            # MySQL versions
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS chat_sessions (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    session_id VARCHAR(64) UNIQUE NOT NULL,
+                    visitor_name VARCHAR(100),
+                    visitor_email VARCHAR(255),
+                    visitor_ip VARCHAR(45),
+                    user_agent TEXT,
+                    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    is_resolved TINYINT(1) DEFAULT 0,
+                    admin_notes TEXT,
+                    message_count INT DEFAULT 0,
+                    INDEX idx_session_id (session_id),
+                    INDEX idx_started_at (started_at)
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    session_id VARCHAR(64) NOT NULL,
+                    role VARCHAR(20) NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_session_id (session_id)
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ai_persona (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    persona_name VARCHAR(100) DEFAULT 'Assistant',
+                    greeting_message TEXT,
+                    persona_description TEXT,
+                    personality_traits TEXT,
+                    response_style VARCHAR(50) DEFAULT 'friendly',
+                    avatar_url TEXT,
+                    contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com',
+                    contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN',
+                    whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN',
+                    is_enabled TINYINT(1) DEFAULT 1,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ai_knowledge_base (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    title VARCHAR(255) NOT NULL,
+                    content TEXT NOT NULL,
+                    category VARCHAR(100) DEFAULT 'General',
+                    keywords TEXT,
+                    is_active TINYINT(1) DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
 
-    # Add new contact columns to existing ai_persona table
-    if engine == 'postgres':
-        cursor.execute("ALTER TABLE ai_persona ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com'")
-        cursor.execute("ALTER TABLE ai_persona ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN'")
-        cursor.execute("ALTER TABLE ai_persona ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN'")
-    else:
-        cursor.execute("ALTER TABLE ai_persona ADD COLUMN contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com'")
-        cursor.execute("ALTER TABLE ai_persona ADD COLUMN contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN'")
-        cursor.execute("ALTER TABLE ai_persona ADD COLUMN whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN'")
+        # Add new contact columns to existing ai_persona table
+        if engine == 'postgres':
+            cursor.execute("ALTER TABLE ai_persona ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com'")
+            cursor.execute("ALTER TABLE ai_persona ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN'")
+            cursor.execute("ALTER TABLE ai_persona ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN'")
+        else:
+            cursor.execute("ALTER TABLE ai_persona ADD COLUMN contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com'")
+            cursor.execute("ALTER TABLE ai_persona ADD COLUMN contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN'")
+            cursor.execute("ALTER TABLE ai_persona ADD COLUMN whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN'")
 
-    # Insert default persona if not exists
-    cursor.execute("SELECT COUNT(*) FROM ai_persona")
-    count = cursor.fetchone()[0]
-    if count == 0:
-        cursor.execute("""
-            INSERT INTO ai_persona (persona_name, greeting_message, persona_description, personality_traits, response_style, contact_email, contact_phone, whatsapp_number)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            'Sparkle',
-            "Hi there! 👋 I'm Sparkle, your cleaning assistant. How can I help you today?",
-            "A friendly and knowledgeable cleaning service assistant who helps visitors with questions about services, pricing, and scheduling.",
-            "Friendly, Professional, Helpful, Knowledgeable about cleaning services",
-            "friendly",
-            "support@sparkleclean.com",
-            "1-800-SPLK-CLEAN",
-            "+1-800-SPLK-CLEAN"
-        ))
+        # Insert default persona if not exists
+        cursor.execute("SELECT COUNT(*) FROM ai_persona")
+        count = cursor.fetchone()[0]
+        if count == 0:
+            cursor.execute("""
+                INSERT INTO ai_persona (persona_name, greeting_message, persona_description, personality_traits, response_style, contact_email, contact_phone, whatsapp_number)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                'Sparkle',
+                "Hi there! 👋 I'm Sparkle, your cleaning assistant. How can I help you today?",
+                "A friendly and knowledgeable cleaning service assistant who helps visitors with questions about services, pricing, and scheduling.",
+                "Friendly, Professional, Helpful, Knowledgeable about cleaning services",
+                "friendly",
+                "support@sparkleclean.com",
+                "1-800-SPLK-CLEAN",
+                "+1-800-SPLK-CLEAN"
+            ))
 
-    conn.commit()
-    cursor.close()
-    conn.close()
-    _done_ensure_chat_tables = True
+        conn.commit()
+        _done_ensure_chat_tables = True
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def fetch_travel_settings():
@@ -4172,119 +4176,121 @@ def ensure_payment_tables():
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    try:
 
-    if engine == 'postgres':
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS payment_settings (
-                id BIGINT PRIMARY KEY,
-                require_payment BOOLEAN DEFAULT FALSE,
-                currency VARCHAR(10) DEFAULT 'gbp',
-                prebook_discount_enabled BOOLEAN DEFAULT TRUE,
-                prebook_discount_percent NUMERIC(5,2) DEFAULT 10.00,
-                success_url VARCHAR(600),
-                cancel_url VARCHAR(600),
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            )
-            """
-        )
-        cursor.execute("ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS prebook_discount_enabled BOOLEAN DEFAULT TRUE")
-        cursor.execute("ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS prebook_discount_percent NUMERIC(5,2) DEFAULT 10.00")
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS payment_transactions (
-                id BIGSERIAL PRIMARY KEY,
-                provider VARCHAR(30) DEFAULT 'stripe',
-                checkout_session_id VARCHAR(255),
-                payment_intent_id VARCHAR(255),
-                status VARCHAR(50) DEFAULT 'initiated',
-                currency VARCHAR(10) DEFAULT 'gbp',
-                amount_total NUMERIC(10,2),
-                customer_name VARCHAR(255),
-                customer_email VARCHAR(255),
-                service_summary TEXT,
-                request_payload TEXT,
-                prepared_payload TEXT,
-                request_id BIGINT,
-                service_request_id BIGINT,
-                error_message TEXT,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            )
-            """
-        )
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_tx_session ON payment_transactions(checkout_session_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_tx_status ON payment_transactions(status)")
-        cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refund_id VARCHAR(255)")
-        cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refund_status VARCHAR(50)")
-        cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ")
-        cursor.execute("SELECT COUNT(*) FROM payment_settings")
-        if (cursor.fetchone() or [0])[0] == 0:
+        if engine == 'postgres':
             cursor.execute(
                 """
-                INSERT INTO payment_settings (id, require_payment, currency, prebook_discount_enabled, prebook_discount_percent, success_url, cancel_url)
-                VALUES (1, FALSE, 'gbp', TRUE, 10.00, NULL, NULL)
+                CREATE TABLE IF NOT EXISTS payment_settings (
+                    id BIGINT PRIMARY KEY,
+                    require_payment BOOLEAN DEFAULT FALSE,
+                    currency VARCHAR(10) DEFAULT 'gbp',
+                    prebook_discount_enabled BOOLEAN DEFAULT TRUE,
+                    prebook_discount_percent NUMERIC(5,2) DEFAULT 10.00,
+                    success_url VARCHAR(600),
+                    cancel_url VARCHAR(600),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
                 """
             )
-    else:
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS payment_settings (
-                id INT PRIMARY KEY,
-                require_payment TINYINT(1) DEFAULT 0,
-                currency VARCHAR(10) DEFAULT 'gbp',
-                prebook_discount_enabled TINYINT(1) DEFAULT 1,
-                prebook_discount_percent DECIMAL(5,2) DEFAULT 10.00,
-                success_url VARCHAR(600),
-                cancel_url VARCHAR(600),
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-            """
-        )
-        cursor.execute("SHOW COLUMNS FROM payment_settings LIKE 'prebook_discount_enabled'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE payment_settings ADD COLUMN prebook_discount_enabled TINYINT(1) DEFAULT 1 AFTER currency")
-        cursor.execute("SHOW COLUMNS FROM payment_settings LIKE 'prebook_discount_percent'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE payment_settings ADD COLUMN prebook_discount_percent DECIMAL(5,2) DEFAULT 10.00 AFTER prebook_discount_enabled")
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS payment_transactions (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                provider VARCHAR(30) DEFAULT 'stripe',
-                checkout_session_id VARCHAR(255),
-                payment_intent_id VARCHAR(255),
-                status VARCHAR(50) DEFAULT 'initiated',
-                currency VARCHAR(10) DEFAULT 'gbp',
-                amount_total DECIMAL(10,2),
-                customer_name VARCHAR(255),
-                customer_email VARCHAR(255),
-                service_summary TEXT,
-                request_payload LONGTEXT,
-                prepared_payload LONGTEXT,
-                request_id BIGINT,
-                service_request_id BIGINT,
-                error_message TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                INDEX idx_payment_tx_session (checkout_session_id),
-                INDEX idx_payment_tx_status (status)
-            )
-            """
-        )
-        cursor.execute("SELECT COUNT(*) FROM payment_settings")
-        if (cursor.fetchone() or [0])[0] == 0:
+            cursor.execute("ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS prebook_discount_enabled BOOLEAN DEFAULT TRUE")
+            cursor.execute("ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS prebook_discount_percent NUMERIC(5,2) DEFAULT 10.00")
             cursor.execute(
                 """
-                INSERT INTO payment_settings (id, require_payment, currency, prebook_discount_enabled, prebook_discount_percent, success_url, cancel_url)
-                VALUES (1, 0, 'gbp', 1, 10.00, NULL, NULL)
+                CREATE TABLE IF NOT EXISTS payment_transactions (
+                    id BIGSERIAL PRIMARY KEY,
+                    provider VARCHAR(30) DEFAULT 'stripe',
+                    checkout_session_id VARCHAR(255),
+                    payment_intent_id VARCHAR(255),
+                    status VARCHAR(50) DEFAULT 'initiated',
+                    currency VARCHAR(10) DEFAULT 'gbp',
+                    amount_total NUMERIC(10,2),
+                    customer_name VARCHAR(255),
+                    customer_email VARCHAR(255),
+                    service_summary TEXT,
+                    request_payload TEXT,
+                    prepared_payload TEXT,
+                    request_id BIGINT,
+                    service_request_id BIGINT,
+                    error_message TEXT,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
                 """
             )
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_tx_session ON payment_transactions(checkout_session_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_tx_status ON payment_transactions(status)")
+            cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refund_id VARCHAR(255)")
+            cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refund_status VARCHAR(50)")
+            cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ")
+            cursor.execute("SELECT COUNT(*) FROM payment_settings")
+            if (cursor.fetchone() or [0])[0] == 0:
+                cursor.execute(
+                    """
+                    INSERT INTO payment_settings (id, require_payment, currency, prebook_discount_enabled, prebook_discount_percent, success_url, cancel_url)
+                    VALUES (1, FALSE, 'gbp', TRUE, 10.00, NULL, NULL)
+                    """
+                )
+        else:
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS payment_settings (
+                    id INT PRIMARY KEY,
+                    require_payment TINYINT(1) DEFAULT 0,
+                    currency VARCHAR(10) DEFAULT 'gbp',
+                    prebook_discount_enabled TINYINT(1) DEFAULT 1,
+                    prebook_discount_percent DECIMAL(5,2) DEFAULT 10.00,
+                    success_url VARCHAR(600),
+                    cancel_url VARCHAR(600),
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+                """
+            )
+            cursor.execute("SHOW COLUMNS FROM payment_settings LIKE 'prebook_discount_enabled'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE payment_settings ADD COLUMN prebook_discount_enabled TINYINT(1) DEFAULT 1 AFTER currency")
+            cursor.execute("SHOW COLUMNS FROM payment_settings LIKE 'prebook_discount_percent'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE payment_settings ADD COLUMN prebook_discount_percent DECIMAL(5,2) DEFAULT 10.00 AFTER prebook_discount_enabled")
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS payment_transactions (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    provider VARCHAR(30) DEFAULT 'stripe',
+                    checkout_session_id VARCHAR(255),
+                    payment_intent_id VARCHAR(255),
+                    status VARCHAR(50) DEFAULT 'initiated',
+                    currency VARCHAR(10) DEFAULT 'gbp',
+                    amount_total DECIMAL(10,2),
+                    customer_name VARCHAR(255),
+                    customer_email VARCHAR(255),
+                    service_summary TEXT,
+                    request_payload LONGTEXT,
+                    prepared_payload LONGTEXT,
+                    request_id BIGINT,
+                    service_request_id BIGINT,
+                    error_message TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_payment_tx_session (checkout_session_id),
+                    INDEX idx_payment_tx_status (status)
+                )
+                """
+            )
+            cursor.execute("SELECT COUNT(*) FROM payment_settings")
+            if (cursor.fetchone() or [0])[0] == 0:
+                cursor.execute(
+                    """
+                    INSERT INTO payment_settings (id, require_payment, currency, prebook_discount_enabled, prebook_discount_percent, success_url, cancel_url)
+                    VALUES (1, 0, 'gbp', 1, 10.00, NULL, NULL)
+                    """
+                )
 
-    conn.commit()
-    cursor.close()
-    conn.close()
-    _done_ensure_payment_tables = True
+        conn.commit()
+        _done_ensure_payment_tables = True
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def fetch_payment_settings():
@@ -6226,200 +6232,202 @@ def ensure_hero_content_schema():
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    try:
 
-    if engine == 'postgres':
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS hero_content (
-                id BIGINT PRIMARY KEY DEFAULT 1,
-                layout_mode VARCHAR(20) DEFAULT 'balenciaga',
-                media_url TEXT,
-                media_type VARCHAR(10) DEFAULT 'image',
-                announcement_bar_enabled BOOLEAN DEFAULT FALSE,
-                announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY',
-                announcement_bg_color VARCHAR(20) DEFAULT '#000000',
-                announcement_text_color VARCHAR(20) DEFAULT '#ffffff',
-                editorial_label VARCHAR(100) DEFAULT 'Spring Collection',
-                editorial_tracking NUMERIC(3,2) DEFAULT 0.1,
-                title VARCHAR(500) DEFAULT 'Editorial Excellence',
-                title_color VARCHAR(20) DEFAULT '#ffffff',
-                subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.',
-                subtitle_color VARCHAR(20) DEFAULT '#ffffff',
-                cta_primary_text VARCHAR(100) DEFAULT 'Explore',
-                cta_primary_link VARCHAR(255) DEFAULT '/collections',
-                cta_secondary_text VARCHAR(100) DEFAULT 'Learn More',
-                cta_secondary_link VARCHAR(255) DEFAULT '#about',
-                badge_enabled BOOLEAN DEFAULT TRUE,
-                badge_text VARCHAR(100) DEFAULT 'Limited Drops',
-                badge_bg_color VARCHAR(20) DEFAULT '#ffffff',
-                badge_text_color VARCHAR(20) DEFAULT '#000000',
-                stat1_label VARCHAR(100) DEFAULT 'Premium Quality',
-                stat1_value VARCHAR(50) DEFAULT '98%',
-                stat2_label VARCHAR(100) DEFAULT 'Global Reach',
-                stat2_value VARCHAR(50) DEFAULT '150+',
-                stat3_label VARCHAR(100) DEFAULT '24/7 Support',
-                stat3_value VARCHAR(50) DEFAULT 'Always',
-                stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)',
-                hero_bg_color VARCHAR(20) DEFAULT '#000000',
-                media_brightness_offset NUMERIC(2,1) DEFAULT -0.55,
-                content_bg_enabled BOOLEAN DEFAULT TRUE,
-                content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)',
-                content_padding_px INTEGER DEFAULT 20,
-                title_size_px INTEGER DEFAULT 72,
-                subtitle_size_px INTEGER DEFAULT 24,
-                cta_secondary_enabled BOOLEAN DEFAULT TRUE,
-                stats_enabled BOOLEAN DEFAULT TRUE
+        if engine == 'postgres':
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hero_content (
+                    id BIGINT PRIMARY KEY DEFAULT 1,
+                    layout_mode VARCHAR(20) DEFAULT 'balenciaga',
+                    media_url TEXT,
+                    media_type VARCHAR(10) DEFAULT 'image',
+                    announcement_bar_enabled BOOLEAN DEFAULT FALSE,
+                    announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY',
+                    announcement_bg_color VARCHAR(20) DEFAULT '#000000',
+                    announcement_text_color VARCHAR(20) DEFAULT '#ffffff',
+                    editorial_label VARCHAR(100) DEFAULT 'Spring Collection',
+                    editorial_tracking NUMERIC(3,2) DEFAULT 0.1,
+                    title VARCHAR(500) DEFAULT 'Editorial Excellence',
+                    title_color VARCHAR(20) DEFAULT '#ffffff',
+                    subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.',
+                    subtitle_color VARCHAR(20) DEFAULT '#ffffff',
+                    cta_primary_text VARCHAR(100) DEFAULT 'Explore',
+                    cta_primary_link VARCHAR(255) DEFAULT '/collections',
+                    cta_secondary_text VARCHAR(100) DEFAULT 'Learn More',
+                    cta_secondary_link VARCHAR(255) DEFAULT '#about',
+                    badge_enabled BOOLEAN DEFAULT TRUE,
+                    badge_text VARCHAR(100) DEFAULT 'Limited Drops',
+                    badge_bg_color VARCHAR(20) DEFAULT '#ffffff',
+                    badge_text_color VARCHAR(20) DEFAULT '#000000',
+                    stat1_label VARCHAR(100) DEFAULT 'Premium Quality',
+                    stat1_value VARCHAR(50) DEFAULT '98%',
+                    stat2_label VARCHAR(100) DEFAULT 'Global Reach',
+                    stat2_value VARCHAR(50) DEFAULT '150+',
+                    stat3_label VARCHAR(100) DEFAULT '24/7 Support',
+                    stat3_value VARCHAR(50) DEFAULT 'Always',
+                    stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)',
+                    hero_bg_color VARCHAR(20) DEFAULT '#000000',
+                    media_brightness_offset NUMERIC(2,1) DEFAULT -0.55,
+                    content_bg_enabled BOOLEAN DEFAULT TRUE,
+                    content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)',
+                    content_padding_px INTEGER DEFAULT 20,
+                    title_size_px INTEGER DEFAULT 72,
+                    subtitle_size_px INTEGER DEFAULT 24,
+                    cta_secondary_enabled BOOLEAN DEFAULT TRUE,
+                    stats_enabled BOOLEAN DEFAULT TRUE
+                )
+                """
             )
-            """
-        )
-        # Add all new Slidin GH columns if they don't exist
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS layout_mode VARCHAR(20) DEFAULT 'balenciaga'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_url TEXT")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_type VARCHAR(10) DEFAULT 'image'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bar_enabled BOOLEAN DEFAULT FALSE")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bg_color VARCHAR(20) DEFAULT '#000000'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text_color VARCHAR(20) DEFAULT '#ffffff'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_label VARCHAR(100) DEFAULT 'Spring Collection'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_tracking NUMERIC(3,2) DEFAULT 0.1")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title VARCHAR(500) DEFAULT 'Editorial Excellence'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_color VARCHAR(20) DEFAULT '#ffffff'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_color VARCHAR(20) DEFAULT '#ffffff'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_text VARCHAR(100) DEFAULT 'Explore'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_link VARCHAR(255) DEFAULT '/collections'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_text VARCHAR(100) DEFAULT 'Learn More'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_link VARCHAR(255) DEFAULT '#about'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_enabled BOOLEAN DEFAULT TRUE")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text VARCHAR(100) DEFAULT 'Limited Drops'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_bg_color VARCHAR(20) DEFAULT '#ffffff'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text_color VARCHAR(20) DEFAULT '#000000'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_label VARCHAR(100) DEFAULT 'Premium Quality'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_value VARCHAR(50) DEFAULT '98%'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_label VARCHAR(100) DEFAULT 'Global Reach'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_value VARCHAR(50) DEFAULT '150+'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_label VARCHAR(100) DEFAULT '24/7 Support'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_value VARCHAR(50) DEFAULT 'Always'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_bg_color VARCHAR(20) DEFAULT '#000000'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_brightness_offset NUMERIC(2,1) DEFAULT -0.55")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_enabled BOOLEAN DEFAULT TRUE")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_padding_px INTEGER DEFAULT 20")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_size_px INTEGER DEFAULT 72")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_size_px INTEGER DEFAULT 24")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_enabled BOOLEAN DEFAULT TRUE")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_enabled BOOLEAN DEFAULT TRUE")
-    else:
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS hero_content (
-                id INT PRIMARY KEY DEFAULT 1,
-                layout_mode VARCHAR(20) DEFAULT 'balenciaga',
-                media_url LONGTEXT,
-                media_type VARCHAR(10) DEFAULT 'image',
-                announcement_bar_enabled BOOLEAN DEFAULT 0,
-                announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY',
-                announcement_bg_color VARCHAR(20) DEFAULT '#000000',
-                announcement_text_color VARCHAR(20) DEFAULT '#ffffff',
-                editorial_label VARCHAR(100) DEFAULT 'Spring Collection',
-                editorial_tracking DECIMAL(3,2) DEFAULT 0.1,
-                title VARCHAR(500) DEFAULT 'Editorial Excellence',
-                title_color VARCHAR(20) DEFAULT '#ffffff',
-                subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.',
-                subtitle_color VARCHAR(20) DEFAULT '#ffffff',
-                cta_primary_text VARCHAR(100) DEFAULT 'Explore',
-                cta_primary_link VARCHAR(255) DEFAULT '/collections',
-                cta_secondary_text VARCHAR(100) DEFAULT 'Learn More',
-                cta_secondary_link VARCHAR(255) DEFAULT '#about',
-                badge_enabled BOOLEAN DEFAULT 1,
-                badge_text VARCHAR(100) DEFAULT 'Limited Drops',
-                badge_bg_color VARCHAR(20) DEFAULT '#ffffff',
-                badge_text_color VARCHAR(20) DEFAULT '#000000',
-                stat1_label VARCHAR(100) DEFAULT 'Premium Quality',
-                stat1_value VARCHAR(50) DEFAULT '98%',
-                stat2_label VARCHAR(100) DEFAULT 'Global Reach',
-                stat2_value VARCHAR(50) DEFAULT '150+',
-                stat3_label VARCHAR(100) DEFAULT '24/7 Support',
-                stat3_value VARCHAR(50) DEFAULT 'Always',
-                stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)',
-                hero_bg_color VARCHAR(20) DEFAULT '#000000',
-                media_brightness_offset DECIMAL(2,1) DEFAULT -0.55,
-                content_bg_enabled BOOLEAN DEFAULT 1,
-                content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)',
-                content_padding_px INT DEFAULT 20,
-                title_size_px INT DEFAULT 72,
-                subtitle_size_px INT DEFAULT 24,
-                cta_secondary_enabled BOOLEAN DEFAULT 1,
-                stats_enabled BOOLEAN DEFAULT 1
+            # Add all new Slidin GH columns if they don't exist
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS layout_mode VARCHAR(20) DEFAULT 'balenciaga'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_url TEXT")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_type VARCHAR(10) DEFAULT 'image'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bar_enabled BOOLEAN DEFAULT FALSE")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bg_color VARCHAR(20) DEFAULT '#000000'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text_color VARCHAR(20) DEFAULT '#ffffff'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_label VARCHAR(100) DEFAULT 'Spring Collection'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_tracking NUMERIC(3,2) DEFAULT 0.1")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title VARCHAR(500) DEFAULT 'Editorial Excellence'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_color VARCHAR(20) DEFAULT '#ffffff'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_color VARCHAR(20) DEFAULT '#ffffff'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_text VARCHAR(100) DEFAULT 'Explore'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_link VARCHAR(255) DEFAULT '/collections'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_text VARCHAR(100) DEFAULT 'Learn More'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_link VARCHAR(255) DEFAULT '#about'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_enabled BOOLEAN DEFAULT TRUE")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text VARCHAR(100) DEFAULT 'Limited Drops'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_bg_color VARCHAR(20) DEFAULT '#ffffff'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text_color VARCHAR(20) DEFAULT '#000000'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_label VARCHAR(100) DEFAULT 'Premium Quality'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_value VARCHAR(50) DEFAULT '98%'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_label VARCHAR(100) DEFAULT 'Global Reach'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_value VARCHAR(50) DEFAULT '150+'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_label VARCHAR(100) DEFAULT '24/7 Support'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_value VARCHAR(50) DEFAULT 'Always'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_bg_color VARCHAR(20) DEFAULT '#000000'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_brightness_offset NUMERIC(2,1) DEFAULT -0.55")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_enabled BOOLEAN DEFAULT TRUE")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_padding_px INTEGER DEFAULT 20")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_size_px INTEGER DEFAULT 72")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_size_px INTEGER DEFAULT 24")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_enabled BOOLEAN DEFAULT TRUE")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_enabled BOOLEAN DEFAULT TRUE")
+        else:
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hero_content (
+                    id INT PRIMARY KEY DEFAULT 1,
+                    layout_mode VARCHAR(20) DEFAULT 'balenciaga',
+                    media_url LONGTEXT,
+                    media_type VARCHAR(10) DEFAULT 'image',
+                    announcement_bar_enabled BOOLEAN DEFAULT 0,
+                    announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY',
+                    announcement_bg_color VARCHAR(20) DEFAULT '#000000',
+                    announcement_text_color VARCHAR(20) DEFAULT '#ffffff',
+                    editorial_label VARCHAR(100) DEFAULT 'Spring Collection',
+                    editorial_tracking DECIMAL(3,2) DEFAULT 0.1,
+                    title VARCHAR(500) DEFAULT 'Editorial Excellence',
+                    title_color VARCHAR(20) DEFAULT '#ffffff',
+                    subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.',
+                    subtitle_color VARCHAR(20) DEFAULT '#ffffff',
+                    cta_primary_text VARCHAR(100) DEFAULT 'Explore',
+                    cta_primary_link VARCHAR(255) DEFAULT '/collections',
+                    cta_secondary_text VARCHAR(100) DEFAULT 'Learn More',
+                    cta_secondary_link VARCHAR(255) DEFAULT '#about',
+                    badge_enabled BOOLEAN DEFAULT 1,
+                    badge_text VARCHAR(100) DEFAULT 'Limited Drops',
+                    badge_bg_color VARCHAR(20) DEFAULT '#ffffff',
+                    badge_text_color VARCHAR(20) DEFAULT '#000000',
+                    stat1_label VARCHAR(100) DEFAULT 'Premium Quality',
+                    stat1_value VARCHAR(50) DEFAULT '98%',
+                    stat2_label VARCHAR(100) DEFAULT 'Global Reach',
+                    stat2_value VARCHAR(50) DEFAULT '150+',
+                    stat3_label VARCHAR(100) DEFAULT '24/7 Support',
+                    stat3_value VARCHAR(50) DEFAULT 'Always',
+                    stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)',
+                    hero_bg_color VARCHAR(20) DEFAULT '#000000',
+                    media_brightness_offset DECIMAL(2,1) DEFAULT -0.55,
+                    content_bg_enabled BOOLEAN DEFAULT 1,
+                    content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)',
+                    content_padding_px INT DEFAULT 20,
+                    title_size_px INT DEFAULT 72,
+                    subtitle_size_px INT DEFAULT 24,
+                    cta_secondary_enabled BOOLEAN DEFAULT 1,
+                    stats_enabled BOOLEAN DEFAULT 1
+                )
+                """
             )
-            """
-        )
-        # Add all new Slidin GH columns if they don't exist (MySQL)
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS layout_mode VARCHAR(20) DEFAULT 'balenciaga'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_url LONGTEXT")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_type VARCHAR(10) DEFAULT 'image'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bar_enabled BOOLEAN DEFAULT 0")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bg_color VARCHAR(20) DEFAULT '#000000'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text_color VARCHAR(20) DEFAULT '#ffffff'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_label VARCHAR(100) DEFAULT 'Spring Collection'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_tracking DECIMAL(3,2) DEFAULT 0.1")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title VARCHAR(500) DEFAULT 'Editorial Excellence'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_color VARCHAR(20) DEFAULT '#ffffff'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_color VARCHAR(20) DEFAULT '#ffffff'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_text VARCHAR(100) DEFAULT 'Explore'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_link VARCHAR(255) DEFAULT '/collections'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_text VARCHAR(100) DEFAULT 'Learn More'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_link VARCHAR(255) DEFAULT '#about'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_enabled BOOLEAN DEFAULT 1")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text VARCHAR(100) DEFAULT 'Limited Drops'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_bg_color VARCHAR(20) DEFAULT '#ffffff'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text_color VARCHAR(20) DEFAULT '#000000'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_label VARCHAR(100) DEFAULT 'Premium Quality'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_value VARCHAR(50) DEFAULT '98%'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_label VARCHAR(100) DEFAULT 'Global Reach'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_value VARCHAR(50) DEFAULT '150+'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_label VARCHAR(100) DEFAULT '24/7 Support'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_value VARCHAR(50) DEFAULT 'Always'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_bg_color VARCHAR(20) DEFAULT '#000000'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_brightness_offset DECIMAL(2,1) DEFAULT -0.55")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_enabled BOOLEAN DEFAULT 1")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)'")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_padding_px INT DEFAULT 20")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_size_px INT DEFAULT 72")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_size_px INT DEFAULT 24")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_enabled BOOLEAN DEFAULT 1")
-        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_enabled BOOLEAN DEFAULT 1")
+            # Add all new Slidin GH columns if they don't exist (MySQL)
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS layout_mode VARCHAR(20) DEFAULT 'balenciaga'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_url LONGTEXT")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_type VARCHAR(10) DEFAULT 'image'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bar_enabled BOOLEAN DEFAULT 0")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bg_color VARCHAR(20) DEFAULT '#000000'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text_color VARCHAR(20) DEFAULT '#ffffff'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_label VARCHAR(100) DEFAULT 'Spring Collection'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_tracking DECIMAL(3,2) DEFAULT 0.1")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title VARCHAR(500) DEFAULT 'Editorial Excellence'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_color VARCHAR(20) DEFAULT '#ffffff'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_color VARCHAR(20) DEFAULT '#ffffff'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_text VARCHAR(100) DEFAULT 'Explore'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_link VARCHAR(255) DEFAULT '/collections'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_text VARCHAR(100) DEFAULT 'Learn More'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_link VARCHAR(255) DEFAULT '#about'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_enabled BOOLEAN DEFAULT 1")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text VARCHAR(100) DEFAULT 'Limited Drops'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_bg_color VARCHAR(20) DEFAULT '#ffffff'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text_color VARCHAR(20) DEFAULT '#000000'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_label VARCHAR(100) DEFAULT 'Premium Quality'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_value VARCHAR(50) DEFAULT '98%'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_label VARCHAR(100) DEFAULT 'Global Reach'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_value VARCHAR(50) DEFAULT '150+'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_label VARCHAR(100) DEFAULT '24/7 Support'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_value VARCHAR(50) DEFAULT 'Always'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_bg_color VARCHAR(20) DEFAULT '#000000'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_brightness_offset DECIMAL(2,1) DEFAULT -0.55")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_enabled BOOLEAN DEFAULT 1")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)'")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_padding_px INT DEFAULT 20")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_size_px INT DEFAULT 72")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_size_px INT DEFAULT 24")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_enabled BOOLEAN DEFAULT 1")
+            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_enabled BOOLEAN DEFAULT 1")
 
-    # Fix any NULL or FALSE badge values in existing hero_content row(s) - ensure they have proper defaults
-    if engine == 'postgres':
-        cursor.execute("""
-            UPDATE hero_content
-            SET
-                badge_enabled = TRUE,
-                badge_text = COALESCE(NULLIF(badge_text, ''), 'Eco-Friendly'),
-                badge_bg_color = COALESCE(NULLIF(badge_bg_color, ''), '#ffffff'),
-                badge_text_color = COALESCE(NULLIF(badge_text_color, ''), '#000000')
-            WHERE id = 1
-        """)
-    else:  # MySQL
-        cursor.execute("""
-            UPDATE hero_content
-            SET
-                badge_enabled = 1,
-                badge_text = COALESCE(IF(badge_text IS NULL OR badge_text = '', 'Eco-Friendly', badge_text), 'Eco-Friendly'),
-                badge_bg_color = COALESCE(IF(badge_bg_color IS NULL OR badge_bg_color = '', '#ffffff', badge_bg_color), '#ffffff'),
-                badge_text_color = COALESCE(IF(badge_text_color IS NULL OR badge_text_color = '', '#000000', badge_text_color), '#000000')
-            WHERE id = 1
-        """)
+        # Fix any NULL or FALSE badge values in existing hero_content row(s) - ensure they have proper defaults
+        if engine == 'postgres':
+            cursor.execute("""
+                UPDATE hero_content
+                SET
+                    badge_enabled = TRUE,
+                    badge_text = COALESCE(NULLIF(badge_text, ''), 'Eco-Friendly'),
+                    badge_bg_color = COALESCE(NULLIF(badge_bg_color, ''), '#ffffff'),
+                    badge_text_color = COALESCE(NULLIF(badge_text_color, ''), '#000000')
+                WHERE id = 1
+            """)
+        else:  # MySQL
+            cursor.execute("""
+                UPDATE hero_content
+                SET
+                    badge_enabled = 1,
+                    badge_text = COALESCE(IF(badge_text IS NULL OR badge_text = '', 'Eco-Friendly', badge_text), 'Eco-Friendly'),
+                    badge_bg_color = COALESCE(IF(badge_bg_color IS NULL OR badge_bg_color = '', '#ffffff', badge_bg_color), '#ffffff'),
+                    badge_text_color = COALESCE(IF(badge_text_color IS NULL OR badge_text_color = '', '#000000', badge_text_color), '#000000')
+                WHERE id = 1
+            """)
 
-    conn.commit()
-    cursor.close()
-    conn.close()
-    _done_ensure_hero_content_schema = True
+        conn.commit()
+        _done_ensure_hero_content_schema = True
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def fetch_hero_badges(include_inactive=False):
@@ -6501,100 +6509,102 @@ def ensure_site_content_table():
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    if 'postgres' in engine:
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS site_content (
-                section_key VARCHAR(100) PRIMARY KEY,
-                content_text TEXT,
-                content_json TEXT,
-                is_active BOOLEAN DEFAULT TRUE,
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """)
-    else:
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS site_content (
-                section_key VARCHAR(100) PRIMARY KEY,
-                content_text TEXT,
-                content_json TEXT,
-                is_active TINYINT(1) DEFAULT 1,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-        """)
-    conn.commit()
+    try:
+        if 'postgres' in engine:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS site_content (
+                    section_key VARCHAR(100) PRIMARY KEY,
+                    content_text TEXT,
+                    content_json TEXT,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+        else:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS site_content (
+                    section_key VARCHAR(100) PRIMARY KEY,
+                    content_text TEXT,
+                    content_json TEXT,
+                    is_active TINYINT(1) DEFAULT 1,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+            """)
+        conn.commit()
 
-    # Seed default tri_zonal content if not present
-    _tri_zonal_default = json.dumps({
-        'title': 'TRI-ZONAL\u2122 SYSTEM',
-        'description': 'Our professional cleaners follow a unique colour-coded system designed to deliver consistent, excellent results every visit.',
-        'explain_heading': 'Each home is divided into 3 different coloured zones.',
-        'explain_body': "Each zone has a distinct set of tasks to be followed, along with that zone\u2019s corresponding products and coloured cloths \u2014 ensuring hygiene, efficiency and consistency across every clean.",
-        'zones': {
-            'red': {
-                'name': 'Red Zones',
-                'subtitle': 'Bath & Shower rooms & WC',
-                'tasks': [
-                    'Dust for Cobwebs',
-                    'Dust off all surfaces',
-                    'Clean Bin & Empty all trash',
-                    'Tidy-up',
-                    'Polish mirrors',
-                    'Dust glosswork',
-                    'Remove hairs from plug hole',
-                    'Add toilet cleaner',
-                    'Clean shower',
-                    'Scrub bath'
-                ]
-            },
-            'green': {
-                'name': 'Green Zones',
-                'subtitle': 'Kitchen & Utility',
-                'tasks': [
-                    'Dust for Cobwebs',
-                    'Clean Bin & Empty all trash',
-                    'Vacuum floor',
-                    'Tidy-up',
-                    'Inside Fridge on request',
-                    'Clean Hob & extractor',
-                    'Switches and handles',
-                    'Backsplash area & worktops',
-                    'Clean furniture',
-                    'Vacuum & Mop floor'
-                ]
-            },
-            'blue': {
-                'name': 'Blue Zones',
-                'subtitle': 'Living & Bedrooms',
-                'tasks': [
-                    'Dust for Cobwebs',
-                    'Clean Bin & Empty all trash',
-                    'Change bed linen (optional)',
-                    'Dust glosswork',
-                    'Dust all Fixtures and fittings',
-                    'Vacuum upholstery',
-                    'Clean front door & porchway',
-                    'Clean any brass (optional)',
-                    'Dust off all surfaces'
-                ]
+        # Seed default tri_zonal content if not present
+        _tri_zonal_default = json.dumps({
+            'title': 'TRI-ZONAL\u2122 SYSTEM',
+            'description': 'Our professional cleaners follow a unique colour-coded system designed to deliver consistent, excellent results every visit.',
+            'explain_heading': 'Each home is divided into 3 different coloured zones.',
+            'explain_body': "Each zone has a distinct set of tasks to be followed, along with that zone\u2019s corresponding products and coloured cloths \u2014 ensuring hygiene, efficiency and consistency across every clean.",
+            'zones': {
+                'red': {
+                    'name': 'Red Zones',
+                    'subtitle': 'Bath & Shower rooms & WC',
+                    'tasks': [
+                        'Dust for Cobwebs',
+                        'Dust off all surfaces',
+                        'Clean Bin & Empty all trash',
+                        'Tidy-up',
+                        'Polish mirrors',
+                        'Dust glosswork',
+                        'Remove hairs from plug hole',
+                        'Add toilet cleaner',
+                        'Clean shower',
+                        'Scrub bath'
+                    ]
+                },
+                'green': {
+                    'name': 'Green Zones',
+                    'subtitle': 'Kitchen & Utility',
+                    'tasks': [
+                        'Dust for Cobwebs',
+                        'Clean Bin & Empty all trash',
+                        'Vacuum floor',
+                        'Tidy-up',
+                        'Inside Fridge on request',
+                        'Clean Hob & extractor',
+                        'Switches and handles',
+                        'Backsplash area & worktops',
+                        'Clean furniture',
+                        'Vacuum & Mop floor'
+                    ]
+                },
+                'blue': {
+                    'name': 'Blue Zones',
+                    'subtitle': 'Living & Bedrooms',
+                    'tasks': [
+                        'Dust for Cobwebs',
+                        'Clean Bin & Empty all trash',
+                        'Change bed linen (optional)',
+                        'Dust glosswork',
+                        'Dust all Fixtures and fittings',
+                        'Vacuum upholstery',
+                        'Clean front door & porchway',
+                        'Clean any brass (optional)',
+                        'Dust off all surfaces'
+                    ]
+                }
             }
-        }
-    })
-    if 'postgres' in engine:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO site_content (section_key, content_json, is_active) VALUES (%s, %s, 1) ON CONFLICT (section_key) DO NOTHING",
-            ('tri_zonal', _tri_zonal_default)
-        )
-    else:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT IGNORE INTO site_content (section_key, content_json, is_active) VALUES (%s, %s, 1)",
-            ('tri_zonal', _tri_zonal_default)
-        )
-    conn.commit()
-    cursor.close()
-    conn.close()
-    _done_ensure_site_content_table = True
+        })
+        if 'postgres' in engine:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO site_content (section_key, content_json, is_active) VALUES (%s, %s, 1) ON CONFLICT (section_key) DO NOTHING",
+                ('tri_zonal', _tri_zonal_default)
+            )
+        else:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT IGNORE INTO site_content (section_key, content_json, is_active) VALUES (%s, %s, 1)",
+                ('tri_zonal', _tri_zonal_default)
+            )
+        conn.commit()
+        _done_ensure_site_content_table = True
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def fetch_site_content():
@@ -6687,50 +6697,52 @@ def ensure_telegram_settings_schema():
     conn = get_db_connection()
     cursor = conn.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+    try:
 
-    if 'postgres' in engine:
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS telegram_settings (
-                id BIGINT PRIMARY KEY,
-                bot_token TEXT,
-                chat_id TEXT,
-                is_active SMALLINT DEFAULT 0,
-                notify_email_success SMALLINT DEFAULT 1,
-                notify_email_error SMALLINT DEFAULT 1,
-                notify_admin_login SMALLINT DEFAULT 1,
-                notify_login_failure SMALLINT DEFAULT 1,
-                notify_error_logs SMALLINT DEFAULT 1,
-                updated_at TIMESTAMPTZ DEFAULT NOW()
+        if 'postgres' in engine:
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS telegram_settings (
+                    id BIGINT PRIMARY KEY,
+                    bot_token TEXT,
+                    chat_id TEXT,
+                    is_active SMALLINT DEFAULT 0,
+                    notify_email_success SMALLINT DEFAULT 1,
+                    notify_email_error SMALLINT DEFAULT 1,
+                    notify_admin_login SMALLINT DEFAULT 1,
+                    notify_login_failure SMALLINT DEFAULT 1,
+                    notify_error_logs SMALLINT DEFAULT 1,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+                """
             )
-            """
-        )
-        cursor.execute("ALTER TABLE telegram_settings ADD COLUMN IF NOT EXISTS notify_error_logs SMALLINT DEFAULT 1")
-    else:
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS telegram_settings (
-                id BIGINT PRIMARY KEY,
-                bot_token TEXT,
-                chat_id VARCHAR(255),
-                is_active TINYINT(1) DEFAULT 0,
-                notify_email_success TINYINT(1) DEFAULT 1,
-                notify_email_error TINYINT(1) DEFAULT 1,
-                notify_admin_login TINYINT(1) DEFAULT 1,
-                notify_login_failure TINYINT(1) DEFAULT 1,
-                notify_error_logs TINYINT(1) DEFAULT 1,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            cursor.execute("ALTER TABLE telegram_settings ADD COLUMN IF NOT EXISTS notify_error_logs SMALLINT DEFAULT 1")
+        else:
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS telegram_settings (
+                    id BIGINT PRIMARY KEY,
+                    bot_token TEXT,
+                    chat_id VARCHAR(255),
+                    is_active TINYINT(1) DEFAULT 0,
+                    notify_email_success TINYINT(1) DEFAULT 1,
+                    notify_email_error TINYINT(1) DEFAULT 1,
+                    notify_admin_login TINYINT(1) DEFAULT 1,
+                    notify_login_failure TINYINT(1) DEFAULT 1,
+                    notify_error_logs TINYINT(1) DEFAULT 1,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+                """
             )
-            """
-        )
-        cursor.execute("SHOW COLUMNS FROM telegram_settings LIKE %s", ('notify_error_logs',))
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE telegram_settings ADD COLUMN notify_error_logs TINYINT(1) DEFAULT 1")
+            cursor.execute("SHOW COLUMNS FROM telegram_settings LIKE %s", ('notify_error_logs',))
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE telegram_settings ADD COLUMN notify_error_logs TINYINT(1) DEFAULT 1")
 
-    conn.commit()
-    cursor.close()
-    conn.close()
-    _done_ensure_telegram_settings_schema = True
+        conn.commit()
+        _done_ensure_telegram_settings_schema = True
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def fetch_telegram_settings():
@@ -13650,46 +13662,48 @@ def ensure_blog_table():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    if engine == 'postgres':
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS blog_posts (
-                id BIGSERIAL PRIMARY KEY,
-                title VARCHAR(255) NOT NULL,
-                slug VARCHAR(255) NOT NULL UNIQUE,
-                excerpt TEXT,
-                content TEXT NOT NULL,
-                image_path VARCHAR(512),
-                image_alt VARCHAR(255),
-                meta_description VARCHAR(320),
-                tags VARCHAR(512),
-                is_published BOOLEAN DEFAULT FALSE,
-                published_at TIMESTAMPTZ,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """)
-    else:
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS blog_posts (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                title VARCHAR(255) NOT NULL,
-                slug VARCHAR(255) NOT NULL UNIQUE,
-                excerpt TEXT,
-                content TEXT NOT NULL,
-                image_path VARCHAR(512),
-                image_alt VARCHAR(255),
-                meta_description VARCHAR(320),
-                tags VARCHAR(512),
-                is_published TINYINT(1) DEFAULT 0,
-                published_at DATETIME,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-        """)
-    conn.commit()
-    cursor.close()
-    conn.close()
-    _done_ensure_blog_table = True
+    try:
+        if engine == 'postgres':
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS blog_posts (
+                    id BIGSERIAL PRIMARY KEY,
+                    title VARCHAR(255) NOT NULL,
+                    slug VARCHAR(255) NOT NULL UNIQUE,
+                    excerpt TEXT,
+                    content TEXT NOT NULL,
+                    image_path VARCHAR(512),
+                    image_alt VARCHAR(255),
+                    meta_description VARCHAR(320),
+                    tags VARCHAR(512),
+                    is_published BOOLEAN DEFAULT FALSE,
+                    published_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+        else:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS blog_posts (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    title VARCHAR(255) NOT NULL,
+                    slug VARCHAR(255) NOT NULL UNIQUE,
+                    excerpt TEXT,
+                    content TEXT NOT NULL,
+                    image_path VARCHAR(512),
+                    image_alt VARCHAR(255),
+                    meta_description VARCHAR(320),
+                    tags VARCHAR(512),
+                    is_published TINYINT(1) DEFAULT 0,
+                    published_at DATETIME,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+            """)
+        conn.commit()
+        _done_ensure_blog_table = True
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def _blog_slugify(text):
