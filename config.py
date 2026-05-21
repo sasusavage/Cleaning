@@ -38,9 +38,24 @@ class Config:
     # random one per process — sessions won't persist across restarts but it's
     # safer than shipping a hardcoded fallback.
     _secret_key_env = os.environ.get('SECRET_KEY', '').strip()
+    if not _secret_key_env:
+        import warnings as _warnings
+        _warnings.warn(
+            "SECRET_KEY env var is not set. A random key will be generated per process — "
+            "admin sessions will not persist across restarts. Set SECRET_KEY in production.",
+            RuntimeWarning, stacklevel=2
+        )
     SECRET_KEY = _secret_key_env if _secret_key_env else os.urandom(32).hex()
 
-    EMAIL_ENCRYPTION_KEY = os.environ.get('EMAIL_ENCRYPTION_KEY', 'your-email-key')
+    _email_enc_key_env = os.environ.get('EMAIL_ENCRYPTION_KEY', '').strip()
+    if not _email_enc_key_env:
+        import warnings as _warnings
+        _warnings.warn(
+            "EMAIL_ENCRYPTION_KEY env var is not set. Emails will not be encrypted. "
+            "Set EMAIL_ENCRYPTION_KEY to a secure random string in production.",
+            RuntimeWarning, stacklevel=2
+        )
+    EMAIL_ENCRYPTION_KEY = _email_enc_key_env or os.urandom(32).hex()
     PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL', os.environ.get('SITE_URL', '')).strip().rstrip('/')
 
     # ── Session security ──────────────────────────────────────────────────────

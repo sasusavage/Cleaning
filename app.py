@@ -168,7 +168,35 @@ def _add_security_headers(response):
     response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
     # Referrer policy
     response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    # Content Security Policy — restrict resource loading to own origin + known CDNs
+    response.headers.setdefault(
+        'Content-Security-Policy',
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://js.stripe.com https://maps.googleapis.com https://app.termly.io https://www.googletagmanager.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data: blob: https://res.cloudinary.com https://maps.gstatic.com https://maps.googleapis.com; "
+        "frame-src https://js.stripe.com https://www.google.com; "
+        "connect-src 'self' https://api.stripe.com; "
+        "object-src 'none'; "
+        "base-uri 'self';"
+    )
     return response
+
+
+@app.errorhandler(500)
+def internal_error(e):
+    app.logger.exception('Unhandled 500 error')
+    if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+        return jsonify({'error': 'An unexpected error occurred. Please try again.'}), 500
+    return render_template('500.html'), 500
+
+
+@app.errorhandler(404)
+def not_found_error(e):
+    if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+        return jsonify({'error': 'Not found.'}), 404
+    return render_template('404.html'), 404
 
 # ── Login brute-force protection ──────────────────────────────────────────────
 # Persisted to DB so lockouts survive process restarts (important on Render).
@@ -340,6 +368,18 @@ def save_file(file, folder, allowed_extensions=None):
     if not allowed_file(file.filename, allowed_extensions):
         allowed_display = ', '.join(sorted((allowed_extensions or IMAGE_EXTENSIONS)))
         raise ValueError(f'Unsupported file type. Allowed types: {allowed_display}.')
+
+    # Validate file content via magic bytes — prevents extension spoofing
+    _img_exts = IMAGE_EXTENSIONS if allowed_extensions is None else (allowed_extensions & IMAGE_EXTENSIONS)
+    ext = os.path.splitext(secure_filename(file.filename))[1].lower().lstrip('.')
+    if ext in _img_exts:
+        import imghdr as _imghdr
+        header = file.read(16)
+        file.seek(0)
+        detected = _imghdr.what(None, h=header)
+        _allowed_img_mimes = {'png', 'jpeg', 'webp', 'gif', 'jpg'}
+        if detected not in _allowed_img_mimes and detected != 'jpeg':
+            raise ValueError('File content does not match an allowed image type.')
 
     filename = secure_filename(file.filename)
     unique_name = f"{uuid4().hex}_{filename}"
@@ -9210,8 +9250,10 @@ def delete_job_position(id):
 @app.route('/api/testimonials', methods=['GET'])
 def get_testimonials():
     try:
-        # Admin can pass ?include_all=1 to get pending testimonials too
+        # include_all=1 exposes pending/unapproved testimonials — admin only
         include_all = request.args.get('include_all', '0') == '1'
+        if include_all and not session.get('admin_logged_in'):
+            include_all = False
         testimonials = fetch_testimonials_from_db(include_pending=include_all)
         return jsonify(testimonials)
     except Exception as e:
@@ -9805,11 +9847,12 @@ def submit_testimonial():
     """Public endpoint for customers to submit testimonials.
     Auto-approves if name matches an existing customer in requests table.
     """
-    data = request.json
-    name = (data.get('name') or '').strip()
-    message = (data.get('message') or '').strip()
+    data = request.get_json(silent=True) or {}
+    name = sanitize_text((data.get('name') or ''), 150)
+    message = sanitize_text((data.get('message') or ''), 2000)
     rating = data.get('rating', 5)
-    email = (data.get('email') or '').strip() or None
+    raw_email = (data.get('email') or '').strip()
+    email = sanitize_email(raw_email) if raw_email else None
     
     # Validate required fields
     if not name:
@@ -11738,57 +11781,38 @@ def admin_team_photo_api():
         cursor.execute("SELECT content_text FROM site_content WHERE section_key = 'team_photo'")
         row = cursor.fetchone()
         existing_path = row['content_text'] if row else ''
-        
+
         if request.method == 'DELETE':
             if existing_path:
                 delete_uploaded_file(existing_path)
-            cursor.execute(
-                "DELETE FROM site_content WHERE section_key = 'team_photo'"
-            )
+            cursor.execute("DELETE FROM site_content WHERE section_key = 'team_photo'")
             conn.commit()
-            cursor.close()
-            conn.close()
             return jsonify({'message': 'Team photo removed.', 'team_photo': ''})
-        
+
         # POST - upload new photo
         new_path = upload_team_photo(existing_path)
         if new_path and new_path != existing_path:
-            # Delete old file if different
             if existing_path and existing_path != new_path:
                 delete_uploaded_file(existing_path)
-            
             cursor.execute(
-                """
-                UPDATE site_content
-                SET content_text=%s,
-                    updated_at=CURRENT_TIMESTAMP
-                WHERE section_key='team_photo'
-                """,
+                "UPDATE site_content SET content_text=%s, updated_at=CURRENT_TIMESTAMP WHERE section_key='team_photo'",
                 (new_path,)
             )
             if cursor.rowcount == 0:
                 cursor.execute(
-                    """
-                    INSERT INTO site_content (section_key, content_text, is_active)
-                    VALUES ('team_photo', %s, TRUE)
-                    """,
+                    "INSERT INTO site_content (section_key, content_text, is_active) VALUES ('team_photo', %s, TRUE)",
                     (new_path,)
                 )
             conn.commit()
-            cursor.close()
-            conn.close()
             return jsonify({'message': 'Team photo uploaded.', 'team_photo': new_path})
-        
-        cursor.close()
-        conn.close()
+
         return jsonify({'message': 'No file uploaded.', 'team_photo': existing_path})
     except Exception:
         app.logger.exception('Failed to update team photo.')
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
         return jsonify({'error': 'Unable to update team photo.'}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 
 @app.route('/admin/site-content')
