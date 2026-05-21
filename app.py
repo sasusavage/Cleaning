@@ -604,6 +604,10 @@ def sanitize_phone(value, max_length=50):
     if not value:
         return ''
     phone = sanitize_text(value, max_length)
+    # Strip to digits and + for length check (allows intl formats like +447911123456)
+    digits = re.sub(r'[^\d]', '', phone)
+    if len(digits) < 7 or len(digits) > 15:
+        return ''
     return phone
 
 
@@ -4333,6 +4337,8 @@ def ensure_payment_tables():
             cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refund_id VARCHAR(255)")
             cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refund_status VARCHAR(50)")
             cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ")
+            cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(128)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_tx_idempotency ON payment_transactions(idempotency_key)")
             cursor.execute("SELECT COUNT(*) FROM payment_settings")
             if (cursor.fetchone() or [0])[0] == 0:
                 cursor.execute(
@@ -4387,6 +4393,10 @@ def ensure_payment_tables():
                 )
                 """
             )
+            cursor.execute("SHOW COLUMNS FROM payment_transactions LIKE 'idempotency_key'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE payment_transactions ADD COLUMN idempotency_key VARCHAR(128)")
+                cursor.execute("ALTER TABLE payment_transactions ADD INDEX idx_payment_tx_idempotency (idempotency_key)")
             cursor.execute("SELECT COUNT(*) FROM payment_settings")
             if (cursor.fetchone() or [0])[0] == 0:
                 cursor.execute(
@@ -4510,6 +4520,45 @@ def create_payment_transaction(amount_total, currency, customer_name, customer_e
     cursor.close()
     conn.close()
     return tx_id
+
+
+def fetch_active_transaction_by_idempotency_key(idempotency_key):
+    """Return an existing checkout_created transaction for this key if still usable (< 30 min old)."""
+    if not idempotency_key:
+        return None
+    ensure_payment_tables()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        engine = Config.DB_ENGINE
+        if 'postgres' in engine:
+            cursor.execute(
+                """
+                SELECT id, checkout_session_id, amount_total, currency, request_id
+                FROM payment_transactions
+                WHERE idempotency_key = %s
+                  AND status = 'checkout_created'
+                  AND created_at > NOW() - INTERVAL '30 minutes'
+                ORDER BY id DESC LIMIT 1
+                """,
+                (idempotency_key,)
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT id, checkout_session_id, amount_total, currency, request_id
+                FROM payment_transactions
+                WHERE idempotency_key = %s
+                  AND status = 'checkout_created'
+                  AND created_at > NOW() - INTERVAL 30 MINUTE
+                ORDER BY id DESC LIMIT 1
+                """,
+                (idempotency_key,)
+            )
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def update_payment_transaction(tx_id, **fields):
@@ -7894,7 +7943,29 @@ def start_stripe_checkout():
     payload = request.get_json(silent=True) or {}
     tx_id = None
     pending_request = None
+    idempotency_key = sanitize_text(payload.get('idempotency_key'), 128) or None
     try:
+        # Return existing session for duplicate submissions within 30 minutes
+        if idempotency_key:
+            existing_tx = fetch_active_transaction_by_idempotency_key(idempotency_key)
+            if existing_tx and existing_tx.get('checkout_session_id'):
+                app.logger.info('start_stripe_checkout - Returning existing session for idempotency_key %s', idempotency_key)
+                stripe.api_key = stripe_secret_key()
+                try:
+                    session_obj = stripe.checkout.Session.retrieve(existing_tx['checkout_session_id'])
+                    if session_obj and session_obj.get('url') and session_obj.get('status') not in ('complete', 'expired'):
+                        return jsonify({
+                            'mode': 'checkout',
+                            'checkout_url': session_obj['url'],
+                            'session_id': existing_tx['checkout_session_id'],
+                            'transaction_id': existing_tx['id'],
+                            'request_id': existing_tx.get('request_id'),
+                            'amount_total': existing_tx.get('amount_total'),
+                            'currency': existing_tx.get('currency'),
+                        }), 200
+                except Exception:
+                    app.logger.warning('start_stripe_checkout - Could not retrieve existing Stripe session, creating new one')
+
         prepared = prepare_service_booking(payload)
         payment_settings = fetch_payment_settings()
         payment_option = prepared.get('payment_option') or PAYMENT_OPTION_IN_PERSON
@@ -7941,13 +8012,14 @@ def start_stripe_checkout():
             prepared_payload=json.dumps(prepared, default=str)
         )
 
-        try:
-            pending_request = create_stripe_pending_request(prepared, tx_id, request.remote_addr)
-            if pending_request and pending_request.get('id'):
-                update_payment_transaction(tx_id, request_id=pending_request.get('id'))
-        except Exception:
-            app.logger.exception('Unable to create provisional request for Stripe transaction %s', tx_id)
-        
+        if idempotency_key:
+            update_payment_transaction(tx_id, idempotency_key=idempotency_key)
+
+        pending_request = create_stripe_pending_request(prepared, tx_id, request.remote_addr)
+        if not pending_request or not pending_request.get('id'):
+            raise RuntimeError('Unable to create provisional booking record. Please try again.')
+        update_payment_transaction(tx_id, request_id=pending_request.get('id'))
+
         app.logger.info(f"start_stripe_checkout - Payment transaction created: tx_id={tx_id}")
 
         app.logger.info(f"start_stripe_checkout - Calling stripe.checkout.Session.create()...")
@@ -8089,6 +8161,21 @@ def process_completed_payment_session(session_obj):
             status='processing_failed',
             error_message=str(exc)[:1500]
         )
+        try:
+            send_telegram_notification(
+                'notify_error_logs',
+                [
+                    '[Payment] Booking finalization FAILED',
+                    f'Transaction ID: {tx.get("id")}',
+                    f'Customer: {tx.get("customer_name") or "unknown"}',
+                    f'Email: {tx.get("customer_email") or "unknown"}',
+                    f'Amount: {tx.get("amount_total")} {tx.get("currency", "").upper()}',
+                    f'Error: {str(exc)[:300]}',
+                    'Action required: check payment_transactions table and manually create booking.'
+                ]
+            )
+        except Exception:
+            app.logger.exception('Failed to send Telegram alert for processing_failed transaction %s', tx.get('id'))
 
 
 def resolve_stripe_event_object(event, event_type):
