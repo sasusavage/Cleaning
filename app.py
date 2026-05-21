@@ -3394,9 +3394,9 @@ def migrate_domestic_to_services():
     description = content.get('intro_body') or 'Regular domestic cleaning service tailored to your home.'
 
     is_pg = 'postgres' in engine
-    active_val = True if is_pg else 1
-    is_contract_val = True if is_pg else 1
-    inactive_val = False if is_pg else 0
+    active_val = 1
+    is_contract_val = 1
+    inactive_val = 0
 
     cursor.close()
     cursor = conn.cursor()
@@ -3550,7 +3550,7 @@ def ensure_residential_contract_service():
                 17.99,
                 'contract',
                 default_plans,
-                (True if 'postgres' in engine else 1),
+                1,
                 'Domestic Cleaning',
                 'Lifestyle-led home care designed around your routine.',
                 'Our Regular Domestic Cleaning Service',
@@ -11613,10 +11613,9 @@ def admin_services_hero_image_api():
     conn3 = get_db_connection()
     cur3 = conn3.cursor()
     engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    active_val = True if 'postgres' in engine else 1
-    cur3.execute("UPDATE site_content SET content_text=%s, is_active=%s, updated_at=CURRENT_TIMESTAMP WHERE section_key='services_hero_bg'", (url, active_val))
+    cur3.execute("UPDATE site_content SET content_text=%s, is_active=1, updated_at=CURRENT_TIMESTAMP WHERE section_key='services_hero_bg'", (url,))
     if cur3.rowcount == 0:
-        cur3.execute("INSERT INTO site_content (section_key, content_text, is_active) VALUES ('services_hero_bg', %s, %s)", (url, active_val))
+        cur3.execute("INSERT INTO site_content (section_key, content_text, is_active) VALUES ('services_hero_bg', %s, 1)", (url,))
     conn3.commit()
     cur3.close()
     conn3.close()
