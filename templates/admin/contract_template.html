@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Done-Well Cleaning' %}
+    <title>Contract Template | {{ company_name }} Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Inter', Arial, sans-serif; background: #f1f5f9; color: #1e293b; }
+        .shell { display: flex; min-height: 100vh; }
+        .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        .topbar { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 0 2rem; height: 56px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+        .topbar__title { font-size: 1rem; font-weight: 600; color: #1e3a5f; display: flex; align-items: center; gap: 0.5rem; }
+        .page-body { padding: 2rem; max-width: 900px; }
+        .card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 1.5rem; }
+        .card__head { padding: 1.25rem 1.5rem; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; }
+        .card__title { font-size: 0.95rem; font-weight: 600; color: #1e3a5f; margin: 0; }
+        .card__body { padding: 1.5rem; }
+        .form-group { margin-bottom: 1.25rem; }
+        .form-group label { display: block; font-size: 0.82rem; font-weight: 600; color: #374151; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.04em; }
+        .form-group input[type="text"], .form-group textarea {
+            width: 100%; padding: 0.6rem 0.85rem; border: 1px solid #d1d5db; border-radius: 8px;
+            font-size: 0.9rem; font-family: inherit; color: #1e293b; background: #fff;
+            transition: border-color 0.15s; resize: vertical;
+        }
+        .form-group input[type="text"]:focus, .form-group textarea:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        .form-group textarea { min-height: 480px; font-family: 'Courier New', monospace; font-size: 0.85rem; line-height: 1.65; }
+        .form-hint { font-size: 0.78rem; color: #6b7280; margin-top: 0.35rem; }
+        .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.55rem 1.2rem; border-radius: 8px; border: none; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.15s, opacity 0.15s; }
+        .btn-primary { background: #1e3a5f; color: #fff; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-secondary { background: #f1f5f9; color: #374151; border: 1px solid #e2e8f0; }
+        .btn-secondary:hover { background: #e2e8f0; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .alert { padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.875rem; margin-bottom: 1rem; display: none; }
+        .alert-success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+        .alert-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+        .preview-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; white-space: pre-wrap; font-size: 0.85rem; line-height: 1.7; color: #374151; font-family: 'Georgia', serif; max-height: 500px; overflow-y: auto; }
+        .tab-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+        .tab-btn { padding: 0.4rem 1rem; border-radius: 6px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+        .tab-btn.active { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+    </style>
+</head>
+<body>
+<div class="shell">
+    {% include 'admin/_sidebar.html' %}
+    <div class="main">
+        <div class="topbar">
+            <div class="topbar__title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                Contract Template
+            </div>
+        </div>
+
+        <div class="page-body">
+            <div id="alert-success" class="alert alert-success">Contract template saved successfully.</div>
+            <div id="alert-error" class="alert alert-error">Failed to save. Please try again.</div>
+
+            <div class="card">
+                <div class="card__head">
+                    <h2 class="card__title">Service Agreement Template</h2>
+                    <div style="display:flex;gap:0.5rem;">
+                        <button type="button" class="btn btn-secondary" onclick="togglePreview()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            Preview
+                        </button>
+                        <button type="button" class="btn btn-primary" id="save-btn" onclick="saveTemplate()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                            Save Changes
+                        </button>
+                    </div>
+                </div>
+                <div class="card__body">
+                    <p style="font-size:0.85rem;color:#6b7280;margin:0 0 1.25rem;">
+                        This is the contract text clients will see and sign when booking a contract-based service. A copy is sent to their email after booking. You can edit this at any time — changes apply to future bookings only.
+                    </p>
+
+                    <div class="tab-row">
+                        <button type="button" class="tab-btn active" id="tab-edit" onclick="showTab('edit')">Edit</button>
+                        <button type="button" class="tab-btn" id="tab-preview" onclick="showTab('preview')">Preview</button>
+                    </div>
+
+                    <div id="panel-edit">
+                        <div class="form-group">
+                            <label>Agreement Title</label>
+                            <input type="text" id="ct-title" value="{{ tmpl.title | e }}" placeholder="e.g. Office Cleaning Service Agreement">
+                        </div>
+                        <div class="form-group">
+                            <label>Agreement Body</label>
+                            <textarea id="ct-body" placeholder="Enter the full contract text here...">{{ tmpl.body | e }}</textarea>
+                            <p class="form-hint">Use plain text. Line breaks are preserved. This exact text is shown to clients at checkout and included in their confirmation email.</p>
+                        </div>
+                    </div>
+
+                    <div id="panel-preview" style="display:none;">
+                        <div class="preview-box" id="preview-content"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card__head"><h2 class="card__title">How it works</h2></div>
+                <div class="card__body" style="font-size:0.875rem;color:#374151;line-height:1.7;">
+                    <ul style="margin:0;padding-left:1.25rem;">
+                        <li>When a client selects a <strong>contract service</strong> at checkout, a modal appears showing this full agreement.</li>
+                        <li>They must scroll through it, enter their full legal name, and tick the checkbox to continue.</li>
+                        <li>One-time services are not affected — they never see this screen.</li>
+                        <li>After booking, the client receives a confirmation email with the signed contract text attached.</li>
+                        <li>The admin can view the signed contract text in the booking details on the Requests page.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showTab(tab) {
+    document.getElementById('panel-edit').style.display = tab === 'edit' ? '' : 'none';
+    document.getElementById('panel-preview').style.display = tab === 'preview' ? '' : 'none';
+    document.getElementById('tab-edit').classList.toggle('active', tab === 'edit');
+    document.getElementById('tab-preview').classList.toggle('active', tab === 'preview');
+    if (tab === 'preview') {
+        var body = document.getElementById('ct-body').value;
+        document.getElementById('preview-content').textContent = body;
+    }
+}
+
+function togglePreview() {
+    var previewVisible = document.getElementById('panel-preview').style.display !== 'none';
+    showTab(previewVisible ? 'edit' : 'preview');
+}
+
+function saveTemplate() {
+    var title = (document.getElementById('ct-title').value || '').trim();
+    var body = (document.getElementById('ct-body').value || '').trim();
+    if (!title) { alert('Please enter an agreement title.'); return; }
+    if (!body) { alert('Please enter the contract body text.'); return; }
+
+    var btn = document.getElementById('save-btn');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    fetch('/admin/api/contract-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title, body: body })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        btn.textContent = 'Save Changes';
+        if (data.ok) {
+            var el = document.getElementById('alert-success');
+            el.style.display = 'block';
+            setTimeout(function() { el.style.display = 'none'; }, 4000);
+        } else {
+            var el = document.getElementById('alert-error');
+            el.textContent = data.error || 'Failed to save.';
+            el.style.display = 'block';
+            setTimeout(function() { el.style.display = 'none'; }, 5000);
+        }
+    })
+    .catch(function() {
+        btn.disabled = false;
+        btn.textContent = 'Save Changes';
+        var el = document.getElementById('alert-error');
+        el.textContent = 'Network error. Please try again.';
+        el.style.display = 'block';
+        setTimeout(function() { el.style.display = 'none'; }, 5000);
+    });
+}
+</script>
+</body>
+</html>

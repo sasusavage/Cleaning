@@ -1987,6 +1987,16 @@ def send_request_notifications(request_record, attachments=None):
     )
 
     if user_email:
+        # Extract contract data from service_flow metadata for the email
+        _service_flow = context.get('service_flow') or {}
+        _contract_meta = _service_flow.get('contract') or {}
+        contract_email_data = None
+        if _contract_meta.get('terms_agreed') and _contract_meta.get('signer_name'):
+            contract_email_data = {
+                'signer_name': _contract_meta.get('signer_name') or '',
+                'service_day': _contract_meta.get('service_day') or '',
+                'agreed_text': _contract_meta.get('agreed_text') or '',
+            }
         try:
             user_html = render_template(
                 'emails/request_user.html',
@@ -1997,7 +2007,8 @@ def send_request_notifications(request_record, attachments=None):
                 customer_notes=customer_notes,
                 location_info=location_info,
                 logo_url=logo_url,
-                is_survey_request=is_survey_request
+                is_survey_request=is_survey_request,
+                contract_data=contract_email_data
             )
         except Exception:
             app.logger.exception('Failed to render user confirmation email template.')
@@ -4278,6 +4289,175 @@ def stripe_object_to_dict(value):
         return dict(value)
     except Exception:
         return {}
+
+
+_OFFICE_CLEANING_CONTRACT_DEFAULT = """Office Cleaning Service Agreement
+
+This Office Cleaning Service Agreement ("Agreement") is made between Done-Well Cleaning Limited, a registered company in the United Kingdom ("Contractor"), and the Client ("Client").
+
+1. Services
+Done-Well Cleaning Limited agrees to provide regular office cleaning services including:
+- Vacuuming and mopping floors
+- Dusting and sanitising surfaces
+- Emptying bins
+- Cleaning washrooms and kitchen areas
+- General office cleaning duties
+
+Services will be carried out according to the agreed schedule and instructions of the Client.
+
+2. Service Rates
+The Client agrees to pay the following rates:
+- Daily Cleaning Services: from £19.50 per hour per cleaner
+- Weekly Cleaning Services: from £35.00 per hour per cleaner
+
+Minimum booking time is 1 hour 30 minutes per visit. Any additional cleaning services requested outside the agreed scope may be charged separately.
+
+3. Payment Terms
+Invoices shall be issued weekly or monthly as agreed between both parties. Payment must be made within 7 days of the invoice date by bank transfer or another agreed payment method. Late payments may incur interest in accordance with the Late Payment of Commercial Debts (Interest) Act 1998.
+
+4. Contractor Responsibilities
+Done-Well Cleaning Limited shall:
+- Provide trained and reliable cleaning staff
+- Maintain appropriate public liability insurance
+- Comply with UK Health and Safety regulations
+- Supply cleaning equipment and materials unless otherwise agreed
+
+5. Client Responsibilities
+The Client shall:
+- Provide safe access to the premises during agreed service times
+- Ensure water and electricity are available
+- Notify the Contractor of any hazards or special requirements
+
+6. Cancellation & Termination
+Either party may terminate this Agreement by giving 14 days' written notice. Cancellations made with less than 24 hours' notice may be subject to a cancellation fee.
+
+The Contractor reserves the right to suspend services in cases of non-payment, unsafe working conditions, or serious breach of this Agreement.
+
+7. Liability
+Done-Well Cleaning Limited shall exercise reasonable care while delivering services. The Contractor shall not be liable for:
+- Pre-existing damage
+- Losses caused by faulty equipment or unsafe premises
+- Indirect or consequential losses
+
+Any claim for damage must be reported within 24 hours of service completion.
+
+8. Confidentiality
+Both parties agree to keep confidential any business or sensitive information obtained during the course of this Agreement.
+
+9. Governing Law
+This Agreement shall be governed by the laws of England and Wales."""
+
+_done_ensure_contract_template_table = False
+
+
+def ensure_contract_template_table():
+    global _done_ensure_contract_template_table
+    if _done_ensure_contract_template_table:
+        return
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        engine = Config.DB_ENGINE
+        if 'postgres' in engine:
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS contract_templates (
+                    id BIGSERIAL PRIMARY KEY,
+                    title VARCHAR(255) NOT NULL DEFAULT 'Service Agreement',
+                    body TEXT NOT NULL,
+                    is_active SMALLINT DEFAULT 1,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+                """
+            )
+        else:
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS contract_templates (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    title VARCHAR(255) NOT NULL DEFAULT 'Service Agreement',
+                    body LONGTEXT NOT NULL,
+                    is_active TINYINT(1) DEFAULT 1,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+                """
+            )
+        conn.commit()
+        _done_ensure_contract_template_table = True
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def fetch_contract_template():
+    ensure_contract_template_table()
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id, title, body FROM contract_templates WHERE is_active = 1 ORDER BY id DESC LIMIT 1")
+        row = cursor.fetchone()
+        if row:
+            return row
+        # Seed default on first fetch
+        _seed_default_contract_template()
+        return {'id': None, 'title': 'Service Agreement', 'body': _OFFICE_CLEANING_CONTRACT_DEFAULT}
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def _seed_default_contract_template():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        engine = Config.DB_ENGINE
+        if 'postgres' in engine:
+            cursor.execute(
+                "INSERT INTO contract_templates (title, body, is_active) VALUES (%s, %s, 1)",
+                ('Office Cleaning Service Agreement', _OFFICE_CLEANING_CONTRACT_DEFAULT)
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO contract_templates (title, body, is_active) VALUES (%s, %s, 1)",
+                ('Office Cleaning Service Agreement', _OFFICE_CLEANING_CONTRACT_DEFAULT)
+            )
+        conn.commit()
+    except Exception:
+        app.logger.exception('Failed to seed default contract template')
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def save_contract_template(title, body):
+    ensure_contract_template_table()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        engine = Config.DB_ENGINE
+        cursor.execute("SELECT id FROM contract_templates ORDER BY id DESC LIMIT 1")
+        existing = cursor.fetchone()
+        if existing:
+            row_id = existing[0]
+            if 'postgres' in engine:
+                cursor.execute(
+                    "UPDATE contract_templates SET title = %s, body = %s, updated_at = NOW() WHERE id = %s",
+                    (title, body, row_id)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE contract_templates SET title = %s, body = %s WHERE id = %s",
+                    (title, body, row_id)
+                )
+        else:
+            cursor.execute(
+                "INSERT INTO contract_templates (title, body, is_active) VALUES (%s, %s, 1)",
+                (title, body)
+            )
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
 
 
 _done_ensure_payment_tables = False
@@ -7472,6 +7652,15 @@ def prepare_service_booking(payload):
         contract_service_day = ''
     if has_contract_service and not contract_terms_agreed:
         raise ValueError('Contract terms must be accepted for contract-based services.')
+    # Snapshot of the contract text the client agreed to (stored permanently with the booking)
+    contract_agreed_text = sanitize_text(contract_data.get('contract_text'), 25000) or ''
+    if has_contract_service and not contract_agreed_text:
+        # Fall back to fetching from DB if frontend didn't send it
+        try:
+            _tmpl = fetch_contract_template()
+            contract_agreed_text = _tmpl.get('body') or ''
+        except Exception:
+            pass
 
     travel_fee_value = travel_quote.get('travel_fee') if travel_quote else None
     services_subtotal_display = 'To be confirmed (survey required)' if has_survey_request else (format_currency_label(subtotal) if not has_custom else 'Custom quote')
@@ -7570,7 +7759,8 @@ def prepare_service_booking(payload):
         'contract': {
             'signer_name': contract_signer_name,
             'service_day': contract_service_day,
-            'terms_agreed': contract_terms_agreed
+            'terms_agreed': contract_terms_agreed,
+            'agreed_text': contract_agreed_text
         },
         'pricing_details': pricing_details,
         'totals': {
@@ -11909,6 +12099,58 @@ def admin_site_content_page():
     site_settings = fetch_site_settings()
     site_content = fetch_site_content()
     return render_template('admin/site_content.html', site_settings=site_settings, site_content=site_content)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Contract Template Routes (public + admin)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/contract-template', methods=['GET'])
+def public_get_contract_template():
+    """Public endpoint — returns active contract template for the checkout form."""
+    try:
+        tmpl = fetch_contract_template()
+        return jsonify({'title': tmpl.get('title', ''), 'body': tmpl.get('body', '')}), 200
+    except Exception:
+        app.logger.exception('Failed to fetch contract template')
+        return jsonify({'title': 'Service Agreement', 'body': ''}), 200
+
+
+@app.route('/admin/contract-template')
+@admin_login_required
+def admin_contract_template_page():
+    site_settings = fetch_site_settings()
+    tmpl = fetch_contract_template()
+    return render_template('admin/contract_template.html', site_settings=site_settings, tmpl=tmpl, active_page='contract_template')
+
+
+@app.route('/admin/api/contract-template', methods=['GET'])
+@admin_login_required
+def admin_get_contract_template():
+    try:
+        tmpl = fetch_contract_template()
+        return jsonify(tmpl), 200
+    except Exception:
+        app.logger.exception('Failed to fetch contract template')
+        return jsonify({'error': 'Failed to load contract template.'}), 500
+
+
+@app.route('/admin/api/contract-template', methods=['POST'])
+@admin_login_required
+def admin_save_contract_template():
+    data = request.get_json(silent=True) or {}
+    title = sanitize_text(data.get('title'), 255)
+    body = sanitize_text(data.get('body'), 20000)
+    if not title:
+        return jsonify({'error': 'Title is required.'}), 400
+    if not body:
+        return jsonify({'error': 'Contract body is required.'}), 400
+    try:
+        save_contract_template(title, body)
+        return jsonify({'ok': True}), 200
+    except Exception:
+        app.logger.exception('Failed to save contract template')
+        return jsonify({'error': 'Failed to save contract template.'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────

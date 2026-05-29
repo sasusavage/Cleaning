@@ -1749,5 +1749,90 @@
         })();
     </script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+    <!-- Contract Agreement Modal -->
+    <div id="contract-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:14px;max-width:680px;width:calc(100% - 2rem);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.25);overflow:hidden;">
+            <div style="background:#1e3a5f;padding:1.25rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+                <div style="display:flex;align-items:center;gap:0.6rem;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                    <span id="contract-modal-title" style="color:#fff;font-size:1rem;font-weight:600;"></span>
+                </div>
+                <button type="button" onclick="closeContractModal()" aria-label="Close" style="background:transparent;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:0.25rem;font-size:1.25rem;line-height:1;">&#x2715;</button>
+            </div>
+            <div style="flex:1;overflow-y:auto;padding:1.5rem;">
+                <p style="font-size:0.82rem;color:#6b7280;margin:0 0 1rem;padding:0.75rem;background:#eff6ff;border-radius:8px;border-left:3px solid #2563eb;">
+                    Please read the full agreement below before signing. Scroll to the bottom, enter your legal name, and tick the checkbox to confirm.
+                </p>
+                <pre id="contract-modal-body" style="white-space:pre-wrap;font-family:'Georgia',serif;font-size:0.875rem;line-height:1.75;color:#1e293b;margin:0;padding:0;"></pre>
+            </div>
+            <div style="padding:1.25rem 1.5rem;border-top:1px solid #e2e8f0;background:#f8fafc;flex-shrink:0;">
+                <div style="margin-bottom:0.75rem;">
+                    <label style="display:block;font-size:0.78rem;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.35rem;">Your Full Legal Name</label>
+                    <input type="text" id="contract-modal-signer" placeholder="Enter your full legal name" style="width:100%;padding:0.55rem 0.85rem;border:1px solid #d1d5db;border-radius:8px;font-size:0.9rem;font-family:inherit;color:#1e293b;">
+                </div>
+                <label style="display:flex;align-items:flex-start;gap:0.6rem;cursor:pointer;margin-bottom:1rem;">
+                    <input type="checkbox" id="contract-modal-agreed" style="margin-top:0.2rem;width:auto;flex-shrink:0;">
+                    <span style="font-size:0.875rem;color:#374151;">I have read and agree to the terms of this Service Agreement, and I authorise Done-Well Cleaning Limited to schedule services based on the selected frequency.</span>
+                </label>
+                <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                    <button type="button" onclick="closeContractModal()" style="padding:0.6rem 1.25rem;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#374151;font-size:0.875rem;font-weight:600;cursor:pointer;">Cancel</button>
+                    <button type="button" id="contract-modal-confirm" onclick="confirmContractModal()" style="padding:0.6rem 1.5rem;border-radius:8px;border:none;background:#1e3a5f;color:#fff;font-size:0.875rem;font-weight:600;cursor:pointer;">Confirm &amp; Sign</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        var _contractTemplate = null;
+        var _contractModalResolve = null;
+
+        window._loadContractTemplate = function() {
+            if (_contractTemplate) return Promise.resolve(_contractTemplate);
+            return fetch('/api/contract-template')
+                .then(function(r) { return r.json(); })
+                .then(function(data) { _contractTemplate = data; return data; })
+                .catch(function() { return { title: 'Service Agreement', body: '' }; });
+        };
+
+        window.openContractModal = function() {
+            return window._loadContractTemplate().then(function(tmpl) {
+                document.getElementById('contract-modal-title').textContent = tmpl.title || 'Service Agreement';
+                document.getElementById('contract-modal-body').textContent = tmpl.body || '';
+                document.getElementById('contract-modal-signer').value = '';
+                document.getElementById('contract-modal-agreed').checked = false;
+                document.getElementById('contract-modal').style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+                return new Promise(function(resolve) { _contractModalResolve = resolve; });
+            });
+        };
+
+        window.closeContractModal = function() {
+            document.getElementById('contract-modal').style.display = 'none';
+            document.body.style.overflow = '';
+            if (_contractModalResolve) { _contractModalResolve(null); _contractModalResolve = null; }
+        };
+
+        window.confirmContractModal = function() {
+            var signer = (document.getElementById('contract-modal-signer').value || '').trim();
+            var agreed = document.getElementById('contract-modal-agreed').checked;
+            if (!signer) { alert('Please enter your full legal name.'); return; }
+            if (!agreed) { alert('You must tick the checkbox to agree to the contract terms.'); return; }
+            var body = document.getElementById('contract-modal-body').textContent;
+            document.getElementById('contract-modal').style.display = 'none';
+            document.body.style.overflow = '';
+            if (_contractModalResolve) {
+                _contractModalResolve({ signer_name: signer, agreed: true, contract_text: body });
+                _contractModalResolve = null;
+            }
+        };
+
+        // Close on backdrop click
+        document.getElementById('contract-modal').addEventListener('click', function(e) {
+            if (e.target === this) window.closeContractModal();
+        });
+    })();
+    </script>
 </body>
 </html>

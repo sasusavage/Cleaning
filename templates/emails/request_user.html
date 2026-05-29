@@ -265,6 +265,41 @@
                             </table>
                             {% endif %}
 
+                            {% if contract_data and contract_data.signer_name %}
+                            <!-- Signed Contract Copy -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px; background-color: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+                                <tr>
+                                    <td style="padding: 18px 20px; background-color: #f8fafc;">
+                                        <h3 style="margin: 0 0 12px; font-size: 13px; font-weight: 700; color: #1e3a5f; text-transform: uppercase; letter-spacing: 0.6px; background-color: #f8fafc;">📋 Your Signed Service Agreement</h3>
+                                        <p style="margin: 0 0 10px; font-size: 13px; color: #374151; background-color: #f8fafc;">
+                                            This is a copy of the agreement you signed when booking. Please keep this for your records.
+                                        </p>
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 13px; background-color: #f8fafc; margin-bottom: 14px;">
+                                            <tr>
+                                                <td style="padding: 4px 0; color: #6b7280; width: 130px; background-color: #f8fafc; font-weight: 600;">Signed by</td>
+                                                <td style="padding: 4px 0; color: #1e293b; font-weight: 600; background-color: #f8fafc;">{{ contract_data.signer_name }}</td>
+                                            </tr>
+                                            {% if contract_data.service_day %}
+                                            <tr>
+                                                <td style="padding: 4px 0; color: #6b7280; background-color: #f8fafc; font-weight: 600;">Service day</td>
+                                                <td style="padding: 4px 0; color: #1e293b; background-color: #f8fafc;">{{ contract_data.service_day }}</td>
+                                            </tr>
+                                            {% endif %}
+                                            <tr>
+                                                <td style="padding: 4px 0; color: #6b7280; background-color: #f8fafc; font-weight: 600;">Date signed</td>
+                                                <td style="padding: 4px 0; color: #1e293b; background-color: #f8fafc;">{{ request.created_at }}</td>
+                                            </tr>
+                                        </table>
+                                        {% if contract_data.agreed_text %}
+                                        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px 16px; max-height: 300px; overflow: auto;">
+                                            <pre style="margin: 0; font-family: Georgia, serif; font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-wrap; background-color: #ffffff;">{{ contract_data.agreed_text }}</pre>
+                                        </div>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                            {% endif %}
+
                             <!-- Contact line -->
                             <p class="dark-mode-text" style="margin: 0 0 20px; font-size: 14px; color: #6b7280; line-height: 1.7; background-color: #ffffff;">
                                 If you have any questions, please reply to this email or call us at <strong style="color: #1a6fce;">(+44) 7795 595867</strong>.

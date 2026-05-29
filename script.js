@@ -1148,11 +1148,12 @@ document.addEventListener("DOMContentLoaded", function () {
                     : "Only required for contract-based services.";
             }
 
+            // Signer name and terms checkbox are handled by the contract modal — keep hidden
             if (flowContractSignerRow) {
-                flowContractSignerRow.hidden = !shouldShow;
+                flowContractSignerRow.hidden = true;
             }
             if (flowContractTermsRow) {
-                flowContractTermsRow.hidden = !shouldShow;
+                flowContractTermsRow.hidden = true;
             }
             if (flowContractFrequencyInput) {
                 flowContractFrequencyInput.required = frequencyRequired;
@@ -4003,8 +4004,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (!flowState.schedule.preferred_time) errors.push("Choose a preferred time.");
                 if (hasContractSelections() && !flowState.schedule.contract_frequency) errors.push("Choose a contract frequency.");
                 if (hasContractSelections() && !flowState.contract.service_day) errors.push("Choose your preferred service day.");
-                if (hasContractSelections() && !flowState.contract.signer_name) errors.push("Enter the contract signer name.");
-                if (hasContractSelections() && !flowState.contract.agreed) errors.push("You must accept the contract terms.");
 
                 flowFeedback.classList.remove("is-error", "is-success");
 
@@ -4017,6 +4016,21 @@ document.addEventListener("DOMContentLoaded", function () {
                     }
                     submissionPending = false;
                     return;
+                }
+
+                // Contract modal — shown before payload is built when a contract service is selected
+                if (hasContractSelections() && typeof window.openContractModal === 'function') {
+                    var contractResult = await window.openContractModal();
+                    if (!contractResult) {
+                        // User cancelled
+                        if (flowSubmitButton) { flowSubmitButton.disabled = false; flowSubmitButton.textContent = originalLabel; }
+                        submissionPending = false;
+                        return;
+                    }
+                    flowState.contract.signer_name = contractResult.signer_name || '';
+                    flowState.contract.agreed = true;
+                    flowState.contract.contract_text = contractResult.contract_text || '';
+                    persistFlowState();
                 }
 
                 var selections = getOrderedSelections();
@@ -4066,7 +4080,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     contract_agreement: {
                         signer_name: hasContractSelections(bookableSelections) ? flowState.contract.signer_name : "",
                         service_day: hasContractSelections(bookableSelections) ? flowState.contract.service_day : "",
-                        agreed: hasContractSelections(bookableSelections) ? Boolean(flowState.contract.agreed) : false
+                        agreed: hasContractSelections(bookableSelections) ? Boolean(flowState.contract.agreed) : false,
+                        contract_text: hasContractSelections(bookableSelections) ? (flowState.contract.contract_text || '') : ''
                     },
                     postcode: flowState.customer.postcode,
                     selections: bookableSelections.map(function (selection) {
