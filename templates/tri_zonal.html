@@ -15,6 +15,20 @@
     <meta name="description" content="{{ tz_desc[:160] }}">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://done-wellcleaninglimited.org/tri-zonal">
+    {% set company_logo = site_settings.logo_path if site_settings and site_settings.logo_path else '' %}
+    {% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
+    {% set _tz_og_img = (tz.hero_bg | media_url) if tz and tz.hero_bg else (company_logo_url or 'https://done-wellcleaninglimited.org/favicon/apple-touch-icon.png') %}
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://done-wellcleaninglimited.org/tri-zonal">
+    <meta property="og:title" content="{{ company_name }} | {{ tz_title }}">
+    <meta property="og:description" content="{{ tz_desc[:160] }}">
+    <meta property="og:image" content="{{ _tz_og_img }}">
+    <meta property="og:site_name" content="{{ company_name }}">
+    <meta property="og:locale" content="en_GB">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ company_name }} | {{ tz_title }}">
+    <meta name="twitter:description" content="{{ tz_desc[:160] }}">
+    <meta name="twitter:image" content="{{ _tz_og_img }}">
     <link rel="icon" href="/favicon/favicon.ico" sizes="any">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

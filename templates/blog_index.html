@@ -8,9 +8,19 @@
     <meta name="description" content="Cleaning tips, industry news and expert advice from {{ company_name }}.">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://done-wellcleaninglimited.org/blog">
+    {% set company_logo = site_settings.logo_path if site_settings and site_settings.logo_path else '' %}
+    {% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
     <meta property="og:title" content="{{ company_name }} | Cleaning Tips &amp; News">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://done-wellcleaninglimited.org/blog">
+    <meta property="og:description" content="Cleaning tips, industry news and expert advice from {{ company_name }}.">
+    <meta property="og:image" content="{{ company_logo_url or 'https://done-wellcleaninglimited.org/favicon/apple-touch-icon.png' }}">
+    <meta property="og:site_name" content="{{ company_name }}">
+    <meta property="og:locale" content="en_GB">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ company_name }} | Cleaning Tips &amp; News">
+    <meta name="twitter:description" content="Cleaning tips, industry news and expert advice from {{ company_name }}.">
+    <meta name="twitter:image" content="{{ company_logo_url or 'https://done-wellcleaninglimited.org/favicon/apple-touch-icon.png' }}">
     <link rel="icon" href="/favicon/favicon.ico" sizes="any">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

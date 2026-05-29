@@ -10,6 +10,19 @@
     <meta name="description" content="{{ service.short_description or service.name ~ ' — professional cleaning service by Done-Well Cleaning Limited in Stevenage, Hertfordshire. Fully insured, DBS-checked cleaners. Book today.' }}">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://done-wellcleaninglimited.org/services/{{ service.id }}">
+    {% set _svc_img = (service.image_path | media_url) if service.image_path else (company_logo_url or 'https://done-wellcleaninglimited.org/favicon/apple-touch-icon.png') %}
+    {% set _svc_desc = service.short_description or (service.name ~ ' — professional cleaning service by Done-Well Cleaning Limited in Stevenage, Hertfordshire. Fully insured, DBS-checked cleaners. Book today.') %}
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://done-wellcleaninglimited.org/services/{{ service.id }}">
+    <meta property="og:title" content="{{ service.name }} | {{ company_name }}">
+    <meta property="og:description" content="{{ _svc_desc }}">
+    <meta property="og:image" content="{{ _svc_img }}">
+    <meta property="og:site_name" content="{{ company_name }}">
+    <meta property="og:locale" content="en_GB">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ service.name }} | {{ company_name }}">
+    <meta name="twitter:description" content="{{ _svc_desc }}">
+    <meta name="twitter:image" content="{{ _svc_img }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600&display=swap" rel="stylesheet">
