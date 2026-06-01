@@ -759,6 +759,17 @@ document.addEventListener("DOMContentLoaded", function () {
             testimonialFeedback.textContent = "";
 
             // Validate
+            if (!rating || rating < 1) {
+                testimonialFeedback.textContent = "Please select a star rating.";
+                testimonialFeedback.classList.add("is-error");
+                testimonialSubmitting = false;
+                if (testimonialSubmitBtn) {
+                    testimonialSubmitBtn.disabled = false;
+                    testimonialSubmitBtn.textContent = "Submit Review";
+                }
+                return;
+            }
+
             if (!name) {
                 testimonialFeedback.textContent = "Please enter your name.";
                 testimonialFeedback.classList.add("is-error");
