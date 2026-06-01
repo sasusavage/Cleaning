@@ -220,10 +220,14 @@
 
   <!-- Floating Badge (top-right) -->
   {% if hero and hero.badge_enabled and hero.badge_text %}
-  <div class="hero__floating-badge"
-       style="--badge-bg:{{ hero.badge_bg_color or '#fff' }};--badge-text:{{ hero.badge_text_color or '#000' }};">
+  <a class="hero__floating-badge"
+     href="https://g.page/r/CTMqHBkwbRbNEAI/review"
+     target="_blank"
+     rel="noopener noreferrer"
+     aria-label="Leave us a Google review"
+     style="--badge-bg:{{ hero.badge_bg_color or '#fff' }};--badge-text:{{ hero.badge_text_color or '#000' }};text-decoration:none;cursor:pointer;">
     <span class="hero__badge-label">{{ hero.badge_text }}</span>
-  </div>
+  </a>
   {% endif %}
 
   <!-- Main Content Container -->
