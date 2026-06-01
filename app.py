@@ -14191,6 +14191,12 @@ def _blog_unique_slug(base_slug, exclude_id=None):
     return slug
 
 
+@app.route('/leave-a-review')
+def leave_review_page():
+    site_settings = fetch_site_settings() or {}
+    return render_template('leave_review.html', site_settings=site_settings)
+
+
 @app.route('/tri-zonal')
 def tri_zonal_page():
     site_settings = fetch_site_settings() or {}

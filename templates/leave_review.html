@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Done-Well Cleaning Limited' %}
+    {% set company_logo = site_settings.logo_path if site_settings and site_settings.logo_path else '' %}
+    {% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
+    <title>Leave a Review | {{ company_name }}</title>
+    <meta name="description" content="Share your experience with {{ company_name }}. Leave us a review and help others discover our professional cleaning services.">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://done-wellcleaninglimited.org/leave-a-review">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://done-wellcleaninglimited.org/leave-a-review">
+    <meta property="og:title" content="Leave a Review | {{ company_name }}">
+    <meta property="og:description" content="Had a great experience? Share your review and help others discover {{ company_name }}.">
+    <meta property="og:image" content="{{ company_logo_url or 'https://done-wellcleaninglimited.org/favicon/apple-touch-icon.png' }}">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Leave a Review | {{ company_name }}">
+    <meta name="twitter:description" content="Had a great experience? Share your review and help others discover {{ company_name }}.">
+    <meta name="twitter:image" content="{{ company_logo_url or 'https://done-wellcleaninglimited.org/favicon/apple-touch-icon.png' }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('favicon_asset', filename='apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('favicon_asset', filename='favicon-32x32.png') }}">
+    <link rel="shortcut icon" href="{{ url_for('favicon') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Inter', Arial, sans-serif; background: #f0f4f8; color: #1f2937; min-height: 100vh; display: flex; flex-direction: column; }
+        a { color: inherit; }
+
+        /* Nav */
+        .topnav { background: #1e3a5f; padding: 0 1.5rem; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+        .topnav__brand { display: flex; align-items: center; gap: 0.75rem; text-decoration: none; }
+        .topnav__logo { height: 36px; width: auto; }
+        .topnav__name { color: #fff; font-weight: 700; font-size: 1rem; }
+        .topnav__back { color: rgba(255,255,255,0.75); font-size: 0.85rem; text-decoration: none; display: flex; align-items: center; gap: 0.35rem; }
+        .topnav__back:hover { color: #fff; }
+
+        /* Page */
+        .page { flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 2.5rem 1rem 3rem; }
+        .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); max-width: 560px; width: 100%; overflow: hidden; }
+        .card__header { background: #1e3a5f; padding: 2rem 2rem 1.5rem; text-align: center; }
+        .card__header img { height: 48px; width: auto; margin-bottom: 0.75rem; }
+        .card__header h1 { margin: 0 0 0.35rem; font-size: 1.4rem; font-weight: 700; color: #fff; }
+        .card__header p { margin: 0; font-size: 0.9rem; color: rgba(255,255,255,0.75); }
+        .card__body { padding: 2rem; }
+
+        /* Google CTA */
+        .google-cta { display: flex; align-items: center; gap: 1rem; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; text-decoration: none; color: #1e3a5f; transition: background 0.15s; }
+        .google-cta:hover { background: #dbeafe; }
+        .google-cta__icon { flex-shrink: 0; }
+        .google-cta__text strong { display: block; font-size: 0.95rem; font-weight: 700; }
+        .google-cta__text span { font-size: 0.8rem; color: #6b7280; }
+        .google-cta__arrow { margin-left: auto; color: #6b7280; font-size: 1.1rem; }
+
+        /* Divider */
+        .divider { display: flex; align-items: center; gap: 0.75rem; margin: 0 0 1.5rem; color: #9ca3af; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+        .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
+
+        /* Form */
+        .form-group { margin-bottom: 1.1rem; }
+        .form-group label { display: block; font-size: 0.82rem; font-weight: 600; color: #374151; margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.04em; }
+        .form-group input, .form-group textarea {
+            width: 100%; padding: 0.6rem 0.85rem; border: 1px solid #d1d5db; border-radius: 8px;
+            font-size: 0.9rem; font-family: inherit; color: #1e293b; background: #fff;
+            transition: border-color 0.15s;
+        }
+        .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        .form-group textarea { resize: vertical; min-height: 110px; }
+        .form-hint { font-size: 0.78rem; color: #6b7280; margin-top: 0.3rem; }
+
+        /* Stars */
+        .star-rating { display: flex; gap: 0.25rem; }
+        .star-btn { background: none; border: none; font-size: 2rem; color: #d1d5db; cursor: pointer; padding: 0; transition: color 0.15s, transform 0.15s; }
+        .star-btn:hover { transform: scale(1.1); }
+        .star-btn.active { color: #f59e0b; }
+
+        /* Submit */
+        .btn-submit { width: 100%; padding: 0.85rem; background: #1e3a5f; color: #fff; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background 0.15s; letter-spacing: 0.03em; text-transform: uppercase; }
+        .btn-submit:hover { background: #2563eb; }
+        .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .feedback { margin-top: 0.75rem; font-size: 0.875rem; text-align: center; min-height: 1.2em; }
+        .feedback.is-error { color: #dc2626; }
+        .feedback.is-success { color: #16a34a; font-weight: 600; }
+
+        /* Success state */
+        .success-box { display: none; text-align: center; padding: 2rem; }
+        .success-box__icon { font-size: 3rem; margin-bottom: 0.75rem; }
+        .success-box h2 { margin: 0 0 0.5rem; font-size: 1.3rem; color: #1e3a5f; }
+        .success-box p { margin: 0; color: #6b7280; font-size: 0.9rem; }
+        .success-box__google { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 1.25rem; padding: 0.65rem 1.25rem; background: #1a73e8; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.875rem; }
+        .success-box__google:hover { background: #1557b0; }
+
+        /* Footer */
+        .page-footer { padding: 1.25rem; text-align: center; font-size: 0.8rem; color: #9ca3af; }
+        .page-footer a { color: #6b7280; }
+    </style>
+</head>
+<body>
+
+<nav class="topnav">
+    <a class="topnav__brand" href="{{ url_for('index') }}">
+        {% if company_logo_url %}
+        <img class="topnav__logo" src="{{ company_logo_url }}" alt="{{ company_name }}">
+        {% else %}
+        <span class="topnav__name">{{ company_name }}</span>
+        {% endif %}
+    </a>
+    <a class="topnav__back" href="{{ url_for('index') }}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to site
+    </a>
+</nav>
+
+<div class="page">
+    <div class="card">
+        <div class="card__header">
+            {% if company_logo_url %}<img src="{{ company_logo_url }}" alt="{{ company_name }}">{% endif %}
+            <h1>Leave Us a Review</h1>
+            <p>Your feedback means the world to us and helps others find trusted cleaners.</p>
+        </div>
+        <div class="card__body">
+
+            <!-- Google Review CTA -->
+            <a class="google-cta" href="https://g.page/r/CTMqHBkwbRbNEAI/review" target="_blank" rel="noopener noreferrer">
+                <span class="google-cta__icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                </span>
+                <span class="google-cta__text">
+                    <strong>Review us on Google</strong>
+                    <span>Opens Google — visible to everyone searching for cleaners</span>
+                </span>
+                <span class="google-cta__arrow">→</span>
+            </a>
+
+            <div class="divider">or leave a review on our site</div>
+
+            <!-- Internal review form -->
+            <div id="review-form-wrap">
+                <form id="review-form" novalidate>
+                    <div class="form-group">
+                        <label for="r-name">Your Name <span style="color:#dc2626;">*</span></label>
+                        <input type="text" id="r-name" name="name" placeholder="Enter your full name" required>
+                        <p class="form-hint">Use the same name from your booking for instant verification.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="r-email">Email Address (Optional)</label>
+                        <input type="email" id="r-email" name="email" placeholder="you@example.com">
+                        <p class="form-hint">We'll notify you when your review is published.</p>
+                    </div>
+                    <div class="form-group">
+                        <label>Your Rating <span style="color:#dc2626;">*</span></label>
+                        <div class="star-rating" id="r-star-rating">
+                            <button type="button" class="star-btn" data-rating="1" aria-label="Rate 1 star">★</button>
+                            <button type="button" class="star-btn" data-rating="2" aria-label="Rate 2 stars">★</button>
+                            <button type="button" class="star-btn" data-rating="3" aria-label="Rate 3 stars">★</button>
+                            <button type="button" class="star-btn" data-rating="4" aria-label="Rate 4 stars">★</button>
+                            <button type="button" class="star-btn" data-rating="5" aria-label="Rate 5 stars">★</button>
+                        </div>
+                        <input type="hidden" id="r-rating" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="r-message">Your Review <span style="color:#dc2626;">*</span></label>
+                        <textarea id="r-message" name="message" placeholder="Tell us about your experience with our cleaning service..." required></textarea>
+                    </div>
+                    <button class="btn-submit" type="submit" id="r-submit">Submit Review</button>
+                    <p class="feedback" id="r-feedback"></p>
+                </form>
+            </div>
+
+            <div class="success-box" id="review-success">
+                <div class="success-box__icon">🎉</div>
+                <h2>Thank you for your review!</h2>
+                <p>We really appreciate your feedback. If you haven't already, please consider leaving a Google review too — it helps us reach more customers.</p>
+                <a class="success-box__google" href="https://g.page/r/CTMqHBkwbRbNEAI/review" target="_blank" rel="noopener noreferrer">
+                    <svg width="16" height="16" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#fff"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#fff"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff"/></svg>
+                    Also leave a Google Review
+                </a>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div class="page-footer">
+    <a href="{{ url_for('index') }}">{{ company_name }}</a> · Professional Cleaning Services
+</div>
+
+<script>
+(function() {
+    var starRating = document.getElementById('r-star-rating');
+    var ratingInput = document.getElementById('r-rating');
+    var starButtons = starRating ? starRating.querySelectorAll('.star-btn') : [];
+
+    function updateStars(rating) {
+        starButtons.forEach(function(star) {
+            star.classList.toggle('active', parseInt(star.getAttribute('data-rating'), 10) <= rating);
+            star.style.color = '';
+        });
+    }
+
+    starButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var r = parseInt(btn.getAttribute('data-rating'), 10);
+            ratingInput.value = r;
+            updateStars(r);
+        });
+        btn.addEventListener('mouseenter', function() {
+            var r = parseInt(btn.getAttribute('data-rating'), 10);
+            starButtons.forEach(function(s) {
+                s.style.color = parseInt(s.getAttribute('data-rating'), 10) <= r ? '#f59e0b' : '';
+            });
+        });
+    });
+    if (starRating) {
+        starRating.addEventListener('mouseleave', function() {
+            updateStars(parseInt(ratingInput.value, 10) || 0);
+        });
+    }
+
+    var form = document.getElementById('review-form');
+    var feedback = document.getElementById('r-feedback');
+    var submitBtn = document.getElementById('r-submit');
+    var submitting = false;
+
+    form && form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        if (submitting) return;
+
+        var name = (document.getElementById('r-name').value || '').trim();
+        var email = (document.getElementById('r-email').value || '').trim();
+        var rating = parseInt(ratingInput.value, 10) || 0;
+        var message = (document.getElementById('r-message').value || '').trim();
+
+        feedback.className = 'feedback';
+        feedback.textContent = '';
+
+        if (!rating) { feedback.textContent = 'Please select a star rating.'; feedback.className = 'feedback is-error'; return; }
+        if (!name) { feedback.textContent = 'Please enter your name.'; feedback.className = 'feedback is-error'; return; }
+        if (!message || message.length < 10) { feedback.textContent = 'Please write a review (at least 10 characters).'; feedback.className = 'feedback is-error'; return; }
+
+        submitting = true;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting…';
+
+        fetch('/api/testimonials/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name, email: email, rating: rating, message: message })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            submitting = false;
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Review';
+            if (data.error) {
+                feedback.textContent = data.error;
+                feedback.className = 'feedback is-error';
+            } else {
+                document.getElementById('review-form-wrap').style.display = 'none';
+                document.getElementById('review-success').style.display = 'block';
+            }
+        })
+        .catch(function() {
+            submitting = false;
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Review';
+            feedback.textContent = 'Unable to submit. Please try again.';
+            feedback.className = 'feedback is-error';
+        });
+    });
+})();
+</script>
+</body>
+</html>
