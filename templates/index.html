@@ -706,7 +706,12 @@
                     <div class="service-card__body">
                         <h3>{{ job.title }}</h3>
                         <p>{{ job.description }}</p>
-                        <button class="button button--ghost" data-job="{{ job.title }}" style="margin-top: 1.5rem; width: 100%; justify-content: center;">Apply Now</button>
+                        <div style="display:flex;gap:0.5rem;margin-top:1.5rem;">
+                            <button class="button button--ghost" data-job="{{ job.title }}" style="flex:1;justify-content:center;">Apply Now</button>
+                            <button class="button button--ghost job-share-btn" data-job-title="{{ job.title }}" aria-label="Share {{ job.title }}" title="Share this role" style="padding:0 0.75rem;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                            </button>
+                        </div>
                     </div>
                 </article>
                 {% endfor %}
@@ -725,7 +730,12 @@
                         <div class="service-card__body">
                             <h3>{{ job.title }}</h3>
                             <p>{{ job.description }}</p>
-                            <button class="button button--ghost" data-job="{{ job.title }}" style="margin-top: 1.5rem; width: 100%; justify-content: center;">Apply Now</button>
+                            <div style="display:flex;gap:0.5rem;margin-top:1.5rem;">
+                                <button class="button button--ghost" data-job="{{ job.title }}" style="flex:1;justify-content:center;">Apply Now</button>
+                                <button class="button button--ghost job-share-btn" data-job-title="{{ job.title }}" aria-label="Share {{ job.title }}" title="Share this role" style="padding:0 0.75rem;">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                                </button>
+                            </div>
                         </div>
                     </article>
                     {% endfor %}
@@ -1511,6 +1521,39 @@
             </form>
         </div>
     </div>
+
+    <!-- Job share button handler -->
+    <script>
+    (function() {
+        var SHARE_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+        document.addEventListener('click', function(e) {
+            var btn = e.target.closest('.job-share-btn');
+            if (!btn) return;
+            var jobTitle = btn.getAttribute('data-job-title') || 'Job Opportunity';
+            var url = window.location.origin + window.location.pathname + '#careers';
+            var shareText = jobTitle + ' — ' + '{{ company_name }}' + ' is hiring! Check out this role.';
+            if (navigator.share) {
+                navigator.share({ title: jobTitle + ' | ' + '{{ company_name }}', text: shareText, url: url }).catch(function(){});
+            } else if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(function() {
+                    btn.innerHTML = '&#10003;';
+                    setTimeout(function() { btn.innerHTML = SHARE_SVG; }, 2000);
+                });
+            } else {
+                var ta = document.createElement('textarea');
+                ta.value = url;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                btn.innerHTML = '&#10003;';
+                setTimeout(function() { btn.innerHTML = SHARE_SVG; }, 2000);
+            }
+        });
+    })();
+    </script>
 
     <!-- Testimonial Modal -->
     <div id="testimonialModal" class="modal testimonial-modal" aria-hidden="true">

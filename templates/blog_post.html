@@ -8,12 +8,21 @@
     <meta name="description" content="{{ post.meta_description or post.excerpt or (post.title ~ ' — read our latest cleaning tips and advice.') }}">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://done-wellcleaninglimited.org/blog/{{ post.slug }}">
-    <meta property="og:title" content="{{ post.title }}">
+    {% set company_logo = site_settings.logo_path if site_settings and site_settings.logo_path else '' %}
+    {% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
+    {% set _post_img = ('https://done-wellcleaninglimited.org/' ~ post.image_path) if post.image_path else (company_logo_url or 'https://done-wellcleaninglimited.org/favicon/apple-touch-icon.png') %}
+    {% set _post_desc = post.meta_description or post.excerpt or (post.title ~ ' — read our latest cleaning tips and advice from ' ~ company_name ~ '.') %}
+    <meta property="og:title" content="{{ post.title }} | {{ company_name }}">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://done-wellcleaninglimited.org/blog/{{ post.slug }}">
-    {% if post.image_path %}<meta property="og:image" content="https://done-wellcleaninglimited.org/{{ post.image_path }}">{% endif %}
-    <meta property="og:description" content="{{ post.meta_description or post.excerpt or '' }}">
+    <meta property="og:image" content="{{ _post_img }}">
+    <meta property="og:description" content="{{ _post_desc }}">
+    <meta property="og:site_name" content="{{ company_name }}">
+    <meta property="og:locale" content="en_GB">
     <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ post.title }} | {{ company_name }}">
+    <meta name="twitter:description" content="{{ _post_desc }}">
+    <meta name="twitter:image" content="{{ _post_img }}">
     <link rel="icon" href="/favicon/favicon.ico" sizes="any">
     <script type="application/ld+json">
     {
