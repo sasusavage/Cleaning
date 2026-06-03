@@ -112,7 +112,12 @@
                     {% if post.published_at %}
                     <p class="blog-card__meta">{{ post.published_at.strftime('%d %B %Y') if post.published_at and post.published_at.strftime is defined else post.published_at }}</p>
                     {% endif %}
-                    <a class="blog-card__link" href="/blog/{{ post.slug }}">Read more →</a>
+                    <div style="display:flex;align-items:center;gap:0.75rem;">
+                        <a class="blog-card__link" href="/blog/{{ post.slug }}">Read more →</a>
+                        <button class="blog-share-btn" data-blog-url="/blog/{{ post.slug }}" data-blog-title="{{ post.title }}" aria-label="Share {{ post.title }}" title="Share" style="background:none;border:none;cursor:pointer;padding:0.25rem;display:flex;align-items:center;color:#6b7280;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                        </button>
+                    </div>
                 </div>
             </article>
             {% endfor %}
@@ -124,6 +129,38 @@
         </div>
         {% endif %}
     </main>
+
+    <script>
+    (function() {
+        var SHARE_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+        document.addEventListener('click', function(e) {
+            var btn = e.target.closest('.blog-share-btn');
+            if (!btn) return;
+            var title = btn.getAttribute('data-blog-title') || 'Blog Post';
+            var path = btn.getAttribute('data-blog-url') || '/blog';
+            var url = window.location.origin + path;
+            if (navigator.share) {
+                navigator.share({ title: title, url: url }).catch(function(){});
+            } else if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(function() {
+                    btn.innerHTML = '&#10003;';
+                    setTimeout(function() { btn.innerHTML = SHARE_SVG; }, 2000);
+                });
+            } else {
+                var ta = document.createElement('textarea');
+                ta.value = url;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                btn.innerHTML = '&#10003;';
+                setTimeout(function() { btn.innerHTML = SHARE_SVG; }, 2000);
+            }
+        });
+    })();
+    </script>
 
     <footer class="blog-footer">
         &copy; {{ site_settings.company_name or 'Done-Well Cleaning Limited' }} &middot;

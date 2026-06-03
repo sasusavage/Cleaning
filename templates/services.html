@@ -108,7 +108,12 @@
                             <h3 class="service-card__name">{{ service.name }}</h3>
                             <p class="service-card__description">{{ (service.short_description or service.description or '')[:120] }}{% if (service.short_description or service.description or '')|length > 120 %}…{% endif %}</p>
                             <p class="service-card__price">{{ price_label }}</p>
-                            <a class="button button--primary svc-btn" href="/services/{{ service.id }}">Read More</a>
+                            <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+                                <a class="button button--primary svc-btn" href="/services/{{ service.id }}" style="flex:1;justify-content:center;">Read More</a>
+                                <button class="button button--ghost svc-share-btn" data-svc-url="/services/{{ service.id }}" data-svc-name="{{ service.name }}" aria-label="Share {{ service.name }}" title="Share" style="padding:0 0.75rem;">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                                </button>
+                            </div>
                         </div>
                     </article>
                     {% endfor %}
@@ -167,7 +172,12 @@
                             </div>
                             {% endif %}
                             <p class="service-card__price">{{ price_label }}</p>
-                            <a class="button button--primary svc-btn" href="/services/{{ service.id }}">Read More</a>
+                            <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+                                <a class="button button--primary svc-btn" href="/services/{{ service.id }}" style="flex:1;justify-content:center;">Read More</a>
+                                <button class="button button--ghost svc-share-btn" data-svc-url="/services/{{ service.id }}" data-svc-name="{{ service.name }}" aria-label="Share {{ service.name }}" title="Share" style="padding:0 0.75rem;">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                                </button>
+                            </div>
                         </div>
                     </article>
                     {% endif %}
@@ -213,7 +223,12 @@
                             </div>
                             {% endif %}
                             <p class="service-card__price">{{ price_label }}</p>
-                            <a class="button button--primary svc-btn" href="/services/{{ service.id }}">Read More</a>
+                            <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+                                <a class="button button--primary svc-btn" href="/services/{{ service.id }}" style="flex:1;justify-content:center;">Read More</a>
+                                <button class="button button--ghost svc-share-btn" data-svc-url="/services/{{ service.id }}" data-svc-name="{{ service.name }}" aria-label="Share {{ service.name }}" title="Share" style="padding:0 0.75rem;">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                                </button>
+                            </div>
                         </div>
                     </article>
                     {% endif %}
@@ -225,5 +240,36 @@
             </section>
         </main>
     </div>
+    <script>
+    (function() {
+        var SHARE_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+        document.addEventListener('click', function(e) {
+            var btn = e.target.closest('.svc-share-btn');
+            if (!btn) return;
+            var name = btn.getAttribute('data-svc-name') || 'Cleaning Service';
+            var path = btn.getAttribute('data-svc-url') || '/services';
+            var url = window.location.origin + path;
+            if (navigator.share) {
+                navigator.share({ title: name, url: url }).catch(function(){});
+            } else if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(function() {
+                    btn.innerHTML = '&#10003;';
+                    setTimeout(function() { btn.innerHTML = SHARE_SVG; }, 2000);
+                });
+            } else {
+                var ta = document.createElement('textarea');
+                ta.value = url;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                btn.innerHTML = '&#10003;';
+                setTimeout(function() { btn.innerHTML = SHARE_SVG; }, 2000);
+            }
+        });
+    })();
+    </script>
 </body>
 </html>

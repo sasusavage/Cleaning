@@ -344,7 +344,12 @@
                         <h3 class="service-card__title">One-Time Services</h3>
                         <p class="service-card__description">Deep cleans, move-in/move-out, post-build and one-off specialist jobs.</p>
                         <p class="service-card__count"><span>{{ one_time_services|length }}</span> service{{ 's' if one_time_services|length != 1 else '' }} available</p>
-                        <a class="button button--primary" href="{{ url_for('services_page') }}#one-time" style="margin-top: auto; width: 100%; justify-content: center;">Book One-Time &rarr;</a>
+                        <div style="display:flex;gap:0.5rem;margin-top:auto;">
+                            <a class="button button--primary" href="{{ url_for('services_page') }}#one-time" style="flex:1;justify-content:center;">Book One-Time &rarr;</a>
+                            <button class="button button--ghost svc-share-btn" data-svc-url="/services#one-time" data-svc-name="One-Time Cleaning Services" aria-label="Share One-Time Services" title="Share" style="padding:0 0.75rem;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                            </button>
+                        </div>
                     </div>
                 </article>
                 <article class="service-card service-card--featured">
@@ -356,7 +361,12 @@
                         <h3 class="service-card__title">Contract Services</h3>
                         <p class="service-card__description">Recurring plans with weekly, fortnightly, and monthly options.</p>
                         <p class="service-card__count"><span>{{ contract_services|length }}</span> plan{{ 's' if contract_services|length != 1 else '' }} available</p>
-                        <a class="button button--primary" href="{{ url_for('services_page') }}#contract-based" style="margin-top: auto; width: 100%; justify-content: center; background:#2563eb; border-color:#2563eb;">View Plans &rarr;</a>
+                        <div style="display:flex;gap:0.5rem;margin-top:auto;">
+                            <a class="button button--primary" href="{{ url_for('services_page') }}#contract-based" style="flex:1;justify-content:center;background:#2563eb;border-color:#2563eb;">View Plans &rarr;</a>
+                            <button class="button button--ghost svc-share-btn" data-svc-url="/services#contract-based" data-svc-name="Contract Cleaning Plans" aria-label="Share Contract Services" title="Share" style="padding:0 0.75rem;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                            </button>
+                        </div>
                     </div>
                 </article>
             </div><!-- #services-real -->
@@ -1526,14 +1536,9 @@
     <script>
     (function() {
         var SHARE_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
-        document.addEventListener('click', function(e) {
-            var btn = e.target.closest('.job-share-btn');
-            if (!btn) return;
-            var jobTitle = btn.getAttribute('data-job-title') || 'Job Opportunity';
-            var url = window.location.origin + window.location.pathname + '#careers';
-            var shareText = jobTitle + ' — ' + '{{ company_name }}' + ' is hiring! Check out this role.';
+        function doShare(btn, title, url) {
             if (navigator.share) {
-                navigator.share({ title: jobTitle + ' | ' + '{{ company_name }}', text: shareText, url: url }).catch(function(){});
+                navigator.share({ title: title, url: url }).catch(function(){});
             } else if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(url).then(function() {
                     btn.innerHTML = '&#10003;';
@@ -1550,6 +1555,20 @@
                 document.body.removeChild(ta);
                 btn.innerHTML = '&#10003;';
                 setTimeout(function() { btn.innerHTML = SHARE_SVG; }, 2000);
+            }
+        }
+        document.addEventListener('click', function(e) {
+            var btn = e.target.closest('.job-share-btn');
+            if (btn) {
+                var jobTitle = btn.getAttribute('data-job-title') || 'Job Opportunity';
+                doShare(btn, jobTitle + ' | {{ company_name }}', window.location.origin + window.location.pathname + '#careers');
+                return;
+            }
+            btn = e.target.closest('.svc-share-btn');
+            if (btn) {
+                var name = btn.getAttribute('data-svc-name') || 'Cleaning Service';
+                var path = btn.getAttribute('data-svc-url') || '/services';
+                doShare(btn, name + ' | {{ company_name }}', window.location.origin + path);
             }
         });
     })();
