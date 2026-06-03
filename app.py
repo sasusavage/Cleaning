@@ -5923,6 +5923,9 @@ def resolve_service_selections(raw_selections):
             if staff < min_staff:
                 raise ValueError(f"Minimum staff for this tier is {min_staff}.")
             if hours <= 0:
+                
+                
+                
                 raise ValueError('Please provide estimated hours greater than 0.')
             hourly_rate = normalize_price_value(tier.get('hourly_rate'))
             if hourly_rate is None:
