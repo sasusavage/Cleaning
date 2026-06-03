@@ -300,9 +300,23 @@
                             </table>
                             {% endif %}
 
+                            <!-- Cancel / reschedule -->
+                            {% if cancel_url and not (payment and payment.is_paid) and not is_survey_request %}
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 20px; background-color: #fef9c3; border-radius: 10px; border-left: 4px solid #f59e0b;">
+                                <tr>
+                                    <td style="padding: 14px 20px; background-color: #fef9c3;">
+                                        <p style="margin: 0 0 6px; font-size: 13px; color: #92400e; background-color: #fef9c3;">
+                                            Need to cancel or reschedule? Please cancel at least 24 hours before your appointment.
+                                        </p>
+                                        <a href="{{ cancel_url }}" style="display: inline-block; margin-top: 6px; color: #b45309; font-size: 13px; font-weight: 600; text-decoration: underline; background-color: #fef9c3;">Cancel this booking →</a>
+                                    </td>
+                                </tr>
+                            </table>
+                            {% endif %}
+
                             <!-- Contact line -->
                             <p class="dark-mode-text" style="margin: 0 0 20px; font-size: 14px; color: #6b7280; line-height: 1.7; background-color: #ffffff;">
-                                If you have any questions, please reply to this email or call us at <strong style="color: #1a6fce;">(+44) 7795 595867</strong>.
+                                If you have any questions, please reply to this email or call us at <strong style="color: #1a6fce;">{{ company_phone or '(+44) 7795 595867' }}</strong>.
                             </p>
                             <p class="dark-mode-text" style="margin: 0; font-size: 15px; color: #1f2937; background-color: #ffffff;">
                                 Warm regards,<br>

@@ -1263,10 +1263,35 @@
                             <div class="form-row">
                                 <label for="flow-date">Preferred Date</label>
                                 <input type="date" id="flow-date" name="flow_date" required>
+                                <script>
+                                (function(){
+                                    var d = document.getElementById('flow-date');
+                                    if (d) {
+                                        var today = new Date();
+                                        var yyyy = today.getFullYear();
+                                        var mm = String(today.getMonth()+1).padStart(2,'0');
+                                        var dd = String(today.getDate()+1).padStart(2,'0'); // earliest = tomorrow
+                                        d.min = yyyy + '-' + mm + '-' + dd;
+                                    }
+                                })();
+                                </script>
                             </div>
                             <div class="form-row">
-                                <label for="flow-time">Preferred Time</label>
-                                <input type="time" id="flow-time" name="flow_time" required>
+                                <label for="flow-time">Preferred Time Slot</label>
+                                <select id="flow-time" name="flow_time" required>
+                                    <option value="">Select a time slot</option>
+                                    <option value="08:00">8:00 AM – 9:00 AM</option>
+                                    <option value="09:00">9:00 AM – 10:00 AM</option>
+                                    <option value="10:00">10:00 AM – 11:00 AM</option>
+                                    <option value="11:00">11:00 AM – 12:00 PM</option>
+                                    <option value="12:00">12:00 PM – 1:00 PM</option>
+                                    <option value="13:00">1:00 PM – 2:00 PM</option>
+                                    <option value="14:00">2:00 PM – 3:00 PM</option>
+                                    <option value="15:00">3:00 PM – 4:00 PM</option>
+                                    <option value="16:00">4:00 PM – 5:00 PM</option>
+                                    <option value="17:00">5:00 PM – 6:00 PM</option>
+                                </select>
+                                <small class="form-hint">We'll aim to arrive within the selected hour.</small>
                             </div>
                             <div class="form-row" id="flow-contract-frequency-row" hidden>
                                 <label for="flow-contract-frequency">Contract Frequency</label>

@@ -1942,10 +1942,11 @@ def send_request_notifications(request_record, attachments=None):
     # Parse order items for email templates
     order_items, order_totals, schedule_info, customer_notes, location_info, assigned_base_info = parse_order_for_email(service_flow)
 
-    # Build absolute logo URL for email templates
+    # Build absolute logo URL and company phone for email templates
     _site = fetch_site_settings() or {}
     _logo_path = (_site.get('logo_path') or '').strip()
     logo_url = _build_logo_url(_logo_path) or None
+    company_phone = _site.get('company_phone') or DEFAULT_SITE_SETTINGS['company_phone']
 
     try:
         admin_html = render_template(
@@ -1958,7 +1959,8 @@ def send_request_notifications(request_record, attachments=None):
             customer_notes=customer_notes,
             location_info=location_info,
             assigned_base_info=assigned_base_info,
-            logo_url=logo_url
+            logo_url=logo_url,
+            company_phone=company_phone
         )
     except Exception:
         app.logger.exception('Failed to render admin email template.')
@@ -1997,6 +1999,10 @@ def send_request_notifications(request_record, attachments=None):
                 'service_day': _contract_meta.get('service_day') or '',
                 'agreed_text': _contract_meta.get('agreed_text') or '',
             }
+        _ref_id = context.get('ref_id') or ''
+        _cancel_token = _make_cancel_token(_ref_id) if _ref_id else ''
+        _base_url = _get_app_base_url()
+        _cancel_url = f"{_base_url}/booking/cancel?ref={_ref_id}&token={_cancel_token}" if _ref_id else ''
         try:
             user_html = render_template(
                 'emails/request_user.html',
@@ -2008,7 +2014,9 @@ def send_request_notifications(request_record, attachments=None):
                 location_info=location_info,
                 logo_url=logo_url,
                 is_survey_request=is_survey_request,
-                contract_data=contract_email_data
+                contract_data=contract_email_data,
+                company_phone=company_phone,
+                cancel_url=_cancel_url
             )
         except Exception:
             app.logger.exception('Failed to render user confirmation email template.')
@@ -6408,7 +6416,8 @@ DEFAULT_HERO_CONTENT = {
 DEFAULT_SITE_SETTINGS = {
     'id': 1,
     'company_name': 'Done-well cleaning limited.org',
-    'logo_path': None
+    'logo_path': None,
+    'company_phone': '+44 7795 595867'
 }
 
 
@@ -6987,8 +6996,14 @@ def fetch_site_content():
 def fetch_site_settings():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Ensure company_phone column exists (safe to run every time — cached after first run)
+    try:
+        cursor.execute("ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS company_phone VARCHAR(50) NULL")
+        conn.commit()
+    except Exception:
+        conn.rollback()
     cursor.execute(
-        "SELECT id, company_name, logo_path FROM site_settings WHERE id = 1"
+        "SELECT id, company_name, logo_path, company_phone FROM site_settings WHERE id = 1"
     )
     settings = cursor.fetchone()
     if not settings:
@@ -7006,7 +7021,7 @@ def fetch_site_settings():
         cursor.close()
         cursor = conn.cursor(dictionary=True)
         cursor.execute(
-            "SELECT id, company_name, logo_path FROM site_settings WHERE id = 1"
+            "SELECT id, company_name, logo_path, company_phone FROM site_settings WHERE id = 1"
         )
         settings = cursor.fetchone()
     cursor.close()
@@ -7016,7 +7031,8 @@ def fetch_site_settings():
     normalized = {
         'id': settings.get('id') or DEFAULT_SITE_SETTINGS['id'],
         'company_name': sanitize_text(settings.get('company_name'), 255) or DEFAULT_SITE_SETTINGS['company_name'],
-        'logo_path': settings.get('logo_path') or None
+        'logo_path': settings.get('logo_path') or None,
+        'company_phone': sanitize_text(settings.get('company_phone'), 50) or DEFAULT_SITE_SETTINGS['company_phone']
     }
     return normalized
 
@@ -8553,13 +8569,84 @@ def payment_callback_success():
         except Exception:
             app.logger.exception('Success callback fallback finalization failed for session %s', session_id)
 
-    return redirect(f"{target}?payment=success")
+    return redirect(url_for('booking_confirmation', paid='1'))
 
 
 @app.route('/payment/callback/cancel', methods=['GET'])
 def payment_callback_cancel():
     target = url_for('index')
     return redirect(f"{target}?payment=cancelled")
+
+
+# ─── Booking confirmation & cancellation ────────────────────────────────────
+
+def _make_cancel_token(ref_id):
+    """HMAC-based token so cancel links cannot be forged."""
+    key = (Config.SECRET_KEY or 'fallback-secret').encode()
+    return hmac.new(key, str(ref_id).encode(), hashlib.sha256).hexdigest()[:20]
+
+
+@app.route('/booking/confirmation')
+def booking_confirmation():
+    site_settings = fetch_site_settings()
+    ref = sanitize_text(request.args.get('ref'), 50) or ''
+    name = sanitize_text(request.args.get('name'), 150) or ''
+    service = sanitize_text(request.args.get('service'), 255) or ''
+    paid = request.args.get('paid') == '1'
+    cancel_token = _make_cancel_token(ref) if ref else ''
+    return render_template(
+        'booking_confirmation.html',
+        site_settings=site_settings,
+        ref=ref,
+        name=name,
+        service=service,
+        paid=paid,
+        cancel_token=cancel_token
+    )
+
+
+@app.route('/booking/cancel')
+def booking_cancel():
+    ref = sanitize_text(request.args.get('ref'), 50) or ''
+    token = sanitize_text(request.args.get('token'), 50) or ''
+    site_settings = fetch_site_settings()
+    error = None
+    cancelled = False
+
+    if not ref or not token:
+        error = 'Invalid cancellation link.'
+    elif not hmac.compare_digest(token, _make_cancel_token(ref)):
+        error = 'This cancellation link is invalid or has expired.'
+    else:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, status, name, service_name FROM requests WHERE ref_id = %s LIMIT 1", (ref,))
+            row = cursor.fetchone()
+            if not row:
+                error = 'Booking not found. It may have already been cancelled.'
+            elif row['status'] in ('cancelled', 'completed'):
+                error = f"This booking is already {row['status']} and cannot be cancelled again."
+            else:
+                cursor.execute(
+                    "UPDATE requests SET status = 'cancelled' WHERE ref_id = %s AND status NOT IN ('cancelled', 'completed')",
+                    (ref,)
+                )
+                conn.commit()
+                cancelled = True
+            cursor.close()
+            conn.close()
+        except Exception:
+            app.logger.exception('Failed to cancel booking ref=%s', ref)
+            error = 'Something went wrong. Please contact us to cancel your booking.'
+
+    return render_template(
+        'booking_cancel.html',
+        site_settings=site_settings,
+        ref=ref,
+        cancelled=cancelled,
+        error=error
+    )
 
 
 @app.route('/api/job-positions', methods=['GET'])

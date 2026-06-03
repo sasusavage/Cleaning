@@ -4139,17 +4139,18 @@ document.addEventListener("DOMContentLoaded", function () {
                         return;
                     }
 
-                    var refId = data.service_request_id || data.request_id || null;
-                    var successMsg = (data.message || "Request received! We will confirm shortly.");
-                    if (refId) successMsg += " Your reference: #" + refId;
-                    flowFeedback.textContent = successMsg;
+                    var refId = data.reference || data.ref_id || data.service_request_id || data.request_id || null;
+                    var serviceName = encodeURIComponent(data.service_name || '');
+                    var customerName = encodeURIComponent(data.name || '');
+                    flowFeedback.textContent = "Request received! Redirecting…";
                     flowFeedback.classList.add("is-success");
                     sendAnalyticsEvent("request_submission", { form: "service-flow", request_id: data.request_id });
-                    // Clear domestic context only on success
                     window.__domesticPlanContext = null;
                     resetFlow();
                     submissionPending = false;
-                    window.setTimeout(closeServiceModal, 3000);
+                    var confirmUrl = "/booking/confirmation";
+                    if (refId) confirmUrl += "?ref=" + encodeURIComponent(refId) + "&name=" + customerName + "&service=" + serviceName;
+                    window.setTimeout(function() { window.location.href = confirmUrl; }, 1200);
                 } else {
                     flowFeedback.textContent = data.error || "Unable to submit right now. Please retry.";
                     flowFeedback.classList.add("is-error");

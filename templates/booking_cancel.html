@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cancel Booking | {{ site_settings.company_name }}</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="/favicon/favicon.ico" sizes="any">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
+        .card { background: #fff; border-radius: 1.25rem; box-shadow: 0 4px 32px rgba(0,0,0,0.10); max-width: 480px; width: 100%; overflow: hidden; }
+        .card__header { padding: 2rem 2rem 1.5rem; text-align: center; }
+        .card__icon { font-size: 3rem; margin-bottom: 0.75rem; display: block; }
+        .card__title { font-size: 1.4rem; font-weight: 800; color: #111827; margin-bottom: 0.25rem; }
+        .card__subtitle { font-size: 0.9rem; color: #6b7280; line-height: 1.6; }
+        .card__body { padding: 0 2rem 2rem; }
+        .ref { font-size: 0.8rem; color: #9ca3af; margin-bottom: 1.25rem; text-align: center; }
+        .alert { border-radius: 0.6rem; padding: 1rem 1.25rem; margin-bottom: 1.25rem; font-size: 0.9rem; line-height: 1.6; }
+        .alert--success { background: #dcfce7; color: #166534; border-left: 4px solid #16a34a; }
+        .alert--error { background: #fee2e2; color: #991b1b; border-left: 4px solid #ef4444; }
+        .actions { display: flex; flex-direction: column; gap: 0.65rem; }
+        .btn { display: block; text-align: center; padding: 0.8rem 1rem; border-radius: 0.6rem; font-weight: 600; font-size: 0.9rem; text-decoration: none; }
+        .btn--primary { background: #1a6fce; color: #fff; }
+        .btn--ghost { background: transparent; border: 1.5px solid #d1d5db; color: #374151; }
+        .note { margin-top: 1.25rem; font-size: 0.78rem; color: #9ca3af; text-align: center; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="card__header">
+            <span class="card__icon">{% if cancelled %}✅{% elif error %}❌{% else %}🗓️{% endif %}</span>
+            <h1 class="card__title">
+                {% if cancelled %}Booking Cancelled
+                {% elif error %}Cannot Cancel
+                {% else %}Cancel Booking{% endif %}
+            </h1>
+            <p class="card__subtitle">
+                {% if cancelled %}Your booking has been successfully cancelled. We hope to serve you again soon.
+                {% elif error %}We couldn't process this cancellation.
+                {% else %}Reference: <strong>{{ ref }}</strong>{% endif %}
+            </p>
+        </div>
+        <div class="card__body">
+            {% if ref and not cancelled %}<p class="ref">Booking ref: <strong>{{ ref }}</strong></p>{% endif %}
+
+            {% if error %}
+            <div class="alert alert--error">{{ error }}</div>
+            {% elif cancelled %}
+            <div class="alert alert--success">Booking <strong>{{ ref }}</strong> has been cancelled. If you paid a deposit, please contact us to arrange a refund.</div>
+            {% endif %}
+
+            <div class="actions">
+                <a class="btn btn--primary" href="/">Back to Homepage</a>
+                <a class="btn btn--ghost" href="/services">Book a New Service</a>
+            </div>
+
+            <p class="note">
+                Need to reschedule instead? Call us at <strong>{{ site_settings.company_phone or '(+44) 7795 595867' }}</strong> and we'll find a new time for you.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

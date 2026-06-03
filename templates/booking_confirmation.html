@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Confirmed | {{ site_settings.company_name }}</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="/favicon/favicon.ico" sizes="any">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
+        .card { background: #fff; border-radius: 1.25rem; box-shadow: 0 4px 32px rgba(0,0,0,0.10); max-width: 520px; width: 100%; overflow: hidden; }
+        .card__header { background: {% if paid %}#16a34a{% else %}#1a6fce{% endif %}; padding: 2.5rem 2rem 2rem; text-align: center; color: #fff; }
+        .card__icon { font-size: 3rem; margin-bottom: 0.75rem; display: block; }
+        .card__title { font-size: 1.5rem; font-weight: 800; margin-bottom: 0.25rem; }
+        .card__subtitle { font-size: 0.95rem; opacity: 0.88; }
+        .card__body { padding: 2rem; }
+        .ref-box { background: #eff6ff; border-left: 4px solid #1a6fce; border-radius: 0.5rem; padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+        .ref-box__label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 0.25rem; }
+        .ref-box__value { font-size: 1.5rem; font-weight: 800; color: #1a6fce; letter-spacing: 0.05em; }
+        .steps { margin-bottom: 1.75rem; }
+        .steps__title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #374151; margin-bottom: 0.75rem; }
+        .step { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.6rem; font-size: 0.9rem; color: #374151; }
+        .step__num { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: {% if paid %}#16a34a{% else %}#1a6fce{% endif %}; color: #fff; font-size: 0.65rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+        .actions { display: flex; flex-direction: column; gap: 0.75rem; }
+        .btn { display: block; text-align: center; padding: 0.85rem 1rem; border-radius: 0.6rem; font-weight: 600; font-size: 0.95rem; text-decoration: none; cursor: pointer; border: none; }
+        .btn--primary { background: {% if paid %}#16a34a{% else %}#1a6fce{% endif %}; color: #fff; }
+        .btn--ghost { background: transparent; border: 1.5px solid #d1d5db; color: #374151; }
+        .note { margin-top: 1.5rem; font-size: 0.8rem; color: #9ca3af; text-align: center; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="card__header">
+            <span class="card__icon">{% if paid %}✅{% else %}📋{% endif %}</span>
+            <h1 class="card__title">{% if paid %}Booking Confirmed!{% else %}Request Received!{% endif %}</h1>
+            <p class="card__subtitle">
+                {% if paid %}Your payment has been processed and your booking is confirmed.
+                {% else %}We've got your request and will be in touch shortly.{% endif %}
+            </p>
+        </div>
+        <div class="card__body">
+            {% if ref %}
+            <div class="ref-box">
+                <div class="ref-box__label">Your Booking Reference</div>
+                <div class="ref-box__value">{{ ref }}</div>
+            </div>
+            {% endif %}
+
+            <div class="steps">
+                <div class="steps__title">What happens next</div>
+                {% if paid %}
+                <div class="step"><span class="step__num">1</span><span>You'll receive a confirmation email with your booking details.</span></div>
+                <div class="step"><span class="step__num">2</span><span>Our team will contact you to confirm the exact arrival time.</span></div>
+                <div class="step"><span class="step__num">3</span><span>Sit back — we'll take care of everything on the day!</span></div>
+                {% else %}
+                <div class="step"><span class="step__num">1</span><span>Check your email — we've sent a confirmation with your reference number.</span></div>
+                <div class="step"><span class="step__num">2</span><span>Our team will review your request within 24 hours and call to confirm.</span></div>
+                <div class="step"><span class="step__num">3</span><span>Once confirmed, sit back and let us handle the rest!</span></div>
+                {% endif %}
+            </div>
+
+            <div class="actions">
+                <a class="btn btn--primary" href="/">Back to Homepage</a>
+                <a class="btn btn--ghost" href="/services">Browse More Services</a>
+            </div>
+
+            <p class="note">
+                Keep your reference number safe — you'll need it if you contact us.<br>
+                Questions? Call <strong>{{ site_settings.company_phone or '(+44) 7795 595867' }}</strong> or email us.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
