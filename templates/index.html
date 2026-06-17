@@ -10,7 +10,12 @@
     <title>Done-Well Cleaning Limited | Stevenage - Hertfordshire</title>
     {% set _site_url = 'https://done-wellcleaninglimited.org' %}
     {% set _meta_desc = 'Done-Well Cleaning Limited — trusted professional cleaning company in Stevenage, Hertfordshire. DBS-checked, insured cleaners for homes, offices, end of tenancy, Airbnb & commercial spaces. Same-day service. Free quotes.' %}
-    {% set _og_image = company_logo_url if company_logo_url else (_site_url ~ '/favicon/apple-touch-icon.png') %}
+    {# Use hero image for social preview when available, fall back to logo #}
+    {% set _hero_raw = hero.media_url if hero and hero.media_url and hero.media_type != 'video' else '' %}
+    {% set _hero_img = (_hero_raw | media_url) if _hero_raw else '' %}
+    {% set _hero_abs = _hero_img if _hero_img.startswith('http') else (_site_url ~ _hero_img) if _hero_img else '' %}
+    {% set _logo_abs = company_logo_url if company_logo_url.startswith('http') else (_site_url ~ company_logo_url) if company_logo_url else '' %}
+    {% set _og_image = _hero_abs or _logo_abs or (_site_url ~ '/favicon/apple-touch-icon.png') %}
     <meta name="description" content="{{ _meta_desc }}">
     <meta name="keywords" content="cleaning services Stevenage, cleaners Hertfordshire, domestic cleaning, commercial cleaning, end of tenancy cleaning, office cleaning, deep cleaning, Airbnb cleaning, carpet cleaning, Done-Well Cleaning, professional cleaners near me, DBS checked cleaners, insured cleaning company, same day cleaning service, Stevenage cleaners, Hertfordshire cleaning company, residential cleaning, contract cleaning, one-off cleaning">
     <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
@@ -29,7 +34,7 @@
     <meta property="og:site_name" content="{{ company_name }}">
 
     <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary">
+    <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Done-Well Cleaning Limited | Stevenage - Hertfordshire">
     <meta name="twitter:description" content="{{ _meta_desc }}">
     <meta name="twitter:image" content="{{ _og_image }}">

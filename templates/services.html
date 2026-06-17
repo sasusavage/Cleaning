@@ -15,13 +15,21 @@
     <meta property="og:url" content="https://done-wellcleaninglimited.org/services">
     <meta property="og:title" content="Cleaning Services Stevenage &amp; Hertfordshire | {{ company_name }}">
     <meta property="og:description" content="Professional cleaning services in Stevenage &amp; Hertfordshire — domestic, commercial, end of tenancy, deep cleaning &amp; more. DBS-checked, fully insured cleaners. Book today.">
-    <meta property="og:image" content="{{ company_logo_url or 'https://done-wellcleaninglimited.org/favicon/apple-touch-icon.png' }}">
+    {# Pick best og:image: services hero bg → first service image → logo → favicon #}
+    {% set _svc_url = 'https://done-wellcleaninglimited.org' %}
+    {% set _hero_bg_raw = (services_hero_bg | media_url) if services_hero_bg else '' %}
+    {% set _hero_bg_abs = _hero_bg_raw if _hero_bg_raw.startswith('http') else (_svc_url ~ _hero_bg_raw) if _hero_bg_raw else '' %}
+    {% set _first_svc_raw = (one_time_services[0].image_path | media_url) if one_time_services and one_time_services[0].image_path else '' %}
+    {% set _first_svc_abs = _first_svc_raw if _first_svc_raw.startswith('http') else (_svc_url ~ _first_svc_raw) if _first_svc_raw else '' %}
+    {% set _logo_abs = company_logo_url if company_logo_url.startswith('http') else (_svc_url ~ company_logo_url) if company_logo_url else '' %}
+    {% set _svc_og_image = _hero_bg_abs or _first_svc_abs or _logo_abs or (_svc_url ~ '/favicon/apple-touch-icon.png') %}
+    <meta property="og:image" content="{{ _svc_og_image }}">
     <meta property="og:site_name" content="{{ company_name }}">
     <meta property="og:locale" content="en_GB">
-    <meta name="twitter:card" content="summary">
+    <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Cleaning Services Stevenage &amp; Hertfordshire | {{ company_name }}">
     <meta name="twitter:description" content="Professional cleaning services in Stevenage &amp; Hertfordshire — domestic, commercial, end of tenancy, deep cleaning &amp; more. Book today.">
-    <meta name="twitter:image" content="{{ company_logo_url or 'https://done-wellcleaninglimited.org/favicon/apple-touch-icon.png' }}">
+    <meta name="twitter:image" content="{{ _svc_og_image }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('favicon_asset', filename='apple-touch-icon.png') }}">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('favicon_asset', filename='favicon-32x32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('favicon_asset', filename='favicon-16x16.png') }}">

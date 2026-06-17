@@ -14,13 +14,19 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://done-wellcleaninglimited.org/blog">
     <meta property="og:description" content="Cleaning tips, industry news and expert advice from {{ company_name }}.">
-    <meta property="og:image" content="{{ company_logo_url or 'https://done-wellcleaninglimited.org/favicon/apple-touch-icon.png' }}">
+    {# Pick best og:image: first post image → logo → favicon #}
+    {% set _blog_url = 'https://done-wellcleaninglimited.org' %}
+    {% set _first_post_img_raw = ('/' ~ posts[0].image_path) if posts and posts[0].image_path else '' %}
+    {% set _first_post_img_abs = (_blog_url ~ _first_post_img_raw) if _first_post_img_raw else '' %}
+    {% set _blog_logo_abs = company_logo_url if company_logo_url.startswith('http') else (_blog_url ~ company_logo_url) if company_logo_url else '' %}
+    {% set _blog_og_image = _first_post_img_abs or _blog_logo_abs or (_blog_url ~ '/favicon/apple-touch-icon.png') %}
+    <meta property="og:image" content="{{ _blog_og_image }}">
     <meta property="og:site_name" content="{{ company_name }}">
     <meta property="og:locale" content="en_GB">
-    <meta name="twitter:card" content="summary">
+    <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ company_name }} | Cleaning Tips &amp; News">
     <meta name="twitter:description" content="Cleaning tips, industry news and expert advice from {{ company_name }}.">
-    <meta name="twitter:image" content="{{ company_logo_url or 'https://done-wellcleaninglimited.org/favicon/apple-touch-icon.png' }}">
+    <meta name="twitter:image" content="{{ _blog_og_image }}">
     <link rel="icon" href="/favicon/favicon.ico" sizes="any">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
