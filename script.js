@@ -907,6 +907,8 @@ document.addEventListener("DOMContentLoaded", function () {
         var flowTimeInput = document.getElementById("flow-time");
         var flowContractFrequencyRow = document.getElementById("flow-contract-frequency-row");
         var flowContractFrequencyInput = document.getElementById("flow-contract-frequency");
+        var flowContractDayRow = document.getElementById("flow-contract-day-row");
+        var flowContractDayInput = document.getElementById("flow-contract-day");
         var flowContractSignerRow = document.getElementById("flow-contract-signer-row");
         var flowContractSignerInput = document.getElementById("flow-contract-signer");
         var flowContractTermsRow = document.getElementById("flow-contract-terms-row");
@@ -943,7 +945,17 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
             var selectedPaymentOption = normalizePaymentOptionValue(flowState && flowState.payment_option);
-            flowSubmitButton.textContent = selectedPaymentOption === "prebook_save" ? "Proceed to Secure Payment" : defaultSubmitLabel;
+            if (selectedPaymentOption === "prebook_save") {
+                var _total = lastSummaryTotals && typeof lastSummaryTotals.serviceTotal === "number" && !lastSummaryTotals.hasSurvey && !lastSummaryTotals.hasCustom
+                    ? lastSummaryTotals.serviceTotal : null;
+                // Apply prebook discount to show the actual charge
+                var _prebookRadio = serviceFlowForm ? serviceFlowForm.querySelector('input[value="prebook_save"][data-discount-percent]') : null;
+                var _discPct = _prebookRadio ? parseFloat(_prebookRadio.getAttribute("data-discount-percent") || "0") : 0;
+                if (_total !== null && _discPct > 0) _total = _total * (1 - _discPct / 100);
+                flowSubmitButton.textContent = _total !== null ? "Pay " + formatPrice(_total) + " now" : "Pay Now & Confirm";
+            } else {
+                flowSubmitButton.textContent = defaultSubmitLabel;
+            }
         };
 
         var createDefaultFlowState = function () {
@@ -1150,13 +1162,14 @@ document.addEventListener("DOMContentLoaded", function () {
             var frequencyRequired = isContract && !isHybrid; // hybrid: optional; pure contract: required
 
             flowContractFrequencyRow.hidden = !shouldShow;
+            if (flowContractDayRow) flowContractDayRow.hidden = !shouldShow;
 
             // For hybrid, show a hint that frequency is optional
             var freqHint = flowContractFrequencyRow.querySelector('.form-hint');
             if (freqHint) {
                 freqHint.textContent = isHybrid && !isContract
                     ? "Optional — choose a frequency to set up a recurring contract, or leave blank for a one-time booking."
-                    : "Only required for contract-based services.";
+                    : "Required for recurring contract services.";
             }
 
             // Signer name and terms checkbox are handled by the contract modal — keep hidden
@@ -1168,9 +1181,12 @@ document.addEventListener("DOMContentLoaded", function () {
             }
             if (flowContractFrequencyInput) {
                 flowContractFrequencyInput.required = frequencyRequired;
+                if (flowContractDayInput) flowContractDayInput.required = frequencyRequired;
                 if (!shouldShow) {
                     flowContractFrequencyInput.value = "";
                     flowState.schedule.contract_frequency = "";
+                    if (flowContractDayInput) { flowContractDayInput.value = ""; }
+                    flowState.contract.service_day = "";
                     if (flowContractSignerInput) flowContractSignerInput.value = "";
                     if (flowContractTermsInput) flowContractTermsInput.checked = false;
                     flowState.contract.signer_name = "";
@@ -2828,6 +2844,7 @@ document.addEventListener("DOMContentLoaded", function () {
             if (flowDateInput) flowDateInput.value = flowState.schedule.preferred_date || "";
             if (flowTimeInput) flowTimeInput.value = flowState.schedule.preferred_time || "";
             if (flowContractFrequencyInput) flowContractFrequencyInput.value = flowState.schedule.contract_frequency || "";
+            if (flowContractDayInput) flowContractDayInput.value = flowState.contract.service_day || "";
             if (flowContractSignerInput) flowContractSignerInput.value = flowState.contract.signer_name || flowState.customer.name || "";
             if (flowContractTermsInput) flowContractTermsInput.checked = Boolean(flowState.contract.agreed);
             if (flowNotesInput) flowNotesInput.value = flowState.notes || "";
@@ -3809,7 +3826,7 @@ document.addEventListener("DOMContentLoaded", function () {
         (function() {
             var _clearErrFields = [flowNameInput, flowEmailInput, flowPhoneInput, flowLocationInput, flowPostcodeInput,
                 document.getElementById("flow-date"), document.getElementById("flow-time"),
-                document.getElementById("flow-contract-frequency")];
+                document.getElementById("flow-contract-frequency"), document.getElementById("flow-contract-day")];
             _clearErrFields.forEach(function(el) {
                 if (!el) return;
                 el.addEventListener("input", function() { el.classList.remove("field-error"); el.removeAttribute("aria-invalid"); });
@@ -3874,6 +3891,10 @@ document.addEventListener("DOMContentLoaded", function () {
             flowState.schedule.contract_frequency = value;
             // Re-evaluate signer/terms required state when frequency changes (relevant for hybrid)
             updateContractFrequencyVisibility();
+        });
+        handleFieldChange(flowContractDayInput, function (value) {
+            flowState.contract.service_day = value;
+            if (flowContractDayInput) { flowContractDayInput.classList.remove("field-error"); flowContractDayInput.removeAttribute("aria-invalid"); }
         });
         handleFieldChange(flowContractSignerInput, function (value) { flowState.contract.signer_name = value; });
         handleFieldChange(flowNotesInput, function (value) { flowState.notes = value; });
@@ -4018,9 +4039,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (flowEmailInput) flowState.customer.email = (flowEmailInput.value || "").trim();
                 if (flowPhoneInput) flowState.customer.phone = (flowPhoneInput.value || "").trim();
                 if (flowContractSignerInput) flowState.contract.signer_name = (flowContractSignerInput.value || "").trim();
-                if (!flowState.contract.service_day) {
-                    flowState.contract.service_day = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date().getDay()];
-                }
+                if (flowContractDayInput) flowState.contract.service_day = flowContractDayInput.value || flowState.contract.service_day || "";
                 if (flowContractTermsInput) flowState.contract.agreed = Boolean(flowContractTermsInput.checked);
                 if (flowNotesInput) flowState.notes = (flowNotesInput.value || "").trim();
                 if (flowPaymentOptionInputs && flowPaymentOptionInputs.length) {
@@ -4055,27 +4074,29 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
 
                 // Clear previous field-level error highlights
-                var _errFields = ["flow-name","flow-email","flow-phone","flow-location","flow-date","flow-time","flow-postcode","flow-contract-frequency"];
+                var _errFields = ["flow-name","flow-email","flow-phone","flow-location","flow-date","flow-time","flow-postcode","flow-contract-frequency","flow-contract-day"];
                 _errFields.forEach(function(id) {
                     var el = document.getElementById(id);
-                    if (el) { el.classList.remove("field-error"); el.removeAttribute("aria-invalid"); }
+                    if (el && !el.readOnly) { el.classList.remove("field-error"); el.removeAttribute("aria-invalid"); }
                 });
 
                 var errors = [];
                 function _fieldErr(id, msg) {
                     errors.push(msg);
                     var el = document.getElementById(id);
-                    if (el) { el.classList.add("field-error"); el.setAttribute("aria-invalid", "true"); }
+                    // Never highlight readonly fields — user cannot fix them
+                    if (el && !el.readOnly) { el.classList.add("field-error"); el.setAttribute("aria-invalid", "true"); }
                 }
 
                 if (!flowState.customer.name) _fieldErr("flow-name", "Please enter your full name.");
                 if (!flowState.customer.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(flowState.customer.email)) _fieldErr("flow-email", "Enter a valid email address.");
                 if (!flowState.customer.phone || flowState.customer.phone.replace(/[^0-9]/g, "").length < 10) _fieldErr("flow-phone", "Enter a valid phone number (at least 10 digits).");
-                if (!flowState.customer.location) _fieldErr("flow-location", "Add your address or location.");
+                if (!askForPostcode && !flowState.customer.location) _fieldErr("flow-location", "Add your address or location.");
                 if (askForPostcode && !flowState.customer.postcode) _fieldErr("flow-postcode", "Please add your postcode or address.");
                 if (!flowState.schedule.preferred_date) _fieldErr("flow-date", "Choose a preferred date.");
                 if (!flowState.schedule.preferred_time) _fieldErr("flow-time", "Choose a preferred time slot.");
-                if (hasContractSelections() && !flowState.schedule.contract_frequency) _fieldErr("flow-contract-frequency", "Choose a contract frequency.");
+                if (hasContractSelections() && !flowState.schedule.contract_frequency) _fieldErr("flow-contract-frequency", "Choose how often you'd like the service.");
+                if (hasContractSelections() && !flowState.contract.service_day) _fieldErr("flow-contract-day", "Choose your preferred service day.");
 
                 flowFeedback.classList.remove("is-error", "is-success");
 

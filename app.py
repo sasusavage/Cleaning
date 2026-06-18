@@ -8655,6 +8655,33 @@ def booking_confirmation():
             booking_total_display = '£{:.2f}'.format(float(booking_total_raw))
         except Exception:
             pass
+    # Build calendar link data (Google Calendar + .ics anchor)
+    gcal_url = ''
+    ics_data = ''
+    if booking_date and booking_time:
+        try:
+            from datetime import datetime as _dt, timedelta as _td
+            import urllib.parse as _up
+            _start = _dt.strptime(f"{booking_date} {booking_time}", "%Y-%m-%d %H:%M")
+            _end = _start + _td(hours=2)
+            _fmt = "%Y%m%dT%H%M%S"
+            _event_title = f"Cleaning Service — {service}" if service else "Cleaning Service"
+            gcal_url = (
+                "https://calendar.google.com/calendar/render?action=TEMPLATE"
+                f"&text={_up.quote(_event_title)}"
+                f"&dates={_start.strftime(_fmt)}/{_end.strftime(_fmt)}"
+                f"&details={_up.quote('Booking ref: ' + ref + '. Done-Well Cleaning Limited.')}"
+            )
+            ics_data = (
+                "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\n"
+                f"DTSTART:{_start.strftime(_fmt)}\r\nDTEND:{_end.strftime(_fmt)}\r\n"
+                f"SUMMARY:{_event_title}\r\n"
+                f"DESCRIPTION:Booking ref: {ref}\r\n"
+                "END:VEVENT\r\nEND:VCALENDAR"
+            )
+        except Exception:
+            pass
+
     cancel_token = _make_cancel_token(ref) if ref else ''
     return render_template(
         'booking_confirmation.html',
@@ -8666,6 +8693,8 @@ def booking_confirmation():
         booking_date=booking_date_display,
         booking_time=booking_time_display,
         booking_total=booking_total_display,
+        gcal_url=gcal_url,
+        ics_data=ics_data,
         cancel_token=cancel_token
     )
 

@@ -1196,9 +1196,9 @@
                     </section>
                     <section class="flow-step" data-flow-step="2">
                         <header class="flow-step__header">
-                            <p class="flow-step__eyebrow">Step 2</p>
-                            <h3>Review your selections</h3>
-                            <p>Confirm the services and options you picked. You can edit anything before scheduling.</p>
+                            <p class="flow-step__eyebrow">Step 2 of 3 — Review your order</p>
+                            <h3>Confirm your selections</h3>
+                            <p>Check everything looks right. You can go back and change any service before continuing.</p>
                         </header>
                         <ul class="flow-summary__list" id="flow-summary-services"></ul>
                         {% if travel_settings and travel_settings.ask_for_postcode %}
@@ -1303,14 +1303,27 @@
                                 <small class="form-hint">We'll aim to arrive within the selected hour.</small>
                             </div>
                             <div class="form-row" id="flow-contract-frequency-row" hidden>
-                                <label for="flow-contract-frequency">Contract Frequency</label>
+                                <label for="flow-contract-frequency">How often? <span class="req">*</span></label>
                                 <select id="flow-contract-frequency" name="flow_contract_frequency">
                                     <option value="">Select frequency</option>
                                     <option value="weekly">Weekly</option>
                                     <option value="fortnightly">Fortnightly (Every 2 weeks)</option>
                                     <option value="monthly">Monthly</option>
                                 </select>
-                                <small class="form-hint">Only required for contract-based services.</small>
+                                <small class="form-hint">Required for recurring contract services.</small>
+                            </div>
+                            <div class="form-row" id="flow-contract-day-row" hidden>
+                                <label for="flow-contract-day">Preferred Service Day <span class="req">*</span></label>
+                                <select id="flow-contract-day" name="flow_contract_day">
+                                    <option value="">Select a day</option>
+                                    <option value="Monday">Monday</option>
+                                    <option value="Tuesday">Tuesday</option>
+                                    <option value="Wednesday">Wednesday</option>
+                                    <option value="Thursday">Thursday</option>
+                                    <option value="Friday">Friday</option>
+                                    <option value="Saturday">Saturday</option>
+                                </select>
+                                <small class="form-hint">We'll aim to schedule your visits on this day each cycle.</small>
                             </div>
                             <div class="form-row" id="flow-contract-signer-row" hidden>
                                 <label for="flow-contract-signer">Contract Name</label>
