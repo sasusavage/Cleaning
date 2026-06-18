@@ -289,6 +289,16 @@
                                                 <td style="padding: 4px 0; color: #6b7280; background-color: #f8fafc; font-weight: 600;">Date signed</td>
                                                 <td style="padding: 4px 0; color: #1e293b; background-color: #f8fafc;">{{ request.created_at }}</td>
                                             </tr>
+                                            {% if contract_data.signature_image %}
+                                            <tr>
+                                                <td style="padding: 8px 0 4px; color: #6b7280; background-color: #f8fafc; font-weight: 600; vertical-align: top;">Signature</td>
+                                                <td style="padding: 8px 0 4px; background-color: #f8fafc;">
+                                                    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:6px;display:inline-block;">
+                                                        <img src="{{ contract_data.signature_image }}" alt="Client signature" width="220" style="display:block;max-width:220px;height:auto;max-height:80px;">
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endif %}
                                         </table>
                                         {% if contract_data.agreed_text %}
                                         <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px 16px; max-height: 300px; overflow: auto;">

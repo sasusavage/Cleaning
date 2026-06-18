@@ -4041,6 +4041,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     flowState.contract.signer_name = contractResult.signer_name || '';
                     flowState.contract.agreed = true;
                     flowState.contract.contract_text = contractResult.contract_text || '';
+                    flowState.contract.signature_image = contractResult.signature_image || '';
                     persistFlowState();
                 }
 
@@ -4092,7 +4093,8 @@ document.addEventListener("DOMContentLoaded", function () {
                         signer_name: hasContractSelections(bookableSelections) ? flowState.contract.signer_name : "",
                         service_day: hasContractSelections(bookableSelections) ? flowState.contract.service_day : "",
                         agreed: hasContractSelections(bookableSelections) ? Boolean(flowState.contract.agreed) : false,
-                        contract_text: hasContractSelections(bookableSelections) ? (flowState.contract.contract_text || '') : ''
+                        contract_text: hasContractSelections(bookableSelections) ? (flowState.contract.contract_text || '') : '',
+                        signature_image: hasContractSelections(bookableSelections) ? (flowState.contract.signature_image || '') : ''
                     },
                     postcode: flowState.customer.postcode,
                     selections: bookableSelections.map(function (selection) {

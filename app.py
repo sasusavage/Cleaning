@@ -1998,6 +1998,7 @@ def send_request_notifications(request_record, attachments=None):
                 'signer_name': _contract_meta.get('signer_name') or '',
                 'service_day': _contract_meta.get('service_day') or '',
                 'agreed_text': _contract_meta.get('agreed_text') or '',
+                'signature_image': _contract_meta.get('signature_image') or '',
             }
         _ref_id = context.get('ref_id') or ''
         _cancel_token = _make_cancel_token(_ref_id) if _ref_id else ''
@@ -7709,6 +7710,9 @@ def prepare_service_booking(payload):
             contract_agreed_text = _tmpl.get('body') or ''
         except Exception:
             pass
+    # Signature image: base64 PNG data URL from the signature pad — validate prefix only
+    _sig_raw = (contract_data.get('signature_image') or '').strip()
+    contract_signature_image = _sig_raw if _sig_raw.startswith('data:image/png;base64,') else ''
 
     travel_fee_value = travel_quote.get('travel_fee') if travel_quote else None
     services_subtotal_display = 'To be confirmed (survey required)' if has_survey_request else (format_currency_label(subtotal) if not has_custom else 'Custom quote')
@@ -7808,7 +7812,8 @@ def prepare_service_booking(payload):
             'signer_name': contract_signer_name,
             'service_day': contract_service_day,
             'terms_agreed': contract_terms_agreed,
-            'agreed_text': contract_agreed_text
+            'agreed_text': contract_agreed_text,
+            'signature_image': contract_signature_image
         },
         'pricing_details': pricing_details,
         'totals': {
