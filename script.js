@@ -1221,9 +1221,22 @@ document.addEventListener("DOMContentLoaded", function () {
                 } else if (hasCustom && grand !== null) {
                     flowMiniCartTotal.textContent = "from " + formatPrice(grand);
                 } else {
-                    flowMiniCartTotal.textContent = grand === null ? "—" : formatPrice(grand);
+                    flowMiniCartTotal.textContent = grand === null ? "No services selected yet" : formatPrice(grand);
                 }
             }
+
+            // Update prebook savings label with real £ amount
+            (function() {
+                var prebookRadio = document.querySelector('input[name="flow_payment_option"][value="prebook_save"]');
+                if (!prebookRadio) return;
+                var pct = parseFloat(prebookRadio.getAttribute("data-discount-percent") || "0");
+                if (!pct || hasSurvey || hasCustom || grand === null) return;
+                var saving = grand * (pct / 100);
+                var savingsAmountEl = document.getElementById("prebook-savings-amount");
+                var savingsValueEl = document.getElementById("prebook-savings-value");
+                if (savingsAmountEl) savingsAmountEl.textContent = pct + "% — save " + formatPrice(saving);
+                if (savingsValueEl) savingsValueEl.textContent = formatPrice(saving);
+            })();
         };
 
         var updateSummaryTotals = function (serviceTotal, hasCustom, travelMessage, hasSurvey) {
@@ -3608,7 +3621,30 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         }
         
-        // Close button for "not available" section
+        // "Try a different postcode" helper — closes coverage modals, re-opens postcode modal
+        function retryPostcodeEntry() {
+            closeExtendedCoverageModal(false);
+            // Close the plain coverage modal too if open
+            var coverageModal = document.getElementById("coverage-modal");
+            if (coverageModal) { coverageModal.setAttribute("aria-hidden", "true"); document.body.classList.remove("modal-open"); }
+            // Re-open postcode modal and clear previous entry
+            var postcodeModal = document.getElementById("postcode-modal");
+            var postcodeEntryInput = document.getElementById("postcode-entry");
+            var postcodeFb = document.getElementById("postcode-feedback");
+            if (postcodeModal) { postcodeModal.removeAttribute("aria-hidden"); document.body.classList.add("modal-open"); }
+            if (postcodeEntryInput) { postcodeEntryInput.value = ""; setTimeout(function() { postcodeEntryInput.focus(); }, 120); }
+            if (postcodeFb) { postcodeFb.textContent = ""; postcodeFb.className = "form-feedback"; }
+        }
+
+        // "Try a different postcode" in extended-coverage-not-available
+        var tryDiffPostcodeBtn = document.getElementById("try-different-postcode-btn");
+        if (tryDiffPostcodeBtn) { tryDiffPostcodeBtn.addEventListener("click", retryPostcodeEntry); }
+
+        // "Try a different postcode" in coverage-modal
+        var coverageModalRetryBtn = document.getElementById("coverage-modal-retry-btn");
+        if (coverageModalRetryBtn) { coverageModalRetryBtn.addEventListener("click", retryPostcodeEntry); }
+
+        // Original close button (kept for back-compat, id removed from HTML but keeping handler)
         var extendedCoverageCloseBtn = document.getElementById("extended-coverage-close-btn");
         if (extendedCoverageCloseBtn) {
             extendedCoverageCloseBtn.addEventListener("click", function () {
@@ -3768,6 +3804,19 @@ document.addEventListener("DOMContentLoaded", function () {
                 persistFlowState();
             });
         };
+
+        // Clear field-error highlight as soon as user interacts with the field
+        (function() {
+            var _clearErrFields = [flowNameInput, flowEmailInput, flowPhoneInput, flowLocationInput, flowPostcodeInput,
+                document.getElementById("flow-date"), document.getElementById("flow-time"),
+                document.getElementById("flow-contract-frequency")];
+            _clearErrFields.forEach(function(el) {
+                if (!el) return;
+                el.addEventListener("input", function() { el.classList.remove("field-error"); el.removeAttribute("aria-invalid"); });
+                el.addEventListener("change", function() { el.classList.remove("field-error"); el.removeAttribute("aria-invalid"); });
+                el.addEventListener("focus", function() { el.classList.remove("field-error"); el.removeAttribute("aria-invalid"); });
+            });
+        })();
 
         handleFieldChange(flowNameInput, function (value) { flowState.customer.name = value; });
         handleFieldChange(flowEmailInput, function (value) { flowState.customer.email = value; });
@@ -4005,22 +4054,37 @@ document.addEventListener("DOMContentLoaded", function () {
                     }
                 }
 
+                // Clear previous field-level error highlights
+                var _errFields = ["flow-name","flow-email","flow-phone","flow-location","flow-date","flow-time","flow-postcode","flow-contract-frequency"];
+                _errFields.forEach(function(id) {
+                    var el = document.getElementById(id);
+                    if (el) { el.classList.remove("field-error"); el.removeAttribute("aria-invalid"); }
+                });
+
                 var errors = [];
-                if (!flowState.customer.name) errors.push("Please enter your full name.");
-                if (!flowState.customer.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(flowState.customer.email)) errors.push("Enter a valid email address.");
-                if (!flowState.customer.phone || flowState.customer.phone.replace(/[^0-9]/g, "").length < 10) errors.push("Enter a valid UK phone number (at least 10 digits).");
-                if (!flowState.customer.location) errors.push("Add your address or location.");
-                if (askForPostcode && !flowState.customer.postcode) errors.push("Please add your postcode or address.");
-                if (!flowState.schedule.preferred_date) errors.push("Choose a preferred date.");
-                if (!flowState.schedule.preferred_time) errors.push("Choose a preferred time.");
-                if (hasContractSelections() && !flowState.schedule.contract_frequency) errors.push("Choose a contract frequency.");
-                if (hasContractSelections() && !flowState.contract.service_day) errors.push("Choose your preferred service day.");
+                function _fieldErr(id, msg) {
+                    errors.push(msg);
+                    var el = document.getElementById(id);
+                    if (el) { el.classList.add("field-error"); el.setAttribute("aria-invalid", "true"); }
+                }
+
+                if (!flowState.customer.name) _fieldErr("flow-name", "Please enter your full name.");
+                if (!flowState.customer.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(flowState.customer.email)) _fieldErr("flow-email", "Enter a valid email address.");
+                if (!flowState.customer.phone || flowState.customer.phone.replace(/[^0-9]/g, "").length < 10) _fieldErr("flow-phone", "Enter a valid phone number (at least 10 digits).");
+                if (!flowState.customer.location) _fieldErr("flow-location", "Add your address or location.");
+                if (askForPostcode && !flowState.customer.postcode) _fieldErr("flow-postcode", "Please add your postcode or address.");
+                if (!flowState.schedule.preferred_date) _fieldErr("flow-date", "Choose a preferred date.");
+                if (!flowState.schedule.preferred_time) _fieldErr("flow-time", "Choose a preferred time slot.");
+                if (hasContractSelections() && !flowState.schedule.contract_frequency) _fieldErr("flow-contract-frequency", "Choose a contract frequency.");
 
                 flowFeedback.classList.remove("is-error", "is-success");
 
                 if (errors.length) {
-                    flowFeedback.textContent = errors[0];
+                    flowFeedback.innerHTML = errors.map(function(e) { return "• " + e; }).join("<br>");
                     flowFeedback.classList.add("is-error");
+                    // Scroll to first highlighted field
+                    var firstErrEl = document.querySelector(".field-error");
+                    if (firstErrEl) firstErrEl.scrollIntoView({ behavior: "smooth", block: "center" });
                     if (flowSubmitButton) {
                         flowSubmitButton.disabled = false;
                         flowSubmitButton.textContent = originalLabel;
@@ -4144,14 +4208,25 @@ document.addEventListener("DOMContentLoaded", function () {
                     var refId = data.reference || data.ref_id || data.service_request_id || data.request_id || null;
                     var serviceName = encodeURIComponent(data.service_name || '');
                     var customerName = encodeURIComponent(data.name || '');
+                    // Capture booking details BEFORE resetFlow() clears flowState
+                    var _bookingDate = flowState.schedule.preferred_date || '';
+                    var _bookingTime = flowState.schedule.preferred_time || '';
+                    var _bookingTotal = (lastSummaryTotals && typeof lastSummaryTotals.serviceTotal === 'number' && !lastSummaryTotals.hasSurvey && !lastSummaryTotals.hasCustom)
+                        ? lastSummaryTotals.serviceTotal : null;
                     flowFeedback.textContent = "Request received! Redirecting…";
                     flowFeedback.classList.add("is-success");
                     sendAnalyticsEvent("request_submission", { form: "service-flow", request_id: data.request_id });
                     window.__domesticPlanContext = null;
                     resetFlow();
                     submissionPending = false;
-                    var confirmUrl = "/booking/confirmation";
-                    if (refId) confirmUrl += "?ref=" + encodeURIComponent(refId) + "&name=" + customerName + "&service=" + serviceName;
+                    var _params = [];
+                    if (refId) _params.push("ref=" + encodeURIComponent(refId));
+                    if (customerName) _params.push("name=" + customerName);
+                    if (serviceName) _params.push("service=" + serviceName);
+                    if (_bookingDate) _params.push("date=" + encodeURIComponent(_bookingDate));
+                    if (_bookingTime) _params.push("time=" + encodeURIComponent(_bookingTime));
+                    if (_bookingTotal !== null) _params.push("total=" + encodeURIComponent(_bookingTotal.toFixed(2)));
+                    var confirmUrl = "/booking/confirmation" + (_params.length ? "?" + _params.join("&") : "");
                     window.setTimeout(function() { window.location.href = confirmUrl; }, 1200);
                 } else {
                     flowFeedback.textContent = data.error || "Unable to submit right now. Please retry.";

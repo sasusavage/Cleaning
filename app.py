@@ -8627,6 +8627,34 @@ def booking_confirmation():
     name = sanitize_text(request.args.get('name'), 150) or ''
     service = sanitize_text(request.args.get('service'), 255) or ''
     paid = request.args.get('paid') == '1'
+    booking_date = sanitize_text(request.args.get('date'), 20) or ''
+    booking_time = sanitize_text(request.args.get('time'), 10) or ''
+    booking_total_raw = sanitize_text(request.args.get('total'), 20) or ''
+    # Format date for display: 2026-06-18 → 18 June 2026
+    booking_date_display = ''
+    if booking_date:
+        try:
+            from datetime import datetime as _dt
+            booking_date_display = _dt.strptime(booking_date, '%Y-%m-%d').strftime('%d %B %Y')
+        except Exception:
+            booking_date_display = booking_date
+    # Format time: 09:00 → 9:00 AM – 10:00 AM
+    booking_time_display = ''
+    if booking_time:
+        try:
+            from datetime import datetime as _dt, timedelta as _td
+            t = _dt.strptime(booking_time, '%H:%M')
+            t_end = t + _td(hours=1)
+            booking_time_display = t.strftime('%I:%M %p').lstrip('0') + ' – ' + t_end.strftime('%I:%M %p').lstrip('0')
+        except Exception:
+            booking_time_display = booking_time
+    # Validate total is a number
+    booking_total_display = ''
+    if booking_total_raw:
+        try:
+            booking_total_display = '£{:.2f}'.format(float(booking_total_raw))
+        except Exception:
+            pass
     cancel_token = _make_cancel_token(ref) if ref else ''
     return render_template(
         'booking_confirmation.html',
@@ -8635,6 +8663,9 @@ def booking_confirmation():
         name=name,
         service=service,
         paid=paid,
+        booking_date=booking_date_display,
+        booking_time=booking_time_display,
+        booking_total=booking_total_display,
         cancel_token=cancel_token
     )
 

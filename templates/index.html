@@ -1020,7 +1020,7 @@
             <p class="modal__subtitle">We couldn't find an active base within our service radius for this location. Please try a nearby postcode or contact us to discuss options.</p>
             <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end; margin-top:1rem;">
                 <button type="button" class="button button--ghost" data-close-modal>Close</button>
-                <a class="button button--primary" href="#contact">Contact the team</a>
+                <button type="button" class="button button--primary" id="coverage-modal-retry-btn">Try a Different Postcode</button>
             </div>
         </div>
     </div>
@@ -1071,8 +1071,11 @@
                 </div>
                 
                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:center; margin-top:1.5rem;">
-                    <a href="#contact" class="button button--primary" id="extended-coverage-contact">Contact Us</a>
-                    <button type="button" class="button button--ghost" id="extended-coverage-close-btn">Close</button>
+                    <button type="button" class="button button--primary" id="try-different-postcode-btn">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.07"/></svg>
+                        Try a Different Postcode
+                    </button>
+                    <a href="#contact" class="button button--ghost" id="extended-coverage-contact">Contact Us</a>
                 </div>
             </div>
         </div>
@@ -1105,9 +1108,9 @@
                             <p class="flow-mini-cart__count"><span id="flow-mini-count">0</span> chosen</p>
                         </div>
                         <ul id="flow-mini-cart" class="flow-mini-cart__list"></ul>
-                        <p class="flow-mini-cart__total">Services subtotal: <strong id="flow-mini-services-total">—</strong></p>
+                        <p class="flow-mini-cart__total">Services subtotal: <strong id="flow-mini-services-total">No services selected yet</strong></p>
                         <p class="flow-mini-cart__total" id="flow-mini-logistics-row" style="display:none;">Logistics &amp; Area Fee: <strong id="flow-mini-logistics-fee">—</strong></p>
-                        <p class="flow-mini-cart__total">Estimated total: <strong id="flow-mini-cart-total">—</strong></p>
+                        <p class="flow-mini-cart__total">Estimated total: <strong id="flow-mini-cart-total">No services selected yet</strong></p>
                     </div>
                 </aside>
                 <div class="service-flow__content">
@@ -1172,7 +1175,7 @@
                         <p class="flow-price" id="flow-price-display">Select an option to see pricing.</p>
                         <div class="flow-actions">
                             <button type="button" class="button button--ghost" data-flow-prev>Back</button>
-                            <button type="button" class="button button--ghost" data-flow-skip>Skip This Service</button>
+                            <button type="button" class="button button--ghost" data-flow-skip title="Continue without selecting this service">Not This Time</button>
                             <button type="button" class="button button--primary" data-flow-next disabled>Next Service</button>
                         </div>
                         <!-- Choice prompt: shown after user picks an option -->
@@ -1241,32 +1244,33 @@
                     </section>
                     <section class="flow-step" data-flow-step="3">
                         <header class="flow-step__header">
-                            <p class="flow-step__eyebrow">Final Step</p>
-                            <h3>Schedule and contact details</h3>
-                            <p>Share how we can reach you and when you’d like the service.</p>
+                            <p class="flow-step__eyebrow">Step 3 of 3 — Almost there</p>
+                            <h3>Your Details &amp; Schedule</h3>
+                            <p>Tell us when and where, and how to reach you. Contract services will ask for a signature on the next screen.</p>
                         </header>
+                        <p style="font-size:0.78rem;color:#6b7280;margin-bottom:1rem;"><span class="req">*</span> Required fields</p>
                         <div class="flow-form-grid">
                             <div class="form-row">
-                                <label for="flow-name">Full Name</label>
-                                <input type="text" id="flow-name" name="flow_name" placeholder="Ama Mensah" required>
+                                <label for="flow-name">Full Name <span class="req">*</span></label>
+                                <input type="text" id="flow-name" name="flow_name" placeholder="Ama Mensah" required autocomplete="name">
                             </div>
                             <div class="form-row">
-                                <label for="flow-email">Email Address</label>
-                                <input type="email" id="flow-email" name="flow_email" placeholder="you@example.com" required>
+                                <label for="flow-email">Email Address <span class="req">*</span></label>
+                                <input type="email" id="flow-email" name="flow_email" placeholder="you@example.com" required autocomplete="email">
                             </div>
                             <div class="form-row">
-                                <label for="flow-phone">Phone Number</label>
-                                <input type="tel" id="flow-phone" name="flow_phone" placeholder="024 000 0000" required>
+                                <label for="flow-phone">Phone Number <span class="req">*</span></label>
+                                <input type="tel" id="flow-phone" name="flow_phone" placeholder="07700 900000" required autocomplete="tel">
                             </div>
                             <div class="form-row">
-                                <label for="flow-location">Address / Location</label>
-                                <input type="text" id="flow-location" name="flow_location" placeholder="East Legon, Accra" required {% if travel_settings and travel_settings.ask_for_postcode %}readonly{% endif %}>
+                                <label for="flow-location">Address / Location <span class="req">*</span></label>
+                                <input type="text" id="flow-location" name="flow_location" placeholder="e.g. 12 High Street, Stevenage" required {% if travel_settings and travel_settings.ask_for_postcode %}readonly{% endif %} autocomplete="street-address">
                                 {% if travel_settings and travel_settings.ask_for_postcode %}
                                 <small class="form-hint">Edit this in the summary step above.</small>
                                 {% endif %}
                             </div>
                             <div class="form-row">
-                                <label for="flow-date">Preferred Date</label>
+                                <label for="flow-date">Preferred Date <span class="req">*</span></label>
                                 <input type="date" id="flow-date" name="flow_date" required>
                                 <script>
                                 (function(){
@@ -1282,7 +1286,7 @@
                                 </script>
                             </div>
                             <div class="form-row">
-                                <label for="flow-time">Preferred Time Slot</label>
+                                <label for="flow-time">Preferred Time Slot <span class="req">*</span></label>
                                 <select id="flow-time" name="flow_time" required>
                                     <option value="">Select a time slot</option>
                                     <option value="08:00">8:00 AM – 9:00 AM</option>
@@ -1334,20 +1338,21 @@
                                 <label>Payment Option</label>
                                 <div class="flow-payment-choice__options" role="radiogroup" aria-label="Choose payment option">
                                     <label class="flow-payment-choice__option">
-                                        <input type="radio" name="flow_payment_option" value="prebook_save">
+                                        <input type="radio" name="flow_payment_option" value="prebook_save"
+                                            data-discount-percent="{{ prebook_discount_percent if prebook_discount_enabled and prebook_discount_percent > 0 else 0 }}">
                                         <span>
                                             <strong>
                                                 {% if prebook_discount_enabled and prebook_discount_percent > 0 %}
-                                                Pre-book &amp; Save ({{ '%.2f'|format(prebook_discount_percent)|replace('.00','') }}% off)
+                                                Pay Now &amp; Save <span id="prebook-savings-amount">{{ '%.2f'|format(prebook_discount_percent)|replace('.00','') }}%</span>
                                                 {% else %}
                                                 Pre-book &amp; Pay Now
                                                 {% endif %}
                                             </strong>
-                                            <small>
+                                            <small id="prebook-savings-detail">
                                                 {% if prebook_discount_enabled and prebook_discount_percent > 0 %}
-                                                Pay securely via Stripe now and lock in your discount.
+                                                Pay securely via Stripe — you save <strong id="prebook-savings-value"></strong> off the total price.
                                                 {% else %}
-                                                Pay securely via Stripe now. Discount is currently disabled.
+                                                Pay securely via Stripe now and confirm your booking immediately.
                                                 {% endif %}
                                             </small>
                                         </span>
@@ -1355,8 +1360,8 @@
                                     <label class="flow-payment-choice__option">
                                         <input type="radio" name="flow_payment_option" value="pay_in_person" checked>
                                         <span>
-                                            <strong>Pay after Service</strong>
-                                            <small>No online payment now. You can pay in person after completion.</small>
+                                            <strong>Pay After Service</strong>
+                                            <small>No payment now — pay on the day once the job is done.</small>
                                         </span>
                                     </label>
                                 </div>

@@ -3,30 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Booking Confirmed | {{ site_settings.company_name }}</title>
+    <title>{% if paid %}Booking Confirmed{% else %}Request Received{% endif %} | {{ site_settings.company_name }}</title>
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" href="/favicon/favicon.ico" sizes="any">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
-        .card { background: #fff; border-radius: 1.25rem; box-shadow: 0 4px 32px rgba(0,0,0,0.10); max-width: 520px; width: 100%; overflow: hidden; }
-        .card__header { background: {% if paid %}#16a34a{% else %}#1a6fce{% endif %}; padding: 2.5rem 2rem 2rem; text-align: center; color: #fff; }
-        .card__icon { font-size: 3rem; margin-bottom: 0.75rem; display: block; }
+        .card { background: #fff; border-radius: 1.25rem; box-shadow: 0 4px 32px rgba(0,0,0,0.10); max-width: 540px; width: 100%; overflow: hidden; }
+        .card__header { background: {% if paid %}#16a34a{% else %}#1a6fce{% endif %}; padding: 2rem 2rem 1.75rem; text-align: center; color: #fff; }
+        .card__icon { font-size: 2.75rem; margin-bottom: 0.6rem; display: block; }
         .card__title { font-size: 1.5rem; font-weight: 800; margin-bottom: 0.25rem; }
-        .card__subtitle { font-size: 0.95rem; opacity: 0.88; }
-        .card__body { padding: 2rem; }
-        .ref-box { background: #eff6ff; border-left: 4px solid #1a6fce; border-radius: 0.5rem; padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
-        .ref-box__label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 0.25rem; }
-        .ref-box__value { font-size: 1.5rem; font-weight: 800; color: #1a6fce; letter-spacing: 0.05em; }
-        .steps { margin-bottom: 1.75rem; }
-        .steps__title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #374151; margin-bottom: 0.75rem; }
-        .step { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.6rem; font-size: 0.9rem; color: #374151; }
-        .step__num { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: {% if paid %}#16a34a{% else %}#1a6fce{% endif %}; color: #fff; font-size: 0.65rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-        .actions { display: flex; flex-direction: column; gap: 0.75rem; }
-        .btn { display: block; text-align: center; padding: 0.85rem 1rem; border-radius: 0.6rem; font-weight: 600; font-size: 0.95rem; text-decoration: none; cursor: pointer; border: none; }
+        .card__subtitle { font-size: 0.92rem; opacity: 0.88; }
+        .card__body { padding: 1.75rem 2rem 2rem; }
+        /* Reference */
+        .ref-box { background: #eff6ff; border-left: 4px solid #1a6fce; border-radius: 0.5rem; padding: 0.9rem 1.25rem; margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+        .ref-box__label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 0.2rem; }
+        .ref-box__value { font-size: 1.4rem; font-weight: 800; color: #1a6fce; letter-spacing: 0.05em; }
+        .ref-box__copy { background: none; border: 1px solid #bfdbfe; border-radius: 6px; padding: 0.35rem 0.65rem; font-size: 0.75rem; color: #2563eb; cursor: pointer; font-weight: 600; white-space: nowrap; }
+        .ref-box__copy:hover { background: #eff6ff; }
+        /* Booking summary */
+        .summary { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.75rem; padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
+        .summary__title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; font-weight: 700; margin-bottom: 0.75rem; }
+        .summary__row { display: flex; align-items: flex-start; gap: 0.6rem; font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem; }
+        .summary__row:last-child { margin-bottom: 0; }
+        .summary__icon { flex-shrink: 0; color: #6b7280; margin-top: 1px; }
+        .summary__label { color: #6b7280; min-width: 4.5rem; }
+        .summary__value { font-weight: 600; color: #111827; }
+        .summary__total { border-top: 1px solid #e5e7eb; margin-top: 0.75rem; padding-top: 0.75rem; display: flex; justify-content: space-between; font-size: 0.95rem; }
+        .summary__total-label { color: #374151; font-weight: 600; }
+        .summary__total-value { font-weight: 800; color: {% if paid %}#16a34a{% else %}#1a6fce{% endif %}; }
+        /* Steps */
+        .steps { margin-bottom: 1.5rem; }
+        .steps__title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #374151; margin-bottom: 0.6rem; }
+        .step { display: flex; align-items: flex-start; gap: 0.65rem; margin-bottom: 0.55rem; font-size: 0.875rem; color: #374151; }
+        .step__num { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; background: {% if paid %}#16a34a{% else %}#1a6fce{% endif %}; color: #fff; font-size: 0.62rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+        /* Actions */
+        .actions { display: flex; flex-direction: column; gap: 0.65rem; margin-bottom: 1.25rem; }
+        .btn { display: block; text-align: center; padding: 0.8rem 1rem; border-radius: 0.6rem; font-weight: 600; font-size: 0.9rem; text-decoration: none; }
         .btn--primary { background: {% if paid %}#16a34a{% else %}#1a6fce{% endif %}; color: #fff; }
         .btn--ghost { background: transparent; border: 1.5px solid #d1d5db; color: #374151; }
-        .note { margin-top: 1.5rem; font-size: 0.8rem; color: #9ca3af; text-align: center; line-height: 1.6; }
+        .note { font-size: 0.78rem; color: #9ca3af; text-align: center; line-height: 1.6; }
+        @media (max-width: 480px) { .card__body { padding: 1.25rem; } }
     </style>
 </head>
 <body>
@@ -35,41 +52,102 @@
             <span class="card__icon">{% if paid %}✅{% else %}📋{% endif %}</span>
             <h1 class="card__title">{% if paid %}Booking Confirmed!{% else %}Request Received!{% endif %}</h1>
             <p class="card__subtitle">
-                {% if paid %}Your payment has been processed and your booking is confirmed.
-                {% else %}We've got your request and will be in touch shortly.{% endif %}
+                {% if name %}Hi {{ name }} — {% endif %}
+                {% if paid %}your payment is confirmed and your booking is locked in.
+                {% else %}we've got your request and will be in touch within 24 hours.{% endif %}
             </p>
         </div>
         <div class="card__body">
+
             {% if ref %}
             <div class="ref-box">
-                <div class="ref-box__label">Your Booking Reference</div>
-                <div class="ref-box__value">{{ ref }}</div>
+                <div>
+                    <div class="ref-box__label">Booking Reference</div>
+                    <div class="ref-box__value" id="booking-ref">{{ ref }}</div>
+                </div>
+                <button class="ref-box__copy" onclick="copyRef()" id="copy-ref-btn" title="Copy reference number">Copy</button>
+            </div>
+            {% endif %}
+
+            {% if service or booking_date or booking_time or booking_total %}
+            <div class="summary">
+                <div class="summary__title">Your Booking Summary</div>
+                {% if service %}
+                <div class="summary__row">
+                    <svg class="summary__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <span class="summary__label">Service</span>
+                    <span class="summary__value">{{ service }}</span>
+                </div>
+                {% endif %}
+                {% if booking_date %}
+                <div class="summary__row">
+                    <svg class="summary__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    <span class="summary__label">Date</span>
+                    <span class="summary__value">{{ booking_date }}</span>
+                </div>
+                {% endif %}
+                {% if booking_time %}
+                <div class="summary__row">
+                    <svg class="summary__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span class="summary__label">Arrival</span>
+                    <span class="summary__value">{{ booking_time }}</span>
+                </div>
+                {% endif %}
+                {% if booking_total %}
+                <div class="summary__total">
+                    <span class="summary__total-label">{% if paid %}Total Paid{% else %}Estimated Total{% endif %}</span>
+                    <span class="summary__total-value">{{ booking_total }}</span>
+                </div>
+                {% endif %}
             </div>
             {% endif %}
 
             <div class="steps">
                 <div class="steps__title">What happens next</div>
                 {% if paid %}
-                <div class="step"><span class="step__num">1</span><span>You'll receive a confirmation email with your booking details.</span></div>
-                <div class="step"><span class="step__num">2</span><span>Our team will contact you to confirm the exact arrival time.</span></div>
-                <div class="step"><span class="step__num">3</span><span>Sit back — we'll take care of everything on the day!</span></div>
+                <div class="step"><span class="step__num">1</span><span>A confirmation email is on its way to you with all the details.</span></div>
+                <div class="step"><span class="step__num">2</span><span>Our team will confirm your exact arrival window by phone.</span></div>
+                <div class="step"><span class="step__num">3</span><span>Sit back — we'll handle everything on the day!</span></div>
                 {% else %}
-                <div class="step"><span class="step__num">1</span><span>Check your email — we've sent a confirmation with your reference number.</span></div>
-                <div class="step"><span class="step__num">2</span><span>Our team will review your request within 24 hours and call to confirm.</span></div>
-                <div class="step"><span class="step__num">3</span><span>Once confirmed, sit back and let us handle the rest!</span></div>
+                <div class="step"><span class="step__num">1</span><span>Check your email — a confirmation with your reference is on its way.</span></div>
+                <div class="step"><span class="step__num">2</span><span>We'll call you within 24 hours to confirm and schedule the visit.</span></div>
+                <div class="step"><span class="step__num">3</span><span>Once confirmed, relax — we've got it from here!</span></div>
                 {% endif %}
             </div>
 
             <div class="actions">
                 <a class="btn btn--primary" href="/">Back to Homepage</a>
-                <a class="btn btn--ghost" href="/services">Browse More Services</a>
+                {% if ref and cancel_token and not paid %}
+                <a class="btn btn--ghost" href="/booking/cancel?ref={{ ref }}&token={{ cancel_token }}" style="font-size:0.82rem;padding:0.6rem 1rem;color:#6b7280;border-color:#e5e7eb;">Need to cancel? Click here</a>
+                {% endif %}
             </div>
 
             <p class="note">
-                Keep your reference number safe — you'll need it if you contact us.<br>
-                Questions? Call <strong>{{ site_settings.company_phone or '(+44) 7795 595867' }}</strong> or email us.
+                Quote your reference <strong>{{ ref }}</strong> if you call or email us.<br>
+                <strong>{{ site_settings.company_phone or '(+44) 7795 595867' }}</strong>
             </p>
         </div>
     </div>
+    <script>
+    function copyRef() {
+        var ref = document.getElementById('booking-ref');
+        var btn = document.getElementById('copy-ref-btn');
+        if (!ref || !btn) return;
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(ref.textContent.trim()).then(function() {
+                btn.textContent = '✓ Copied';
+                setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+            });
+        } else {
+            var ta = document.createElement('textarea');
+            ta.value = ref.textContent.trim();
+            ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.select();
+            document.execCommand('copy'); document.body.removeChild(ta);
+            btn.textContent = '✓ Copied';
+            setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+        }
+    }
+    </script>
 </body>
 </html>

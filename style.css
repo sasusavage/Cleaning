@@ -3262,6 +3262,22 @@ textarea {
 
 .form-feedback.is-error {
     color: #c0392b;
+    text-transform: none;
+    letter-spacing: 0;
+    line-height: 1.7;
+}
+
+/* Per-field validation highlight */
+.field-error {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239,68,68,0.15) !important;
+}
+
+/* Required asterisk */
+.req {
+    color: #ef4444;
+    margin-left: 2px;
+    font-weight: 700;
 }
 
 .form-feedback.is-success {
