@@ -4305,36 +4305,38 @@ This Office Cleaning Service Agreement ("Agreement") is made between Done-Well C
 
 1. Services
 Done-Well Cleaning Limited agrees to provide regular office cleaning services including:
-- Vacuuming and mopping floors
-- Dusting and sanitising surfaces
-- Emptying bins
-- Cleaning washrooms and kitchen areas
-- General office cleaning duties
+  • Vacuuming and mopping floors
+  • Dusting and sanitising surfaces
+  • Emptying bins
+  • Cleaning washrooms and kitchen areas
+  • General office cleaning duties
 
 Services will be carried out according to the agreed schedule and instructions of the Client.
 
 2. Service Rates
 The Client agrees to pay the following rates:
-- Daily Cleaning Services: from £19.50 per hour per cleaner
-- Weekly Cleaning Services: from £35.00 per hour per cleaner
+  • Daily Cleaning Services: from £19.50 per hour per cleaner
+  • Weekly Cleaning Services: from £35.00 per hour per cleaner
 
-Minimum booking time is 1 hour 30 minutes per visit. Any additional cleaning services requested outside the agreed scope may be charged separately.
+Minimum booking time is 1 hour 30 minutes per visit.
+
+Any additional cleaning services requested outside the agreed scope may be charged separately.
 
 3. Payment Terms
 Invoices shall be issued weekly or monthly as agreed between both parties. Payment must be made within 7 days of the invoice date by bank transfer or another agreed payment method. Late payments may incur interest in accordance with the Late Payment of Commercial Debts (Interest) Act 1998.
 
 4. Contractor Responsibilities
 Done-Well Cleaning Limited shall:
-- Provide trained and reliable cleaning staff
-- Maintain appropriate public liability insurance
-- Comply with UK Health and Safety regulations
-- Supply cleaning equipment and materials unless otherwise agreed
+  • Provide trained and reliable cleaning staff
+  • Maintain appropriate public liability insurance
+  • Comply with UK Health and Safety regulations
+  • Supply cleaning equipment and materials unless otherwise agreed
 
 5. Client Responsibilities
 The Client shall:
-- Provide safe access to the premises during agreed service times
-- Ensure water and electricity are available
-- Notify the Contractor of any hazards or special requirements
+  • Provide safe access to the premises during agreed service times
+  • Ensure water and electricity are available
+  • Notify the Contractor of any hazards or special requirements
 
 6. Cancellation & Termination
 Either party may terminate this Agreement by giving 14 days' written notice. Cancellations made with less than 24 hours' notice may be subject to a cancellation fee.
@@ -4343,9 +4345,9 @@ The Contractor reserves the right to suspend services in cases of non-payment, u
 
 7. Liability
 Done-Well Cleaning Limited shall exercise reasonable care while delivering services. The Contractor shall not be liable for:
-- Pre-existing damage
-- Losses caused by faulty equipment or unsafe premises
-- Indirect or consequential losses
+  • Pre-existing damage
+  • Losses caused by faulty equipment or unsafe premises
+  • Indirect or consequential losses
 
 Any claim for damage must be reported within 24 hours of service completion.
 
@@ -4353,7 +4355,20 @@ Any claim for damage must be reported within 24 hours of service completion.
 Both parties agree to keep confidential any business or sensitive information obtained during the course of this Agreement.
 
 9. Governing Law
-This Agreement shall be governed by the laws of England and Wales."""
+This Agreement shall be governed by the laws of England and Wales.
+
+────────────────────────────────────────────
+Signed for Done-Well Cleaning Limited
+Name:      ____________________________
+Signature: ____________________________
+Date:      ____________________________
+
+────────────────────────────────────────────
+Signed by the Client
+Name:      ____________________________
+Company:   ____________________________
+Signature: ____________________________
+Date:      ____________________________"""
 
 _done_ensure_contract_template_table = False
 
@@ -4405,10 +4420,24 @@ def fetch_contract_template():
         cursor.execute("SELECT id, title, body FROM contract_templates WHERE is_active = 1 ORDER BY id DESC LIMIT 1")
         row = cursor.fetchone()
         if row:
+            # Auto-upgrade if DB still has the old shorter contract (missing signature block)
+            if row.get('body') and 'Governing Law' in row['body'] and '────' not in row['body']:
+                try:
+                    cursor2 = conn.cursor()
+                    cursor2.execute(
+                        "UPDATE contract_templates SET title=%s, body=%s WHERE id=%s",
+                        ('Office Cleaning Service Agreement', _OFFICE_CLEANING_CONTRACT_DEFAULT, row['id'])
+                    )
+                    conn.commit()
+                    cursor2.close()
+                    row['title'] = 'Office Cleaning Service Agreement'
+                    row['body'] = _OFFICE_CLEANING_CONTRACT_DEFAULT
+                except Exception:
+                    app.logger.exception('Failed to auto-upgrade contract template')
             return row
         # Seed default on first fetch
         _seed_default_contract_template()
-        return {'id': None, 'title': 'Service Agreement', 'body': _OFFICE_CLEANING_CONTRACT_DEFAULT}
+        return {'id': None, 'title': 'Office Cleaning Service Agreement', 'body': _OFFICE_CLEANING_CONTRACT_DEFAULT}
     finally:
         cursor.close()
         conn.close()

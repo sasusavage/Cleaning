@@ -1855,33 +1855,55 @@
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 
     <!-- Contract Agreement Modal -->
-    <div id="contract-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;">
-        <div style="background:#fff;border-radius:14px;max-width:680px;width:calc(100% - 2rem);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.25);overflow:hidden;">
-            <div style="background:#1e3a5f;padding:1.25rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+    <!-- Contract modal -->
+    <div id="contract-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:16px;max-width:720px;width:calc(100% - 2rem);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.30);overflow:hidden;">
+
+            <!-- Header -->
+            <div style="background:#1e3a5f;padding:1.1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
                 <div style="display:flex;align-items:center;gap:0.6rem;">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-                    <span id="contract-modal-title" style="color:#fff;font-size:1rem;font-weight:600;"></span>
+                    <span id="contract-modal-title" style="color:#fff;font-size:0.975rem;font-weight:700;letter-spacing:0.01em;"></span>
                 </div>
-                <button type="button" onclick="closeContractModal()" aria-label="Close" style="background:transparent;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:0.25rem;font-size:1.25rem;line-height:1;">&#x2715;</button>
+                <button type="button" onclick="closeContractModal()" aria-label="Close" style="background:transparent;border:none;color:rgba(255,255,255,0.75);cursor:pointer;padding:0.3rem;font-size:1.25rem;line-height:1;">&#x2715;</button>
             </div>
-            <div style="flex:1;overflow-y:auto;padding:1.5rem;">
-                <p style="font-size:0.82rem;color:#6b7280;margin:0 0 1rem;padding:0.75rem;background:#eff6ff;border-radius:8px;border-left:3px solid #2563eb;">
-                    Please read the full agreement below before signing. Scroll to the bottom, enter your legal name, and tick the checkbox to confirm.
-                </p>
-                <pre id="contract-modal-body" style="white-space:pre-wrap;font-family:'Georgia',serif;font-size:0.875rem;line-height:1.75;color:#1e293b;margin:0;padding:0;"></pre>
+
+            <!-- Scroll progress bar -->
+            <div style="height:3px;background:#e2e8f0;flex-shrink:0;"><div id="contract-scroll-bar" style="height:100%;width:0%;background:#2563eb;transition:width 0.1s;"></div></div>
+
+            <!-- Notice -->
+            <div style="padding:0.85rem 1.5rem;background:#eff6ff;border-bottom:1px solid #dbeafe;flex-shrink:0;display:flex;align-items:flex-start;gap:0.6rem;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span style="font-size:0.82rem;color:#1e40af;line-height:1.5;">Please scroll through and read the full agreement before signing. Enter your legal name and tick the checkbox at the bottom to continue.</span>
             </div>
-            <div style="padding:1.25rem 1.5rem;border-top:1px solid #e2e8f0;background:#f8fafc;flex-shrink:0;">
-                <div style="margin-bottom:0.75rem;">
-                    <label style="display:block;font-size:0.78rem;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.35rem;">Your Full Legal Name</label>
-                    <input type="text" id="contract-modal-signer" placeholder="Enter your full legal name" style="width:100%;padding:0.55rem 0.85rem;border:1px solid #d1d5db;border-radius:8px;font-size:0.9rem;font-family:inherit;color:#1e293b;">
+
+            <!-- Contract body -->
+            <div id="contract-modal-scroll" style="flex:1;overflow-y:auto;padding:1.75rem 2rem;background:#fafaf9;">
+                <pre id="contract-modal-body" style="white-space:pre-wrap;font-family:'Georgia',Georgia,serif;font-size:0.895rem;line-height:1.85;color:#1e293b;margin:0;padding:0;"></pre>
+            </div>
+
+            <!-- Signature footer -->
+            <div style="padding:1.25rem 1.5rem;border-top:2px solid #e2e8f0;background:#f8fafc;flex-shrink:0;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.85rem;">
+                    <div>
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">Your Full Legal Name *</label>
+                        <input type="text" id="contract-modal-signer" placeholder="As it appears on official ID" style="width:100%;padding:0.55rem 0.85rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:0.9rem;font-family:inherit;color:#1e293b;background:#fff;">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:0.72rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;">Company Name (optional)</label>
+                        <input type="text" id="contract-modal-company" placeholder="Your company or organisation" style="width:100%;padding:0.55rem 0.85rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:0.9rem;font-family:inherit;color:#1e293b;background:#fff;">
+                    </div>
                 </div>
-                <label style="display:flex;align-items:flex-start;gap:0.6rem;cursor:pointer;margin-bottom:1rem;">
-                    <input type="checkbox" id="contract-modal-agreed" style="margin-top:0.2rem;width:auto;flex-shrink:0;">
-                    <span style="font-size:0.875rem;color:#374151;">I have read and agree to the terms of this Service Agreement, and I authorise Done-Well Cleaning Limited to schedule services based on the selected frequency.</span>
+                <label style="display:flex;align-items:flex-start;gap:0.65rem;cursor:pointer;padding:0.85rem 1rem;background:#fff;border:1.5px solid #d1d5db;border-radius:10px;margin-bottom:0.85rem;">
+                    <input type="checkbox" id="contract-modal-agreed" style="margin-top:0.15rem;width:auto;flex-shrink:0;accent-color:#1e3a5f;width:16px;height:16px;">
+                    <span style="font-size:0.875rem;color:#374151;line-height:1.55;">I confirm I have read and understood the full agreement above, and I agree to be bound by its terms. I authorise Done-Well Cleaning Limited to provide services as described.</span>
                 </label>
                 <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
-                    <button type="button" onclick="closeContractModal()" style="padding:0.6rem 1.25rem;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#374151;font-size:0.875rem;font-weight:600;cursor:pointer;">Cancel</button>
-                    <button type="button" id="contract-modal-confirm" onclick="confirmContractModal()" style="padding:0.6rem 1.5rem;border-radius:8px;border:none;background:#1e3a5f;color:#fff;font-size:0.875rem;font-weight:600;cursor:pointer;">Confirm &amp; Sign</button>
+                    <button type="button" onclick="closeContractModal()" style="padding:0.6rem 1.25rem;border-radius:8px;border:1.5px solid #d1d5db;background:#fff;color:#374151;font-size:0.875rem;font-weight:600;cursor:pointer;">Cancel</button>
+                    <button type="button" id="contract-modal-confirm" onclick="confirmContractModal()" style="padding:0.6rem 1.75rem;border-radius:8px;border:none;background:#1e3a5f;color:#fff;font-size:0.875rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:0.5rem;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        Sign &amp; Continue
+                    </button>
                 </div>
             </div>
         </div>
@@ -1905,9 +1927,21 @@
                 document.getElementById('contract-modal-title').textContent = tmpl.title || 'Service Agreement';
                 document.getElementById('contract-modal-body').textContent = tmpl.body || '';
                 document.getElementById('contract-modal-signer').value = '';
+                document.getElementById('contract-modal-company').value = '';
                 document.getElementById('contract-modal-agreed').checked = false;
+                document.getElementById('contract-scroll-bar').style.width = '0%';
+                var scrollEl = document.getElementById('contract-modal-scroll');
+                scrollEl.scrollTop = 0;
                 document.getElementById('contract-modal').style.display = 'flex';
                 document.body.style.overflow = 'hidden';
+
+                // Scroll progress
+                scrollEl.onscroll = function() {
+                    var max = scrollEl.scrollHeight - scrollEl.clientHeight;
+                    var pct = max > 0 ? Math.round((scrollEl.scrollTop / max) * 100) : 100;
+                    document.getElementById('contract-scroll-bar').style.width = pct + '%';
+                };
+
                 return new Promise(function(resolve) { _contractModalResolve = resolve; });
             });
         };
@@ -1920,14 +1954,25 @@
 
         window.confirmContractModal = function() {
             var signer = (document.getElementById('contract-modal-signer').value || '').trim();
+            var company = (document.getElementById('contract-modal-company').value || '').trim();
             var agreed = document.getElementById('contract-modal-agreed').checked;
-            if (!signer) { alert('Please enter your full legal name.'); return; }
-            if (!agreed) { alert('You must tick the checkbox to agree to the contract terms.'); return; }
+            if (!signer) {
+                document.getElementById('contract-modal-signer').focus();
+                document.getElementById('contract-modal-signer').style.borderColor = '#ef4444';
+                setTimeout(function() { document.getElementById('contract-modal-signer').style.borderColor = '#d1d5db'; }, 2500);
+                alert('Please enter your full legal name to sign the agreement.');
+                return;
+            }
+            if (!agreed) { alert('Please tick the checkbox to confirm you agree to the terms.'); return; }
+            var today = new Date();
+            var dateStr = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
             var body = document.getElementById('contract-modal-body').textContent;
+            // Append actual signature details to the contract text for the email copy
+            var sigBlock = '\n\n════════════════════════════════════════\nELECTRONICALLY SIGNED VIA DONE-WELL BOOKING PORTAL\nClient Name:    ' + signer + (company ? '\nCompany:        ' + company : '') + '\nDate:           ' + dateStr + '\nIP:             [recorded]\n════════════════════════════════════════';
             document.getElementById('contract-modal').style.display = 'none';
             document.body.style.overflow = '';
             if (_contractModalResolve) {
-                _contractModalResolve({ signer_name: signer, agreed: true, contract_text: body });
+                _contractModalResolve({ signer_name: signer, company: company, agreed: true, contract_text: body + sigBlock });
                 _contractModalResolve = null;
             }
         };
