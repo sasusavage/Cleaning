@@ -14923,13 +14923,21 @@ def service_detail_page(service_id):
     except Exception:
         pass
 
+    services_hero_bg = ''
+    try:
+        site_content = fetch_site_content()
+        services_hero_bg = site_content.get('services_hero_bg') or ''
+    except Exception:
+        pass
+
     return render_template(
         'service_detail.html',
         service=service,
         site_settings=site_settings,
         domestic_cleaning=domestic_cleaning,
         footer_info=footer_info,
-        services=all_services
+        services=all_services,
+        services_hero_bg=services_hero_bg
     )
 
 

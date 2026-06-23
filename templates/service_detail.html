@@ -10,7 +10,13 @@
     <meta name="description" content="{{ service.short_description or service.name ~ ' — professional cleaning service by Done-Well Cleaning Limited in Stevenage, Hertfordshire. Fully insured, DBS-checked cleaners. Book today.' }}">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://done-wellcleaninglimited.org/services/{{ service.id }}">
-    {% set _svc_img = (service.image_path | media_url) if service.image_path else (company_logo_url or 'https://done-wellcleaninglimited.org/favicon/apple-touch-icon.png') %}
+    {% set _svc_url_base = 'https://done-wellcleaninglimited.org' %}
+    {% set _svc_img_raw = (service.image_path | media_url) if service.image_path else '' %}
+    {% set _svc_img_abs = _svc_img_raw if _svc_img_raw.startswith('http') else (_svc_url_base ~ _svc_img_raw) if _svc_img_raw else '' %}
+    {% set _svc_hero_raw = (services_hero_bg | media_url) if services_hero_bg else '' %}
+    {% set _svc_hero_abs = _svc_hero_raw if _svc_hero_raw.startswith('http') else (_svc_url_base ~ _svc_hero_raw) if _svc_hero_raw else '' %}
+    {% set _logo_abs = company_logo_url if company_logo_url.startswith('http') else (_svc_url_base ~ company_logo_url) if company_logo_url else '' %}
+    {% set _svc_img = _svc_img_abs or _svc_hero_abs or _logo_abs or (_svc_url_base ~ '/favicon/apple-touch-icon.png') %}
     {% set _svc_desc = service.short_description or (service.name ~ ' — professional cleaning service by Done-Well Cleaning Limited in Stevenage, Hertfordshire. Fully insured, DBS-checked cleaners. Book today.') %}
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://done-wellcleaninglimited.org/services/{{ service.id }}">
