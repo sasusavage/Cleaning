@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Done-Well Cleaning Limited' %}
+    {% set company_logo = site_settings.logo_path if site_settings and site_settings.logo_path else '' %}
+    {% set company_logo_url = (company_logo | media_url) if company_logo else '' %}
+    {% set _base_url = 'https://done-wellcleaninglimited.org' %}
+    {% set _job_img_raw = (job.image_path | media_url) if job.image_path else '' %}
+    {% set _job_img = _job_img_raw if _job_img_raw.startswith('http') else (_base_url ~ _job_img_raw) if _job_img_raw else '' %}
+    {% set _logo_abs = company_logo_url if company_logo_url.startswith('http') else (_base_url ~ company_logo_url) if company_logo_url else '' %}
+    {% set _og_image = _job_img or _logo_abs or (_base_url ~ '/favicon/apple-touch-icon.png') %}
+    {% set _og_desc = job.description[:200] ~ ('...' if job.description | length > 200 else '') if job.description else 'Join the Done-Well Cleaning team in Stevenage, Hertfordshire. Apply today.' %}
+    <title>{{ job.title }} | Careers at {{ company_name }}</title>
+    <meta name="description" content="{{ _og_desc }}">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="{{ _base_url }}/jobs/{{ job.id }}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ _base_url }}/jobs/{{ job.id }}">
+    <meta property="og:title" content="{{ job.title }} | Careers at {{ company_name }}">
+    <meta property="og:description" content="{{ _og_desc }}">
+    <meta property="og:image" content="{{ _og_image }}">
+    <meta property="og:site_name" content="{{ company_name }}">
+    <meta property="og:locale" content="en_GB">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ job.title }} | Careers at {{ company_name }}">
+    <meta name="twitter:description" content="{{ _og_desc }}">
+    <meta name="twitter:image" content="{{ _og_image }}">
+    <link rel="icon" href="/favicon/favicon.ico" sizes="any">
+    <meta http-equiv="refresh" content="0;url=/#careers">
+    <style>
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+        .redir { text-align: center; color: #374151; }
+        .redir a { color: #1a6fce; }
+    </style>
+</head>
+<body>
+    <div class="redir">
+        <p>Redirecting to job listing&hellip;</p>
+        <p><a href="/#careers">Click here if not redirected</a></p>
+    </div>
+</body>
+</html>

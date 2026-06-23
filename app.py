@@ -14838,6 +14838,27 @@ def index():
     )
 
 
+@app.route('/jobs/<int:job_id>')
+def job_detail(job_id):
+    job = None
+    try:
+        jobs = fetch_job_positions_from_db()
+        job = next((j for j in jobs if int(j.get('id', 0)) == job_id), None)
+    except Exception:
+        app.logger.exception('Error fetching job detail for %s', job_id)
+
+    if not job:
+        return redirect(url_for('index') + '#careers')
+
+    site_settings = {}
+    try:
+        site_settings = fetch_site_settings()
+    except Exception:
+        pass
+
+    return render_template('job_detail.html', job=job, site_settings=site_settings)
+
+
 @app.route('/services')
 def services_page():
     services = []
