@@ -1134,7 +1134,7 @@ body.is-nav-expanded main {
   right: 0;
   background-color: var(--stats-bg, rgba(0, 0, 0, 0.5));
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(var(--stat-count, 3), 1fr);
   z-index: 3;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -1255,12 +1255,14 @@ body.is-nav-expanded main {
   }
 
   .hero__stats {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(var(--stat-count, 3), 1fr);
     padding: 1rem 0;
   }
 
   .hero__stat {
     padding: 0.75rem 0.5rem;
+    text-align: center;
+    align-items: center;
   }
 
   .hero__badge-marquee {

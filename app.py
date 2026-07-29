@@ -5927,7 +5927,9 @@ def resolve_service_selections(raw_selections):
         if pricing_model in ('tenancy', 'tenancy_rates'):
             rate_id = payload.get('rate_id') or payload.get('selection')
             variant = (payload.get('variant') or 'standard').lower()
-            rate = next((r for r in service.get('tenancy_rates', []) if int(r['id']) == int(rate_id)), None)
+            if rate_id is None or str(rate_id).strip() == '':
+                raise ValueError('Please select a property size for this service.')
+            rate = next((r for r in service.get('tenancy_rates', []) if str(r.get('id')) == str(rate_id)), None)
             if not rate:
                 raise ValueError('Selected property size is no longer available.')
             if rate.get('is_blocker'):
@@ -5952,7 +5954,9 @@ def resolve_service_selections(raw_selections):
 
         elif pricing_model in ('deep', 'deep_tiers', 'airbnb'):
             tier_id = payload.get('tier_id') or payload.get('selection') or payload.get('option_id')
-            tier = next((t for t in service.get('pricing_tiers', []) if int(t['id']) == int(tier_id)), None)
+            if tier_id is None or str(tier_id).strip() == '':
+                raise ValueError('Please choose a cleaning tier for this service.')
+            tier = next((t for t in service.get('pricing_tiers', []) if str(t.get('id')) == str(tier_id)), None)
             if not tier:
                 raise ValueError('Selected deep cleaning tier is no longer available.')
             min_staff = int(tier.get('min_staff') or 1)

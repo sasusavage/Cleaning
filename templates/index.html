@@ -253,20 +253,20 @@
 
   <!-- Bottom Stats Strip -->
     {% if hero and hero.stats_enabled is not sameas false and (hero.stat1_label or hero.stat2_label or hero.stat3_label) %}
-  <div class="hero__stats" style="--stats-bg:{{ hero.stats_bg_color or 'rgba(0,0,0,0.5)' }};">
-    <div class="hero__stat" data-stat="1">
-      <span class="hero__stat-value">{{ hero.stat1_value or '—' }}</span>
-      <span class="hero__stat-label">{{ hero.stat1_label or 'Stat 1' }}</span>
+  {% set _active_stats = [] %}
+  {% if hero.stat1_label or hero.stat1_value %}{% set _active_stats = _active_stats + [{'v': hero.stat1_value, 'l': hero.stat1_label}] %}{% endif %}
+  {% if hero.stat2_label or hero.stat2_value %}{% set _active_stats = _active_stats + [{'v': hero.stat2_value, 'l': hero.stat2_label}] %}{% endif %}
+  {% if hero.stat3_label or hero.stat3_value %}{% set _active_stats = _active_stats + [{'v': hero.stat3_value, 'l': hero.stat3_label}] %}{% endif %}
+  {% if _active_stats %}
+  <div class="hero__stats" style="--stats-bg:{{ hero.stats_bg_color or 'rgba(0,0,0,0.5)' }};--stat-count:{{ _active_stats|length }};">
+    {% for s in _active_stats %}
+    <div class="hero__stat">
+      <span class="hero__stat-value">{{ s.v or '—' }}</span>
+      <span class="hero__stat-label">{{ s.l }}</span>
     </div>
-    <div class="hero__stat" data-stat="2">
-      <span class="hero__stat-value">{{ hero.stat2_value or '—' }}</span>
-      <span class="hero__stat-label">{{ hero.stat2_label or 'Stat 2' }}</span>
-    </div>
-    <div class="hero__stat" data-stat="3">
-      <span class="hero__stat-value">{{ hero.stat3_value or '—' }}</span>
-      <span class="hero__stat-label">{{ hero.stat3_label or 'Stat 3' }}</span>
-    </div>
+    {% endfor %}
   </div>
+  {% endif %}
   {% endif %}
 
   <!-- Trust Badges Marquee (KEEP AS-IS) -->
