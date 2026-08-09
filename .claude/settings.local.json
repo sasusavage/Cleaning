@@ -23,7 +23,9 @@
       "Bash(python -c \"import py_compile; py_compile.compile\\(''config.py'', doraise=True\\); print\\(''OK''\\)\")",
       "Bash(gh auth *)",
       "Bash(git config *)",
-      "Bash(git credential-manager *)"
+      "Bash(git credential-manager *)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\DeLL\\\\OneDrive\\\\Documents\\\\Cleaning\" -Recurse -File | Select-Object -First 50 | ForEach-Object { $_.FullName })",
+      "Bash(echo \"autocrlf=[$?]\")"
     ]
   }
 }
