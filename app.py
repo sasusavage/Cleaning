@@ -10351,14 +10351,28 @@ def submit_testimonial():
         existing_customer = cursor.fetchone()
         is_verified = existing_customer is not None
         status = 'approved' if is_verified else 'pending'
-        
+
+        # is_verified_customer is a smallint/tinyint column on both engines,
+        # so send 1/0 — a Python bool becomes a Postgres boolean and won't cast.
+        verified_flag = 1 if is_verified else 0
+
         # Insert the testimonial
-        cursor.execute("""
-            INSERT INTO testimonials (name, message, rating, email, status, is_verified_customer, image_url)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (name, message, rating, email, status, is_verified, ''))
-        
-        testimonial_id = cursor.lastrowid
+        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
+        if 'postgres' in engine:
+            cursor.execute("""
+                INSERT INTO testimonials (name, message, rating, email, status, is_verified_customer, image_url)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (name, message, rating, email, status, verified_flag, ''))
+            row = cursor.fetchone()
+            testimonial_id = (row['id'] if isinstance(row, dict) else row[0]) if row else None
+        else:
+            cursor.execute("""
+                INSERT INTO testimonials (name, message, rating, email, status, is_verified_customer, image_url)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (name, message, rating, email, status, verified_flag, ''))
+            testimonial_id = cursor.lastrowid
+
         conn.commit()
         cursor.close()
         conn.close()
