@@ -703,6 +703,9 @@
             <div class="section__header" data-animate="fade-in">
                 <p class="section__eyebrow">{{ site_content.careers_eyebrow if site_content and site_content.careers_eyebrow else 'Join Our Team' }}</p>
                 <h2 class="section__title">{{ site_content.careers_title if site_content and site_content.careers_title else 'Build a career with ' ~ company_name ~ '. We are always looking for dedicated professionals.' }}</h2>
+                <p class="section__note" style="margin-top:0.75rem;">
+                    Prefer a full written application? <a href="{{ url_for('static', filename='static/documents/done-well-job-application-form-fillable.pdf') }}" download style="color:#1a6fce; font-weight:600; text-decoration:underline;">Download our application form (fillable PDF)</a> — type your answers on-screen or print and fill it by hand, then email or bring it to us.
+                </p>
             </div>
             {% if job_positions %}
             {% set job_count = job_positions | length %}
@@ -1550,7 +1553,7 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
             <h2 id="modal-title" class="modal__title">Apply for <span id="job-title-placeholder">Position</span></h2>
-            <p class="modal__subtitle">Send us your details and we'll get back to you.</p>
+            <p class="modal__subtitle">Send us your details and we'll get back to you. Prefer a full written application? <a href="{{ url_for('static', filename='static/documents/done-well-job-application-form-fillable.pdf') }}" download style="color:#1a6fce; font-weight:600;">Download the fillable application form</a> instead.</p>
             <form id="job-application-form" class="modal__form" enctype="multipart/form-data">
                 <div class="form-row">
                     <label for="applicant-name">Full Name</label>
