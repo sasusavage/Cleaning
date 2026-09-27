@@ -6,9 +6,11 @@ from collections import OrderedDict
 from xml.sax.saxutils import escape as xml_escape
 from werkzeug.utils import secure_filename, safe_join
 from werkzeug.security import check_password_hash
+from werkzeug.datastructures import FileStorage
 from functools import wraps
 from config import Config
 from utils import upload_file_to_cloudinary, delete_cloudinary_image
+import job_application_form
 import random
 import json
 import re
@@ -2025,7 +2027,14 @@ def send_request_notifications(request_record, attachments=None):
         service_name_for_subject = context.get('service_name') or context.get('request_type') or 'service'
         payment_info_for_subject = service_flow.get('payment') or {}
         is_paid_for_subject = bool(payment_info_for_subject.get('is_paid'))
-        if is_survey_request:
+        is_full_application = bool((context.get('metadata') or {}).get('is_full_application'))
+        if is_full_application:
+            user_subject = f"Your application has been received – {context.get('job_position') or 'Done-Well Cleaning'}"
+            user_text = (
+                "Thanks for completing your application! A copy of everything you submitted is attached to this "
+                "email for your records.\n\n" + build_request_summary_text(context)
+            )
+        elif is_survey_request:
             user_subject = f"Survey request received – {service_name_for_subject}"
             user_text = (
                 "Thanks for your enquiry! This service requires a site survey before we can provide pricing.\n"
@@ -2045,7 +2054,7 @@ def send_request_notifications(request_record, attachments=None):
             text_body=user_text,
             recipients=[user_email],
             settings=settings,
-            attachments=None,
+            attachments=attachments if is_full_application else None,
             reply_to=settings.get('reply_to') or settings.get('sender_email'),
             error_context='request_user_notification',
             request_id=request_record.get('id'),
@@ -7607,6 +7616,126 @@ def apply_job():
         return jsonify({'error': str(exc)}), 400
     except Exception:
         app.logger.exception('Failed to submit job application')
+        return jsonify({'error': 'Unable to submit application at this time.'}), 500
+
+
+_FULL_APP_SUMMARY_GROUPS = {
+    'pos': ['Cleaning Operative', 'Domestic Cleaner', 'Commercial Cleaner', 'Deep Cleaning Operative', 'Office Cleaner', 'Other'],
+    'worktype': ['Domestic cleaning', 'Office/commercial cleaning', 'End-of-tenancy cleaning', 'Deep cleaning', 'Communal areas', 'Other'],
+    'years_exp': ['None', 'Less than 1 year', '1–2 years', '3–5 years', 'More than 5 years'],
+    'rtw': ['Yes', 'No', 'Unsure'],
+}
+
+
+def _selected_checkbox_labels(answers, prefix):
+    options = _FULL_APP_SUMMARY_GROUPS.get(prefix, [])
+    return [label for label in options if answers.get(f'{prefix}__{job_application_form.slugify(label)}')]
+
+
+def build_full_application_summary(answers):
+    answers = answers or {}
+    lines = []
+    positions = _selected_checkbox_labels(answers, 'pos')
+    if positions:
+        lines.append(f"Position(s) applied for: {', '.join(positions)}")
+    worktypes = _selected_checkbox_labels(answers, 'worktype')
+    if worktypes:
+        lines.append(f"Type of work preferred: {', '.join(worktypes)}")
+    if answers.get('pref_area'):
+        lines.append(f"Preferred area(s) of work: {answers.get('pref_area')}")
+    rtw = _selected_checkbox_labels(answers, 'rtw')
+    if rtw:
+        lines.append(f"Right to work in the UK: {', '.join(rtw)}")
+    years_exp = _selected_checkbox_labels(answers, 'years_exp')
+    if years_exp:
+        lines.append(f"Cleaning experience: {', '.join(years_exp)}")
+    if answers.get('hours_per_week'):
+        lines.append(f"Desired hours/week: {answers.get('hours_per_week')}")
+    avail_count = sum(1 for k, v in answers.items() if k.startswith('avail__') and v)
+    if avail_count:
+        lines.append(f"Availability slots selected: {avail_count} of 21")
+    ref_names = [answers.get('ref1_name'), answers.get('ref2_name')]
+    ref_names = [n for n in ref_names if n]
+    if ref_names:
+        lines.append(f"References provided: {', '.join(ref_names)}")
+    lines.append('')
+    lines.append('Full answers are in the attached completed application PDF.')
+    return '\n'.join(lines)
+
+
+def _decode_signature_data_url(data_url):
+    if not data_url or not isinstance(data_url, str):
+        return None
+    if not data_url.startswith('data:image/png;base64,'):
+        return None
+    try:
+        return base64.b64decode(data_url.split(',', 1)[1])
+    except (ValueError, TypeError):
+        return None
+
+
+@app.route('/api/apply-job-full', methods=['POST'])
+def apply_job_full():
+    data = request.get_json(silent=True) or {}
+    answers = data.get('answers') or {}
+    if not isinstance(answers, dict):
+        return jsonify({'error': 'Invalid application data.'}), 400
+
+    full_name = sanitize_text(answers.get('full_name'), 150)
+    email = sanitize_email(answers.get('email'))
+    phone = sanitize_phone(answers.get('phone'))
+    declaration_name = sanitize_text(answers.get('decl_name'), 150)
+    signature_bytes = _decode_signature_data_url(data.get('signature_image'))
+
+    if not full_name:
+        return jsonify({'error': 'Please enter your full legal name.'}), 400
+    if not email:
+        return jsonify({'error': 'Please enter a valid email address.'}), 400
+    if not phone:
+        return jsonify({'error': 'Please enter a phone number so we can reach you.'}), 400
+    if not declaration_name:
+        return jsonify({'error': 'Please type your name in the declaration section.'}), 400
+    if not signature_bytes:
+        return jsonify({'error': 'Please sign the declaration before submitting.'}), 400
+
+    positions = _selected_checkbox_labels(answers, 'pos')
+    position_label = sanitize_text(data.get('position') or (positions[0] if positions else ''), 255) or 'General Application'
+
+    try:
+        pdf_bytes = job_application_form.render_filled_pdf(answers, signature_png_bytes=signature_bytes)
+    except Exception:
+        app.logger.exception('Failed to render completed application PDF')
+        return jsonify({'error': 'Unable to process your application right now. Please try again.'}), 500
+
+    pdf_filename = secure_filename(f'Application - {full_name} - {position_label}.pdf') or 'application.pdf'
+    application_file = FileStorage(
+        stream=BytesIO(pdf_bytes),
+        filename=pdf_filename,
+        content_type='application/pdf',
+    )
+
+    payload = {
+        'request_type': 'job',
+        'name': full_name,
+        'email': email,
+        'phone': phone,
+        'position': position_label,
+        'message': build_full_application_summary(answers),
+        'source': 'full_application_form',
+    }
+
+    try:
+        response_payload = process_request_submission(
+            payload,
+            uploaded_files=[application_file],
+            remote_addr=request.remote_addr,
+            extra_metadata={'is_full_application': True},
+        )
+        return jsonify(response_payload), 201
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        app.logger.exception('Failed to submit full job application')
         return jsonify({'error': 'Unable to submit application at this time.'}), 500
 
 

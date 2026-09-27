@@ -1553,7 +1553,12 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
             <h2 id="modal-title" class="modal__title">Apply for <span id="job-title-placeholder">Position</span></h2>
-            <p class="modal__subtitle">Send us your details and we'll get back to you. Prefer a full written application? <a href="{{ url_for('static', filename='static/documents/done-well-job-application-form-fillable.pdf') }}" download style="color:#1a6fce; font-weight:600;">Download the fillable application form</a> instead.</p>
+            <p class="modal__subtitle">Send us your details and we'll get back to you.</p>
+            <p class="modal__subtitle" style="margin-top:-1.25rem;">
+                Prefer the full written application?
+                <a href="#" id="open-full-application" style="color:#1a6fce; font-weight:600;">Complete it online now</a>
+                or <a href="{{ url_for('static', filename='static/documents/done-well-job-application-form-fillable.pdf') }}" download style="color:#1a6fce; font-weight:600;">download the fillable PDF</a>.
+            </p>
             <form id="job-application-form" class="modal__form" enctype="multipart/form-data">
                 <div class="form-row">
                     <label for="applicant-name">Full Name</label>
@@ -1572,9 +1577,9 @@
                     <textarea id="applicant-message" name="message" rows="3" required placeholder="Tell us about your experience..."></textarea>
                 </div>
                 <div class="form-row">
-                    <label for="applicant-resume">Attach Resume (PDF, DOC, DOCX, JPG)</label>
+                    <label for="applicant-resume">Attach Resume, or a Completed Application Form (PDF, DOC, DOCX, JPG)</label>
                     <input type="file" id="applicant-resume" name="resume" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" />
-                    <small style="display:block; margin-top:0.5rem; color:#6b7280;">Optional, max 10MB.</small>
+                    <small style="display:block; margin-top:0.5rem; color:#6b7280;">Already downloaded and filled in the application form yourself? Attach it here. Optional, max 10MB.</small>
                 </div>
                 <input type="hidden" id="job-position" name="position">
                 <button type="submit" class="button button--primary" style="width: 100%; justify-content: center;">Send Application</button>
@@ -1582,6 +1587,628 @@
             </form>
         </div>
     </div>
+
+    <!-- Full Application modal: on-site multi-section application matching the written form -->
+    <style>
+    .faf-section { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(15,23,42,0.08); }
+    .faf-section:last-of-type { border-bottom: none; padding-bottom: 0; }
+    .faf-section__title { color: #1a6fce; font-size: 1.05rem; margin: 0 0 1rem; }
+    .faf-subheading { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #1e293b; margin: 1.25rem 0 0.6rem; }
+    .faf-subheading:first-child { margin-top: 0; }
+    .faf-hint { font-size: 0.8rem; color: #6b7280; margin: -0.5rem 0 1rem; line-height: 1.6; }
+    .faf-choice-group { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-bottom: 0.5rem; }
+    .faf-choice { display: flex; align-items: center; gap: 0.4rem; font-weight: 500; text-transform: none; letter-spacing: 0; font-size: 0.875rem; color: #374151; cursor: pointer; }
+    .faf-choice input { width: auto; padding: 0; accent-color: #1a6fce; }
+    .faf-other-input { margin-top: 0.5rem; width: 100%; }
+    .faf-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .faf-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+    @media (max-width: 640px) { .faf-row2, .faf-row3 { grid-template-columns: 1fr; } }
+    .faf-grid-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.85rem; }
+    .faf-grid-table th, .faf-grid-table td { border: 1px solid rgba(15,23,42,0.1); padding: 0.5rem; text-align: center; }
+    .faf-grid-table th:first-child, .faf-grid-table td:first-child { text-align: left; }
+    .faf-grid-table th { background: #1a2b4a; color: #fff; font-weight: 600; }
+    .faf-grid-table input[type="checkbox"] { width: auto; accent-color: #1a6fce; }
+    .faf-qual-table td input { width: 100%; padding: 0.5rem; font-size: 0.85rem; }
+    .faf-employer { padding: 1rem; background: #f8fafc; border-radius: 10px; margin-bottom: 1rem; }
+    #faf-sig-wrap { position: relative; border: 1.5px dashed #94a3b8; border-radius: 10px; background: #fff; overflow: hidden; transition: border-color 0.2s; max-width: 320px; }
+    #faf-sig-wrap.active { border-style: solid; border-color: #2563eb; }
+    #faf-sig-wrap.error { border-color: #ef4444; border-style: solid; }
+    #faf-signature-pad { display: block; width: 100%; height: 140px; cursor: crosshair; touch-action: none; }
+    #faf-sig-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; gap: 0.3rem; color: #9ca3af; font-size: 0.8rem; }
+    .faf-err { font-size: 0.72rem; color: #ef4444; margin-top: 0.3rem; display: none; }
+    .faf-err.show { display: block; }
+    </style>
+    <div class="modal" id="full-application-modal" aria-hidden="true">
+        <div class="modal__overlay" tabindex="-1" data-close-modal></div>
+        <div class="modal__content modal__content--xl" role="dialog" aria-modal="true" aria-labelledby="faf-modal-title">
+            <button class="modal__close" aria-label="Close modal" data-close-modal>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <h2 id="faf-modal-title" class="modal__title">Full Application — <span id="faf-title-placeholder">Position</span></h2>
+            <p class="modal__subtitle">Complete every section below and sign at the end. National Insurance number and DBS/criminal-record questions aren't asked here — we'll only request those later if you progress further.</p>
+
+            <form id="full-application-form" class="modal__form">
+                <div class="faf-section">
+                    <h3 class="faf-section__title">1. Position Applied For</h3>
+                    <label>Position</label>
+                    <div class="faf-choice-group">
+                        <label class="faf-choice"><input type="radio" name="g_pos" value="pos__cleaning_operative"> Cleaning Operative</label>
+                        <label class="faf-choice"><input type="radio" name="g_pos" value="pos__domestic_cleaner"> Domestic Cleaner</label>
+                        <label class="faf-choice"><input type="radio" name="g_pos" value="pos__commercial_cleaner"> Commercial Cleaner</label>
+                        <label class="faf-choice"><input type="radio" name="g_pos" value="pos__deep_cleaning_operative"> Deep Cleaning Operative</label>
+                        <label class="faf-choice"><input type="radio" name="g_pos" value="pos__office_cleaner"> Office Cleaner</label>
+                        <label class="faf-choice"><input type="radio" name="g_pos" value="pos__other"> Other</label>
+                    </div>
+                    <input type="text" name="pos__other_text" class="faf-other-input" placeholder="If Other, please specify">
+
+                    <label style="margin-top:1.25rem;display:block;">Type of work preferred (select all that apply)</label>
+                    <div class="faf-choice-group">
+                        <label class="faf-choice"><input type="checkbox" name="worktype__domestic_cleaning"> Domestic cleaning</label>
+                        <label class="faf-choice"><input type="checkbox" name="worktype__office_commercial_cleaning"> Office/commercial cleaning</label>
+                        <label class="faf-choice"><input type="checkbox" name="worktype__end_of_tenancy_cleaning"> End-of-tenancy cleaning</label>
+                        <label class="faf-choice"><input type="checkbox" name="worktype__deep_cleaning"> Deep cleaning</label>
+                        <label class="faf-choice"><input type="checkbox" name="worktype__communal_areas"> Communal areas</label>
+                        <label class="faf-choice"><input type="checkbox" name="worktype__other"> Other</label>
+                    </div>
+                    <input type="text" name="worktype__other_text" class="faf-other-input" placeholder="If Other, please specify">
+
+                    <div class="form-row" style="margin-top:1.25rem;">
+                        <label for="faf-pref-area">Preferred area(s) of work</label>
+                        <textarea id="faf-pref-area" name="pref_area" rows="2"></textarea>
+                    </div>
+                </div>
+
+                <div class="faf-section">
+                    <h3 class="faf-section__title">2. Personal Details</h3>
+                    <div class="faf-row2">
+                        <div class="form-row">
+                            <label for="faf-full-name">Full legal name *</label>
+                            <input type="text" id="faf-full-name" name="full_name" required>
+                        </div>
+                        <div class="form-row">
+                            <label for="faf-preferred-name">Preferred name</label>
+                            <input type="text" id="faf-preferred-name" name="preferred_name">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <label for="faf-address">Current address</label>
+                        <textarea id="faf-address" name="address" rows="2"></textarea>
+                    </div>
+                    <div class="faf-row3">
+                        <div class="form-row">
+                            <label for="faf-postcode">Postcode</label>
+                            <input type="text" id="faf-postcode" name="postcode">
+                        </div>
+                        <div class="form-row">
+                            <label for="faf-phone">Telephone *</label>
+                            <input type="tel" id="faf-phone" name="phone" required>
+                        </div>
+                        <div class="form-row">
+                            <label for="faf-email">Email *</label>
+                            <input type="email" id="faf-email" name="email" required>
+                        </div>
+                    </div>
+                    <p class="faf-hint">National Insurance number isn't collected at this stage — you'll be asked for it later only if you progress further.</p>
+                </div>
+
+                <div class="faf-section">
+                    <h3 class="faf-section__title">3. Right to Work in the UK</h3>
+                    <label>Do you currently have the right to work in the UK?</label>
+                    <div class="faf-choice-group">
+                        <label class="faf-choice"><input type="radio" name="g_rtw" value="rtw__yes"> Yes</label>
+                        <label class="faf-choice"><input type="radio" name="g_rtw" value="rtw__no"> No</label>
+                        <label class="faf-choice"><input type="radio" name="g_rtw" value="rtw__unsure"> Unsure</label>
+                    </div>
+                    <div class="faf-row2" style="margin-top:1rem;">
+                        <div class="form-row">
+                            <label for="faf-rtw-status">If applicable — type of immigration/right-to-work status</label>
+                            <input type="text" id="faf-rtw-status" name="rtw_status">
+                        </div>
+                        <div class="form-row">
+                            <label for="faf-share-code">Share code</label>
+                            <input type="text" id="faf-share-code" name="share_code">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <label for="faf-rtw-expiry">Expiry date, if applicable</label>
+                        <input type="text" id="faf-rtw-expiry" name="rtw_expiry" placeholder="DD/MM/YYYY">
+                    </div>
+                </div>
+
+                <div class="faf-section">
+                    <h3 class="faf-section__title">4. Zero-Hours / Casual Work</h3>
+                    <p class="faf-hint" style="margin-top:0;">Done-Well Cleaning Limited may engage successful applicants on a zero-hours/casual basis. There's no guaranteed minimum number of hours, you're not required to accept work offered, and you may generally work for other employers.</p>
+                    <label>Availability</label>
+                    <table class="faf-grid-table">
+                        <thead><tr><th>Day</th><th>Morning</th><th>Afternoon</th><th>Evening</th></tr></thead>
+                        <tbody id="faf-availability-body"></tbody>
+                    </table>
+                    <div class="form-row">
+                        <label for="faf-hours">How many hours would you ideally like to work each week?</label>
+                        <input type="text" id="faf-hours" name="hours_per_week">
+                    </div>
+                    <label>Are you available for short-notice work?</label>
+                    <div class="faf-choice-group">
+                        <label class="faf-choice"><input type="radio" name="g_short_notice" value="short_notice__yes"> Yes</label>
+                        <label class="faf-choice"><input type="radio" name="g_short_notice" value="short_notice__no"> No</label>
+                        <label class="faf-choice"><input type="radio" name="g_short_notice" value="short_notice__sometimes"> Sometimes</label>
+                    </div>
+                    <div class="form-row" style="margin-top:0.75rem;">
+                        <label for="faf-short-notice-explain">If sometimes, please explain</label>
+                        <textarea id="faf-short-notice-explain" name="short_notice_explain" rows="2"></textarea>
+                    </div>
+                </div>
+
+                <div class="faf-section">
+                    <h3 class="faf-section__title">5. Employment History</h3>
+                    <p class="faf-hint" style="margin-top:0;">Please give details of your most recent employment and relevant experience (leave blank if not applicable).</p>
+                    <div id="faf-employment-history"></div>
+                </div>
+
+                <div class="faf-section">
+                    <h3 class="faf-section__title">6. Cleaning Experience</h3>
+                    <label>How many years' cleaning experience do you have?</label>
+                    <div class="faf-choice-group">
+                        <label class="faf-choice"><input type="radio" name="g_years_exp" value="years_exp__none"> None</label>
+                        <label class="faf-choice"><input type="radio" name="g_years_exp" value="years_exp__less_than_1_year"> Less than 1 year</label>
+                        <label class="faf-choice"><input type="radio" name="g_years_exp" value="years_exp__1_2_years"> 1–2 years</label>
+                        <label class="faf-choice"><input type="radio" name="g_years_exp" value="years_exp__3_5_years"> 3–5 years</label>
+                        <label class="faf-choice"><input type="radio" name="g_years_exp" value="years_exp__more_than_5_years"> More than 5 years</label>
+                    </div>
+                    <label style="margin-top:1rem;display:block;">Please tick areas in which you have experience</label>
+                    <div class="faf-choice-group" id="faf-exp-area-group"></div>
+                    <div class="form-row" style="margin-top:0.75rem;">
+                        <label for="faf-other-exp">Other relevant experience</label>
+                        <textarea id="faf-other-exp" name="other_exp" rows="2"></textarea>
+                    </div>
+                </div>
+
+                <div class="faf-section">
+                    <h3 class="faf-section__title">7. Qualifications and Training</h3>
+                    <p class="faf-hint" style="margin-top:0;">Examples: COSHH, Health &amp; Safety, Manual Handling, Infection Control, First Aid, Safeguarding, Cleaning equipment.</p>
+                    <table class="faf-grid-table faf-qual-table">
+                        <thead><tr><th>Qualification / Training</th><th>Provider</th><th>Date</th></tr></thead>
+                        <tbody id="faf-qual-body"></tbody>
+                    </table>
+                </div>
+
+                <div class="faf-section">
+                    <h3 class="faf-section__title">8. References</h3>
+                    <p class="faf-hint" style="margin-top:0;">Please provide two referees.</p>
+                    <div id="faf-references"></div>
+                    <label>May Done-Well Cleaning Limited contact your referees before making an offer?</label>
+                    <div class="faf-choice-group">
+                        <label class="faf-choice"><input type="radio" name="g_ref_contact" value="ref_contact__yes"> Yes</label>
+                        <label class="faf-choice"><input type="radio" name="g_ref_contact" value="ref_contact__no"> No</label>
+                    </div>
+                    <div class="form-row" style="margin-top:0.75rem;">
+                        <label for="faf-ref-contact-explain">If no, please explain</label>
+                        <textarea id="faf-ref-contact-explain" name="ref_contact_explain" rows="2"></textarea>
+                    </div>
+                </div>
+
+                <div class="faf-section">
+                    <h3 class="faf-section__title">9. Travel and Availability</h3>
+                    <label>How will you normally travel to work?</label>
+                    <div class="faf-choice-group">
+                        <label class="faf-choice"><input type="checkbox" name="travel_mode__car"> Car</label>
+                        <label class="faf-choice"><input type="checkbox" name="travel_mode__public_transport"> Public transport</label>
+                        <label class="faf-choice"><input type="checkbox" name="travel_mode__bicycle"> Bicycle</label>
+                        <label class="faf-choice"><input type="checkbox" name="travel_mode__walking"> Walking</label>
+                        <label class="faf-choice"><input type="checkbox" name="travel_mode__other"> Other</label>
+                    </div>
+                    <input type="text" name="travel_mode__other_text" class="faf-other-input" placeholder="If Other, please specify">
+
+                    <label style="margin-top:1.25rem;display:block;">Do you have regular access to a vehicle?</label>
+                    <div class="faf-choice-group">
+                        <label class="faf-choice"><input type="radio" name="g_has_vehicle" value="has_vehicle__yes"> Yes</label>
+                        <label class="faf-choice"><input type="radio" name="g_has_vehicle" value="has_vehicle__no"> No</label>
+                    </div>
+                    <label style="margin-top:1rem;display:block;">Do you hold a current driving licence?</label>
+                    <div class="faf-choice-group">
+                        <label class="faf-choice"><input type="radio" name="g_driving_licence" value="driving_licence__yes"> Yes</label>
+                        <label class="faf-choice"><input type="radio" name="g_driving_licence" value="driving_licence__no"> No</label>
+                        <label class="faf-choice"><input type="radio" name="g_driving_licence" value="driving_licence__not_applicable"> Not applicable</label>
+                    </div>
+                    <label style="margin-top:1rem;display:block;">Are you willing to travel between different cleaning locations?</label>
+                    <div class="faf-choice-group">
+                        <label class="faf-choice"><input type="radio" name="g_willing_travel" value="willing_travel__yes"> Yes</label>
+                        <label class="faf-choice"><input type="radio" name="g_willing_travel" value="willing_travel__no"> No</label>
+                    </div>
+                </div>
+
+                <div class="faf-section">
+                    <h3 class="faf-section__title">10. Reasonable Adjustments</h3>
+                    <label>Do you require any reasonable adjustment to enable you to participate in the recruitment process?</label>
+                    <div class="faf-choice-group">
+                        <label class="faf-choice"><input type="radio" name="g_adjustment" value="adjustment__yes"> Yes</label>
+                        <label class="faf-choice"><input type="radio" name="g_adjustment" value="adjustment__no"> No</label>
+                    </div>
+                    <div class="form-row" style="margin-top:0.75rem;">
+                        <label for="faf-adjustment-explain">If yes, please explain</label>
+                        <textarea id="faf-adjustment-explain" name="adjustment_explain" rows="2"></textarea>
+                    </div>
+                </div>
+
+                <div class="faf-section">
+                    <h3 class="faf-section__title">11. Emergency Contact</h3>
+                    <div class="faf-row2">
+                        <div class="form-row">
+                            <label for="faf-ec-name">Name</label>
+                            <input type="text" id="faf-ec-name" name="ec_name">
+                        </div>
+                        <div class="form-row">
+                            <label for="faf-ec-relationship">Relationship</label>
+                            <input type="text" id="faf-ec-relationship" name="ec_relationship">
+                        </div>
+                    </div>
+                    <div class="faf-row2">
+                        <div class="form-row">
+                            <label for="faf-ec-phone">Telephone</label>
+                            <input type="tel" id="faf-ec-phone" name="ec_phone">
+                        </div>
+                        <div class="form-row">
+                            <label for="faf-ec-alt-phone">Alternative telephone</label>
+                            <input type="tel" id="faf-ec-alt-phone" name="ec_alt_phone">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faf-section">
+                    <h3 class="faf-section__title">12. Applicant Declaration</h3>
+                    <p class="faf-hint" style="margin-top:0;">I declare that the information in this application is true and complete to the best of my knowledge. This form does not constitute a contract of employment or guarantee any minimum number of hours. Any appointment may be conditional upon satisfactory references, right-to-work verification and, where legally required, a satisfactory DBS/criminal-record check.</p>
+                    <div class="faf-row2">
+                        <div class="form-row">
+                            <label for="faf-decl-name">Applicant name *</label>
+                            <input type="text" id="faf-decl-name" name="decl_name" required>
+                        </div>
+                        <div class="form-row">
+                            <label for="faf-decl-date">Date</label>
+                            <input type="text" id="faf-decl-date" name="decl_date" readonly>
+                        </div>
+                    </div>
+                    <div style="margin-top:0.5rem;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.3rem;">
+                            <label style="margin:0;">Draw your signature *</label>
+                            <button type="button" id="faf-clear-sig" style="font-size:0.75rem;color:#6b7280;background:none;border:none;cursor:pointer;padding:0;text-decoration:underline;">Clear</button>
+                        </div>
+                        <div id="faf-sig-wrap">
+                            <canvas id="faf-signature-pad"></canvas>
+                            <div id="faf-sig-placeholder">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                <span>Sign here with your finger or mouse</span>
+                            </div>
+                        </div>
+                        <span class="faf-err" id="faf-err-sig">Please draw your signature above.</span>
+                    </div>
+                </div>
+
+                <button type="submit" class="button button--primary" style="width: 100%; justify-content: center;">Submit Full Application</button>
+                <div class="form-feedback"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Full Application modal: dynamic sections, signature pad, submit handler -->
+    <script>
+    (function() {
+        var modal = document.getElementById('full-application-modal');
+        var form = document.getElementById('full-application-form');
+        if (!modal || !form) return;
+
+        var EXP_AREAS = [
+            'Domestic cleaning', 'Commercial cleaning', 'Office cleaning', 'Hotel cleaning',
+            'End-of-tenancy cleaning', 'Deep cleaning', 'Communal-area cleaning', 'Carpet cleaning',
+            'Floor cleaning/polishing', 'Window cleaning', 'Cleaning chemicals', 'COSHH procedures',
+            'Infection-control cleaning', 'Manual handling', 'Use of cleaning machinery/equipment'
+        ];
+        var DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        var SLOTS = ['Morning', 'Afternoon', 'Evening'];
+
+        function slugify(text) {
+            return (text || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'field';
+        }
+        function el(tag, attrs, html) {
+            var node = document.createElement(tag);
+            Object.keys(attrs || {}).forEach(function(k) { node.setAttribute(k, attrs[k]); });
+            if (html !== undefined) node.innerHTML = html;
+            return node;
+        }
+
+        // Build availability grid rows
+        var availBody = document.getElementById('faf-availability-body');
+        if (availBody) {
+            DAYS.forEach(function(day) {
+                var tr = document.createElement('tr');
+                tr.appendChild(el('td', {}, day));
+                SLOTS.forEach(function(slot) {
+                    var td = document.createElement('td');
+                    var name = 'avail__' + slugify(day) + '__' + slugify(slot);
+                    td.appendChild(el('input', { type: 'checkbox', name: name, 'aria-label': day + ' ' + slot }));
+                    tr.appendChild(td);
+                });
+                availBody.appendChild(tr);
+            });
+        }
+
+        // Build experience-area checkboxes
+        var expGroup = document.getElementById('faf-exp-area-group');
+        if (expGroup) {
+            EXP_AREAS.forEach(function(label) {
+                var wrap = el('label', { class: 'faf-choice' });
+                var input = el('input', { type: 'checkbox', name: 'exp_area__' + slugify(label) });
+                wrap.appendChild(input);
+                wrap.appendChild(document.createTextNode(' ' + label));
+                expGroup.appendChild(wrap);
+            });
+        }
+
+        // Build employment history blocks (Employer 1-3)
+        var empWrap = document.getElementById('faf-employment-history');
+        if (empWrap) {
+            [1, 2, 3].forEach(function(i) {
+                var box = el('div', { class: 'faf-employer' });
+                box.appendChild(el('h4', { class: 'faf-subheading' }, 'Employer ' + i));
+                var row1 = el('div', { class: 'faf-row2' });
+                row1.appendChild(el('div', { class: 'form-row' }, '<label>Company</label><input type="text" name="emp' + i + '_company">'));
+                row1.appendChild(el('div', { class: 'form-row' }, '<label>Position</label><input type="text" name="emp' + i + '_position">'));
+                box.appendChild(row1);
+                var row2 = el('div', { class: 'faf-row2' });
+                row2.appendChild(el('div', { class: 'form-row' }, '<label>From</label><input type="text" name="emp' + i + '_from" placeholder="e.g. Jan 2022">'));
+                row2.appendChild(el('div', { class: 'form-row' }, '<label>To</label><input type="text" name="emp' + i + '_to" placeholder="e.g. Present">'));
+                box.appendChild(row2);
+                box.appendChild(el('div', { class: 'form-row' }, '<label>Reason for leaving</label><textarea name="emp' + i + '_reason" rows="1"></textarea>'));
+                box.appendChild(el('div', { class: 'form-row' }, '<label>Main duties</label><textarea name="emp' + i + '_duties" rows="2"></textarea>'));
+                empWrap.appendChild(box);
+            });
+        }
+
+        // Build qualifications table rows
+        var qualBody = document.getElementById('faf-qual-body');
+        if (qualBody) {
+            for (var r = 0; r < 3; r++) {
+                var tr = document.createElement('tr');
+                ['c0', 'c1', 'c2'].forEach(function(c, ci) {
+                    var td = document.createElement('td');
+                    td.appendChild(el('input', { type: 'text', name: 'qual_r' + r + '_' + c }));
+                    tr.appendChild(td);
+                });
+                qualBody.appendChild(tr);
+            }
+        }
+
+        // Build reference blocks (Reference 1-2)
+        var refWrap = document.getElementById('faf-references');
+        if (refWrap) {
+            [1, 2].forEach(function(i) {
+                var box = el('div', { class: 'faf-employer' });
+                box.appendChild(el('h4', { class: 'faf-subheading' }, 'Reference ' + i));
+                var row1 = el('div', { class: 'faf-row2' });
+                row1.appendChild(el('div', { class: 'form-row' }, '<label>Name</label><input type="text" name="ref' + i + '_name">'));
+                row1.appendChild(el('div', { class: 'form-row' }, '<label>Organisation</label><input type="text" name="ref' + i + '_org">'));
+                box.appendChild(row1);
+                var row2 = el('div', { class: 'faf-row2' });
+                row2.appendChild(el('div', { class: 'form-row' }, '<label>Position</label><input type="text" name="ref' + i + '_position">'));
+                row2.appendChild(el('div', { class: 'form-row' }, '<label>Relationship to applicant</label><input type="text" name="ref' + i + '_relationship">'));
+                box.appendChild(row2);
+                var row3 = el('div', { class: 'faf-row2' });
+                row3.appendChild(el('div', { class: 'form-row' }, '<label>Telephone</label><input type="tel" name="ref' + i + '_phone">'));
+                row3.appendChild(el('div', { class: 'form-row' }, '<label>Email</label><input type="email" name="ref' + i + '_email">'));
+                box.appendChild(row3);
+                refWrap.appendChild(box);
+            });
+        }
+
+        /* ── Signature pad ─────────────────────────────────────── */
+        var sigCanvas = document.getElementById('faf-signature-pad');
+        var sigCtx, sigDrawing = false, sigHasStrokes = false;
+
+        function resizeSigPad() {
+            if (!sigCanvas) return;
+            sigCtx = sigCanvas.getContext('2d');
+            var ratio = window.devicePixelRatio || 1;
+            var w = sigCanvas.offsetWidth, h = sigCanvas.offsetHeight;
+            sigCanvas.width = w * ratio;
+            sigCanvas.height = h * ratio;
+            sigCtx.scale(ratio, ratio);
+            sigCtx.strokeStyle = '#1e293b';
+            sigCtx.lineWidth = 2.5;
+            sigCtx.lineCap = 'round';
+            sigCtx.lineJoin = 'round';
+        }
+        function startStroke(x, y) {
+            sigDrawing = true;
+            sigCtx.beginPath();
+            sigCtx.moveTo(x, y);
+            var ph = document.getElementById('faf-sig-placeholder');
+            if (ph) ph.style.display = 'none';
+            var wrap = document.getElementById('faf-sig-wrap');
+            if (wrap) { wrap.classList.add('active'); wrap.classList.remove('error'); }
+            var err = document.getElementById('faf-err-sig');
+            if (err) err.classList.remove('show');
+        }
+        function drawStroke(x, y) {
+            sigCtx.lineTo(x, y);
+            sigCtx.stroke();
+            sigHasStrokes = true;
+        }
+        function endStroke() { sigDrawing = false; }
+
+        if (sigCanvas) {
+            sigCanvas.addEventListener('mousedown', function(e) { startStroke(e.offsetX, e.offsetY); });
+            sigCanvas.addEventListener('mousemove', function(e) { if (sigDrawing) drawStroke(e.offsetX, e.offsetY); });
+            sigCanvas.addEventListener('mouseup', endStroke);
+            sigCanvas.addEventListener('mouseleave', endStroke);
+            sigCanvas.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                var t = e.touches[0], r = sigCanvas.getBoundingClientRect();
+                startStroke((t.clientX - r.left) * (sigCanvas.offsetWidth / r.width), (t.clientY - r.top) * (sigCanvas.offsetHeight / r.height));
+            }, { passive: false });
+            sigCanvas.addEventListener('touchmove', function(e) {
+                e.preventDefault();
+                if (!sigDrawing) return;
+                var t = e.touches[0], r = sigCanvas.getBoundingClientRect();
+                drawStroke((t.clientX - r.left) * (sigCanvas.offsetWidth / r.width), (t.clientY - r.top) * (sigCanvas.offsetHeight / r.height));
+            }, { passive: false });
+            sigCanvas.addEventListener('touchend', endStroke);
+        }
+
+        function clearSig() {
+            if (!sigCtx || !sigCanvas) return;
+            sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+            sigHasStrokes = false;
+            var ph = document.getElementById('faf-sig-placeholder');
+            if (ph) ph.style.display = 'flex';
+            var wrap = document.getElementById('faf-sig-wrap');
+            if (wrap) wrap.classList.remove('active', 'error');
+        }
+        var clearBtn = document.getElementById('faf-clear-sig');
+        if (clearBtn) clearBtn.addEventListener('click', clearSig);
+
+        /* ── Open / close ──────────────────────────────────────── */
+        var currentJobTitle = '';
+        function openFullApplication(jobTitle) {
+            currentJobTitle = jobTitle || '';
+            var titlePlaceholder = document.getElementById('faf-title-placeholder');
+            if (titlePlaceholder) titlePlaceholder.textContent = jobTitle || 'Position';
+
+            if (jobTitle) {
+                var radios = form.querySelectorAll('input[name="g_pos"]');
+                radios.forEach(function(r) {
+                    var label = r.closest('.faf-choice');
+                    var text = label ? label.textContent.trim().toLowerCase() : '';
+                    r.checked = (text === jobTitle.trim().toLowerCase());
+                });
+            }
+
+            // Carry over quick-apply fields if already filled
+            var quickName = document.getElementById('applicant-name');
+            var quickEmail = document.getElementById('applicant-email');
+            var quickPhone = document.getElementById('applicant-phone');
+            if (quickName && quickName.value) form.elements['full_name'].value = quickName.value;
+            if (quickEmail && quickEmail.value) form.elements['email'].value = quickEmail.value;
+            if (quickPhone && quickPhone.value) form.elements['phone'].value = quickPhone.value;
+
+            var declDate = document.getElementById('faf-decl-date');
+            if (declDate && !declDate.value) {
+                declDate.value = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+            }
+
+            modal.classList.add('is-open');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+            setTimeout(function() { resizeSigPad(); clearSig(); }, 60);
+        }
+        function closeFullApplication() {
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.style.overflow = '';
+        }
+        window.openFullApplicationModal = openFullApplication;
+
+        modal.querySelectorAll('[data-close-modal]').forEach(function(elm) {
+            elm.addEventListener('click', closeFullApplication);
+        });
+
+        var openLink = document.getElementById('open-full-application');
+        if (openLink) {
+            openLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                var jobModal = document.getElementById('job-modal');
+                var jobTitle = document.getElementById('job-title-placeholder');
+                if (jobModal) {
+                    jobModal.classList.remove('is-open');
+                    jobModal.setAttribute('aria-hidden', 'true');
+                }
+                openFullApplication(jobTitle ? jobTitle.textContent : '');
+            });
+        }
+
+        /* ── Submit ────────────────────────────────────────────── */
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            var feedback = form.querySelector('.form-feedback');
+            if (!sigHasStrokes) {
+                var wrap = document.getElementById('faf-sig-wrap');
+                var err = document.getElementById('faf-err-sig');
+                if (wrap) { wrap.classList.add('error'); wrap.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+                if (err) err.classList.add('show');
+                return;
+            }
+
+            var answers = {};
+            form.querySelectorAll('input[name], textarea[name]').forEach(function(elm) {
+                if (elm.type === 'radio') {
+                    if (elm.checked) answers[elm.value] = true;
+                } else if (elm.type === 'checkbox') {
+                    if (elm.checked) answers[elm.name] = true;
+                } else {
+                    var v = (elm.value || '').trim();
+                    if (v) answers[elm.name] = v;
+                }
+            });
+
+            var positionLabel = '';
+            var checkedPos = form.querySelector('input[name="g_pos"]:checked');
+            if (checkedPos && checkedPos.value === 'pos__other') {
+                positionLabel = (form.elements['pos__other_text'].value || '').trim();
+            } else if (checkedPos) {
+                var lbl = checkedPos.closest('.faf-choice');
+                positionLabel = lbl ? lbl.textContent.trim() : '';
+            }
+            positionLabel = positionLabel || currentJobTitle;
+
+            var btn = form.querySelector('button[type="submit"]');
+            var originalText = btn.textContent;
+            btn.textContent = 'Submitting...';
+            btn.disabled = true;
+            if (feedback) { feedback.textContent = ''; feedback.className = 'form-feedback'; }
+
+            try {
+                var response = await fetch(window.location.origin + '/api/apply-job-full', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        answers: answers,
+                        signature_image: sigCanvas.toDataURL('image/png'),
+                        position: positionLabel
+                    })
+                });
+                var data = await response.json().catch(function() { return {}; });
+                if (response.ok) {
+                    if (feedback) {
+                        feedback.textContent = "Application submitted! We've emailed you a copy for your records.";
+                        feedback.classList.add('is-success');
+                    }
+                    try {
+                        fetch(window.location.origin + '/api/analytics/event', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ event_type: 'request_submission', event_data: { form: 'full_application', request_id: data.request_id } })
+                        });
+                    } catch (analyticsError) { /* non-critical */ }
+                    setTimeout(function() {
+                        closeFullApplication();
+                        form.reset();
+                        clearSig();
+                        if (feedback) { feedback.textContent = ''; feedback.className = 'form-feedback'; }
+                    }, 2500);
+                } else if (feedback) {
+                    feedback.textContent = data.error || 'Submission failed.';
+                    feedback.classList.add('is-error');
+                }
+            } catch (error) {
+                if (feedback) {
+                    feedback.textContent = 'Network error. Please try again.';
+                    feedback.classList.add('is-error');
+                }
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        });
+    })();
+    </script>
 
     <!-- Job share button handler -->
     <script>
