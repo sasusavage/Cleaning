@@ -1553,38 +1553,12 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
             <h2 id="modal-title" class="modal__title">Apply for <span id="job-title-placeholder">Position</span></h2>
-            <p class="modal__subtitle">Send us your details and we'll get back to you.</p>
-            <p class="modal__subtitle" style="margin-top:-1.25rem;">
-                Prefer the full written application?
-                <a href="#" id="open-full-application" style="color:#1a6fce; font-weight:600;">Complete it online now</a>
-                or <a href="{{ url_for('static', filename='static/documents/done-well-job-application-form-fillable.pdf') }}" download style="color:#1a6fce; font-weight:600;">download the fillable PDF</a>.
-            </p>
-            <form id="job-application-form" class="modal__form" enctype="multipart/form-data">
-                <div class="form-row">
-                    <label for="applicant-name">Full Name</label>
-                    <input type="text" id="applicant-name" name="name" required placeholder="Jane Doe">
-                </div>
-                <div class="form-row">
-                    <label for="applicant-email">Email Address</label>
-                    <input type="email" id="applicant-email" name="email" required placeholder="jane@example.com">
-                </div>
-                <div class="form-row">
-                    <label for="applicant-phone">Phone Number</label>
-                    <input type="tel" id="applicant-phone" name="phone" required placeholder="(555) 123-4567">
-                </div>
-                <div class="form-row">
-                    <label for="applicant-message">Why are you a good fit?</label>
-                    <textarea id="applicant-message" name="message" rows="3" required placeholder="Tell us about your experience..."></textarea>
-                </div>
-                <div class="form-row">
-                    <label for="applicant-resume">Attach Resume, or a Completed Application Form (PDF, DOC, DOCX, JPG)</label>
-                    <input type="file" id="applicant-resume" name="resume" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" />
-                    <small style="display:block; margin-top:0.5rem; color:#6b7280;">Already downloaded and filled in the application form yourself? Attach it here. Optional, max 10MB.</small>
-                </div>
-                <input type="hidden" id="job-position" name="position">
-                <button type="submit" class="button button--primary" style="width: 100%; justify-content: center;">Send Application</button>
-                <div class="form-feedback"></div>
-            </form>
+            <p class="modal__subtitle">Choose how you'd like to apply.</p>
+            <div style="display:flex; flex-direction:column; gap:1rem; margin-top:0.5rem;">
+                <a href="#" id="open-full-application" class="button button--primary" style="justify-content:center; text-decoration:none;">Complete Full Application Online</a>
+                <a href="{{ url_for('static', filename='static/documents/done-well-job-application-form-fillable.pdf') }}" download class="button button--ghost" style="justify-content:center; text-decoration:none;">Download the Fillable PDF</a>
+            </div>
+            <p class="faf-hint" style="margin-top:1.25rem; margin-bottom:0;">Already filled in the downloaded form? Email it to us or bring it in person.</p>
         </div>
     </div>
 
@@ -2080,14 +2054,6 @@
                     r.checked = (text === jobTitle.trim().toLowerCase());
                 });
             }
-
-            // Carry over quick-apply fields if already filled
-            var quickName = document.getElementById('applicant-name');
-            var quickEmail = document.getElementById('applicant-email');
-            var quickPhone = document.getElementById('applicant-phone');
-            if (quickName && quickName.value) form.elements['full_name'].value = quickName.value;
-            if (quickEmail && quickEmail.value) form.elements['email'].value = quickEmail.value;
-            if (quickPhone && quickPhone.value) form.elements['phone'].value = quickPhone.value;
 
             var declDate = document.getElementById('faf-decl-date');
             if (declDate && !declDate.value) {

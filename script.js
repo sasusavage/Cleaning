@@ -4432,7 +4432,7 @@ document.addEventListener("DOMContentLoaded", function () {
             document.body.style.overflow = "";
             if (jobForm) jobForm.reset();
             if (jobResumeInput) jobResumeInput.value = "";
-            var feedback = jobForm.querySelector(".form-feedback");
+            var feedback = jobForm ? jobForm.querySelector(".form-feedback") : null;
             if (feedback) {
                 feedback.textContent = "";
                 feedback.className = "form-feedback";
