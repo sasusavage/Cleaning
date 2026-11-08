@@ -181,12 +181,13 @@ def _add_security_headers(response):
     response.headers.setdefault(
         'Content-Security-Policy',
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://js.stripe.com https://maps.googleapis.com https://app.termly.io https://www.googletagmanager.com; "
+        "script-src 'self' 'unsafe-inline' https://js.stripe.com https://maps.googleapis.com https://app.termly.io https://www.googletagmanager.com https://cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: blob: https://res.cloudinary.com https://maps.gstatic.com https://maps.googleapis.com https://*.tile.openstreetmap.org; "
         "frame-src https://js.stripe.com https://www.google.com https://www.openstreetmap.org; "
         "connect-src 'self' https://api.stripe.com; "
+        "media-src 'self' data:; "
         "object-src 'none'; "
         "base-uri 'self';"
     )
@@ -7384,7 +7385,9 @@ def apply_job_full():
 @app.route('/api/services', methods=['GET'])
 def get_services():
     try:
-        services = fetch_services_from_db(include_inactive=False)
+        # Hidden services are only listed for a signed-in admin (so they can be shown again)
+        include_inactive = bool(session.get('admin_logged_in')) and str_to_bool(request.args.get('include_inactive', '0'))
+        services = fetch_services_from_db(include_inactive=include_inactive)
         return jsonify(services)
     except Exception:
         app.logger.exception('get_services failed')
@@ -8746,9 +8749,76 @@ def edit_service(service_id):
         return jsonify({'error': 'An internal error occurred. Please try again.'}), 500
 
 
+def fetch_service_usage(service_id):
+    """What depends on a service: bookings, contract clients and its price list."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        counts = {}
+        for key, sql in (
+            ('bookings', "SELECT COUNT(DISTINCT service_request_id) FROM service_request_items WHERE service_id = %s"),
+            ('contract_clients', "SELECT COUNT(*) FROM contract_clients WHERE service_id = %s"),
+            ('options', "SELECT COUNT(*) FROM service_options WHERE service_id = %s"),
+            ('tiers', "SELECT COUNT(*) FROM service_pricing_tiers WHERE service_id = %s"),
+            ('items', "SELECT COUNT(*) FROM service_pricing_items WHERE service_id = %s"),
+            ('tenancy_rates', "SELECT COUNT(*) FROM service_tenancy_rates WHERE service_id = %s"),
+            ('room_cards', "SELECT COUNT(*) FROM service_room_cards WHERE service_id = %s"),
+        ):
+            try:
+                cursor.execute(sql, (service_id,))
+                counts[key] = int(cursor.fetchone()[0] or 0)
+            except Exception:
+                conn.rollback()
+                counts[key] = 0
+        return counts
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/admin/api/services/<int:service_id>/usage', methods=['GET'])
+@admin_login_required
+def admin_service_usage(service_id):
+    return jsonify(fetch_service_usage(service_id))
+
+
+@app.route('/admin/api/services/<int:service_id>/visibility', methods=['POST'])
+@admin_login_required
+def admin_service_visibility(service_id):
+    """Show or hide a service on the website without touching anything else."""
+    payload = request.get_json(silent=True) or {}
+    if 'is_active' not in payload:
+        return jsonify({'error': 'is_active is required.'}), 400
+    is_active = str_to_bool(payload.get('is_active'))
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE services SET is_active = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s", (is_active, service_id))
+    found = cursor.rowcount
+    conn.commit()
+    cursor.close()
+    conn.close()
+    if not found:
+        return jsonify({'error': 'Service not found.'}), 404
+    return jsonify({'message': 'Service is now live on the website.' if is_active else 'Service hidden from the website.',
+                    'is_active': is_active})
+
+
 @app.route('/api/services/delete/<int:service_id>', methods=['DELETE'])
 @admin_login_required
 def delete_service(service_id):
+    usage = fetch_service_usage(service_id)
+    if usage.get('bookings') or usage.get('contract_clients'):
+        # Deleting would unlink past bookings and permanently remove contract clients
+        parts = []
+        if usage.get('bookings'):
+            parts.append(f"{usage['bookings']} booking{'s' if usage['bookings'] != 1 else ''}")
+        if usage.get('contract_clients'):
+            parts.append(f"{usage['contract_clients']} contract client{'s' if usage['contract_clients'] != 1 else ''}")
+        return jsonify({
+            'error': f"This service has {' and '.join(parts)}, so it can't be deleted. Hide it from the website instead.",
+            'usage': usage,
+            'can_hide': True,
+        }), 409
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -8855,6 +8925,7 @@ def update_service_option(service_id, option_id):
             sort_order = int(sort_order)
         except (TypeError, ValueError):
             sort_order = 0
+        updates.append('sort_order = %s')
         params.append(sort_order)
     if is_active is not None:
         updates.append('is_active = %s')
@@ -12285,10 +12356,14 @@ def admin_domestic_cleaning_cards_api():
             (service_id, card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
         )
         card_id = cursor.fetchone()[0]
-    except Exception:
+    except Exception as exc:
+        conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Card key must be unique per service.'}), 400
+        if getattr(exc, 'pgcode', None) == '23505':  # unique_violation
+            return jsonify({'error': 'Another card on this service already uses that card key.'}), 400
+        app.logger.exception('Failed to save room card')
+        return jsonify({'error': 'Could not save the card. Please try again.'}), 500
 
     conn.commit()
     cursor.close()
@@ -12352,10 +12427,14 @@ def admin_domestic_cleaning_card_detail_api(card_id):
             """,
             (card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value, card_id, service_id)
         )
-    except Exception:
+    except Exception as exc:
+        conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Card key must be unique per service.'}), 400
+        if getattr(exc, 'pgcode', None) == '23505':  # unique_violation
+            return jsonify({'error': 'Another card on this service already uses that card key.'}), 400
+        app.logger.exception('Failed to save room card')
+        return jsonify({'error': 'Could not save the card. Please try again.'}), 500
 
     conn.commit()
     cursor.close()
@@ -12487,10 +12566,14 @@ def admin_service_room_cards_api(service_id):
             (service_id, card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
         )
         card_id = cursor.fetchone()[0]
-    except Exception:
+    except Exception as exc:
+        conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Card key must be unique per service.'}), 400
+        if getattr(exc, 'pgcode', None) == '23505':  # unique_violation
+            return jsonify({'error': 'Another card on this service already uses that card key.'}), 400
+        app.logger.exception('Failed to save room card')
+        return jsonify({'error': 'Could not save the card. Please try again.'}), 500
 
     conn.commit()
     cursor.close()
@@ -12545,7 +12628,7 @@ def admin_service_room_card_detail_api(card_id):
 
     cursor.close()
     cursor = conn.cursor()
-    active_value = 1 if is_active else 0
+    active_value = bool(is_active)  # service_room_cards.is_active is BOOLEAN
     try:
         cursor.execute(
             """
@@ -12555,10 +12638,14 @@ def admin_service_room_card_detail_api(card_id):
             """,
             (card_key, room_name, lifestyle_copy, image_path if not remove_image else None, sort_order, active_value, card_id)
         )
-    except Exception:
+    except Exception as exc:
+        conn.rollback()
         cursor.close()
         conn.close()
-        return jsonify({'error': 'Card key must be unique per service.'}), 400
+        if getattr(exc, 'pgcode', None) == '23505':  # unique_violation
+            return jsonify({'error': 'Another card on this service already uses that card key.'}), 400
+        app.logger.exception('Failed to save room card')
+        return jsonify({'error': 'Could not save the card. Please try again.'}), 500
 
     conn.commit()
     cursor.close()

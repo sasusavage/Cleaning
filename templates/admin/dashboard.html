@@ -7,7 +7,7 @@
     {% set company_name = site_settings.company_name if site_settings and site_settings.company_name else 'Clean Co.' %}
     <title>Admin Dashboard - {{ company_name }}</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         :root {
             --primary: #2563eb;
@@ -424,6 +424,47 @@
             padding: 0.25rem 0.5rem;
             font-size: 0.75rem;
         }
+
+        /* ── Services catalogue ─────────────────────────────── */
+        .svc-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:0.6rem; margin-bottom:1rem; }
+        .svc-toolbar input[type=search] { flex:1 1 220px; max-width:320px; padding:0.5rem 0.75rem; border:1px solid #d1d5db; border-radius:0.5rem; font:inherit; }
+        .svc-filter { display:inline-flex; border:1px solid #d1d5db; border-radius:0.5rem; overflow:hidden; }
+        .svc-filter__btn { border:0; background:#fff; padding:0.45rem 0.85rem; font:inherit; font-size:0.85rem; cursor:pointer; color:#374151; }
+        .svc-filter__btn + .svc-filter__btn { border-left:1px solid #d1d5db; }
+        .svc-filter__btn.is-active { background:#1e3a5f; color:#fff; }
+        .svc-toolbar__count { font-size:0.85rem; color:#6b7280; }
+        #services-cards-grid { display:grid; gap:0.85rem; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); }
+        .svc-empty { color:#6b7280; padding:1.5rem 0; margin:0; }
+        .svc-card { background:#fff; border:1px solid #e5e7eb; border-radius:0.75rem; padding:1rem 1.1rem; display:flex; flex-direction:column; gap:0.55rem; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+        .svc-card--hidden { background:#f9fafb; border-style:dashed; }
+        .svc-card--hidden .svc-card__name, .svc-card--hidden .svc-card__summary { color:#6b7280; }
+        .svc-card__head { display:flex; align-items:flex-start; justify-content:space-between; gap:0.5rem; }
+        .svc-card__name { margin:0; font-size:1rem; line-height:1.3; color:#1e3a5f; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+        .svc-card__summary { margin:0; font-size:0.82rem; color:#6b7280; line-height:1.45; }
+        .svc-card__meta { display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center; }
+        .svc-tag { font-size:0.75rem; font-weight:600; border-radius:999px; padding:0.15rem 0.6rem; }
+        .svc-tag--plain { background:#f1f5f9; color:#334155; }
+        .svc-card__id { margin-left:auto; font-size:0.75rem; color:#9ca3af; }
+        .svc-pill { flex-shrink:0; font-size:0.75rem; font-weight:700; border-radius:999px; padding:0.15rem 0.6rem; }
+        .svc-pill--live { background:#dcfce7; color:#166534; }
+        .svc-pill--hidden { background:#e5e7eb; color:#374151; }
+        .svc-card__price { display:flex; flex-direction:column; gap:0.1rem; }
+        .svc-card__price strong { font-size:0.95rem; color:#111827; }
+        .svc-card__price span { font-size:0.78rem; color:#6b7280; }
+        .svc-card__actions { display:flex; flex-wrap:wrap; gap:0.4rem; border-top:1px solid #f3f4f6; padding-top:0.65rem; margin-top:auto; }
+        .svc-card__delete { margin-left:auto; background:transparent; color:#b91c1c; border-color:transparent; }
+        .svc-card__delete:hover { background:#fee2e2; }
+        #confirm-dialog { z-index:1200; }
+        /* Price editor sheet: one consistent field style */
+        #item-edit-body input:not([type=checkbox]):not([type=radio]), #item-edit-body select, #item-edit-body textarea {
+            width:100%; box-sizing:border-box; padding:0.5rem 0.65rem; border:1px solid #d1d5db; border-radius:0.45rem;
+            font:inherit; font-size:0.9rem; background:#fff; color:#111827;
+        }
+        #item-edit-body input:focus, #item-edit-body select:focus, #item-edit-body textarea:focus { outline:2px solid #93c5fd; border-color:#3b82f6; }
+        .confirm-dialog__box { max-width:460px; width:calc(100% - 2rem); padding:1.4rem 1.5rem; background:#fff; border-radius:0.85rem; box-shadow:0 20px 50px rgba(15,23,42,0.25); margin:auto; }
+        .confirm-dialog__title { margin:0 0 0.6rem; font-size:1.15rem; color:#111827; }
+        .confirm-dialog__message p { margin:0 0 0.6rem; color:#374151; line-height:1.5; font-size:0.92rem; }
+        .confirm-dialog__actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:0.5rem; margin-top:1rem; }
 
         .modal {
             position: fixed;
@@ -2930,26 +2971,26 @@
         <div id="services" class="section">
             <div class="header">
                 <div>
-                    <h1 class="title" style="margin-bottom: 0.25rem;">Service Management</h1>
-                    <p style="margin: 0; color: #6b7280; font-size: 0.95rem;">Edit catalog items and configure granular pricing/options in one place.</p>
+                    <h1 class="title" style="margin-bottom: 0.25rem;">Services</h1>
+                    <p style="margin: 0; color: #6b7280; font-size: 0.95rem;">Everything customers can book. Prices shown are what customers see and pay.</p>
                 </div>
                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-                    <a class="btn btn-ghost" href="{{ url_for('admin_domestic_cleaning_page') }}">Manage Domestic Cleaning</a>
-                    <button class="btn btn-primary" onclick="openServiceModal()">Add Service</button>
+                    <button class="btn btn-primary" type="button" onclick="openServiceModal()">+ New service</button>
                 </div>
             </div>
             <div class="card section-card">
-                <div class="toolbar" style="margin-bottom: 0.75rem;">
-                    <div class="toolbar__title">
-                        <h3 style="margin:0;">Service Catalog</h3>
-                        <p style="margin:0.2rem 0 0; color:#6b7280; font-size:0.85rem;">All active and hidden services. Click Pricing to manage options/tiers.</p>
+                <div class="svc-toolbar">
+                    <input id="services-search" type="search" placeholder="Search services…" aria-label="Search services" oninput="renderServicesTable(window.servicesData || [])">
+                    <div class="svc-filter" role="group" aria-label="Filter by status">
+                        <button type="button" class="svc-filter__btn is-active" data-filter="all" onclick="setServiceFilter('all')">All</button>
+                        <button type="button" class="svc-filter__btn" data-filter="live" onclick="setServiceFilter('live')">Live</button>
+                        <button type="button" class="svc-filter__btn" data-filter="hidden" onclick="setServiceFilter('hidden')">Hidden</button>
                     </div>
-                    <div class="toolbar__actions">
-                        <button class="btn btn-ghost" type="button" onclick="loadServices()">Refresh</button>
-                    </div>
+                    <span id="services-count" class="svc-toolbar__count"></span>
+                    <button class="btn btn-ghost btn-sm" type="button" onclick="loadServices()" style="margin-left:auto;">↻ Refresh</button>
                 </div>
                 <!-- Service cards grid -->
-                <div id="services-cards-grid" style="display:grid; gap:0.75rem; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));"></div>
+                <div id="services-cards-grid"></div>
                 <!-- Hidden legacy table kept for JS compatibility -->
                 <table id="services-table" class="table-compact" style="display:none;"><thead><tr></tr></thead><tbody></tbody></table>
                 <!-- Hidden legacy panel kept for JS compatibility -->
@@ -3104,15 +3145,15 @@
                 <div class="form-group">
                     <label>Pricing Logic / Service Style</label>
                     <select id="service-pricing-model" name="pricing_model" style="padding: 0.5rem; border-radius: 0.4rem; border: 1px solid var(--border);" onchange="toggleServiceConfigFields()">
-                        <option value="simple">Simple (Fixed Price)</option>
-                        <option value="options">Options (Multiple Choices)</option>
-                        <option value="tenancy">Tenancy (Property Size Table)</option>
-                        <option value="deep">Deep Cleaning (Tiers &amp; Staff)</option>
-                        <option value="airbnb">Airbnb (List + Hours + Staff)</option>
-                        <option value="itemized">Itemized (List of Items)</option>
-                        <option value="survey">Survey Required (No Price — Request Only)</option>
+                        <option value="simple">Fixed price: one price for the whole service</option>
+                        <option value="options">Packages: customer picks one package (e.g. Apartment / Full home)</option>
+                        <option value="tenancy">Size table: price per property size, with optional deep-clean upgrade</option>
+                        <option value="deep">Hourly with size picker: customer picks property size, hours come from your table</option>
+                        <option value="airbnb">Hourly: customer chooses cleaners × hours (with your minimums)</option>
+                        <option value="itemized">Per item: customer sets quantities (sofas, rooms, rugs…)</option>
+                        <option value="survey">Survey first: no online price, customer requests a visit</option>
                     </select>
-                    <p style="margin: 0.35rem 0 0; font-size: 0.85rem; color: #6b7280;">Determines which pricing configurator appears after saving. Choose "Survey Required" for services priced after an on-site visit.</p>
+                    <p style="margin: 0.35rem 0 0; font-size: 0.85rem; color: #6b7280;">How customers are priced when they book. After saving, add the actual prices with the <strong>Prices</strong> button on the service card.</p>
                 </div>
 
                 <div class="form-group">
@@ -3138,19 +3179,12 @@
                 </div>
 
                 <div id="service-config-contract-pricing" class="form-group" style="display: none; padding: 1rem; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 0.6rem;">
-                    <label style="font-weight: 600; color: #3730a3; margin-bottom: 0.5rem; display: block;">Contract Pricing Plans</label>
-                    <p style="font-size: 0.85rem; color: #4f46e5; margin: 0 0 0.75rem;">Set recurring plan rates used on the service detail page.</p>
-                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem;">
-                        <label style="display:flex; flex-direction:column; gap:0.25rem;">Weekly (£)
-                            <input type="number" id="service-contract-weekly" name="contract_price_weekly" step="0.01" min="0" placeholder="17.99">
-                        </label>
-                        <label style="display:flex; flex-direction:column; gap:0.25rem;">Fortnightly (£)
-                            <input type="number" id="service-contract-fortnightly" name="contract_price_fortnightly" step="0.01" min="0" placeholder="19.99">
-                        </label>
-                        <label style="display:flex; flex-direction:column; gap:0.25rem;">Monthly (£)
-                            <input type="number" id="service-contract-monthly" name="contract_price_monthly" step="0.01" min="0" placeholder="24.99">
-                        </label>
-                    </div>
+                    <label style="font-weight: 600; color: #3730a3; margin-bottom: 0.35rem; display: block;">Recurring plans (Weekly · Fortnightly · Monthly)</label>
+                    <p style="font-size: 0.85rem; color: #4338ca; margin: 0;">Plan prices on the website are calculated automatically from this service's <strong>Prices</strong> (including minimum hours, cleaners and fees), so they always match what customers pay. Set prices with the <strong>Prices</strong> button on the service card.</p>
+                    <!-- Legacy per-plan prices: kept so saving never wipes them, but no longer shown to customers -->
+                    <input type="hidden" id="service-contract-weekly" name="contract_price_weekly">
+                    <input type="hidden" id="service-contract-fortnightly" name="contract_price_fortnightly">
+                    <input type="hidden" id="service-contract-monthly" name="contract_price_monthly">
                 </div>
 
                 <div id="service-config-contract-intro" class="form-group" style="display: none; padding: 1rem; background: #f5f3ff; border: 1px solid #c4b5fd; border-radius: 0.6rem;">
@@ -6456,14 +6490,15 @@
         // ─── Service card grid ──────────────────────────────────────────────────
         var _pricingModalServiceId = null; // tracks which service the pricing modal is open for
 
+        // Describe how each service is priced, not which page it was first built for
         const PRICING_TYPE_LABELS = {
-            'simple': 'Simple',
-            'options': 'Options',
-            'tenancy': 'Tenancy',
-            'deep': 'Deep Cleaning',
-            'airbnb': 'Airbnb',
-            'itemized': 'Itemized',
-            'survey': 'Survey Required'
+            'simple': 'Fixed price',
+            'options': 'Packages',
+            'tenancy': 'Size table',
+            'deep': 'Hourly · size picker',
+            'airbnb': 'Hourly',
+            'itemized': 'Per item',
+            'survey': 'Survey first'
         };
         const PRICING_TYPE_COLORS = {
             'simple':   '#e0f2fe:#0369a1',
@@ -6475,6 +6510,28 @@
             'survey':   '#fff7ed:#c2410c'
         };
 
+        let serviceFilter = 'all';
+
+        function setServiceFilter(filter) {
+            serviceFilter = filter;
+            document.querySelectorAll('.svc-filter__btn').forEach(btn => btn.classList.toggle('is-active', btn.dataset.filter === filter));
+            renderServicesTable(window.servicesData || []);
+        }
+
+        function servicePricingSummary(service) {
+            const type = service.pricing_type || service.pricing_model || 'simple';
+            const count = (list, one, many) => {
+                const n = Array.isArray(list) ? list.length : 0;
+                return n ? `${n} ${n === 1 ? one : many}` : '';
+            };
+            if (type === 'survey') return 'Quote after survey';
+            if (type === 'tenancy') return count(service.tenancy_rates, 'size', 'sizes') || 'No sizes yet';
+            if (type === 'itemized') return count(service.pricing_items, 'item', 'items') || 'No items yet';
+            if (['deep', 'airbnb', 'deep_tiers'].includes(type)) return count(service.pricing_tiers, 'price level', 'price levels') || 'No price levels yet';
+            if (type === 'options') return count(service.options, 'package', 'packages') || 'No packages yet';
+            return '';
+        }
+
         function renderServicesTable(services) {
             // Keep legacy hidden table in sync (for any residual JS that references it)
             const tbody = document.querySelector('#services-table tbody');
@@ -6482,41 +6539,121 @@
 
             const grid = document.getElementById('services-cards-grid');
             if (!grid) return;
+            const all = Array.isArray(services) ? services : [];
+            const query = (document.getElementById('services-search')?.value || '').trim().toLowerCase();
+            const visible = all.filter(service => {
+                const live = isTruthyValue(service.is_active);
+                if (serviceFilter === 'live' && !live) return false;
+                if (serviceFilter === 'hidden' && live) return false;
+                if (!query) return true;
+                return `${service.name || ''} ${service.title || ''} ${service.short_description || ''}`.toLowerCase().includes(query);
+            });
+            const liveCount = all.filter(s => isTruthyValue(s.is_active)).length;
+            const countEl = document.getElementById('services-count');
+            if (countEl) countEl.textContent = `${liveCount} live · ${all.length - liveCount} hidden`;
 
-            if (!Array.isArray(services) || services.length === 0) {
-                grid.innerHTML = '<p style="color:#6b7280;padding:1.5rem 0;">No services configured yet.</p>';
+            if (!all.length) {
+                grid.innerHTML = '<p class="svc-empty">No services yet. Use “+ New service” to add your first one.</p>';
+                return;
+            }
+            if (!visible.length) {
+                grid.innerHTML = '<p class="svc-empty">No services match this filter.</p>';
                 return;
             }
 
-            grid.innerHTML = services.map(service => {
-                const type = service.pricing_model || service.pricing_type || 'simple';
-                const typeLabel = PRICING_TYPE_LABELS[type] || type;
+            grid.innerHTML = visible.map(service => {
+                const type = service.pricing_type || service.pricing_model || 'simple';
+                const usesSizes = (service.pricing_tiers || []).some(t => Array.isArray(t.rooms_config) && t.rooms_config.length);
+                const typeLabel = (type === 'deep' && !usesSizes) ? 'Hourly' : (PRICING_TYPE_LABELS[type] || type);
                 const [bgColor, txColor] = (PRICING_TYPE_COLORS[type] || '#f1f5f9:#334155').split(':');
-                const statusActive = Boolean(service.is_active);
-                const category = service.is_contract ? 'contract' : 'one_time';
-                const desc = truncateText(service.description || '', 80);
-                const base = service.price !== null && service.price !== undefined && service.price !== '' ? `£${Number(service.price).toFixed(2)}` : 'Custom quote';
+                const live = isTruthyValue(service.is_active);
+                const recurring = isTruthyValue(service.is_contract) || ['contract', 'hybrid'].includes(service.service_category);
+                const name = service.name || service.title || 'Untitled service';
+                const summary = truncateText(service.short_description || service.description || '', 110);
+                const priceLabel = service.price_label || 'Custom quote';
+                const pricingInfo = servicePricingSummary(service);
                 return `
-                <div class="svc-card" style="background:#fff;border:1px solid #e5e7eb;border-radius:0.75rem;padding:1.1rem 1.25rem;display:flex;flex-direction:column;gap:0.6rem;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
-                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.5rem;">
-                        <div style="flex:1;min-width:0;">
-                            <div style="font-weight:700;font-size:0.97rem;color:#1e3a5f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(service.title || '')}</div>
-                            ${desc ? `<div style="font-size:0.8rem;color:#6b7280;margin-top:0.15rem;">${escapeHtml(desc)}</div>` : ''}
-                        </div>
-                        <span style="flex-shrink:0;font-size:0.75rem;font-weight:700;border-radius:999px;padding:0.15rem 0.6rem;background:${bgColor};color:${txColor};">${typeLabel}</span>
+                <article class="svc-card ${live ? '' : 'svc-card--hidden'}" data-service-id="${service.id}">
+                    <header class="svc-card__head">
+                        <h4 class="svc-card__name" title="${escapeHtml(name)}">${escapeHtml(name)}</h4>
+                        <span class="svc-pill ${live ? 'svc-pill--live' : 'svc-pill--hidden'}">${live ? 'Live' : 'Hidden'}</span>
+                    </header>
+                    ${summary ? `<p class="svc-card__summary">${escapeHtml(summary)}</p>` : ''}
+                    <div class="svc-card__meta">
+                        <span class="svc-tag" style="background:${bgColor};color:${txColor};">${escapeHtml(typeLabel)}</span>
+                        <span class="svc-tag svc-tag--plain">${recurring ? 'Recurring' : 'One-off'}</span>
+                        <span class="svc-card__id">#${service.id}</span>
                     </div>
-                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
-                        ${renderServiceCategoryBadge(category)}
-                        ${renderStatusBadge(statusActive)}
-                        <span style="font-size:0.8rem;color:#6b7280;margin-left:auto;">Base: <strong>${base}</strong></span>
+                    <div class="svc-card__price">
+                        <strong>${escapeHtml(priceLabel)}</strong>
+                        ${pricingInfo ? `<span>${escapeHtml(pricingInfo)}</span>` : ''}
                     </div>
-                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;border-top:1px solid #f3f4f6;padding-top:0.65rem;">
-                        <button class="btn btn-sm btn-primary" type="button" onclick="openPricingModal(${service.id})">Manage Pricing</button>
-                        <button class="btn btn-sm" type="button" onclick="editService(${service.id})">Edit</button>
-                        <button class="btn btn-sm btn-danger" type="button" onclick="deleteService(${service.id})">Delete</button>
-                    </div>
-                </div>`;
+                    <footer class="svc-card__actions">
+                        <button class="btn btn-sm btn-primary" type="button" onclick="openPricingModal(${service.id})">Prices</button>
+                        <button class="btn btn-sm" type="button" onclick="editService(${service.id})">Details</button>
+                        <button class="btn btn-sm" type="button" onclick="setServiceVisibility(${service.id}, ${live ? 'false' : 'true'})">${live ? 'Hide' : 'Show on website'}</button>
+                        <button class="btn btn-sm svc-card__delete" type="button" onclick="deleteService(${service.id})" aria-label="Delete ${escapeHtml(name)}">Delete</button>
+                    </footer>
+                </article>`;
             }).join('');
+        }
+
+        async function setServiceVisibility(id, makeLive) {
+            try {
+                const res = await fetch(`/admin/api/services/${id}/visibility`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: makeLive })
+                });
+                const body = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(body.error || 'Could not update the service.');
+                await loadServices(true);
+                showToast(body.message || (makeLive ? 'Service is live.' : 'Service hidden.'), 'success');
+            } catch (error) {
+                showToast(error.message || 'Could not update the service.', 'error');
+            }
+        }
+
+        // Promise-based confirmation dialog (replaces the browser's confirm())
+        function confirmDialog({ title, message, confirmText = 'Confirm', cancelText = 'Cancel', danger = false, extraText = '', onExtra = null }) {
+            return new Promise(resolve => {
+                let modal = document.getElementById('confirm-dialog');
+                if (!modal) {
+                    modal = document.createElement('div');
+                    modal.id = 'confirm-dialog';
+                    modal.className = 'modal';
+                    modal.setAttribute('role', 'alertdialog');
+                    modal.setAttribute('aria-modal', 'true');
+                    modal.innerHTML = `<div class="modal__box confirm-dialog__box">
+                        <h2 class="confirm-dialog__title"></h2>
+                        <div class="confirm-dialog__message"></div>
+                        <div class="confirm-dialog__actions">
+                            <button type="button" class="btn confirm-dialog__cancel"></button>
+                            <button type="button" class="btn confirm-dialog__extra"></button>
+                            <button type="button" class="btn confirm-dialog__ok"></button>
+                        </div>
+                    </div>`;
+                    document.body.appendChild(modal);
+                }
+                modal.querySelector('.confirm-dialog__title').textContent = title;
+                modal.querySelector('.confirm-dialog__message').innerHTML = message;
+                const ok = modal.querySelector('.confirm-dialog__ok');
+                const cancel = modal.querySelector('.confirm-dialog__cancel');
+                const extra = modal.querySelector('.confirm-dialog__extra');
+                ok.textContent = confirmText;
+                ok.style.display = confirmText ? '' : 'none';
+                ok.className = 'btn confirm-dialog__ok ' + (danger ? 'btn-danger' : 'btn-primary');
+                cancel.textContent = cancelText;
+                extra.textContent = extraText;
+                extra.style.display = extraText ? '' : 'none';
+                const close = value => { modal.classList.remove('open'); resolve(value); };
+                ok.onclick = () => close(true);
+                cancel.onclick = () => close(false);
+                extra.onclick = () => close('extra');
+                modal.onclick = e => { if (e.target === modal) close(false); };
+                modal.classList.add('open');
+                (danger ? cancel : ok).focus();
+            });
         }
 
         // ─── Pricing Manager Modal ──────────────────────────────────────────────
@@ -6627,7 +6764,7 @@
                     </div>`;
                     }).join('') : '<p style="color:#6b7280;font-size:0.9rem;">No tiers yet.</p>'}
                 </div>
-                <button class="btn btn-primary" type="button" onclick="_addDeepTier(${service.id})">+ Add Tier</button>`;
+                <button class="btn btn-primary" type="button" onclick="_addDeepTier(${service.id})">+ Add price level</button>`;
         }
 
         window._addDeepTier = function(serviceId) {
@@ -6749,20 +6886,20 @@
             const footerEl = document.getElementById('item-edit-footer');
 
             if (mode === 'tier-new' || mode === 'tier-edit') {
-                titleEl.textContent = mode === 'tier-new' ? 'Add Tier' : 'Edit Tier';
+                titleEl.textContent = mode === 'tier-new' ? 'Add price level' : 'Edit price level';
                 const d = data || {};
                 bodyEl.innerHTML = `
                 <div style="display:grid;gap:0.85rem;">
-                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Tier Name <span style="color:#ef4444">*</span><input id="ies-name" type="text" value="${escapeHtml(d.tier_name||'')}" required style="padding:0.45rem 0.65rem;border:1px solid #d1d5db;border-radius:0.45rem;font-size:0.9rem;"></label>
+                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;"><span>Name customers see <span style="color:#ef4444">*</span></span><input id="ies-name" type="text" value="${escapeHtml(d.tier_name||'')}" required style="padding:0.45rem 0.65rem;border:1px solid #d1d5db;border-radius:0.45rem;font-size:0.9rem;"></label>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Hourly Rate (£)<input id="ies-rate" type="number" step="0.01" min="0" value="${escapeHtml(d.hourly_rate!=null?String(d.hourly_rate):'')}"></label>
+                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Rate per cleaner per hour (£)<input id="ies-rate" type="number" step="0.01" min="0" value="${escapeHtml(d.hourly_rate!=null?String(d.hourly_rate):'')}"></label>
                         <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Equipment Fee (£)<input id="ies-equip" type="number" step="0.01" min="0" value="${escapeHtml(d.equipment_fee!=null?String(d.equipment_fee):'')}"></label>
                         <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Materials Fee (£)<input id="ies-det" type="number" step="0.01" min="0" value="${escapeHtml(d.detergent_fee!=null?String(d.detergent_fee):'')}"></label>
-                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Min Staff<input id="ies-mstaff" type="number" step="1" min="1" value="${escapeHtml(d.min_staff!=null?String(d.min_staff):'')}" placeholder="1"></label>
+                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Minimum cleaners<input id="ies-mstaff" type="number" step="1" min="1" value="${escapeHtml(d.min_staff!=null?String(d.min_staff):'')}" placeholder="1"></label>
                         <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Fixed Staff<input id="ies-fstaff" type="number" step="1" min="1" value="${escapeHtml(d.fixed_staff!=null?String(d.fixed_staff):'')}">
                             <span style="font-size:0.75rem;color:#6b7280;">Locks staff input to this number</span></label>
                         <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Staff Label<input id="ies-slabel" type="text" value="${escapeHtml(d.staff_label||'')}" placeholder="Number of Staff"></label>
-                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Min Hours<input id="ies-mhours" type="number" step="0.5" min="0.5" value="${escapeHtml(d.min_hours!=null?String(d.min_hours):'')}"></label>
+                        <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Minimum hours<input id="ies-mhours" type="number" step="0.5" min="0.5" value="${escapeHtml(d.min_hours!=null?String(d.min_hours):'')}"></label>
                         <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Fixed Hours<input id="ies-fhours" type="number" step="0.5" min="0.5" value="${escapeHtml(d.fixed_hours!=null?String(d.fixed_hours):'')}">
                             <span style="font-size:0.75rem;color:#6b7280;">Locks hours input to this number</span></label>
                         <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Hours Label<input id="ies-hlabel" type="text" value="${escapeHtml(d.hours_label||'')}" placeholder="Hours Required"></label>
@@ -6772,7 +6909,7 @@
                 // bind rooms editor
                 const re = bodyEl.querySelector('#ies-rooms');
                 if (re) bindRoomsEditor(re);
-                footerEl.innerHTML = `<button class="btn" type="button" onclick="closeItemEditModal()">Cancel</button><button class="btn btn-primary" type="button" id="ies-save-btn">${mode === 'tier-new' ? 'Add Tier' : 'Save Changes'}</button>`;
+                footerEl.innerHTML = `<button class="btn" type="button" onclick="closeItemEditModal()">Cancel</button><button class="btn btn-primary" type="button" id="ies-save-btn">${mode === 'tier-new' ? 'Add price level' : 'Save Changes'}</button>`;
                 footerEl.querySelector('#ies-save-btn').addEventListener('click', async () => {
                     const payload = {
                         tier_name: document.getElementById('ies-name').value.trim(),
@@ -6787,7 +6924,7 @@
                         hours_label: document.getElementById('ies-hlabel').value.trim(),
                         rooms_config: collectRoomsConfig(bodyEl.querySelector('#ies-rooms'))
                     };
-                    if (!payload.tier_name) { showToast('Tier name is required.', 'error'); return; }
+                    if (!payload.tier_name) { showToast('Please give this price level a name.', 'error'); return; }
                     if (validatePriceField(payload.hourly_rate, 'Hourly rate') === false) return;
                     if (validatePriceField(payload.equipment_fee, 'Equipment fee') === false) return;
                     if (validatePriceField(payload.detergent_fee, 'Materials fee') === false) return;
@@ -6799,7 +6936,7 @@
                         if (!res.ok) throw new Error(rb.error || 'Unable to save tier.');
                         closeItemEditModal();
                         await loadServices(true);
-                        showToast(mode === 'tier-new' ? 'Tier added.' : 'Tier saved.', 'success');
+                        showToast(mode === 'tier-new' ? 'Price level added.' : 'Price level saved.', 'success');
                     } catch(e) { showToast(e.message || 'Failed.', 'error'); }
                 });
 
@@ -6808,7 +6945,7 @@
                 const d = data || {};
                 bodyEl.innerHTML = `
                 <div style="display:grid;gap:0.85rem;">
-                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Label <span style="color:#ef4444">*</span><input id="ies-label" type="text" value="${escapeHtml(d.label||'')}" required></label>
+                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;"><span>Label <span style="color:#ef4444">*</span></span><input id="ies-label" type="text" value="${escapeHtml(d.label||'')}" required></label>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
                         <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Standard Price (£)<input id="ies-std" type="number" step="0.01" min="0" value="${escapeHtml(d.standard_price!=null?String(d.standard_price):'')}"></label>
                         <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Deep Clean Price (£)<input id="ies-deep" type="number" step="0.01" min="0" value="${escapeHtml(d.deep_clean_price!=null?String(d.deep_clean_price):'')}"></label>
@@ -6843,8 +6980,8 @@
                 const d = data || {};
                 bodyEl.innerHTML = `
                 <div style="display:grid;gap:0.85rem;">
-                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Item Name <span style="color:#ef4444">*</span><input id="ies-iname" type="text" value="${escapeHtml(d.item_name||'')}" required></label>
-                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Price (£) <span style="color:#ef4444">*</span><input id="ies-iprice" type="number" step="0.01" min="0" value="${escapeHtml(d.price!=null?String(d.price):'')}" required></label>
+                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;"><span>Item Name <span style="color:#ef4444">*</span></span><input id="ies-iname" type="text" value="${escapeHtml(d.item_name||'')}" required></label>
+                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;"><span>Price (£) <span style="color:#ef4444">*</span></span><input id="ies-iprice" type="number" step="0.01" min="0" value="${escapeHtml(d.price!=null?String(d.price):'')}" required></label>
                 </div>`;
                 footerEl.innerHTML = `<button class="btn" type="button" onclick="closeItemEditModal()">Cancel</button><button class="btn btn-primary" type="button" id="ies-save-btn">${mode === 'item-new' ? 'Add Item' : 'Save Changes'}</button>`;
                 footerEl.querySelector('#ies-save-btn').addEventListener('click', async () => {
@@ -6871,7 +7008,7 @@
                 const d = data || {};
                 bodyEl.innerHTML = `
                 <div style="display:grid;gap:0.85rem;">
-                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Label <span style="color:#ef4444">*</span><input id="ies-olabel" type="text" value="${escapeHtml(d.label||'')}" required></label>
+                    <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;"><span>Label <span style="color:#ef4444">*</span></span><input id="ies-olabel" type="text" value="${escapeHtml(d.label||'')}" required></label>
                     <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Price (£) <span style="color:#6b7280;font-weight:400;">(optional)</span><input id="ies-oprice" type="number" step="0.01" min="0" value="${escapeHtml(d.price!=null&&d.price!==''?String(d.price):'')}"></label>
                     <label style="display:flex;flex-direction:column;gap:0.3rem;font-size:0.9rem;">Sort Order<input id="ies-osort" type="number" step="1" min="0" value="${escapeHtml(d.sort_order!=null?String(d.sort_order):'0')}"></label>
                     <label style="display:flex;align-items:center;gap:0.5rem;font-weight:600;"><input id="ies-oactive" type="checkbox" ${d.is_active || mode==='option-new' ? 'checked' : ''}> Active (visible to customers)</label>
@@ -7121,7 +7258,7 @@
                     <table style="width:100%; min-width:1100px; border-collapse:separate; border-spacing:0;">
                         <thead>
                             <tr>
-                                <th>Tier Name</th>
+                                <th>Name customers see</th>
                                 <th>Hourly (£)</th>
                                 <th>Min Staff</th>
                                 <th>Fixed Staff</th>
@@ -7143,7 +7280,7 @@
                     <strong>Rooms</strong> = replaces Hours input with a room picker (hours calculated automatically).
                 </p>
                 <form id="tier-add-form" style="margin-top:1rem; display:grid; gap:0.75rem;">
-                    <h4 style="margin:0;">Add Tier</h4>
+                    <h4 style="margin:0;">Add price level</h4>
                     <div style="display:grid; gap:0.75rem; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Name<input type="text" name="tier_name" required></label>
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Hourly (£)<input type="number" step="0.01" min="0" name="hourly_rate" required></label>
@@ -7157,7 +7294,7 @@
                         <label style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.9rem;">Detergent (£)<input type="number" step="0.01" min="0" name="detergent_fee"></label>
                     </div>
                     <div id="new-tier-rooms-wrap">${renderRoomsEditor('rooms-editor-new', null)}</div>
-                    <div style="display:flex; justify-content:flex-end;"><button class="btn btn-primary" type="submit">Add Tier</button></div>
+                    <div style="display:flex; justify-content:flex-end;"><button class="btn btn-primary" type="submit">Add price level</button></div>
                 </form>`;
         }
 
@@ -7486,7 +7623,7 @@
                 detergent_fee: form.detergent_fee.value,
                 rooms_config: collectRoomsConfig(newRoomsEditor)
             };
-            if (!payload.tier_name) { showToast('Tier name is required.', 'error'); return; }
+            if (!payload.tier_name) { showToast('Please give this price level a name.', 'error'); return; }
             if (validatePriceField(payload.hourly_rate, 'Hourly rate') === false) return;
             if (validatePriceField(payload.equipment_fee, 'Equipment fee') === false) return;
             if (validatePriceField(payload.detergent_fee, 'Materials fee') === false) return;
@@ -7500,7 +7637,7 @@
                 if (!res.ok) throw new Error(body.error || 'Unable to add tier.');
                 form.reset();
                 await loadServices(true);
-                showToast('Tier added.', 'success');
+                showToast('Price level added.', 'success');
             } catch (error) {
                 showToast(error.message || 'Failed to add tier.', 'error');
             }
@@ -7522,7 +7659,7 @@
                 detergent_fee: row.querySelector('[name="tier-det"]').value,
                 rooms_config: collectRoomsConfig(roomsEditor)
             };
-            if (!payload.tier_name) { showToast('Tier name is required.', 'error'); return; }
+            if (!payload.tier_name) { showToast('Please give this price level a name.', 'error'); return; }
             if (validatePriceField(payload.hourly_rate, 'Hourly rate') === false) return;
             if (validatePriceField(payload.equipment_fee, 'Equipment fee') === false) return;
             if (validatePriceField(payload.detergent_fee, 'Materials fee') === false) return;
@@ -7535,7 +7672,7 @@
                 const body = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(body.error || 'Unable to save tier.');
                 await loadServices(true);
-                showToast('Tier saved.', 'success');
+                showToast('Price level saved.', 'success');
             } catch (error) {
                 showToast(error.message || 'Failed to save tier.', 'error');
             }
@@ -7548,7 +7685,7 @@
                 const body = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(body.error || 'Unable to delete tier.');
                 await loadServices(true);
-                showToast('Tier deleted.', 'success');
+                showToast('Price level deleted.', 'success');
             } catch (error) {
                 showToast(error.message || 'Failed to delete tier.', 'error');
             }
@@ -7990,9 +8127,43 @@
         }
 
         async function deleteService(id) {
-            if (!confirm('Are you sure you want to delete this service?')) {
+            const service = (window.servicesData || []).find(s => Number(s.id) === Number(id)) || {};
+            const name = escapeHtml(service.name || service.title || 'this service');
+            let usage = {};
+            try {
+                const res = await fetch(`/admin/api/services/${id}/usage`);
+                usage = res.ok ? await res.json() : {};
+            } catch (_) { usage = {}; }
+
+            const live = isTruthyValue(service.is_active);
+            if (usage.bookings || usage.contract_clients) {
+                const parts = [];
+                if (usage.bookings) parts.push(`<strong>${usage.bookings}</strong> booking${usage.bookings === 1 ? '' : 's'}`);
+                if (usage.contract_clients) parts.push(`<strong>${usage.contract_clients}</strong> contract client${usage.contract_clients === 1 ? '' : 's'}`);
+                const choice = await confirmDialog({
+                    title: `Can't delete ${name}`,
+                    message: `<p>This service has ${parts.join(' and ')}. Deleting it would break those records, so it can't be deleted.</p>` +
+                             (live ? '<p>You can <strong>hide</strong> it instead: it disappears from the website but stays in your records, and you can show it again any time.</p>'
+                                   : '<p>It is already hidden from the website.</p>'),
+                    confirmText: '',
+                    cancelText: 'Close',
+                    extraText: live ? 'Hide from website' : ''
+                });
+                if (choice === 'extra') await setServiceVisibility(id, false);
                 return;
             }
+
+            const priceCount = (usage.options || 0) + (usage.tiers || 0) + (usage.items || 0) + (usage.tenancy_rates || 0);
+            const confirmed = await confirmDialog({
+                title: `Delete ${name}?`,
+                message: `<p>This permanently removes the service${priceCount ? ` and its <strong>${priceCount}</strong> price entr${priceCount === 1 ? 'y' : 'ies'}` : ''}${usage.room_cards ? ` and <strong>${usage.room_cards}</strong> room card${usage.room_cards === 1 ? '' : 's'}` : ''}. This can't be undone.</p>` +
+                         (live ? '<p>If you might offer it again, <strong>hide</strong> it instead.</p>' : ''),
+                confirmText: 'Delete permanently',
+                danger: true,
+                extraText: live ? 'Hide instead' : ''
+            });
+            if (confirmed === 'extra') { await setServiceVisibility(id, false); return; }
+            if (confirmed !== true) return;
 
             try {
                 const res = await fetch(`/api/services/delete/${id}`, { method: 'DELETE' });
@@ -8307,8 +8478,8 @@
             }
         }
 
-        // Initial Load
-        loadRequests(true);
+        // Initial Load (silent: the "refreshed" toast is only for the Refresh button)
+        loadRequests(false);
         loadEmailSettings();
         refreshAnalytics(false);
         loadTravelSettings();
