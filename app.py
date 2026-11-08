@@ -35,6 +35,7 @@ import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal, ROUND_HALF_UP
+from html import escape as _html_escape
 
 try:
     import resend
@@ -5882,6 +5883,7 @@ def resolve_service_selections(raw_selections):
     pricing_details = []
     subtotal = 0.0
     has_custom_price = False
+    seen_service_ids = set()
 
     for entry in raw_selections:
         if not isinstance(entry, dict):
@@ -5899,11 +5901,22 @@ def resolve_service_selections(raw_selections):
 
         if not service_id or service_id not in service_map:
             raise ValueError('One of the selected services is invalid or unavailable.')
+        if service_id in seen_service_ids:
+            raise ValueError('Each service can only be added to a booking once.')
+        seen_service_ids.add(service_id)
 
         service = service_map[service_id]
-        pricing_model = entry.get('pricing_model') or entry.get('model_type') or service.get('pricing_type')
-        payload = entry.get('pricing_payload') or {}
-        is_survey_request = bool(payload.get('is_survey_request') or entry.get('is_survey_request'))
+        # The service's configured pricing type is authoritative; the client's value is
+        # only a fallback for services that have none, so it can't switch pricing models.
+        pricing_model = service.get('pricing_type') or entry.get('pricing_model') or entry.get('model_type')
+        payload = entry.get('pricing_payload')
+        if not isinstance(payload, dict):
+            payload = {}
+        is_survey_request = bool(
+            pricing_model == 'survey'
+            or payload.get('is_survey_request')
+            or entry.get('is_survey_request')
+        )
 
         resolved_item = {
             'service_id': service_id,
@@ -5968,25 +5981,58 @@ def resolve_service_selections(raw_selections):
             tier = next((t for t in service.get('pricing_tiers', []) if str(t.get('id')) == str(tier_id)), None)
             if not tier:
                 raise ValueError('Selected deep cleaning tier is no longer available.')
-            min_staff = int(tier.get('min_staff') or 1)
-            hours = float(payload.get('hours') or 0)
-            staff = int(payload.get('staff') or min_staff)
-            if staff < min_staff:
-                raise ValueError(f"Minimum staff for this tier is {min_staff}.")
-            if hours <= 0:
-                
-                
-                
-                raise ValueError('Please provide estimated hours greater than 0.')
             hourly_rate = normalize_price_value(tier.get('hourly_rate'))
             if hourly_rate is None:
                 raise ValueError('This tier does not have a valid hourly rate yet.')
             equipment_fee = normalize_price_value(tier.get('equipment_fee')) or 0
             detergent_fee = normalize_price_value(tier.get('detergent_fee')) or 0
-            price_value = round((hourly_rate * staff * hours) + equipment_fee + detergent_fee, 2)
-            # Build detailed option label with all parameters
+            min_staff = max(int(normalize_price_value(tier.get('min_staff')) or 1), 1)
+            fixed_staff = normalize_price_value(tier.get('fixed_staff'))
+            fixed_hours = normalize_price_value(tier.get('fixed_hours'))
+            rooms_config = tier.get('rooms_config') if isinstance(tier.get('rooms_config'), list) else []
             tier_name = tier.get('tier_name') or 'Deep clean'
-            detail_parts = [tier_name, f"Staff: {staff}", f"Hours: {hours}"]
+            rooms_selected = None
+
+            if pricing_model in ('deep', 'deep_tiers') and rooms_config:
+                # Rooms mode (matches the deep-clean room picker on the site): hours are
+                # derived server-side from the rooms chosen and priced as rate x hours,
+                # with staffing decided internally rather than multiplied in.
+                raw_rooms = payload.get('rooms') if isinstance(payload.get('rooms'), dict) else {}
+                hours = 0.0
+                rooms_selected = {}
+                for room in rooms_config:
+                    room_name = room.get('name') or room.get('label') or 'Room'
+                    try:
+                        qty = int(raw_rooms.get(room_name) or 0)
+                    except (TypeError, ValueError):
+                        qty = 0
+                    if qty > 0:
+                        rooms_selected[room_name] = qty
+                        hours += qty * (normalize_price_value(room.get('hours')) or 0.5)
+                hours = round(hours, 2)
+                if hours <= 0:
+                    raise ValueError('Please select at least one room for this service.')
+                staff = int(fixed_staff) if fixed_staff is not None else min_staff
+                price_value = round((hourly_rate * hours) + equipment_fee + detergent_fee, 2)
+                rooms_text = ', '.join(f"{qty}× {name}" for name, qty in rooms_selected.items())
+                detail_parts = [tier_name, f"Rooms: {rooms_text}", f"Hours: {hours}"]
+            else:
+                try:
+                    hours = float(payload.get('hours') or 0)
+                    staff = int(payload.get('staff') or min_staff)
+                except (TypeError, ValueError):
+                    raise ValueError('Please enter valid staff and hours for this service.')
+                min_hours = max(normalize_price_value(tier.get('min_hours')) or 1, 0.5)
+                if fixed_staff is not None:
+                    staff = int(fixed_staff)
+                if fixed_hours is not None:
+                    hours = fixed_hours
+                if staff < min_staff:
+                    raise ValueError(f"Minimum staff for this tier is {min_staff}.")
+                if hours < min_hours:
+                    raise ValueError(f"Minimum booking for this tier is {min_hours:g} hours.")
+                price_value = round((hourly_rate * staff * hours) + equipment_fee + detergent_fee, 2)
+                detail_parts = [tier_name, f"Staff: {staff}", f"Hours: {hours}"]
             detailed_label = ' • '.join(detail_parts)
             resolved_item.update({
                 'service_option_id': None,
@@ -5999,6 +6045,7 @@ def resolve_service_selections(raw_selections):
                 'tier_name': tier.get('tier_name'),
                 'staff': staff,
                 'hours': hours,
+                'rooms': rooms_selected,
                 'hourly_rate': hourly_rate,
                 'equipment_fee': equipment_fee,
                 'detergent_fee': detergent_fee,
@@ -6063,7 +6110,14 @@ def resolve_service_selections(raw_selections):
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
             engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-            option_ids = [opt.get('id') for opt in selected_options if opt.get('id')]
+            option_ids = []
+            for opt in selected_options:
+                try:
+                    opt_id = int(opt.get('id')) if isinstance(opt, dict) else None
+                except (TypeError, ValueError):
+                    opt_id = None
+                if opt_id and opt_id not in option_ids:
+                    option_ids.append(opt_id)
             if not option_ids:
                 cursor.close()
                 conn.close()
@@ -6086,8 +6140,7 @@ def resolve_service_selections(raw_selections):
             # Calculate subtotal from valid options
             subtotal_multiselect = 0.0
             option_labels = []
-            for opt in selected_options:
-                opt_id = opt.get('id')
+            for opt_id in option_ids:
                 if opt_id not in valid_options:
                     raise ValueError('One of the selected options is no longer available.')
                 db_opt = valid_options[opt_id]
@@ -6124,9 +6177,12 @@ def resolve_service_selections(raw_selections):
 
         else:
             # Legacy options fallback
+            # Prices always come from the database; a client-supplied price is never trusted.
             option_id = entry.get('service_option_id') or entry.get('option_id')
             custom_label = sanitize_text(entry.get('option_label'), 150)
-            price_value = entry.get('price')
+            has_active_options = any(o.get('is_active', True) for o in (service.get('options') or []))
+            if not option_id and has_active_options:
+                raise ValueError('Please choose an option for this service.')
             if option_id:
                 conn = get_db_connection()
                 cursor = conn.cursor(dictionary=True)
@@ -6143,7 +6199,8 @@ def resolve_service_selections(raw_selections):
                 option_row = cursor.fetchone()
                 cursor.close()
                 conn.close()
-                if not option_row or not option_row.get('option_active') or not option_row.get('service_active'):
+                if (not option_row or not option_row.get('option_active') or not option_row.get('service_active')
+                        or str(option_row.get('service_id')) != str(service_id)):
                     raise ValueError('One of the selected options is no longer available.')
                 resolved_item.update({
                     'service_option_id': option_row['option_id'],
@@ -6152,12 +6209,13 @@ def resolve_service_selections(raw_selections):
                 })
                 detail = {'model': 'options', 'option_id': option_row['option_id'], 'price': resolved_item['price']}
             else:
+                # No configured price for this service: treat as a custom quote (no online payment).
                 resolved_item.update({
                     'service_option_id': None,
                     'option_label': custom_label or 'Custom package',
-                    'price': normalize_price_value(price_value)
+                    'price': None
                 })
-                detail = {'model': 'custom', 'price': resolved_item['price']}
+                detail = {'model': 'custom', 'price': None}
 
         if resolved_item['price'] is None:
             has_custom_price = True
@@ -7788,18 +7846,12 @@ def prepare_service_booking(payload):
     has_hybrid_service = 'hybrid' in selected_categories
     has_contract_service = 'contract' in selected_categories or (has_hybrid_service and bool(_contract_frequency_raw))
 
-    user_postcode = sanitize_text(payload.get('postcode'), 255)
-    if user_postcode:
-        travel_quote = _get_session_travel_quote(user_postcode)
-        if not travel_quote:
-            travel_quote = calculate_travel_cost(user_postcode)
-    else:
-        travel_quote = {
-            'travel_fee': 0,
-            'distance_miles': None,
-            'travel_time_minutes': None,
-            'pricing_method': 'disabled'
-        }
+    user_postcode = sanitize_text(payload.get('postcode') or (payload.get('customer') or {}).get('postcode'), 255)
+    travel_quote = _get_session_travel_quote(user_postcode) if user_postcode else None
+    if not travel_quote:
+        # With no postcode this returns a zero fee when travel pricing is disabled, and asks
+        # for a postcode when it's enabled, so the fee can't be skipped by omitting it.
+        travel_quote = calculate_travel_cost(user_postcode)
 
     customer_data = payload.get('customer') or {}
     schedule_data = payload.get('schedule') or {}
@@ -15425,88 +15477,135 @@ def ai_test():
 # TELEGRAM BOT WEBHOOK & AI CHAT
 # =============================================================================
 
+TELEGRAM_EXECUTOR = ThreadPoolExecutor(max_workers=2)
+_telegram_seen_updates = {}
+_telegram_seen_lock = threading.Lock()
+
+
+def _telegram_update_already_seen(update_id) -> bool:
+    """Telegram re-delivers an update if it doesn't get a quick 200; drop repeats."""
+    if update_id is None:
+        return False
+    now = time.time()
+    with _telegram_seen_lock:
+        for key in [k for k, ts in _telegram_seen_updates.items() if now - ts > 3600]:
+            _telegram_seen_updates.pop(key, None)
+        if update_id in _telegram_seen_updates:
+            return True
+        _telegram_seen_updates[update_id] = now
+    return False
+
+
+def tg_escape(value) -> str:
+    """Escape dynamic text for Telegram HTML parse mode."""
+    return _html_escape('' if value is None else str(value), quote=False)
+
+
 @app.route('/telegram/webhook/<token>', methods=['POST'])
 def telegram_webhook(token):
-    """Receive Telegram webhook updates"""
-    # Verify token matches our bot
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT bot_token, is_active FROM telegram_settings WHERE id = 1")
-    tg_settings = cursor.fetchone()
-    
-    cursor.execute("SELECT telegram_ai_enabled, allowed_chat_ids FROM ai_settings WHERE id = 1")
-    ai_settings = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    
-    if not tg_settings or tg_settings.get('bot_token') != token:
-        return jsonify({'error': 'Invalid token'}), 403
-    
-    if not tg_settings.get('is_active'):
-        return jsonify({'error': 'Bot not active'}), 403
-    
-    # Get the update
-    update = request.get_json() or {}
-    message = update.get('message', {})
-    
-    if not message:
+    """Receive Telegram webhook updates.
+
+    Always answers 200 quickly once the token is verified: any non-2xx (or a slow reply)
+    makes Telegram retry the same update and back up the whole queue.
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT bot_token, is_active FROM telegram_settings WHERE id = 1")
+        tg_settings = cursor.fetchone() or {}
+        cursor.execute("SELECT telegram_ai_enabled, allowed_chat_ids FROM ai_settings WHERE id = 1")
+        ai_settings = cursor.fetchone() or {}
+        cursor.close()
+        conn.close()
+    except Exception:
+        app.logger.exception('telegram_webhook: failed to load settings')
         return jsonify({'ok': True})
-    
-    chat_id = str(message.get('chat', {}).get('id', ''))
-    text = message.get('text', '').strip()
-    username = message.get('from', {}).get('username', 'Unknown')
-    first_name = message.get('from', {}).get('first_name', '')
-    
+
+    bot_token = (tg_settings.get('bot_token') or '').strip()
+    if not bot_token or not hmac.compare_digest(bot_token, (token or '').strip()):
+        return jsonify({'error': 'Invalid token'}), 403
+
+    if not tg_settings.get('is_active'):
+        return jsonify({'ok': True})
+
+    update = request.get_json(silent=True) or {}
+    if _telegram_update_already_seen(update.get('update_id')):
+        return jsonify({'ok': True})
+
+    message = update.get('message') or update.get('edited_message') or {}
+    chat_id = str((message.get('chat') or {}).get('id', '') or '')
+    text = (message.get('text') or '').strip()
+    sender = message.get('from') or {}
+    username = sender.get('username') or 'Unknown'
+    first_name = sender.get('first_name') or ''
+
     if not text or not chat_id:
         return jsonify({'ok': True})
-    
-    # Check allowed chat IDs
-    allowed_ids = (ai_settings.get('allowed_chat_ids') or '').split(',')
-    allowed_ids = [cid.strip() for cid in allowed_ids if cid.strip()]
-    
-    if allowed_ids and chat_id not in allowed_ids:
-        send_telegram_message(tg_settings['bot_token'], chat_id, 
-            "⛔ You are not authorized to use this bot.\n\n"
-            f"Your Chat ID: <code>{chat_id}</code>\n"
-            "Share this ID with the admin to get access."
-        )
-        return jsonify({'ok': True})
-    
-    # Handle commands
-    if text.startswith('/'):
-        response = handle_telegram_command(text, chat_id, username, first_name, tg_settings, ai_settings)
-    elif ai_settings.get('telegram_ai_enabled'):
-        # AI mode - process as AI query
-        response = handle_telegram_ai_query(text, chat_id)
-    else:
-        response = "💡 Use /help to see available commands.\n\nTo chat naturally, ask the admin to enable AI mode."
-    
-    # Send response
-    if response:
-        send_telegram_message(tg_settings['bot_token'], chat_id, response)
-    
+
+    TELEGRAM_EXECUTOR.submit(
+        _process_telegram_message, bot_token, chat_id, text, username, first_name, dict(tg_settings), dict(ai_settings)
+    )
     return jsonify({'ok': True})
 
 
+def _process_telegram_message(bot_token, chat_id, text, username, first_name, tg_settings, ai_settings):
+    with app.app_context():
+        try:
+            allowed_ids = [cid.strip() for cid in (ai_settings.get('allowed_chat_ids') or '').split(',') if cid.strip()]
+            if allowed_ids and chat_id not in allowed_ids:
+                send_telegram_message(bot_token, chat_id,
+                    "⛔ You are not authorized to use this bot.\n\n"
+                    f"Your Chat ID: <code>{tg_escape(chat_id)}</code>\n"
+                    "Share this ID with the admin to get access."
+                )
+                return
+
+            if text.startswith('/'):
+                response = handle_telegram_command(text, chat_id, username, first_name, tg_settings, ai_settings)
+            elif ai_settings.get('telegram_ai_enabled'):
+                response = handle_telegram_ai_query(text, chat_id)
+            else:
+                response = "💡 Use /help to see available commands.\n\nTo chat naturally, ask the admin to enable AI mode."
+
+            if response:
+                send_telegram_message(bot_token, chat_id, response)
+        except Exception:
+            app.logger.exception('telegram_webhook: failed to process message')
+            send_telegram_message(bot_token, chat_id, "❌ Something went wrong handling that message. Please try again.")
+
+
+def _strip_telegram_html(text: str) -> str:
+    from html import unescape
+    return unescape(re.sub(r'</?(b|i|u|s|code|pre|a)(\s[^>]*)?>', '', text))
+
+
 def send_telegram_message(bot_token: str, chat_id: str, text: str, parse_mode: str = 'HTML') -> bool:
-    """Send a message via Telegram"""
-    try:
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        # Split long messages
-        max_len = 4000
-        messages = [text[i:i+max_len] for i in range(0, len(text), max_len)]
-        
-        for msg in messages:
-            payload = {
-                'chat_id': chat_id,
-                'text': msg,
-                'parse_mode': parse_mode
-            }
-            requests.post(url, json=payload, timeout=10)
-        return True
-    except Exception as e:
-        print(f"Telegram send error: {e}")
-        return False
+    """Send a message via Telegram, checking the result.
+
+    If Telegram rejects the HTML (e.g. a chunk boundary split a tag), resend that chunk as
+    plain text so the reply is never silently dropped.
+    """
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    max_len = 4000
+    chunks = [text[i:i + max_len] for i in range(0, len(text), max_len)] or ['']
+    all_ok = True
+    for chunk in chunks:
+        try:
+            payload = {'chat_id': chat_id, 'text': chunk, 'disable_web_page_preview': True}
+            if parse_mode:
+                payload['parse_mode'] = parse_mode
+            resp = requests.post(url, json=payload, timeout=10)
+            if not resp.ok and parse_mode and resp.status_code == 400:
+                app.logger.warning('Telegram rejected formatted message, resending as plain text: %s', resp.text[:300])
+                plain = {'chat_id': chat_id, 'text': _strip_telegram_html(chunk), 'disable_web_page_preview': True}
+                resp = requests.post(url, json=plain, timeout=10)
+            if not resp.ok:
+                all_ok = False
+                app.logger.warning('Telegram sendMessage failed (%s): %s', resp.status_code, resp.text[:300])
+        except RequestException:
+            all_ok = False
+            app.logger.exception('Telegram sendMessage request failed')
+    return all_ok
 
 
 def handle_telegram_command(text: str, chat_id: str, username: str, first_name: str, tg_settings: dict, ai_settings: dict) -> str:
@@ -15517,7 +15616,7 @@ def handle_telegram_command(text: str, chat_id: str, username: str, first_name: 
     
     if command == 'start':
         return (
-            f"👋 Hello {first_name or username}!\n\n"
+            f"👋 Hello {tg_escape(first_name or username)}!\n\n"
             "🧹 <b>Done-Well Cleaners AI Assistant</b>\n\n"
             "I can help you manage requests, check stats, and more.\n\n"
             f"Your Chat ID: <code>{chat_id}</code>\n\n"
@@ -15584,7 +15683,7 @@ def handle_telegram_command(text: str, chat_id: str, username: str, first_name: 
         return f"🆔 Your Chat ID: <code>{chat_id}</code>"
     
     else:
-        return f"❓ Unknown command: /{command}\n\nUse /help to see available commands."
+        return f"❓ Unknown command: /{tg_escape(command)}\n\nUse /help to see available commands."
 
 
 def handle_telegram_ai_query(query: str, chat_id: str) -> str:
@@ -15596,15 +15695,15 @@ def handle_telegram_ai_query(query: str, chat_id: str) -> str:
     
     ready, error = assistant.is_ready()
     if not ready:
-        return f"❌ {error}"
+        return f"❌ {tg_escape(error)}"
     
     try:
         result = assistant.process_message(query, f"telegram_{chat_id}")
         
         if result.get('success'):
-            return result.get('message', 'No response from AI')
+            return tg_escape(result.get('message') or 'No response from AI')
         else:
-            return f"❌ {result.get('message', 'AI error occurred')}"
+            return f"❌ {tg_escape(result.get('message') or 'AI error occurred')}"
     except Exception as e:
         app.logger.exception('AI command error')
         return "❌ An error occurred while processing the AI request."
@@ -15726,7 +15825,7 @@ def get_pending_requests_for_telegram() -> str:
     lines = ["📋 <b>Pending Requests</b>\n"]
     for req in requests_list:
         created = req['created_at'].strftime('%d/%m %H:%M') if req['created_at'] else ''
-        lines.append(f"• <code>{req['ref_id']}</code> - {req['name']} ({req['request_type']}) {created}")
+        lines.append(f"• <code>{tg_escape(req['ref_id'])}</code> - {tg_escape(req['name'])} ({tg_escape(req['request_type'])}) {created}")
     
     lines.append(f"\n📝 Showing {len(requests_list)} pending requests")
     return "\n".join(lines)
@@ -15751,12 +15850,12 @@ def search_requests_for_telegram(query: str) -> str:
     conn.close()
     
     if not results:
-        return f"🔍 No results found for: {query}"
+        return f"🔍 No results found for: {tg_escape(query)}"
     
-    lines = [f"🔍 <b>Search Results for '{query}'</b>\n"]
+    lines = [f"🔍 <b>Search Results for '{tg_escape(query)}'</b>\n"]
     for req in results:
         status_emoji = {'draft': '🗂️', 'pending': '⏳', 'in_progress': '🔄', 'completed': '✅', 'cancelled': '❌'}.get(req['status'], '📝')
-        lines.append(f"{status_emoji} <code>{req['ref_id']}</code> - {req['name']}\n   {req['request_type']} | {req['status']}")
+        lines.append(f"{status_emoji} <code>{tg_escape(req['ref_id'])}</code> - {tg_escape(req['name'])}\n   {tg_escape(req['request_type'])} | {tg_escape(req['status'])}")
     
     return "\n".join(lines)
 
@@ -15772,22 +15871,22 @@ def get_request_details_for_telegram(ref_id: str) -> str:
     conn.close()
     
     if not req:
-        return f"❌ Request not found: {ref_id}"
+        return f"❌ Request not found: {tg_escape(ref_id)}"
     
     status_emoji = {'draft': '🗂️', 'pending': '⏳', 'in_progress': '🔄', 'completed': '✅', 'cancelled': '❌', 'survey_needed': '📋'}.get(req['status'], '📝')
     created = req['created_at'].strftime('%d/%m/%Y %H:%M') if req['created_at'] else 'N/A'
     
     return (
         f"📄 <b>Request Details</b>\n\n"
-        f"🔖 Ref: <code>{req['ref_id']}</code>\n"
-        f"👤 Name: {req['name']}\n"
-        f"📧 Email: {req['email']}\n"
-        f"📱 Phone: {req.get('phone', 'N/A')}\n"
-        f"📝 Type: {req['request_type']}\n"
-        f"{status_emoji} Status: {req['status']}\n"
-        f"🧹 Service: {req.get('service_name') or 'N/A'}\n"
+        f"🔖 Ref: <code>{tg_escape(req['ref_id'])}</code>\n"
+        f"👤 Name: {tg_escape(req['name'])}\n"
+        f"📧 Email: {tg_escape(req['email'])}\n"
+        f"📱 Phone: {tg_escape(req.get('phone') or 'N/A')}\n"
+        f"📝 Type: {tg_escape(req['request_type'])}\n"
+        f"{status_emoji} Status: {tg_escape(req['status'])}\n"
+        f"🧹 Service: {tg_escape(req.get('service_name') or 'N/A')}\n"
         f"📅 Created: {created}\n"
-        f"💬 Message: {(req.get('message') or 'No message')[:200]}"
+        f"💬 Message: {tg_escape((req.get('message') or 'No message')[:200])}"
     )
 
 
@@ -15796,7 +15895,7 @@ def update_request_for_telegram(ref_id: str, new_status: str) -> str:
     valid_statuses = {'draft', 'pending', 'in_progress', 'completed', 'cancelled', 'survey_needed'}
     
     if new_status not in valid_statuses:
-        return f"❌ Invalid status: {new_status}\n\nValid: {', '.join(valid_statuses)}"
+        return f"❌ Invalid status: {tg_escape(new_status)}\n\nValid: {', '.join(valid_statuses)}"
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -15809,9 +15908,9 @@ def update_request_for_telegram(ref_id: str, new_status: str) -> str:
     
     if affected:
         status_emoji = {'draft': '🗂️', 'pending': '⏳', 'in_progress': '🔄', 'completed': '✅', 'cancelled': '❌', 'survey_needed': '📋'}.get(new_status, '📝')
-        return f"✅ Updated!\n\n<code>{ref_id}</code> → {status_emoji} {new_status}"
+        return f"✅ Updated!\n\n<code>{tg_escape(ref_id)}</code> → {status_emoji} {tg_escape(new_status)}"
     
-    return f"❌ Request not found: {ref_id}"
+    return f"❌ Request not found: {tg_escape(ref_id)}"
 
 
 @app.route('/admin/api/telegram/set-webhook', methods=['POST'])
@@ -15828,18 +15927,25 @@ def set_telegram_webhook():
     if not settings or not settings.get('bot_token'):
         return jsonify({'success': False, 'message': 'Bot token not configured'})
     
-    bot_token = settings['bot_token']
-    
+    bot_token = (settings['bot_token'] or '').strip()
+
     # Get base URL from request or use provided
-    data = request.get_json() or {}
-    base_url = data.get('base_url', request.host_url.rstrip('/'))
-    
+    data = request.get_json(silent=True) or {}
+    base_url = (data.get('base_url') or request.host_url).strip().rstrip('/')
+    # Telegram only accepts HTTPS webhooks
+    if base_url.startswith('http://'):
+        base_url = 'https://' + base_url[len('http://'):]
+
     webhook_url = f"{base_url}/telegram/webhook/{bot_token}"
-    
+
     try:
-        # Set webhook via Telegram API
+        # Set webhook via Telegram API; drop any backlog of updates that piled up while it was failing
         url = f"https://api.telegram.org/bot{bot_token}/setWebhook"
-        response = requests.post(url, json={'url': webhook_url}, timeout=10)
+        response = requests.post(url, json={
+            'url': webhook_url,
+            'drop_pending_updates': True,
+            'allowed_updates': ['message', 'edited_message'],
+        }, timeout=10)
         result = response.json()
         
         if result.get('ok'):
@@ -15873,7 +15979,7 @@ def get_telegram_webhook_info():
         return jsonify({'success': False, 'message': 'Bot token not configured'})
     
     try:
-        url = f"https://api.telegram.org/bot{settings['bot_token']}/getWebhookInfo"
+        url = f"https://api.telegram.org/bot{settings['bot_token'].strip()}/getWebhookInfo"
         response = requests.get(url, timeout=10)
         return jsonify(response.json())
     except Exception:
