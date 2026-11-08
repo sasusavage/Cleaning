@@ -350,9 +350,7 @@
         }
 
         document.getElementById('pricingReset').addEventListener('click', resetPricingForm);
-        document.getElementById('sidebarToggle').addEventListener('click', () => {
-            document.getElementById('sidebar').classList.toggle('sidebar--menu-open');
-        });
+        // Sidebar toggle is handled by the shared admin/_sidebar.html include
 
         Promise.all([loadContent(), loadCards(), loadPricing()]).catch(err => showToast(err.message, 'error'));
     </script>
