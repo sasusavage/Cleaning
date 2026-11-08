@@ -6804,6 +6804,85 @@ def update_telegram_settings(payload):
     return fetch_telegram_settings()
 
 
+# ── Telegram: one sender for every outgoing message ─────────────────────────
+# Strips invisible characters, refuses messages with no visible text, and records
+# every send in telegram_message_log (shown in Admin → Telegram) so any alert can be
+# traced back to the code that produced it.
+_TG_INVISIBLE_RE = re.compile('[\u0000-\u0008\u000b\u000c\u000e-\u001f\u00ad\u200b-\u200f\u2028-\u202f\u2060-\u206f\u2800\ufeff]')
+_tg_log_table_ready = False
+
+
+def _record_telegram_send(source, chat_id, text, ok, detail):
+    global _tg_log_table_ready
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if not _tg_log_table_ready:
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS telegram_message_log (
+                    id BIGSERIAL PRIMARY KEY,
+                    source VARCHAR(40) NOT NULL,
+                    chat_id VARCHAR(64),
+                    preview TEXT,
+                    ok BOOLEAN NOT NULL,
+                    detail TEXT,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            _tg_log_table_ready = True
+        cursor.execute(
+            "INSERT INTO telegram_message_log (source, chat_id, preview, ok, detail) VALUES (%s, %s, %s, %s, %s)",
+            (source[:40], str(chat_id)[:64], (text or '')[:300], bool(ok), (detail or '')[:500])
+        )
+        # Keep the log small
+        cursor.execute("DELETE FROM telegram_message_log WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '30 days'")
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception:
+        pass  # never let logging a send break the send (or recurse into error alerts)
+
+
+def fetch_telegram_message_log(limit=50):
+    """Most recent messages this app sent (or skipped) via Telegram, newest first."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT source, chat_id, preview, ok, detail, created_at FROM telegram_message_log ORDER BY id DESC LIMIT %s",
+            (int(limit),)
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return rows
+    except Exception:
+        return []  # table appears after the first send
+
+
+def telegram_send_message(bot_token, chat_id, text, source, parse_mode=None, disable_notification=False, timeout=8):
+    """Send one Telegram message. Returns (ok, status_code_or_none, response_text)."""
+    text = _TG_INVISIBLE_RE.sub('', str(text or '')).strip()
+    if not text:
+        _record_telegram_send(source, chat_id, '', False, 'skipped: no visible text')
+        return False, None, 'blank message skipped'
+    if len(text) > 4000:
+        text = text[:3997] + '...'
+    payload = {'chat_id': chat_id, 'text': text, 'disable_web_page_preview': True,
+               'disable_notification': bool(disable_notification)}
+    if parse_mode:
+        payload['parse_mode'] = parse_mode
+    try:
+        response = requests.post(f"https://api.telegram.org/bot{bot_token}/sendMessage", json=payload, timeout=timeout)
+    except RequestException as exc:
+        _record_telegram_send(source, chat_id, text, False, f'request failed: {type(exc).__name__}')
+        return False, None, str(exc)
+    _record_telegram_send(source, chat_id, text, response.ok, '' if response.ok else response.text[:300])
+    return response.ok, response.status_code, response.text
+
+
 def send_telegram_notification(preference_key, message_lines):
     try:
         settings = fetch_telegram_settings()
@@ -6838,24 +6917,11 @@ def send_telegram_notification(preference_key, message_lines):
     if len(message) > max_length:
         message = f"{message[:max_length - 3]}..."
 
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    payload = {
-        'chat_id': chat_id,
-        'text': message,
-        'disable_notification': False,
-        'disable_web_page_preview': True
-    }
-
-    try:
-        response = requests.post(url, json=payload, timeout=5)
-        if not response.ok:
-            app.logger.warning('Telegram notification failed: %s', response.text)
-            return False
-    except RequestException:
-        app.logger.exception('Unable to send Telegram notification.')
-        return False
-
-    return True
+    ok, _status, response_text = telegram_send_message(
+        bot_token, chat_id, message, source=f'notify:{preference_key or "general"}', timeout=5)
+    if not ok:
+        app.logger.warning('Telegram notification failed: %s', (response_text or '')[:300])
+    return ok
 
 
 def _fetch_telegram_error_alert_target_quietly():
@@ -6946,13 +7012,8 @@ class TelegramErrorLogHandler(logging.Handler):
             text = '\n'.join(lines)
             if len(text) > 4000:
                 text = text[:3997] + '...'
-            url = f"https://api.telegram.org/bot{target['bot_token']}/sendMessage"
-            requests.post(url, json={
-                'chat_id': target['chat_id'],
-                'text': text,
-                'disable_web_page_preview': True,
-                'disable_notification': True
-            }, timeout=8)
+            telegram_send_message(target['bot_token'], target['chat_id'], text,
+                                  source='health_report', disable_notification=True)
             with self._lock:
                 self._health_reported_at = now
         except Exception:
@@ -7038,13 +7099,7 @@ class TelegramErrorLogHandler(logging.Handler):
             if len(text) > 4000:
                 text = text[:3997] + '...'
 
-            url = f"https://api.telegram.org/bot{target['bot_token']}/sendMessage"
-            requests.post(url, json={
-                'chat_id': target['chat_id'],
-                'text': text,
-                'disable_web_page_preview': True,
-                'disable_notification': False
-            }, timeout=8)
+            telegram_send_message(target['bot_token'], target['chat_id'], text, source='error_alert')
 
         except Exception:
             return
@@ -13386,7 +13441,8 @@ def admin_telegram_settings():
         site_settings=site_settings,
         telegram_settings=telegram_settings,
         success_message=success_message,
-        error_message=error_message
+        error_message=error_message,
+        sent_log=fetch_telegram_message_log(limit=50)
     )
 
 
@@ -14672,31 +14728,24 @@ def _strip_telegram_html(text: str) -> str:
 
 
 def send_telegram_message(bot_token: str, chat_id: str, text: str, parse_mode: str = 'HTML') -> bool:
-    """Send a message via Telegram, checking the result.
+    """Send a bot reply, checking the result.
 
     If Telegram rejects the HTML (e.g. a chunk boundary split a tag), resend that chunk as
     plain text so the reply is never silently dropped.
     """
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     max_len = 4000
-    chunks = [text[i:i + max_len] for i in range(0, len(text), max_len)] or ['']
+    chunks = [text[i:i + max_len] for i in range(0, len(text or ''), max_len)]
     all_ok = True
     for chunk in chunks:
-        try:
-            payload = {'chat_id': chat_id, 'text': chunk, 'disable_web_page_preview': True}
-            if parse_mode:
-                payload['parse_mode'] = parse_mode
-            resp = requests.post(url, json=payload, timeout=10)
-            if not resp.ok and parse_mode and resp.status_code == 400:
-                app.logger.warning('Telegram rejected formatted message, resending as plain text: %s', resp.text[:300])
-                plain = {'chat_id': chat_id, 'text': _strip_telegram_html(chunk), 'disable_web_page_preview': True}
-                resp = requests.post(url, json=plain, timeout=10)
-            if not resp.ok:
-                all_ok = False
-                app.logger.warning('Telegram sendMessage failed (%s): %s', resp.status_code, resp.text[:300])
-        except RequestException:
+        ok, status, response_text = telegram_send_message(bot_token, chat_id, chunk, source='bot_reply',
+                                                          parse_mode=parse_mode, timeout=10)
+        if not ok and parse_mode and status == 400:
+            app.logger.warning('Telegram rejected formatted message, resending as plain text: %s', (response_text or '')[:300])
+            ok, status, response_text = telegram_send_message(bot_token, chat_id, _strip_telegram_html(chunk),
+                                                              source='bot_reply_plain', timeout=10)
+        if not ok:
             all_ok = False
-            app.logger.exception('Telegram sendMessage request failed')
+            app.logger.warning('Telegram sendMessage failed (%s): %s', status, (response_text or '')[:300])
     return all_ok
 
 

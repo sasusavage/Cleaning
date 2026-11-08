@@ -320,6 +320,37 @@
                 </div>
             </form>
         </section>
+
+        <section class="card" id="sent-log">
+            <h2 style="margin:0 0 0.35rem;font-size:1.1rem;">Messages sent by this website</h2>
+            <p class="help-text" style="margin:0 0 1rem;">Every Telegram message the site sends (or skips) is listed here for 30 days, newest first. If you get an alert you don't recognise, match its time against this list.</p>
+            {% if sent_log %}
+            <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+                    <thead>
+                        <tr style="text-align:left;color:var(--muted);border-bottom:1px solid var(--border);">
+                            <th style="padding:0.5rem;">When (UTC)</th>
+                            <th style="padding:0.5rem;">Type</th>
+                            <th style="padding:0.5rem;">Message</th>
+                            <th style="padding:0.5rem;">Result</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in sent_log %}
+                        <tr style="border-bottom:1px solid var(--border);vertical-align:top;">
+                            <td style="padding:0.5rem;white-space:nowrap;">{{ row.created_at.strftime('%d %b %H:%M:%S') if row.created_at else '' }}</td>
+                            <td style="padding:0.5rem;white-space:nowrap;">{% set src = row.source or '' %}{% if src.startswith('notify:') %}Notification ({{ src[7:].replace('notify_', '').replace('_', ' ') }}){% else %}{{ {'error_alert': 'Server error alert', 'health_report': 'Hourly health report', 'bot_reply': 'Bot reply', 'bot_reply_plain': 'Bot reply (plain text)'}.get(src, src) }}{% endif %}</td>
+                            <td style="padding:0.5rem;max-width:520px;white-space:pre-wrap;word-break:break-word;">{{ row.preview or '(no visible text)' }}</td>
+                            <td style="padding:0.5rem;white-space:nowrap;">{% if row.ok %}<span style="color:var(--success);">Delivered</span>{% else %}<span style="color:var(--error);" title="{{ row.detail }}">Not sent</span><br><small style="color:var(--muted);">{{ row.detail }}</small>{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="help-text">No messages recorded yet. New messages will appear here after the next alert is sent.</p>
+            {% endif %}
+        </section>
     </main>
 
 </body>
