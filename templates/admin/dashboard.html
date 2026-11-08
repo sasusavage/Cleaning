@@ -920,9 +920,11 @@
             font-weight: 600;
             color: #059669;
             position: fixed;
-            top: 1rem;
-            right: 1rem;
+            bottom: 1rem;
+            left: 1rem;
             z-index: 1000;
+            background: rgba(6, 78, 59, 0.92);
+            color: #a7f3d0;
         }
 
         .live-indicator__dot {
@@ -4776,7 +4778,11 @@
             const email = entry.email ? escapeHtml(entry.email) : '';
             const serviceOrPosition = entry.service_name || entry.job_position || '—';
             const dateDisplay = formatDateShort(entry.created_at);
-            const amountDue = formatAmountDue(entry.amount_due);
+            const amountNumber = Number(entry.amount_due);
+            const isPriced = Number.isFinite(amountNumber) && amountNumber > 0;
+            const isServiceRequest = (entry.request_type || '').toLowerCase() === 'service';
+            // An unpriced service request is waiting on a quote; jobs/general enquiries have no amount
+            const amountDue = isPriced ? formatAmountDue(amountNumber) : (isServiceRequest ? 'Quote needed' : '—');
             const contractTag = entry.is_contract
                 ? `<span class="contract-tag">📄${entry.contract_frequency ? ' ' + escapeHtml(entry.contract_frequency) : ''}</span>`
                 : '';
@@ -4808,7 +4814,7 @@
                 quickBtns += `<button class="row-action-btn row-action-btn--complete" type="button" onclick="event.stopPropagation(); quickStatusChange(${entry.id}, 'completed')" title="Mark Complete">✓</button>`;
             }
             // Quick mark paid button for unpaid in-person
-            if (!entry.is_paid && entry.payment_type !== 'stripe') {
+            if (isPriced && !entry.is_paid && entry.payment_type !== 'stripe') {
                 quickBtns += `<button class="row-action-btn" type="button" style="background:#dcfce7;color:#166534;border-color:#86efac;" onclick="event.stopPropagation(); quickMarkPaid(${entry.id})" title="Mark as Paid">£✓</button>`;
             }
 
@@ -4822,7 +4828,7 @@
                     </td>
                     <td class="text-muted">${escapeHtml(serviceOrPosition)}<br><span style="font-size:0.75rem; color:#9ca3af;">${escapeHtml(typeLabel)}${contractTag}</span></td>
                     <td><span class="${getStatusBadgeClass(status)}">${escapeHtml(statusLabel)}</span></td>
-                    <td class="text-muted" style="font-weight:600; white-space:nowrap;">${escapeHtml(amountDue)}</td>
+                    <td class="text-muted" style="font-weight:${isPriced ? 600 : 500}; white-space:nowrap;${isPriced ? '' : ' color:#b45309;'}">${escapeHtml(amountDue)}</td>
                     <td style="text-align: right;">
                         <div class="row-actions">
                             ${quickBtns}

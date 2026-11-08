@@ -7569,7 +7569,8 @@ def prepare_service_booking(payload):
             'name': customer_name,
             'email': customer_email,
             'phone': customer_phone,
-            'address': customer_address
+            'address': customer_address,
+            'postcode': user_postcode or None
         },
         'schedule': {
             'preferred_date': preferred_date_raw,
