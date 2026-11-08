@@ -94,18 +94,7 @@
                 <div class="services__grid">
                     {% for service in one_time_services %}
                     {% set image_url = service.image_path | media_url if service.image_path else '' %}
-                    {% set price_state = namespace(min_price=None) %}
-                    {% for option in service.options or [] %}
-                        {% if option.price is not none %}
-                            {% if price_state.min_price is none or option.price < price_state.min_price %}
-                                {% set price_state.min_price = option.price %}
-                            {% endif %}
-                        {% endif %}
-                    {% endfor %}
-                    {% if price_state.min_price is none and service.price is not none %}
-                        {% set price_state.min_price = service.price %}
-                    {% endif %}
-                    {% set price_label = 'Custom pricing' if price_state.min_price is none else 'from £%.2f' % price_state.min_price %}
+                    {% set price_label = service.price_label or 'Custom quote' %}
                     <article class="service-card" id="service-{{ service.id }}">
                         {% if image_url %}
                         <div class="card-image-container">
@@ -142,27 +131,7 @@
                     {% if residential_contract.item %}
                     {% set service = residential_contract.item %}
                     {% set image_url = service.image_path | media_url if service.image_path else '' %}
-                    {% set price_state = namespace(min_price=None) %}
-                    {% for plan in service.contract_pricing_plans or [] %}
-                        {% if plan.price is not none %}
-                            {% if price_state.min_price is none or plan.price < price_state.min_price %}
-                                {% set price_state.min_price = plan.price %}
-                            {% endif %}
-                        {% endif %}
-                    {% endfor %}
-                    {% if price_state.min_price is none %}
-                        {% for option in service.options or [] %}
-                            {% if option.price is not none %}
-                                {% if price_state.min_price is none or option.price < price_state.min_price %}
-                                    {% set price_state.min_price = option.price %}
-                                {% endif %}
-                            {% endif %}
-                        {% endfor %}
-                    {% endif %}
-                    {% if price_state.min_price is none and service.price is not none %}
-                        {% set price_state.min_price = service.price %}
-                    {% endif %}
-                    {% set price_label = 'Custom pricing' if price_state.min_price is none else 'from £%.2f' % price_state.min_price %}
+                    {% set price_label = service.price_label or 'Custom quote' %}
                     <article class="service-card" id="service-{{ service.id }}">
                         {% if image_url %}
                         <div class="card-image-container">
@@ -175,7 +144,7 @@
                             {% if service.contract_pricing_plans and service.contract_pricing_plans|length > 0 %}
                             <div class="svc-plans">
                                 {% for plan in service.contract_pricing_plans %}
-                                <span class="svc-plan">{{ plan.label }}: {% if plan.price is not none %}£{{ '%.2f'|format(plan.price) }}{% else %}Quote{% endif %}</span>
+                                <span class="svc-plan">{{ plan.label }}: {% if plan.from_price is not none %}from £{{ '%.2f'|format(plan.from_price) }}{% else %}Quote{% endif %}</span>
                                 {% endfor %}
                             </div>
                             {% endif %}
@@ -193,27 +162,7 @@
                     {% for service in contract_services %}
                     {% if not residential_contract.item or service.id != residential_contract.item.id %}
                     {% set image_url = service.image_path | media_url if service.image_path else '' %}
-                    {% set price_state = namespace(min_price=None) %}
-                    {% for plan in service.contract_pricing_plans or [] %}
-                        {% if plan.price is not none %}
-                            {% if price_state.min_price is none or plan.price < price_state.min_price %}
-                                {% set price_state.min_price = plan.price %}
-                            {% endif %}
-                        {% endif %}
-                    {% endfor %}
-                    {% if price_state.min_price is none %}
-                        {% for option in service.options or [] %}
-                            {% if option.price is not none %}
-                                {% if price_state.min_price is none or option.price < price_state.min_price %}
-                                    {% set price_state.min_price = option.price %}
-                                {% endif %}
-                            {% endif %}
-                        {% endfor %}
-                    {% endif %}
-                    {% if price_state.min_price is none and service.price is not none %}
-                        {% set price_state.min_price = service.price %}
-                    {% endif %}
-                    {% set price_label = 'Custom pricing' if price_state.min_price is none else 'from £%.2f' % price_state.min_price %}
+                    {% set price_label = service.price_label or 'Custom quote' %}
                     <article class="service-card" id="service-{{ service.id }}">
                         {% if image_url %}
                         <div class="card-image-container">
@@ -226,7 +175,7 @@
                             {% if service.contract_pricing_plans and service.contract_pricing_plans|length > 0 %}
                             <div class="svc-plans">
                                 {% for plan in service.contract_pricing_plans %}
-                                <span class="svc-plan">{{ plan.label }}: {% if plan.price is not none %}£{{ '%.2f'|format(plan.price) }}{% else %}Quote{% endif %}</span>
+                                <span class="svc-plan">{{ plan.label }}: {% if plan.from_price is not none %}from £{{ '%.2f'|format(plan.from_price) }}{% else %}Quote{% endif %}</span>
                                 {% endfor %}
                             </div>
                             {% endif %}

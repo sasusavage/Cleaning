@@ -5214,10 +5214,81 @@ def fetch_services_from_db(include_inactive=False):
                 svc['pricing_type'] = 'options'
             else:
                 svc['pricing_type'] = 'simple'
+            apply_service_price_summary(svc)
 
     cursor.close()
     conn.close()
     return list(services.values())
+
+
+def _tier_from_price(tier, pricing_type):
+    """Cheapest valid booking of a tier, priced exactly as resolve_service_selections does."""
+    rate = normalize_price_value(tier.get('hourly_rate'))
+    if rate is None:
+        return None
+    fees = (normalize_price_value(tier.get('equipment_fee')) or 0) + (normalize_price_value(tier.get('detergent_fee')) or 0)
+    rooms = tier.get('rooms_config') if isinstance(tier.get('rooms_config'), list) else []
+    if pricing_type in ('deep', 'deep_tiers') and rooms:
+        smallest = min((normalize_price_value(r.get('hours')) or 0.5) for r in rooms)
+        return round(rate * smallest + fees, 2)
+    staff = normalize_price_value(tier.get('fixed_staff')) or max(normalize_price_value(tier.get('min_staff')) or 1, 1)
+    hours = normalize_price_value(tier.get('fixed_hours')) or max(normalize_price_value(tier.get('min_hours')) or 1, 0.5)
+    return round(rate * staff * hours + fees, 2)
+
+
+def apply_service_price_summary(svc):
+    """Attach the prices customers are shown, derived from the pricing the booking flow uses.
+
+    Adds: price_options [{label, from_price, note}], from_price, price_label, and a
+    from_price on each contract plan (so advertised prices always match checkout).
+    """
+    pricing_type = svc.get('pricing_type')
+    options = []
+    if pricing_type == 'survey':
+        label = 'Priced after a free survey'
+    else:
+        if pricing_type in ('tenancy', 'tenancy_rates'):
+            for rate in svc.get('tenancy_rates') or []:
+                if rate.get('is_blocker'):
+                    continue
+                price = normalize_price_value(rate.get('standard_price'))
+                deep = normalize_price_value(rate.get('deep_clean_price'))
+                options.append({'label': rate.get('label'), 'from_price': price,
+                                'note': f"Deep clean: £{deep:.2f}" if deep is not None else ''})
+        elif pricing_type in ('itemized', 'itemized_discount'):
+            for item in svc.get('pricing_items') or []:
+                options.append({'label': item.get('item_name'), 'from_price': normalize_price_value(item.get('price')),
+                                'note': 'per item'})
+        elif pricing_type in ('deep', 'deep_tiers', 'airbnb'):
+            for tier in svc.get('pricing_tiers') or []:
+                rooms = tier.get('rooms_config') if isinstance(tier.get('rooms_config'), list) else []
+                if pricing_type != 'airbnb' and rooms:
+                    note = f"£{normalize_price_value(tier.get('hourly_rate')) or 0:.2f}/hr, hours set by property size"
+                else:
+                    staff = max(int(normalize_price_value(tier.get('min_staff')) or 1), 1)
+                    hours = max(normalize_price_value(tier.get('min_hours')) or 1, 0.5)
+                    note = (f"£{normalize_price_value(tier.get('hourly_rate')) or 0:.2f}/hr per cleaner · "
+                            f"min {staff} cleaner{'s' if staff != 1 else ''}, {hours:g} hr{'s' if hours != 1 else ''}")
+                options.append({'label': tier.get('tier_name'), 'from_price': _tier_from_price(tier, pricing_type), 'note': note})
+        else:
+            for opt in svc.get('options') or []:
+                if opt.get('is_active', True):
+                    options.append({'label': opt.get('label'), 'from_price': normalize_price_value(opt.get('price')), 'note': ''})
+        if not options and normalize_price_value(svc.get('price')) is not None:
+            options.append({'label': svc.get('name'), 'from_price': normalize_price_value(svc.get('price')), 'note': ''})
+        priced = [o['from_price'] for o in options if o['from_price'] is not None]
+        label = f"from £{min(priced):.2f}" if priced else 'Custom quote'
+
+    priced = [o['from_price'] for o in options if o['from_price'] is not None]
+    svc['price_options'] = options
+    svc['from_price'] = min(priced) if priced else None
+    svc['price_label'] = label
+
+    # Contract plans: price per frequency comes from the matching tier ("Weekly" tier for the
+    # weekly plan), otherwise the service's starting price (frequency doesn't change the price).
+    by_name = {str(o['label'] or '').strip().lower(): o['from_price'] for o in options}
+    for plan in svc.get('contract_pricing_plans') or []:
+        plan['from_price'] = by_name.get(str(plan.get('label') or '').strip().lower(), svc['from_price'])
 
 
 def format_currency_label(value):
@@ -5256,6 +5327,191 @@ def parse_preferred_date(value):
         return datetime.strptime(str(value), '%Y-%m-%d').date()
     except (ValueError, TypeError):
         return None
+
+
+# ── One-off catalogue data fixes ─────────────────────────────────────────────
+# Each runs at most once per database (recorded in app_data_migrations) and only
+# touches rows that still hold the old values, so later admin edits are never undone.
+
+def _dm_tier_min_hours_from_names(cursor):
+    """Tiers named e.g. "3 Bedrooms (min. 4 hours)" get that minimum enforced."""
+    cursor.execute("SELECT id, tier_name FROM service_pricing_tiers WHERE min_hours IS NULL")
+    for tier_id, tier_name in cursor.fetchall():
+        match = re.search(r'min\.?\s*(\d+(?:\.\d+)?)\s*h', tier_name or '', re.IGNORECASE)
+        if match:
+            cursor.execute("UPDATE service_pricing_tiers SET min_hours = %s WHERE id = %s AND min_hours IS NULL",
+                           (Decimal(match.group(1)), tier_id))
+
+
+def _dm_clean_room_names_and_staff_labels(cursor):
+    """"1bed" → "1 Bedroom"; a bare number typed into a staff label is cleared."""
+    cursor.execute("UPDATE service_pricing_tiers SET staff_label = NULL WHERE staff_label ~ '^\\s*\\d+\\s*$'")
+    cursor.execute("SELECT id, rooms_config FROM service_pricing_tiers WHERE rooms_config IS NOT NULL")
+    for tier_id, raw in cursor.fetchall():
+        try:
+            rooms = json.loads(raw) if isinstance(raw, str) else raw
+        except ValueError:
+            continue
+        if not isinstance(rooms, list):
+            continue
+        changed = False
+        for room in rooms:
+            match = re.fullmatch(r'\s*(\d+)\s*bed\s*', str(room.get('name') or ''), re.IGNORECASE)
+            if match:
+                count = int(match.group(1))
+                room['name'] = f"{count} Bedroom{'s' if count != 1 else ''}"
+                changed = True
+        if changed:
+            cursor.execute("UPDATE service_pricing_tiers SET rooms_config = %s WHERE id = %s", (json.dumps(rooms), tier_id))
+
+
+def _dm_residential_oneoff_size_picker(cursor):
+    """One-off Residential Cleaning: use the property-size picker so hours come from its table."""
+    cursor.execute(
+        """
+        UPDATE services s SET pricing_model = 'deep', updated_at = CURRENT_TIMESTAMP
+        WHERE s.pricing_model = 'airbnb'
+          AND COALESCE(s.service_category, 'one_time') = 'one_time'
+          AND LOWER(COALESCE(s.name, s.title, '')) LIKE 'residential cleaning%%'
+          AND EXISTS (SELECT 1 FROM service_pricing_tiers t WHERE t.service_id = s.id)
+          AND NOT EXISTS (SELECT 1 FROM service_pricing_tiers t WHERE t.service_id = s.id
+                          AND (t.rooms_config IS NULL OR t.rooms_config IN ('', '[]', 'null')))
+        """
+    )
+
+
+def _dm_airbnb_minimums_and_laundry(cursor):
+    """Airbnb turnovers: min 2 hours; 1–2 rooms min 1 cleaner, 3+ rooms min 2.
+    The laundry tier becomes its own "Laundry & Ironing" service that can be added to the basket."""
+    cursor.execute(
+        """
+        SELECT id, title, image_path FROM services
+        WHERE pricing_model = 'airbnb' AND LOWER(COALESCE(name, title, '')) LIKE 'airbnb%%'
+        """
+    )
+    for service_id, title, image_path in cursor.fetchall():
+        cursor.execute("SELECT id, tier_name, hourly_rate, equipment_fee, detergent_fee FROM service_pricing_tiers WHERE service_id = %s",
+                       (service_id,))
+        for tier_id, tier_name, rate, equipment_fee, detergent_fee in cursor.fetchall():
+            name = tier_name or ''
+            rooms = re.search(r'(\d+)(?:\s*-\s*\d+)?\s*rooms?\b', name, re.IGNORECASE)
+            if rooms:
+                min_staff = 1 if int(rooms.group(1)) <= 2 else 2
+                cursor.execute("UPDATE service_pricing_tiers SET min_hours = 2, min_staff = %s WHERE id = %s",
+                               (min_staff, tier_id))
+            elif 'laundry' in name.lower():
+                cursor.execute("SELECT id FROM services WHERE LOWER(COALESCE(name, title, '')) LIKE 'laundry%%' LIMIT 1")
+                existing = cursor.fetchone()
+                if existing:
+                    laundry_id = existing[0]
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO services (title, name, short_description, description, price, image_path, is_active,
+                                              pricing_model, service_category, is_contract, allow_multiselect,
+                                              created_at, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, 1, 'airbnb', 'one_time', FALSE, 0,
+                                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        RETURNING id
+                        """,
+                        (
+                            'Laundry & Ironing', 'Laundry & Ironing',
+                            'Washing, drying and ironing of bedding, towels and clothes. Add it to any clean.',
+                            'Our team washes, dries and irons bedding, towels and clothing, ready for your next '
+                            'guests or your week ahead. Book it on its own or add it to your basket alongside '
+                            'an Airbnb turnover or any other clean. Priced per cleaner per hour.',
+                            rate, image_path,
+                        )
+                    )
+                    laundry_id = cursor.fetchone()[0]
+                    cursor.execute(
+                        """
+                        INSERT INTO service_pricing_tiers (service_id, tier_name, hourly_rate, min_staff, min_hours,
+                                                           equipment_fee, detergent_fee, updated_at)
+                        VALUES (%s, 'Laundry & Ironing', %s, 1, 1, %s, %s, CURRENT_TIMESTAMP)
+                        """,
+                        (laundry_id, rate, equipment_fee, detergent_fee)
+                    )
+                cursor.execute("DELETE FROM service_pricing_tiers WHERE id = %s", (tier_id,))
+
+
+_DATA_MIGRATIONS = [
+    ('2026_11_tier_min_hours_from_names', _dm_tier_min_hours_from_names),
+    ('2026_11_room_names_staff_labels', _dm_clean_room_names_and_staff_labels),
+    ('2026_11_residential_oneoff_size_picker', _dm_residential_oneoff_size_picker),
+    ('2026_11_airbnb_minimums_laundry_service', _dm_airbnb_minimums_and_laundry),
+]
+_data_migrations_done = False
+_data_migrations_lock = threading.Lock()
+
+
+def run_data_migrations():
+    """Apply pending one-off data fixes. Safe to call from several workers at once."""
+    global _data_migrations_done
+    if _data_migrations_done:
+        return
+    with _data_migrations_lock:
+        if _data_migrations_done:
+            return
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS app_data_migrations (
+                    key VARCHAR(120) PRIMARY KEY,
+                    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.commit()
+            for key, migrate in _DATA_MIGRATIONS:
+                try:
+                    # Claiming the key and applying the fix commit together: exactly-once across workers
+                    cursor.execute("INSERT INTO app_data_migrations (key) VALUES (%s) ON CONFLICT (key) DO NOTHING RETURNING key", (key,))
+                    if cursor.fetchone():
+                        migrate(cursor)
+                        app.logger.info('Applied data migration %s', key)
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    app.logger.exception('Data migration %s failed; will retry on next start', key)
+            cursor.close()
+            _data_migrations_done = True
+        finally:
+            conn.close()
+
+
+@app.before_request
+def _apply_data_migrations_once():
+    if _data_migrations_done:
+        return
+    try:
+        run_data_migrations()
+    except Exception:
+        app.logger.exception('Could not run data migrations')
+
+
+_PROPERTY_SIZE_RE = re.compile(r'\d+\s*\+?\s*bed', re.IGNORECASE)
+
+
+def _room_match_key(name):
+    """Comparable key for a room/size name: "2bed", "2 Bedrooms" and "2 Bedrooms Flat" → "bed:2"."""
+    text = str(name or '').strip().lower()
+    size = re.match(r'\s*(\d+)\s*\+?\s*bed', text)
+    if size:
+        return f"bed:{int(size.group(1))}"
+    return re.sub(r'[^a-z0-9]+', '', text)
+
+
+def _rooms_config_is_size_list(rooms_config):
+    """True when every rooms_config entry is a property size ("1 Bedroom", "2bed"…).
+
+    Those are a pick-one choice on the booking page (see isPropertySizeList in script.js).
+    """
+    return bool(rooms_config) and all(
+        _PROPERTY_SIZE_RE.search(str(room.get('name') or room.get('label') or '')) for room in rooms_config
+    )
 
 
 def resolve_service_selections(raw_selections):
@@ -5398,18 +5654,27 @@ def resolve_service_selections(raw_selections):
                 # derived server-side from the rooms chosen and priced as rate x hours,
                 # with staffing decided internally rather than multiplied in.
                 raw_rooms = payload.get('rooms') if isinstance(payload.get('rooms'), dict) else {}
+                # Match room names loosely ("2bed" == "2 Bedrooms") so a page loaded before a
+                # catalogue rename still books correctly.
+                submitted = {}
+                for raw_name, raw_qty in raw_rooms.items():
+                    key = _room_match_key(raw_name)
+                    try:
+                        submitted[key] = submitted.get(key, 0) + int(raw_qty or 0)
+                    except (TypeError, ValueError):
+                        continue
                 hours = 0.0
                 rooms_selected = {}
                 for room in rooms_config:
                     room_name = room.get('name') or room.get('label') or 'Room'
-                    try:
-                        qty = int(raw_rooms.get(room_name) or 0)
-                    except (TypeError, ValueError):
-                        qty = 0
+                    qty = submitted.get(_room_match_key(room_name), 0)
                     if qty > 0:
                         rooms_selected[room_name] = qty
                         hours += qty * (normalize_price_value(room.get('hours')) or 0.5)
                 hours = round(hours, 2)
+                if _rooms_config_is_size_list(rooms_config):
+                    if len(rooms_selected) != 1 or next(iter(rooms_selected.values()), 0) != 1:
+                        raise ValueError('Please choose one property size for this service.')
                 if hours <= 0:
                     raise ValueError('Please select at least one room for this service.')
                 staff = int(fixed_staff) if fixed_staff is not None else min_staff
@@ -7705,7 +7970,8 @@ def start_stripe_checkout():
             'currency': currency
         }), 200
     except ValueError as exc:
-        app.logger.error(f"start_stripe_checkout - ValueError: {str(exc)}")
+        # Customer input problem (shown to them), not an application error: keep it out of error alerts
+        app.logger.info("start_stripe_checkout - rejected booking: %s", exc)
         return jsonify({'error': str(exc)}), 400
     except Exception as exc:
         app.logger.error(f"start_stripe_checkout - Exception occurred: {type(exc).__name__}: {str(exc)}")

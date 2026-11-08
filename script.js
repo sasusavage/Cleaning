@@ -189,10 +189,15 @@ document.addEventListener("DOMContentLoaded", function () {
             table_header_col1: service.table_header_col1 || 'Property Type',
             table_header_col2: service.table_header_col2 || 'Standard Price',
             table_header_col3: service.table_header_col3 || 'Upgrade Option',
-            allow_multiselect: service.allow_multiselect || 0
+            allow_multiselect: service.allow_multiselect || 0,
+            price_label: service.price_label || ""
         };
 
-        normalized.startingPrice = deriveStartingPrice(normalized);
+        // The server computes the real starting price from the pricing the booking flow uses
+        // (min staff, min hours, fees); only fall back to a local estimate for old payloads.
+        normalized.startingPrice = Object.prototype.hasOwnProperty.call(service, "from_price")
+            ? normalizePriceValue(service.from_price)
+            : deriveStartingPrice(normalized);
 
         return normalized;
     };
@@ -262,7 +267,8 @@ document.addEventListener("DOMContentLoaded", function () {
         var buildCards = function (list) {
             return list.map(function (service) {
                 var minPrice = service.startingPrice !== undefined ? service.startingPrice : getMinimumPrice(service.pricing);
-                var priceLabel = typeof minPrice === "number" && !Number.isNaN(minPrice) ? "from " + formatPrice(minPrice) : "Custom pricing";
+                var priceLabel = service.price_label
+                    || (typeof minPrice === "number" && !Number.isNaN(minPrice) ? "from " + formatPrice(minPrice) : "Custom quote");
                 var summary = service.short_description || service.description || "";
                 var imageMarkup = service.image ? (
                     '<div class="card-image-container"><img src="' + resolveImagePath(service.image) + '" class="card-image" alt="' + (service.name || "Service") + ' image" loading="lazy"></div>'
@@ -2211,6 +2217,13 @@ document.addEventListener("DOMContentLoaded", function () {
             flowOptionsContainer.appendChild(summary);
 
             var roomQty = {}; // { roomName: qty }
+            // A rooms list made only of property sizes ("1 Bedroom", "2bed", "3 Bedrooms Flat") is pick-one.
+            // Keep in sync with _rooms_config_is_size_list() in app.py.
+            var isPropertySizeList = function (rc) {
+                return Array.isArray(rc) && rc.length > 0 && rc.every(function (r) {
+                    return /\d+\s*\+?\s*bed/i.test(String(r.name || r.label || ''));
+                });
+            };
 
             var buildRoomsUI = function (tier) {
                 roomsGrid.innerHTML = '';
@@ -2226,6 +2239,51 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (staffLabelEl.parentNode) staffLabelEl.parentNode.removeChild(staffLabelEl);
                 if (hoursLabelEl.parentNode) hoursLabelEl.parentNode.removeChild(hoursLabelEl);
                 roomsSection.style.display = 'flex';
+
+                if (isPropertySizeList(rc)) {
+                    // Property sizes ("1 Bedroom", "2 Bedrooms"…) are a pick-one choice, not counters
+                    roomsTitle.textContent = 'Property size';
+                    var radioName = 'flow-size-' + service.id;
+                    var chosenName = null;
+                    rc.forEach(function (room) {
+                        var n = room.name || room.label || 'Room';
+                        if (!chosenName && (roomQty[n] || previousRooms[n])) chosenName = n;
+                    });
+                    rc.forEach(function (room) {
+                        var name = room.name || room.label || 'Room';
+                        var hrs = Number(room.hours) || 0.5;
+                        roomQty[name] = name === chosenName ? 1 : 0;
+
+                        var row = document.createElement('label');
+                        row.className = 'flow-option' + (name === chosenName ? ' is-selected' : '');
+                        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:0.5rem;cursor:pointer;';
+                        var left = document.createElement('span');
+                        left.style.cssText = 'display:flex;align-items:center;gap:0.5rem;';
+                        var radio = document.createElement('input');
+                        radio.type = 'radio';
+                        radio.name = radioName;
+                        radio.checked = name === chosenName;
+                        var nameEl = document.createElement('strong');
+                        nameEl.textContent = name;
+                        left.appendChild(radio);
+                        left.appendChild(nameEl);
+                        var hrsEl = document.createElement('span');
+                        hrsEl.style.cssText = 'font-size:0.8rem;color:#6b7280;';
+                        hrsEl.textContent = 'approx. ' + hrs + ' hrs';
+                        row.appendChild(left);
+                        row.appendChild(hrsEl);
+                        radio.addEventListener('change', function () {
+                            Object.keys(roomQty).forEach(function (k) { roomQty[k] = 0; });
+                            roomQty[name] = 1;
+                            Array.from(roomsGrid.querySelectorAll('.flow-option')).forEach(function (el) { el.classList.remove('is-selected'); });
+                            row.classList.add('is-selected');
+                            emit();
+                        });
+                        roomsGrid.appendChild(row);
+                    });
+                    return;
+                }
+                roomsTitle.textContent = 'Select Rooms';
 
                 rc.forEach(function (room) {
                     var name = room.name || room.label || 'Room';
@@ -2333,7 +2391,14 @@ document.addEventListener("DOMContentLoaded", function () {
                     });
                     var roomSummary = rc.filter(function(r){ return (roomQty[r.name||r.label||'Room']||0) > 0; })
                         .map(function(r){ var n=r.name||r.label||'Room'; return roomQty[n]+'× '+n; }).join(', ');
-                    roomsNote.textContent = roomSummary ? 'Selected: ' + roomSummary + ' → ' + hours + ' hrs' : 'Select rooms above to calculate price';
+                    var sizeMode = isPropertySizeList(rc);
+                    if (sizeMode) {
+                        roomSummary = rc.filter(function(r){ return (roomQty[r.name||r.label||'Room']||0) > 0; })
+                            .map(function(r){ return r.name||r.label||'Room'; }).join('');
+                    }
+                    roomsNote.textContent = roomSummary
+                        ? (sizeMode ? roomSummary : 'Selected: ' + roomSummary) + ' → ' + hours + ' hrs'
+                        : (sizeMode ? 'Choose your property size to calculate the price' : 'Select rooms above to calculate price');
                 } else {
                     hours = fixH != null ? fixH : Math.max(Number(hoursInput.value) || minH, minH);
                 }
@@ -2350,7 +2415,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     : null;
 
                 if (hasRoomsMode && hours === 0) {
-                    summary.innerHTML = '<div style="color:#6b7280;font-size:0.9rem;text-align:center;padding:0.5rem 0;">Select rooms above to see your price.</div>';
+                    summary.innerHTML = '<div style="color:#6b7280;font-size:0.9rem;text-align:center;padding:0.5rem 0;">' + (isPropertySizeList(rc) ? 'Choose your property size to see your price.' : 'Select rooms above to see your price.') + '</div>';
                 } else if (hasRoomsMode) {
                     summary.innerHTML = rate !== null ? [
                         '<div class="row"><span>Hours:</span><span>' + hours + ' hrs</span></div>',

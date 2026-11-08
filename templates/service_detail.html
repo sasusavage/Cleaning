@@ -503,8 +503,8 @@
                     <article class="svc-plan-card">
                         <p class="svc-plan-card__label">{{ plan.label }}</p>
                         <p class="svc-plan-card__price">
-                            {% if plan.price is not none %}
-                            £{{ '%.2f'|format(plan.price) }}<span> / visit</span>
+                            {% if plan.from_price is not none %}
+                            <span style="font-size:0.9rem;font-weight:500;">from</span> £{{ '%.2f'|format(plan.from_price) }}<span> / visit</span>
                             {% else %}
                             <span style="font-size:1rem;">Custom quote</span>
                             {% endif %}
@@ -575,62 +575,31 @@
                     <h2 class="svc-section__title">Choose your option</h2>
                 </div>
 
-                {% set has_options = service.options and service.options|length > 0 %}
-                {% set has_items = service.pricing_items and service.pricing_items|length > 0 %}
-                {% set has_tiers = service.pricing_tiers and service.pricing_tiers|length > 0 %}
-                {% set has_tenancy = service.tenancy_rates and service.tenancy_rates|length > 0 %}
-
-                {% if has_tenancy %}
-                <div class="svc-pricing-grid">
-                    {% for rate in service.tenancy_rates %}{% if not rate.is_blocker %}
+                {% if service.pricing_type == 'survey' %}
+                <div style="max-width: 420px;">
                     <article class="svc-pricing-card">
-                        <h3>{{ rate.label }}</h3>
-                        <p class="svc-pricing-card__price">{% if rate.standard_price is not none %}£{{ '%.2f'|format(rate.standard_price) }}{% else %}Custom quote{% endif %}</p>
-                        {% if rate.deep_clean_price is not none %}<p class="svc-pricing-card__note">Deep clean: £{{ '%.2f'|format(rate.deep_clean_price) }}</p>{% endif %}
-                        <a class="button button--primary" href="{{ url_for('index') }}?service_id={{ service.id }}#services">Book This</a>
+                        <h3>{{ service.name }}</h3>
+                        <p class="svc-pricing-card__price" style="font-size:1.1rem;">Priced after a free survey</p>
+                        <p class="svc-pricing-card__note">We visit, assess the work and send a no-obligation quote. No payment until you approve it.</p>
+                        <a class="button button--primary" href="{{ url_for('index') }}?service_id={{ service.id }}#services">Request a Survey</a>
                     </article>
-                    {% endif %}{% endfor %}
                 </div>
-
-                {% elif has_options %}
+                {% elif service.price_options %}
                 <div class="svc-pricing-grid">
-                    {% for opt in service.options %}
+                    {% for opt in service.price_options %}
                     <article class="svc-pricing-card">
                         <h3>{{ opt.label }}</h3>
-                        <p class="svc-pricing-card__price">{% if opt.price is not none %}£{{ '%.2f'|format(opt.price) }}{% else %}Custom quote{% endif %}</p>
+                        <p class="svc-pricing-card__price">{% if opt.from_price is not none %}{% if service.pricing_type in ['deep', 'deep_tiers', 'airbnb'] %}<span style="font-size:0.9rem;font-weight:500;">from</span> {% endif %}£{{ '%.2f'|format(opt.from_price) }}{% else %}Custom quote{% endif %}</p>
+                        {% if opt.note %}<p class="svc-pricing-card__note">{{ opt.note }}</p>{% endif %}
                         <a class="button button--primary" href="{{ url_for('index') }}?service_id={{ service.id }}#services">Book This</a>
                     </article>
                     {% endfor %}
                 </div>
-
-                {% elif has_items %}
-                <div class="svc-pricing-grid">
-                    {% for item in service.pricing_items %}
-                    <article class="svc-pricing-card">
-                        <h3>{{ item.item_name }}</h3>
-                        <p class="svc-pricing-card__price">{% if item.price is not none %}£{{ '%.2f'|format(item.price) }}{% else %}Custom quote{% endif %}</p>
-                        <a class="button button--primary" href="{{ url_for('index') }}?service_id={{ service.id }}#services">Book This</a>
-                    </article>
-                    {% endfor %}
-                </div>
-
-                {% elif has_tiers %}
-                <div class="svc-pricing-grid">
-                    {% for tier in service.pricing_tiers %}
-                    <article class="svc-pricing-card">
-                        <h3>{{ tier.tier_name }}</h3>
-                        <p class="svc-pricing-card__price">{% if tier.hourly_rate is not none %}From £{{ '%.2f'|format(tier.hourly_rate) }}/hr{% else %}Custom quote{% endif %}</p>
-                        {% if tier.min_staff %}<p class="svc-pricing-card__note">Min. {{ tier.min_staff }} staff</p>{% endif %}
-                        <a class="button button--primary" href="{{ url_for('index') }}?service_id={{ service.id }}#services">Book This</a>
-                    </article>
-                    {% endfor %}
-                </div>
-
                 {% else %}
                 <div style="max-width: 360px;">
                     <article class="svc-pricing-card">
                         <h3>{{ service.name }}</h3>
-                        <p class="svc-pricing-card__price">{% if service.price is not none %}£{{ '%.2f'|format(service.price) }}{% else %}Custom quote{% endif %}</p>
+                        <p class="svc-pricing-card__price">Custom quote</p>
                         <a class="button button--primary" href="{{ url_for('index') }}?service_id={{ service.id }}#services">Continue to Booking</a>
                     </article>
                 </div>
