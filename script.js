@@ -204,6 +204,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
     var SERVICE_CATALOG = rawCatalog.map(normalizeService).filter(Boolean);
 
+    // Round money half-up on its decimal value; keep in step with money_round() in app.py.
+    // toFixed(6) first removes float noise (1.005 * 100 = 100.49999…) before rounding.
+    var roundMoney = function (value) {
+        return Math.round(parseFloat((Number(value) * 100).toFixed(6))) / 100;
+    };
+
     var formatPrice = function (value) {
         if (typeof value !== "number" || Number.isNaN(value)) {
             return "Custom quote";
@@ -1656,9 +1662,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 // Apply bulk discount if threshold is met
                 var discountAmount = 0;
                 if (threshold > 0 && percent > 0 && subtotal > threshold) {
-                    discountAmount = subtotal * (percent / 100);
+                    discountAmount = roundMoney(subtotal * (percent / 100));
                 }
-                var finalPrice = subtotal - discountAmount;
+                var finalPrice = roundMoney(subtotal - discountAmount);
 
                 // Update discount badge
                 if (discountBadge) {
@@ -2243,6 +2249,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (isPropertySizeList(rc)) {
                     // Property sizes ("1 Bedroom", "2 Bedrooms"…) are a pick-one choice, not counters
                     roomsTitle.textContent = 'Property size';
+                    roomsGrid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(230px,1fr))';
                     var radioName = 'flow-size-' + service.id;
                     var chosenName = null;
                     rc.forEach(function (room) {
@@ -2256,7 +2263,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                         var row = document.createElement('label');
                         row.className = 'flow-option' + (name === chosenName ? ' is-selected' : '');
-                        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:0.5rem;cursor:pointer;';
+                        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:0.75rem;cursor:pointer;text-transform:none;letter-spacing:normal;padding:0.75rem 0.9rem;';
                         var left = document.createElement('span');
                         left.style.cssText = 'display:flex;align-items:center;gap:0.5rem;';
                         var radio = document.createElement('input');
@@ -2264,12 +2271,13 @@ document.addEventListener("DOMContentLoaded", function () {
                         radio.name = radioName;
                         radio.checked = name === chosenName;
                         var nameEl = document.createElement('strong');
+                        nameEl.style.cssText = 'font-size:0.95rem;text-transform:none;letter-spacing:normal;';
                         nameEl.textContent = name;
                         left.appendChild(radio);
                         left.appendChild(nameEl);
                         var hrsEl = document.createElement('span');
-                        hrsEl.style.cssText = 'font-size:0.8rem;color:#6b7280;';
-                        hrsEl.textContent = 'approx. ' + hrs + ' hrs';
+                        hrsEl.style.cssText = 'font-size:0.8rem;color:#6b7280;white-space:nowrap;text-transform:none;letter-spacing:normal;';
+                        hrsEl.textContent = '≈ ' + hrs + ' hrs';
                         row.appendChild(left);
                         row.appendChild(hrsEl);
                         radio.addEventListener('change', function () {
@@ -2284,6 +2292,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     return;
                 }
                 roomsTitle.textContent = 'Select Rooms';
+                roomsGrid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(160px,1fr))';
 
                 rc.forEach(function (room) {
                     var name = room.name || room.label || 'Room';
@@ -2411,7 +2420,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 // Non-rooms mode: price = rate × staff × hours
                 var hasRoomsMode = rc && rc.length;
                 var total = (rate !== null && (!hasRoomsMode || hours > 0))
-                    ? Math.round(((hasRoomsMode ? rate * hours : rate * staff * hours) + materialsTotal) * 100) / 100
+                    ? roundMoney((hasRoomsMode ? rate * hours : rate * staff * hours) + materialsTotal)
                     : null;
 
                 if (hasRoomsMode && hours === 0) {
@@ -2433,6 +2442,12 @@ document.addEventListener("DOMContentLoaded", function () {
                         materialsTotal > 0 ? '<div class="row"><span>Materials:</span><span>' + formatPrice(materialsTotal) + '</span></div>' : '',
                         '<div class="total-row"><span>ESTIMATED TOTAL:</span><span>' + formatPrice(total) + '</span></div>'
                     ].join('') : 'Custom quote';
+                }
+
+                if (hasRoomsMode && hours === 0) {
+                    // Nothing chosen yet: keep it out of the basket (no "Hours: 0 / from £0.00")
+                    onChange(null);
+                    return;
                 }
 
                 onChange({
@@ -2463,7 +2478,7 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         };
 
-        var renderSurveyConfigurator = function (service, onChange) {
+        var renderSurveyConfigurator = function (service, onChange, previousSelection) {
             flowOptionsContainer.innerHTML = '';
 
             var wrap = document.createElement('div');
@@ -2499,9 +2514,7 @@ document.addEventListener("DOMContentLoaded", function () {
             body.appendChild(priceNote);
             wrap.appendChild(header);
             wrap.appendChild(body);
-            flowOptionsContainer.appendChild(wrap);
-
-            onChange({
+            var surveySelection = {
                 optionId: 'survey',
                 optionLabel: 'Survey Required',
                 optionDetails: 'Price confirmed after on-site assessment',
@@ -2512,7 +2525,29 @@ document.addEventListener("DOMContentLoaded", function () {
                     type: 'survey',
                     is_survey_request: true
                 }
+            };
+            // Only add the survey when the customer asks for it (not just by viewing this service)
+            var requestBtn = document.createElement('button');
+            requestBtn.type = 'button';
+            requestBtn.className = 'button button--primary';
+            requestBtn.style.cssText = 'margin-top:1rem;width:100%;justify-content:center;';
+            var setRequested = function (requested) {
+                requestBtn.textContent = requested ? '✓ Survey requested (tap to remove)' : 'Request a survey for this service';
+                requestBtn.classList.toggle('button--ghost', requested);
+                requestBtn.classList.toggle('button--primary', !requested);
+            };
+            var alreadyRequested = Boolean(previousSelection && previousSelection.payload && previousSelection.payload.is_survey_request);
+            setRequested(alreadyRequested);
+            requestBtn.addEventListener('click', function () {
+                alreadyRequested = !alreadyRequested;
+                setRequested(alreadyRequested);
+                onChange(alreadyRequested ? surveySelection : null);
             });
+            wrap.appendChild(requestBtn);
+            flowOptionsContainer.appendChild(wrap);
+            if (alreadyRequested) {
+                onChange(surveySelection);
+            }
         };
 
         var renderAirbnbConfigurator = function (service, previousSelection, onChange) {
@@ -2524,6 +2559,8 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             var selectedId = (previousSelection && previousSelection.payload && previousSelection.payload.tier_id) || tiers[0].id;
+            // Nothing goes in the basket until the customer actually picks something here
+            var hasChosen = Boolean(previousSelection && previousSelection.payload && previousSelection.payload.tier_id);
             var previousStaff = previousSelection && previousSelection.payload ? previousSelection.payload.staff : null;
             var previousHours = previousSelection && previousSelection.payload ? previousSelection.payload.hours : null;
 
@@ -2543,7 +2580,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 radio.type = "radio";
                 radio.name = "airbnb-tier";
                 radio.value = tier.id;
-                radio.checked = String(selectedId) === String(tier.id);
+                radio.checked = hasChosen && String(selectedId) === String(tier.id);
 
                 var details = document.createElement("div");
                 details.className = "flow-option__details";
@@ -2570,6 +2607,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 radio.addEventListener("change", function () {
                     selectedId = tier.id;
+                    hasChosen = true;
                     emit();
                 });
 
@@ -2579,6 +2617,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     }
                     radio.checked = true;
                     selectedId = tier.id;
+                    hasChosen = true;
                     emit();
                 });
 
@@ -2641,7 +2680,7 @@ document.addEventListener("DOMContentLoaded", function () {
             function emit() {
                 Array.from(listWrap.querySelectorAll('.flow-option')).forEach(function (row) {
                     var rowId = row.getAttribute('data-tier-id');
-                    row.classList.toggle('is-selected', String(rowId) === String(selectedId));
+                    row.classList.toggle('is-selected', hasChosen && String(rowId) === String(selectedId));
                 });
 
                 var tier = tiers.find(function (t) { return String(t.id) === String(selectedId); }) || tiers[0];
@@ -2694,7 +2733,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 var rate = normalizePriceValue(tier.hourly_rate);
                 var equipment = normalizePriceValue(tier.equipment_fee) || 0;
                 var detergent = normalizePriceValue(tier.detergent_fee) || 0;
-                var total = rate !== null ? Math.round(((rate * staff * hours) + equipment + detergent) * 100) / 100 : null;
+                var total = rate !== null ? roundMoney((rate * staff * hours) + equipment + detergent) : null;
 
                 summary.innerHTML = rate !== null ? [
                     '<div class="row"><span>Package:</span><span>' + escapeHtml(tier.tier_name || 'Airbnb package') + '</span></div>',
@@ -2703,6 +2742,10 @@ document.addEventListener("DOMContentLoaded", function () {
                     '<div class="row"><span>Hours:</span><span>' + hours + '</span></div>',
                     '<div class="total-row"><span>ESTIMATED TOTAL:</span><span>' + formatPrice(total) + '</span></div>'
                 ].join('') : 'Custom quote';
+
+                if (!hasChosen) {
+                    return;
+                }
 
                 onChange({
                     optionId: tier ? tier.id : null,
@@ -2722,8 +2765,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
             }
 
-            staffInput.addEventListener('input', emit);
-            hoursInput.addEventListener('input', emit);
+            var chooseAndEmit = function () { hasChosen = true; emit(); };
+            staffInput.addEventListener('input', chooseAndEmit);
+            hoursInput.addEventListener('input', chooseAndEmit);
             emit();
         };
 
@@ -2831,9 +2875,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 var discountAmount = 0;
                 if (threshold > 0 && percent > 0 && subtotal > threshold) {
-                    discountAmount = subtotal * (percent / 100);
+                    discountAmount = roundMoney(subtotal * (percent / 100));
                 }
-                var total = subtotal - discountAmount;
+                var total = roundMoney(subtotal - discountAmount);
                 if (discountAmount > 0) {
                     badge.innerHTML = "✓ Bulk Discount Applied: <span style='text-decoration:line-through; opacity:0.7; margin:0 0.5rem;'>" + formatPrice(subtotal) + "</span> → <strong>" + formatPrice(total) + "</strong> <span style='color:#15803d;'>(-" + formatPrice(discountAmount) + ")</span>";
                     badge.style.display = "block";
@@ -3019,7 +3063,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             var pricingType = service.pricing_type || (service.tenancy_rates && service.tenancy_rates.length ? "tenancy" : service.pricing_tiers && service.pricing_tiers.length ? "deep" : service.pricing_items && service.pricing_items.length ? "itemized" : "options");
             if (pricingType === "survey") {
-                renderSurveyConfigurator(service, handleSelectionChange);
+                renderSurveyConfigurator(service, handleSelectionChange, previousSelection);
             } else if (pricingType === "tenancy") {
                 renderTenancyConfigurator(service, previousSelection, handleSelectionChange);
             } else if (pricingType === "airbnb") {

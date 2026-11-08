@@ -181,12 +181,13 @@ def _add_security_headers(response):
     response.headers.setdefault(
         'Content-Security-Policy',
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://js.stripe.com https://maps.googleapis.com https://app.termly.io https://www.googletagmanager.com https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "script-src 'self' 'unsafe-inline' https://js.stripe.com https://maps.googleapis.com https://app.termly.io https://www.googletagmanager.com https://cdn.jsdelivr.net https://api.tomtom.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://api.tomtom.com; "
         "font-src 'self' https://fonts.gstatic.com; "
-        "img-src 'self' data: blob: https://res.cloudinary.com https://maps.gstatic.com https://maps.googleapis.com https://*.tile.openstreetmap.org; "
+        "img-src 'self' data: blob: https://res.cloudinary.com https://maps.gstatic.com https://maps.googleapis.com https://*.tile.openstreetmap.org https://api.tomtom.com https://*.api.tomtom.com https://images.unsplash.com; "
         "frame-src https://js.stripe.com https://www.google.com https://www.openstreetmap.org; "
-        "connect-src 'self' https://api.stripe.com; "
+        "connect-src 'self' https://api.stripe.com https://api.tomtom.com https://*.api.tomtom.com; "
+        "worker-src 'self' blob:; "
         "media-src 'self' data:; "
         "object-src 'none'; "
         "base-uri 'self';"
@@ -2433,6 +2434,18 @@ def ensure_analytics_table(cursor):
         """
     )
     _analytics_table_ready = True
+
+def money_round(value):
+    """Round money half-up on its decimal value (112.455 -> 112.46).
+
+    Python's round() works on the binary float and rounds 112.455 down, while the booking
+    page rounds it up; this mirrors roundMoney() in script.js step for step so checkout
+    always charges exactly what the page showed.
+    """
+    # Same steps as the page: scale to pence, drop float noise at 6 decimals, round half-up
+    pence = Decimal(format(float(value) * 100, '.6f')).quantize(Decimal('1'), rounding=ROUND_HALF_UP)
+    return float(pence / 100)
+
 
 def normalize_price_value(value):
     if value is None:
@@ -5255,10 +5268,10 @@ def _tier_from_price(tier, pricing_type):
     rooms = tier.get('rooms_config') if isinstance(tier.get('rooms_config'), list) else []
     if pricing_type in ('deep', 'deep_tiers') and rooms:
         smallest = min((normalize_price_value(r.get('hours')) or 0.5) for r in rooms)
-        return round(rate * smallest + fees, 2)
+        return money_round(rate * smallest + fees)
     staff = normalize_price_value(tier.get('fixed_staff')) or max(normalize_price_value(tier.get('min_staff')) or 1, 1)
     hours = normalize_price_value(tier.get('fixed_hours')) or max(normalize_price_value(tier.get('min_hours')) or 1, 0.5)
-    return round(rate * staff * hours + fees, 2)
+    return money_round(rate * staff * hours + fees)
 
 
 def apply_service_price_summary(svc):
@@ -5703,7 +5716,7 @@ def resolve_service_selections(raw_selections):
                 if hours <= 0:
                     raise ValueError('Please select at least one room for this service.')
                 staff = int(fixed_staff) if fixed_staff is not None else min_staff
-                price_value = round((hourly_rate * hours) + equipment_fee + detergent_fee, 2)
+                price_value = money_round((hourly_rate * hours) + equipment_fee + detergent_fee)
                 if _rooms_config_is_size_list(rooms_config):
                     rooms_text = next(iter(rooms_selected), '')
                 else:
@@ -5724,7 +5737,7 @@ def resolve_service_selections(raw_selections):
                     raise ValueError(f"Minimum staff for this tier is {min_staff}.")
                 if hours < min_hours:
                     raise ValueError(f"Minimum booking for this tier is {min_hours:g} hours.")
-                price_value = round((hourly_rate * staff * hours) + equipment_fee + detergent_fee, 2)
+                price_value = money_round((hourly_rate * staff * hours) + equipment_fee + detergent_fee)
                 detail_parts = [tier_name, f"{staff} cleaner{'s' if staff != 1 else ''} × {hours:g} hrs"]
             detailed_label = ' · '.join(part for part in detail_parts if part)
             resolved_item.update({
@@ -5770,8 +5783,8 @@ def resolve_service_selections(raw_selections):
             discount_percent = normalize_price_value(service.get('discount_percent')) or 0
             discount_amount = 0.0
             if discount_threshold and discount_percent and itemized_subtotal > discount_threshold:
-                discount_amount = round(itemized_subtotal * (discount_percent / 100), 2)
-            price_value = round(itemized_subtotal - discount_amount, 2)
+                discount_amount = money_round(itemized_subtotal * (discount_percent / 100))
+            price_value = money_round(itemized_subtotal - discount_amount)
 
             # Generate detailed label from actual items instead of 'Custom selection'
             detailed_label = ', '.join(item_details) if item_details else 'Custom selection'
@@ -5848,8 +5861,8 @@ def resolve_service_selections(raw_selections):
             discount_percent = normalize_price_value(service.get('discount_percent')) or 0
             discount_amount = 0.0
             if discount_threshold > 0 and discount_percent > 0 and subtotal_multiselect > discount_threshold:
-                discount_amount = round(subtotal_multiselect * (discount_percent / 100), 2)
-            price_value = round(subtotal_multiselect - discount_amount, 2)
+                discount_amount = money_round(subtotal_multiselect * (discount_percent / 100))
+            price_value = money_round(subtotal_multiselect - discount_amount)
 
             resolved_item.update({
                 'service_option_id': option_ids[0] if option_ids else None,  # Keep first for backwards compat
@@ -7492,7 +7505,7 @@ def prepare_service_booking(payload):
     if not has_custom and not has_survey_request and subtotal is not None:
         total_with_travel = subtotal
         if travel_fee_value is not None:
-            total_with_travel = round(subtotal + travel_fee_value, 2)
+            total_with_travel = money_round(subtotal + travel_fee_value)
 
     payment_option = normalize_payment_option(payload.get('payment_option') or payload.get('payment_type'))
     if has_custom or has_survey_request:
