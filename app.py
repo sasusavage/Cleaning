@@ -1,5 +1,4 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, send_file, session, Response, g, abort
-import mysql.connector
 import os
 from uuid import uuid4
 from collections import OrderedDict
@@ -51,6 +50,13 @@ try:
     import psycopg2
     from psycopg2.extras import Json as PGJson, RealDictCursor
     from psycopg2 import pool as psycopg2_pool
+    from psycopg2.extensions import register_adapter, AsIs
+
+    # The production schema mixes flag column types: about half are BOOLEAN and half are
+    # SMALLINT (migrated from MySQL). A bare TRUE/FALSE literal can't be written to a
+    # SMALLINT column, so send Python bools as the untyped literals '1'/'0', which Postgres
+    # coerces to either column type (and compares correctly against both).
+    register_adapter(bool, lambda value: AsIs("'1'" if value else "'0'"))
 except ImportError:
     psycopg2 = None
     psycopg2_pool = None
@@ -485,12 +491,9 @@ def str_to_bool(value):
     return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
-def build_active_true_condition(column: str, engine: str):
-    """Return SQL fragment and params to test truthy flag across engines."""
-    normalized = (engine or 'mysql').strip().lower()
-    if 'postgres' in normalized:
-        # Works for boolean or smallint/tinyint columns migrated from MySQL
-        return f"COALESCE({column}::text, '0') IN ('1','t','true')", ()
+def build_active_true_condition(column: str):
+    """Return SQL fragment and params testing a truthy flag (boolean or smallint column)."""
+    return f"COALESCE({column}::text, '0') IN ('1','t','true')", ()
     return f"{column} = %s", (1,)
 
 
@@ -1295,8 +1298,6 @@ def store_request(clean_payload, uploaded_files=None, status_override=None):
     attachments = []
     conn = None
     cursor = None
-    db_engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    pg_mode = db_engine == 'postgres'
 
     def rewind_file_storage(file_storage):
         stream = getattr(file_storage, 'stream', None)
@@ -1320,8 +1321,7 @@ def store_request(clean_payload, uploaded_files=None, status_override=None):
                 context_page, status, source, message, metadata
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        if pg_mode:
-            request_insert_sql += " RETURNING id"
+        request_insert_sql += " RETURNING id"
 
         cursor.execute(
             request_insert_sql,
@@ -1341,13 +1341,10 @@ def store_request(clean_payload, uploaded_files=None, status_override=None):
                 metadata_json
             )
         )
-        if pg_mode:
-            row = cursor.fetchone()
-            if not row:
-                raise RuntimeError('Failed to retrieve inserted request ID (postgres).')
-            request_id = row[0]
-        else:
-            request_id = cursor.lastrowid
+        row = cursor.fetchone()
+        if not row:
+            raise RuntimeError('Failed to retrieve inserted request ID (postgres).')
+        request_id = row[0]
 
         for uploaded in uploaded_files or []:
             if not uploaded or not uploaded.filename:
@@ -1393,8 +1390,7 @@ def store_request(clean_payload, uploaded_files=None, status_override=None):
                 INSERT INTO request_files (request_id, original_filename, stored_path, mime_type, file_size_bytes)
                 VALUES (%s, %s, %s, %s, %s)
             """
-            if pg_mode:
-                insert_file_sql += " RETURNING id"
+            insert_file_sql += " RETURNING id"
 
             cursor.execute(
                 insert_file_sql,
@@ -1406,11 +1402,8 @@ def store_request(clean_payload, uploaded_files=None, status_override=None):
                     file_size
                 )
             )
-            if pg_mode:
-                attachment_row = cursor.fetchone()
-                attachment_id = attachment_row[0] if attachment_row else None
-            else:
-                attachment_id = cursor.lastrowid
+            attachment_row = cursor.fetchone()
+            attachment_id = attachment_row[0] if attachment_row else None
             attachments.append({
                 'id': attachment_id,
                 'filename': uploaded.filename,
@@ -1748,7 +1741,6 @@ def persist_contract_record(prepared, submission, service_request_id=None):
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     try:
         insert_sql = """
             INSERT INTO contracts (
@@ -1757,8 +1749,7 @@ def persist_contract_record(prepared, submission, service_request_id=None):
                 signer_name, terms_agreed, service_day, reminder_enabled, status, metadata
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        if 'postgres' in engine:
-            insert_sql += " RETURNING id"
+        insert_sql += " RETURNING id"
 
         cursor.execute(
             insert_sql,
@@ -1774,15 +1765,15 @@ def persist_contract_record(prepared, submission, service_request_id=None):
                 preferred_date,
                 next_reminder_at,
                 signer_name,
-                ((True if terms_agreed else False) if 'postgres' in engine else (1 if terms_agreed else 0)),
+                (True if terms_agreed else False),
                 service_day,
-                1 if 'postgres' not in engine else True,
+                True,
                 'active',
                 json.dumps(metadata)
             )
         )
 
-        contract_id = cursor.fetchone()[0] if 'postgres' in engine else cursor.lastrowid
+        contract_id = cursor.fetchone()[0]
         conn.commit()
         return contract_id
     finally:
@@ -1823,7 +1814,6 @@ def process_due_contract_reminders(limit=25):
     ensure_travel_tables()
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).date()
 
@@ -1838,7 +1828,7 @@ def process_due_contract_reminders(limit=25):
                         ORDER BY next_service_date ASC, id ASC
             LIMIT %s
             """,
-                        ((True if engine == 'postgres' else 1), tomorrow, max(1, min(int(limit or 25), 200)))
+                        ((True), tomorrow, max(1, min(int(limit or 25), 200)))
         )
         due_contracts = cursor.fetchall()
         if not due_contracts:
@@ -2312,129 +2302,112 @@ def send_quote_ready_notification(request_row, quote_amount):
 
 
 def get_db_connection():
-    """Return a DB connection for the app's primary DB (mysql or postgres).
+    """Return a pooled Postgres connection.
 
-    This keeps existing code working by supporting `cursor(dictionary=True)`
-    for both MySQL and Postgres.
+    The wrapper supports `cursor(dictionary=True)` (returns RealDictCursor rows).
     """
 
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    if engine == 'postgres':
-        if psycopg2 is None:
-            raise RuntimeError('psycopg2 is not installed (install psycopg2-binary)')
+    if psycopg2 is None:
+        raise RuntimeError('psycopg2 is not installed (install psycopg2-binary)')
 
-        pool = _get_pg_pool()
-        if pool is not None:
-            raw = pool.getconn()
-        else:
-            # Fallback: direct connect if pool unavailable
-            dsn = (app.config.get('POSTGRES_URL') or '').strip()
-            if not dsn:
-                raise ValueError('DB_ENGINE=postgres but POSTGRES_URL is not configured')
-            raw = psycopg2.connect(dsn)
-            pool = None  # mark so close() doesn't try to return to pool
+    pool = _get_pg_pool()
+    if pool is not None:
+        raw = pool.getconn()
+    else:
+        # Fallback: direct connect if pool unavailable
+        dsn = (app.config.get('POSTGRES_URL') or '').strip()
+        if not dsn:
+            raise ValueError('POSTGRES_URL is not configured')
+        raw = psycopg2.connect(dsn)
+        pool = None  # mark so close() doesn't try to return to pool
 
-        class _PGConnWrapper:
-            def __init__(self, conn, pool_ref):
-                self._conn = conn
-                self._pool = pool_ref
-                self._closed = False
+    class _PGConnWrapper:
+        def __init__(self, conn, pool_ref):
+            self._conn = conn
+            self._pool = pool_ref
+            self._closed = False
 
-            def cursor(self, dictionary=False, *args, **kwargs):
-                if dictionary:
-                    if RealDictCursor is None:
-                        return self._conn.cursor(*args, **kwargs)
-                    return self._conn.cursor(cursor_factory=RealDictCursor)
-                return self._conn.cursor(*args, **kwargs)
+        def cursor(self, dictionary=False, *args, **kwargs):
+            if dictionary:
+                if RealDictCursor is None:
+                    return self._conn.cursor(*args, **kwargs)
+                return self._conn.cursor(cursor_factory=RealDictCursor)
+            return self._conn.cursor(*args, **kwargs)
 
-            def commit(self):
-                return self._conn.commit()
+        def commit(self):
+            return self._conn.commit()
 
-            def close(self):
-                if self._closed:
-                    return
-                self._closed = True
-                if self._pool is not None:
-                    try:
-                        # Roll back any open transaction so the connection
-                        # is clean when returned to the pool.
-                        if self._conn.status != 0:  # 0 = STATUS_READY
-                            self._conn.rollback()
-                    except Exception:
-                        pass
-                    try:
-                        self._conn.reset()
-                    except Exception:
-                        pass
-                    try:
-                        self._pool.putconn(self._conn)
-                    except Exception:
-                        try:
-                            self._conn.close()
-                        except Exception:
-                            pass
-                else:
+        def close(self):
+            if self._closed:
+                return
+            self._closed = True
+            if self._pool is not None:
+                try:
+                    # Roll back any open transaction so the connection
+                    # is clean when returned to the pool.
+                    if self._conn.status != 0:  # 0 = STATUS_READY
+                        self._conn.rollback()
+                except Exception:
+                    pass
+                try:
+                    self._conn.reset()
+                except Exception:
+                    pass
+                try:
+                    self._pool.putconn(self._conn)
+                except Exception:
                     try:
                         self._conn.close()
                     except Exception:
                         pass
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc_val, exc_tb):
-                self.close()
-                return False
-
-            def __getattr__(self, name):
-                return getattr(self._conn, name)
-
-        wrapped = _PGConnWrapper(raw, pool)
-        # Track on Flask g so teardown can close any leaked connections
-        try:
-            if hasattr(g, '_db_conns'):
-                g._db_conns.append(wrapped)
             else:
-                g._db_conns = [wrapped]
-        except RuntimeError:
-            pass  # Outside request context — no g available
-        return wrapped
+                try:
+                    self._conn.close()
+                except Exception:
+                    pass
 
-    # Default: MySQL
-    conn = mysql.connector.connect(
-        host=app.config['MYSQL_HOST'],
-        user=app.config['MYSQL_USER'],
-        password=app.config['MYSQL_PASSWORD'],
-        database=app.config['MYSQL_DB'],
-        port=app.config.get('MYSQL_PORT', 3306)
-    )
-    return conn
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            self.close()
+            return False
+
+        def __getattr__(self, name):
+            return getattr(self._conn, name)
+
+    wrapped = _PGConnWrapper(raw, pool)
+    # Track on Flask g so teardown can close any leaked connections
+    try:
+        if hasattr(g, '_db_conns'):
+            g._db_conns.append(wrapped)
+        else:
+            g._db_conns = [wrapped]
+    except RuntimeError:
+        pass  # Outside request context — no g available
+    return wrapped
 
 
-def get_pg_connection():
-    """Connect to the optional Render Postgres database using POSTGRES_URL."""
-    dsn = (app.config.get('POSTGRES_URL') or '').strip()
-    if not dsn:
-        raise ValueError('POSTGRES_URL is not configured')
-    if psycopg2 is None:
-        raise RuntimeError('psycopg2 is not installed (install psycopg2-binary)')
-    return psycopg2.connect(dsn)
+
+_analytics_table_ready = False
 
 
-def ensure_pg_analytics_table(pg_conn):
-    """Ensure the minimal analytics table exists in Postgres (used only if ANALYTICS_DB=postgres)."""
-    with pg_conn.cursor() as cur:
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS analytics (
-                id BIGSERIAL PRIMARY KEY,
-                event_type TEXT NOT NULL,
-                event_data JSONB NULL,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            )
-            """
+def ensure_analytics_table(cursor):
+    """Create the analytics table once per process."""
+    global _analytics_table_ready
+    if _analytics_table_ready:
+        return
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS analytics (
+            id BIGSERIAL PRIMARY KEY,
+            event_type TEXT NOT NULL,
+            event_data JSONB NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
-    pg_conn.commit()
+        """
+    )
+    _analytics_table_ready = True
 
 def normalize_price_value(value):
     if value is None:
@@ -2534,10 +2507,8 @@ def ensure_travel_tables():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             CREATE TABLE IF NOT EXISTS settings (
                 id BIGSERIAL PRIMARY KEY,
                 tomtom_api_key VARCHAR(255),
@@ -2548,21 +2519,21 @@ def ensure_travel_tables():
                 ask_for_postcode BOOLEAN DEFAULT FALSE
             )
             """
-        )
+    )
 
-        # Drop legacy base_postcode column if present
-        cursor.execute("ALTER TABLE settings DROP COLUMN IF EXISTS base_postcode")
+    # Drop legacy base_postcode column if present
+    cursor.execute("ALTER TABLE settings DROP COLUMN IF EXISTS base_postcode")
 
-        # Ensure columns exist (Postgres supports IF NOT EXISTS)
-        cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS tomtom_api_key VARCHAR(255)")
-        cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS price_per_minute NUMERIC(6,2) DEFAULT 0.00")
-        cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS extended_price_per_minute NUMERIC(6,2) DEFAULT 0.00")
-        cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS max_service_radius_miles NUMERIC(6,2) DEFAULT 15.00")
-        cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS enable_travel_pricing BOOLEAN DEFAULT FALSE")
-        cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS ask_for_postcode BOOLEAN DEFAULT FALSE")
+    # Ensure columns exist (Postgres supports IF NOT EXISTS)
+    cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS tomtom_api_key VARCHAR(255)")
+    cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS price_per_minute NUMERIC(6,2) DEFAULT 0.00")
+    cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS extended_price_per_minute NUMERIC(6,2) DEFAULT 0.00")
+    cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS max_service_radius_miles NUMERIC(6,2) DEFAULT 15.00")
+    cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS enable_travel_pricing BOOLEAN DEFAULT FALSE")
+    cursor.execute("ALTER TABLE settings ADD COLUMN IF NOT EXISTS ask_for_postcode BOOLEAN DEFAULT FALSE")
 
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             CREATE TABLE IF NOT EXISTS operating_bases (
                 id BIGSERIAL PRIMARY KEY,
                 name VARCHAR(150) NOT NULL,
@@ -2574,119 +2545,28 @@ def ensure_travel_tables():
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             )
             """
-        )
+    )
 
-        # Travel columns on service_requests for audit of assigned base
-        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS travel_fee NUMERIC(10,2)")
-        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS distance_miles NUMERIC(10,2)")
-        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS travel_time_minutes INTEGER")
-        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS pricing_method VARCHAR(50)")
-        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS assigned_base_id INTEGER")
-        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS assigned_base_name VARCHAR(150)")
-        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS payment_type VARCHAR(30) DEFAULT 'in_person'")
-        cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE")
-    else:
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS settings (
-                id INT PRIMARY KEY AUTO_INCREMENT,
-                tomtom_api_key VARCHAR(255),
-                price_per_minute DECIMAL(6,2) DEFAULT 0.00,
-                max_service_radius_miles DECIMAL(6,2) DEFAULT 15.00,
-                enable_travel_pricing TINYINT(1) DEFAULT 0,
-                ask_for_postcode TINYINT(1) DEFAULT 0
-            )
-            """
-        )
-
-        # Drop legacy base_postcode column if present
-        cursor.execute("SHOW COLUMNS FROM settings LIKE 'base_postcode'")
-        if cursor.fetchone():
-            cursor.execute("ALTER TABLE settings DROP COLUMN base_postcode")
-
-        cursor.execute("SHOW COLUMNS FROM settings LIKE 'tomtom_api_key'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE settings ADD COLUMN tomtom_api_key VARCHAR(255) AFTER id")
-
-        cursor.execute("SHOW COLUMNS FROM settings LIKE 'price_per_minute'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE settings ADD COLUMN price_per_minute DECIMAL(6,2) DEFAULT 0.00 AFTER tomtom_api_key")
-
-        cursor.execute("SHOW COLUMNS FROM settings LIKE 'extended_price_per_minute'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE settings ADD COLUMN extended_price_per_minute DECIMAL(6,2) DEFAULT 0.00 AFTER price_per_minute")
-
-        cursor.execute("SHOW COLUMNS FROM settings LIKE 'max_service_radius_miles'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE settings ADD COLUMN max_service_radius_miles DECIMAL(6,2) DEFAULT 15.00 AFTER extended_price_per_minute")
-
-        cursor.execute("SHOW COLUMNS FROM settings LIKE 'enable_travel_pricing'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE settings ADD COLUMN enable_travel_pricing TINYINT(1) DEFAULT 0 AFTER max_service_radius_miles")
-
-        cursor.execute("SHOW COLUMNS FROM settings LIKE 'ask_for_postcode'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE settings ADD COLUMN ask_for_postcode TINYINT(1) DEFAULT 0")
-
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS operating_bases (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(150) NOT NULL,
-                postcode VARCHAR(255) NOT NULL,
-                latitude DECIMAL(10,7) NULL,
-                longitude DECIMAL(10,7) NULL,
-                is_active TINYINT(1) DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-            """
-        )
-
-        # Travel columns on service_requests for audit of assigned base
-        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'travel_fee'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE service_requests ADD COLUMN travel_fee DECIMAL(10,2) DEFAULT NULL")
-        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'distance_miles'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE service_requests ADD COLUMN distance_miles DECIMAL(10,2) DEFAULT NULL")
-        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'travel_time_minutes'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE service_requests ADD COLUMN travel_time_minutes INT DEFAULT NULL")
-        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'pricing_method'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE service_requests ADD COLUMN pricing_method VARCHAR(50) DEFAULT NULL")
-        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'assigned_base_id'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE service_requests ADD COLUMN assigned_base_id INT NULL")
-        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'assigned_base_name'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE service_requests ADD COLUMN assigned_base_name VARCHAR(150) NULL")
-        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'payment_type'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE service_requests ADD COLUMN payment_type VARCHAR(30) DEFAULT 'in_person'")
-        cursor.execute("SHOW COLUMNS FROM service_requests LIKE 'is_paid'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE service_requests ADD COLUMN is_paid TINYINT(1) DEFAULT 0")
+    # Travel columns on service_requests for audit of assigned base
+    cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS travel_fee NUMERIC(10,2)")
+    cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS distance_miles NUMERIC(10,2)")
+    cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS travel_time_minutes INTEGER")
+    cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS pricing_method VARCHAR(50)")
+    cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS assigned_base_id INTEGER")
+    cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS assigned_base_name VARCHAR(150)")
+    cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS payment_type VARCHAR(30) DEFAULT 'in_person'")
+    cursor.execute("ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE")
 
     # Seed default settings row
     cursor.execute("SELECT COUNT(*) FROM settings")
     count_settings = cursor.fetchone()[0]
     if count_settings == 0:
-        if engine == 'postgres':
-            cursor.execute(
-                """
-                INSERT INTO settings (id, tomtom_api_key, price_per_minute, extended_price_per_minute, max_service_radius_miles, enable_travel_pricing, ask_for_postcode)
-                VALUES (1, NULL, 0.00, 0.00, 15.00, FALSE, FALSE)
-                """
-            )
-        else:
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 INSERT INTO settings (id, tomtom_api_key, price_per_minute, extended_price_per_minute, max_service_radius_miles, enable_travel_pricing, ask_for_postcode)
                 VALUES (1, NULL, 0.00, 0.00, 15.00, 0, 0)
                 """
-            )
+        )
 
     # Seed initial operating bases if empty
     cursor.execute("SELECT COUNT(*) FROM operating_bases")
@@ -2704,116 +2584,31 @@ def ensure_travel_tables():
             ('Hertford', 'SG14 1AG'),
             ('St. Albans', 'AL1 3LD')
         ]
-        if engine == 'postgres':
-            cursor.executemany(
-                "INSERT INTO operating_bases (name, postcode, is_active) VALUES (%s, %s, TRUE)",
-                seed_bases
-            )
-        else:
-            cursor.executemany(
-                "INSERT INTO operating_bases (name, postcode, is_active) VALUES (%s, %s, 1)",
-                seed_bases
-            )
-
-    # Migration: Add pricing_model column to services if missing
-    if engine == 'postgres':
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS pricing_model VARCHAR(20) DEFAULT 'simple'")
-    else:
-        cursor.execute("SHOW COLUMNS FROM services LIKE 'pricing_model'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE services ADD COLUMN pricing_model VARCHAR(20) DEFAULT 'simple' AFTER discount_percent")
-            app.logger.info('Added pricing_model column to services table.')
-
-    # Migration: Add table header columns for tenancy customization
-    if engine == 'postgres':
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS table_header_col1 VARCHAR(100) DEFAULT 'Property Type'")
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS table_header_col2 VARCHAR(100) DEFAULT 'Standard Price'")
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS table_header_col3 VARCHAR(100) DEFAULT 'Upgrade Option'")
-    else:
-        cursor.execute("SHOW COLUMNS FROM services LIKE 'table_header_col1'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE services ADD COLUMN table_header_col1 VARCHAR(100) DEFAULT 'Property Type' AFTER pricing_model")
-            cursor.execute("ALTER TABLE services ADD COLUMN table_header_col2 VARCHAR(100) DEFAULT 'Standard Price' AFTER table_header_col1")
-            cursor.execute("ALTER TABLE services ADD COLUMN table_header_col3 VARCHAR(100) DEFAULT 'Upgrade Option' AFTER table_header_col2")
-            app.logger.info('Added table_header columns to services table.')
-
-    # Migration: Add allow_multiselect column for simple/options services
-    if engine == 'postgres':
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS allow_multiselect BOOLEAN DEFAULT FALSE")
-    else:
-        cursor.execute("SHOW COLUMNS FROM services LIKE 'allow_multiselect'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE services ADD COLUMN allow_multiselect TINYINT(1) DEFAULT 0 AFTER table_header_col3")
-            app.logger.info('Added allow_multiselect column to services table.')
-
-    # Migration: Add service_category column for one-time vs contract services
-    if engine == 'postgres':
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS service_category VARCHAR(20) DEFAULT 'one_time'")
-    else:
-        cursor.execute("SHOW COLUMNS FROM services LIKE 'service_category'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE services ADD COLUMN service_category VARCHAR(20) DEFAULT 'one_time' AFTER discount_percent")
-            app.logger.info('Added service_category column to services table.')
+        cursor.executemany(
+            "INSERT INTO operating_bases (name, postcode, is_active) VALUES (%s, %s, 1)",
+            seed_bases
+        )
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS pricing_model VARCHAR(20) DEFAULT 'simple'")
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS table_header_col1 VARCHAR(100) DEFAULT 'Property Type'")
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS table_header_col2 VARCHAR(100) DEFAULT 'Standard Price'")
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS table_header_col3 VARCHAR(100) DEFAULT 'Upgrade Option'")
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS allow_multiselect BOOLEAN DEFAULT FALSE")
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS service_category VARCHAR(20) DEFAULT 'one_time'")
 
     cursor.execute("UPDATE services SET service_category = 'one_time' WHERE service_category IS NULL OR service_category = ''")
-
-    # Migration: Add contract_pricing_plans column to services
-    if engine == 'postgres':
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_pricing_plans TEXT")
-    else:
-        cursor.execute("SHOW COLUMNS FROM services LIKE 'contract_pricing_plans'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE services ADD COLUMN contract_pricing_plans TEXT NULL AFTER service_category")
-            app.logger.info('Added contract_pricing_plans column to services table.')
-
-    # Migration: Add is_contract boolean to services (replaces service_category for contract toggling)
-    if engine == 'postgres':
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS is_contract BOOLEAN DEFAULT FALSE")
-    else:
-        cursor.execute("SHOW COLUMNS FROM services LIKE 'is_contract'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE services ADD COLUMN is_contract TINYINT(1) DEFAULT 0 AFTER contract_pricing_plans")
-            app.logger.info('Added is_contract column to services table.')
-
-    # Migration: Add contract_intro fields to services for residential-style detail pages
-    if engine == 'postgres':
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_section_title VARCHAR(255)")
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_section_subtitle TEXT")
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_intro_title VARCHAR(255)")
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_intro_body TEXT")
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_trust_body TEXT")
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_trust_image VARCHAR(500)")
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_continuity_body TEXT")
-        cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_continuity_image VARCHAR(500)")
-    else:
-        cursor.execute("SHOW COLUMNS FROM services LIKE 'contract_section_title'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE services ADD COLUMN contract_section_title VARCHAR(255) NULL AFTER is_contract")
-            cursor.execute("ALTER TABLE services ADD COLUMN contract_section_subtitle TEXT NULL AFTER contract_section_title")
-            cursor.execute("ALTER TABLE services ADD COLUMN contract_intro_title VARCHAR(255) NULL AFTER contract_section_subtitle")
-            cursor.execute("ALTER TABLE services ADD COLUMN contract_intro_body TEXT NULL AFTER contract_intro_title")
-            cursor.execute("ALTER TABLE services ADD COLUMN contract_trust_body TEXT NULL AFTER contract_intro_body")
-            cursor.execute("ALTER TABLE services ADD COLUMN contract_trust_image VARCHAR(500) NULL AFTER contract_trust_body")
-            cursor.execute("ALTER TABLE services ADD COLUMN contract_continuity_body TEXT NULL AFTER contract_trust_image")
-            cursor.execute("ALTER TABLE services ADD COLUMN contract_continuity_image VARCHAR(500) NULL AFTER contract_continuity_body")
-            app.logger.info('Added contract intro fields to services table.')
-        else:
-            # Add image columns if they were added after initial migration
-            cursor.execute("SHOW COLUMNS FROM services LIKE 'contract_trust_image'")
-            if not cursor.fetchone():
-                cursor.execute("ALTER TABLE services ADD COLUMN contract_trust_image VARCHAR(500) NULL AFTER contract_trust_body")
-                cursor.execute("ALTER TABLE services ADD COLUMN contract_continuity_image VARCHAR(500) NULL AFTER contract_continuity_body")
-                app.logger.info('Added contract trust/continuity image columns to services table.')
-
-    # Backfill is_contract from service_category for existing records
-    if engine == 'postgres':
-        cursor.execute("UPDATE services SET is_contract = TRUE WHERE service_category = 'contract' AND (is_contract IS NULL OR is_contract = FALSE)")
-    else:
-        cursor.execute("UPDATE services SET is_contract = 1 WHERE service_category = 'contract' AND (is_contract IS NULL OR is_contract = 0)")
-
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_pricing_plans TEXT")
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS is_contract BOOLEAN DEFAULT FALSE")
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_section_title VARCHAR(255)")
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_section_subtitle TEXT")
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_intro_title VARCHAR(255)")
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_intro_body TEXT")
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_trust_body TEXT")
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_trust_image VARCHAR(500)")
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_continuity_body TEXT")
+    cursor.execute("ALTER TABLE services ADD COLUMN IF NOT EXISTS contract_continuity_image VARCHAR(500)")
+    cursor.execute("UPDATE services SET is_contract = TRUE WHERE service_category = 'contract' AND (is_contract IS NULL OR is_contract = FALSE)")
+    cursor.execute(
+        """
             CREATE TABLE IF NOT EXISTS contracts (
                 id BIGSERIAL PRIMARY KEY,
                 request_id BIGINT NULL,
@@ -2837,54 +2632,11 @@ def ensure_travel_tables():
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             )
             """
-        )
-    else:
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS contracts (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                request_id INT NULL,
-                service_request_id INT NULL,
-                customer_name VARCHAR(150) NOT NULL,
-                customer_email VARCHAR(150) NULL,
-                customer_phone VARCHAR(50) NULL,
-                service_name VARCHAR(255) NOT NULL,
-                frequency VARCHAR(30) NOT NULL,
-                preferred_time VARCHAR(32) NULL,
-                signer_name VARCHAR(150) NULL,
-                terms_agreed TINYINT(1) DEFAULT 0,
-                service_day VARCHAR(20) NULL,
-                next_service_date DATE NOT NULL,
-                next_reminder_at DATETIME NULL,
-                last_reminder_sent_at DATETIME NULL,
-                reminder_enabled TINYINT(1) DEFAULT 1,
-                status VARCHAR(30) DEFAULT 'active',
-                metadata TEXT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-            """
-        )
-
-    # Migration: ensure agreement/day columns exist on older contracts tables
-    if engine == 'postgres':
-        cursor.execute("ALTER TABLE contracts ADD COLUMN IF NOT EXISTS signer_name VARCHAR(150)")
-        cursor.execute("ALTER TABLE contracts ADD COLUMN IF NOT EXISTS terms_agreed BOOLEAN DEFAULT FALSE")
-        cursor.execute("ALTER TABLE contracts ADD COLUMN IF NOT EXISTS service_day VARCHAR(20)")
-    else:
-        cursor.execute("SHOW COLUMNS FROM contracts LIKE 'signer_name'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE contracts ADD COLUMN signer_name VARCHAR(150) NULL AFTER preferred_time")
-        cursor.execute("SHOW COLUMNS FROM contracts LIKE 'terms_agreed'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE contracts ADD COLUMN terms_agreed TINYINT(1) DEFAULT 0 AFTER signer_name")
-        cursor.execute("SHOW COLUMNS FROM contracts LIKE 'service_day'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE contracts ADD COLUMN service_day VARCHAR(20) NULL AFTER terms_agreed")
-
-    # Create service_room_cards table for contract-service room cards (replaces domestic_cleaning_cards)
-    if engine == 'postgres':
-        cursor.execute("""
+    )
+    cursor.execute("ALTER TABLE contracts ADD COLUMN IF NOT EXISTS signer_name VARCHAR(150)")
+    cursor.execute("ALTER TABLE contracts ADD COLUMN IF NOT EXISTS terms_agreed BOOLEAN DEFAULT FALSE")
+    cursor.execute("ALTER TABLE contracts ADD COLUMN IF NOT EXISTS service_day VARCHAR(20)")
+    cursor.execute("""
             CREATE TABLE IF NOT EXISTS service_room_cards (
                 id BIGSERIAL PRIMARY KEY,
                 service_id BIGINT NOT NULL,
@@ -2899,43 +2651,12 @@ def ensure_travel_tables():
                 UNIQUE(service_id, card_key)
             )
         """)
-    else:
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS service_room_cards (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                service_id INT NOT NULL,
-                card_key VARCHAR(80) NOT NULL,
-                room_name VARCHAR(120) NOT NULL,
-                lifestyle_copy TEXT NOT NULL,
-                image_path TEXT,
-                sort_order INT DEFAULT 0,
-                is_active TINYINT(1) DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY uq_service_card (service_id, card_key)
-            )
-        """)
-
-    # Migration: Add new columns to service_pricing_tiers (min_hours, staff_label, hours_label, fixed_staff, fixed_hours, rooms_config)
-    if engine == 'postgres':
-        cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS min_hours DECIMAL(5,2) DEFAULT NULL")
-        cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS staff_label VARCHAR(100) DEFAULT NULL")
-        cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS hours_label VARCHAR(100) DEFAULT NULL")
-        cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS fixed_staff INTEGER DEFAULT NULL")
-        cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS fixed_hours DECIMAL(5,2) DEFAULT NULL")
-        cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS rooms_config TEXT DEFAULT NULL")
-    else:
-        for col, defn in [
-            ('min_hours', 'DECIMAL(5,2) DEFAULT NULL'),
-            ('staff_label', 'VARCHAR(100) DEFAULT NULL'),
-            ('hours_label', 'VARCHAR(100) DEFAULT NULL'),
-            ('fixed_staff', 'INT DEFAULT NULL'),
-            ('fixed_hours', 'DECIMAL(5,2) DEFAULT NULL'),
-            ('rooms_config', 'TEXT DEFAULT NULL'),
-        ]:
-            cursor.execute(f"SHOW COLUMNS FROM service_pricing_tiers LIKE '{col}'")
-            if not cursor.fetchone():
-                cursor.execute(f"ALTER TABLE service_pricing_tiers ADD COLUMN {col} {defn}")
+    cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS min_hours DECIMAL(5,2) DEFAULT NULL")
+    cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS staff_label VARCHAR(100) DEFAULT NULL")
+    cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS hours_label VARCHAR(100) DEFAULT NULL")
+    cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS fixed_staff INTEGER DEFAULT NULL")
+    cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS fixed_hours DECIMAL(5,2) DEFAULT NULL")
+    cursor.execute("ALTER TABLE service_pricing_tiers ADD COLUMN IF NOT EXISTS rooms_config TEXT DEFAULT NULL")
 
     # Auto-populate pricing_model based on existing pricing data
     cursor.execute("SELECT id FROM services WHERE pricing_model IS NULL OR pricing_model = 'simple'")
@@ -2982,10 +2703,8 @@ def ensure_faq_table():
         return
     conn = get_db_connection()
     cursor = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     try:
-        if engine == 'postgres':
-            cursor.execute("""
+        cursor.execute("""
                 CREATE TABLE IF NOT EXISTS faqs (
                     id BIGSERIAL PRIMARY KEY,
                     question TEXT NOT NULL,
@@ -2995,19 +2714,6 @@ def ensure_faq_table():
                     is_active BOOLEAN DEFAULT TRUE,
                     created_at TIMESTAMPTZ DEFAULT NOW(),
                     updated_at TIMESTAMPTZ DEFAULT NOW()
-                )
-            """)
-        else:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS faqs (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    question TEXT NOT NULL,
-                    answer TEXT NOT NULL,
-                    category VARCHAR(100) DEFAULT 'General',
-                    sort_order INT DEFAULT 0,
-                    is_active TINYINT(1) DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 )
             """)
         conn.commit()
@@ -3042,11 +2748,9 @@ def ensure_home_page_sections_table():
         return
     conn = get_db_connection()
     cursor = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     try:
-        if engine == 'postgres':
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 CREATE TABLE IF NOT EXISTS home_page_sections (
                     section_key VARCHAR(64) PRIMARY KEY,
                     section_label VARCHAR(120) NOT NULL,
@@ -3054,18 +2758,7 @@ def ensure_home_page_sections_table():
                     updated_at TIMESTAMPTZ DEFAULT NOW()
                 )
                 """
-            )
-        else:
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS home_page_sections (
-                    section_key VARCHAR(64) PRIMARY KEY,
-                    section_label VARCHAR(120) NOT NULL,
-                    sort_order INT NOT NULL DEFAULT 0,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                )
-                """
-            )
+        )
 
         cursor.execute("SELECT section_key FROM home_page_sections")
         existing_keys = {row[0] for row in cursor.fetchall()}
@@ -3149,10 +2842,8 @@ def ensure_policy_table():
         return
     conn = get_db_connection()
     cursor = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     try:
-        if engine == 'postgres':
-            cursor.execute("""
+        cursor.execute("""
                 CREATE TABLE IF NOT EXISTS policies (
                     id BIGSERIAL PRIMARY KEY,
                     title VARCHAR(255) NOT NULL,
@@ -3162,19 +2853,6 @@ def ensure_policy_table():
                     is_active BOOLEAN DEFAULT TRUE,
                     created_at TIMESTAMPTZ DEFAULT NOW(),
                     updated_at TIMESTAMPTZ DEFAULT NOW()
-                )
-            """)
-        else:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS policies (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    title VARCHAR(255) NOT NULL,
-                    description TEXT NOT NULL,
-                    icon VARCHAR(100) DEFAULT 'shield',
-                    sort_order INT DEFAULT 0,
-                    is_active TINYINT(1) DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 )
             """)
 
@@ -3191,16 +2869,10 @@ def ensure_policy_table():
                 ('Privacy Policy', 'Your personal information is safe with us. We never share your data with third parties and comply with all data protection regulations.', 'users', 6),
             ]
             for title, description, icon, sort_order in default_policies:
-                if engine == 'postgres':
-                    cursor.execute(
-                        "INSERT INTO policies (title, description, icon, sort_order, is_active) VALUES (%s, %s, %s, %s, TRUE)",
-                        (title, description, icon, sort_order)
-                    )
-                else:
-                    cursor.execute(
-                        "INSERT INTO policies (title, description, icon, sort_order, is_active) VALUES (%s, %s, %s, %s, 1)",
-                        (title, description, icon, sort_order)
-                    )
+                cursor.execute(
+                    "INSERT INTO policies (title, description, icon, sort_order, is_active) VALUES (%s, %s, %s, %s, TRUE)",
+                    (title, description, icon, sort_order)
+                )
 
         conn.commit()
         _done_ensure_policy_table = True
@@ -3214,15 +2886,11 @@ def fetch_policies_from_db(include_inactive=False):
     ensure_policy_table()
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     
     if include_inactive:
         cursor.execute("SELECT * FROM policies ORDER BY sort_order ASC, id ASC")
     else:
-        if engine == 'postgres':
-            cursor.execute("SELECT * FROM policies WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC")
-        else:
-            cursor.execute("SELECT * FROM policies WHERE is_active = 1 ORDER BY sort_order ASC, id ASC")
+        cursor.execute("SELECT * FROM policies WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC")
     
     policies = cursor.fetchall()
     cursor.close()
@@ -3248,8 +2916,7 @@ def ensure_domestic_cleaning_tables():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-        _ensure_domestic_cleaning_tables_inner(conn, cursor, engine)
+        _ensure_domestic_cleaning_tables_inner(conn, cursor)
     except Exception:
         app.logger.exception('ensure_domestic_cleaning_tables failed')
     finally:
@@ -3266,9 +2933,8 @@ def ensure_domestic_cleaning_tables():
                 pass
 
 
-def _ensure_domestic_cleaning_tables_inner(conn, cursor, engine):
-    if engine == 'postgres':
-        cursor.execute("""
+def _ensure_domestic_cleaning_tables_inner(conn, cursor):
+    cursor.execute("""
             CREATE TABLE IF NOT EXISTS domestic_cleaning_content (
                 id BIGSERIAL PRIMARY KEY,
                 section_title VARCHAR(255) NOT NULL,
@@ -3282,7 +2948,7 @@ def _ensure_domestic_cleaning_tables_inner(conn, cursor, engine):
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             )
         """)
-        cursor.execute("""
+    cursor.execute("""
             CREATE TABLE IF NOT EXISTS domestic_cleaning_cards (
                 id BIGSERIAL PRIMARY KEY,
                 card_key VARCHAR(80) NOT NULL UNIQUE,
@@ -3295,7 +2961,7 @@ def _ensure_domestic_cleaning_tables_inner(conn, cursor, engine):
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             )
         """)
-        cursor.execute("""
+    cursor.execute("""
             CREATE TABLE IF NOT EXISTS domestic_cleaning_pricing (
                 id BIGSERIAL PRIMARY KEY,
                 plan_key VARCHAR(40) NOT NULL UNIQUE,
@@ -3306,47 +2972,6 @@ def _ensure_domestic_cleaning_tables_inner(conn, cursor, engine):
                 is_active BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """)
-    else:
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS domestic_cleaning_content (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                section_title VARCHAR(255) NOT NULL,
-                section_subtitle TEXT NOT NULL,
-                intro_title VARCHAR(255) NOT NULL,
-                intro_body TEXT NOT NULL,
-                trust_body TEXT NOT NULL,
-                continuity_body TEXT NOT NULL,
-                is_active TINYINT(1) DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS domestic_cleaning_cards (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                card_key VARCHAR(80) NOT NULL UNIQUE,
-                room_name VARCHAR(120) NOT NULL,
-                lifestyle_copy TEXT NOT NULL,
-                image_path TEXT,
-                sort_order INT DEFAULT 0,
-                is_active TINYINT(1) DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS domestic_cleaning_pricing (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                plan_key VARCHAR(40) NOT NULL UNIQUE,
-                plan_name VARCHAR(120) NOT NULL,
-                price_per_hour DECIMAL(10,2) NOT NULL,
-                per_label VARCHAR(120) DEFAULT 'per hour per cleaner',
-                sort_order INT DEFAULT 0,
-                is_active TINYINT(1) DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         """)
 
@@ -3370,7 +2995,7 @@ def _ensure_domestic_cleaning_tables_inner(conn, cursor, engine):
                 'Your home should feel calm, fresh and effortlessly welcoming. Done-Well tailors each visit to your priorities so every room feels restored, reset and ready for living.',
                 'Every cleaner is reference-checked, fully vetted, trained, and legally eligible to work in the UK. Our teams arrive in company uniform with ID for complete peace of mind.',
                 'Where possible, you keep the same cleaner to build trust and familiarity. If your regular cleaner is unavailable, we quickly arrange a suitable replacement to keep your routine uninterrupted.',
-                True if engine == 'postgres' else 1
+                True
             )
         )
 
@@ -3392,7 +3017,7 @@ def _ensure_domestic_cleaning_tables_inner(conn, cursor, engine):
                 VALUES
                     (%s, %s, %s, %s, %s)
                 """,
-                (key, name, copy, sort_order, True if engine == 'postgres' else 1)
+                (key, name, copy, sort_order, True)
             )
 
     cursor.execute("SELECT COUNT(*) FROM domestic_cleaning_pricing")
@@ -3411,7 +3036,7 @@ def _ensure_domestic_cleaning_tables_inner(conn, cursor, engine):
                 VALUES
                     (%s, %s, %s, %s, %s, %s)
                 """,
-                (key, name, price, per_label, sort_order, True if engine == 'postgres' else 1)
+                (key, name, price, per_label, sort_order, True)
             )
 
     conn.commit()
@@ -3421,17 +3046,13 @@ def fetch_domestic_cleaning_data(include_inactive=False):
     ensure_domestic_cleaning_tables()
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     _empty = {'content': {}, 'cards': [], 'pricing': []}
 
     try:
         if include_inactive:
             cursor.execute("SELECT * FROM domestic_cleaning_content ORDER BY id ASC LIMIT 1")
         else:
-            if engine == 'postgres':
-                cursor.execute("SELECT * FROM domestic_cleaning_content WHERE is_active = TRUE ORDER BY id ASC LIMIT 1")
-            else:
-                cursor.execute("SELECT * FROM domestic_cleaning_content WHERE is_active = 1 ORDER BY id ASC LIMIT 1")
+            cursor.execute("SELECT * FROM domestic_cleaning_content WHERE is_active = TRUE ORDER BY id ASC LIMIT 1")
     except Exception:
         cursor.close()
         conn.close()
@@ -3441,19 +3062,13 @@ def fetch_domestic_cleaning_data(include_inactive=False):
     if include_inactive:
         cursor.execute("SELECT * FROM domestic_cleaning_cards ORDER BY sort_order ASC, id ASC")
     else:
-        if engine == 'postgres':
-            cursor.execute("SELECT * FROM domestic_cleaning_cards WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC")
-        else:
-            cursor.execute("SELECT * FROM domestic_cleaning_cards WHERE is_active = 1 ORDER BY sort_order ASC, id ASC")
+        cursor.execute("SELECT * FROM domestic_cleaning_cards WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC")
     cards = cursor.fetchall() or []
 
     if include_inactive:
         cursor.execute("SELECT * FROM domestic_cleaning_pricing ORDER BY sort_order ASC, id ASC")
     else:
-        if engine == 'postgres':
-            cursor.execute("SELECT * FROM domestic_cleaning_pricing WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC")
-        else:
-            cursor.execute("SELECT * FROM domestic_cleaning_pricing WHERE is_active = 1 ORDER BY sort_order ASC, id ASC")
+        cursor.execute("SELECT * FROM domestic_cleaning_pricing WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC")
     pricing = cursor.fetchall() or []
 
     cursor.close()
@@ -3483,7 +3098,6 @@ def migrate_domestic_to_services():
     """
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
 
     # Check if domestic tables still exist
     try:
@@ -3539,22 +3153,18 @@ def migrate_domestic_to_services():
     # Build the service description from domestic content
     description = content.get('intro_body') or 'Regular domestic cleaning service tailored to your home.'
 
-    is_pg = 'postgres' in engine
     # services.is_active is smallint on this DB — use integer
     active_val = 1
     inactive_val = 0
     # is_contract is boolean; service_room_cards.is_active is boolean — use Python bool on pg
-    is_contract_val = True if is_pg else 1
-    card_active_val = True if is_pg else 1
-    card_inactive_val = False if is_pg else 0
+    is_contract_val = True
+    card_active_val = True
+    card_inactive_val = False
 
     cursor.close()
     cursor = conn.cursor()
-
-    # Insert the unified service record
-    if is_pg:
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             INSERT INTO services (title, name, short_description, description, price,
                 service_category, contract_pricing_plans, is_contract,
                 contract_section_title, contract_section_subtitle,
@@ -3564,57 +3174,26 @@ def migrate_domestic_to_services():
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
             """,
-            (
-                content.get('section_title') or 'Domestic Cleaning',
-                content.get('section_title') or 'Domestic Cleaning',
-                (content.get('section_subtitle') or description)[:150],
-                description,
-                float(contract_plans[0]['price']) if contract_plans else 17.99,
-                'contract',
-                json.dumps(contract_plans),
-                is_contract_val,
-                content.get('section_title') or 'Domestic Cleaning',
-                content.get('section_subtitle') or '',
-                content.get('intro_title') or '',
-                content.get('intro_body') or '',
-                content.get('trust_body') or '',
-                content.get('continuity_body') or '',
-                'simple',
-                active_val
-            )
+        (
+            content.get('section_title') or 'Domestic Cleaning',
+            content.get('section_title') or 'Domestic Cleaning',
+            (content.get('section_subtitle') or description)[:150],
+            description,
+            float(contract_plans[0]['price']) if contract_plans else 17.99,
+            'contract',
+            json.dumps(contract_plans),
+            is_contract_val,
+            content.get('section_title') or 'Domestic Cleaning',
+            content.get('section_subtitle') or '',
+            content.get('intro_title') or '',
+            content.get('intro_body') or '',
+            content.get('trust_body') or '',
+            content.get('continuity_body') or '',
+            'simple',
+            active_val
         )
-        new_service_id = cursor.fetchone()[0]
-    else:
-        cursor.execute(
-            """
-            INSERT INTO services (title, name, short_description, description, price,
-                service_category, contract_pricing_plans, is_contract,
-                contract_section_title, contract_section_subtitle,
-                contract_intro_title, contract_intro_body,
-                contract_trust_body, contract_continuity_body,
-                pricing_model, is_active)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """,
-            (
-                content.get('section_title') or 'Domestic Cleaning',
-                content.get('section_title') or 'Domestic Cleaning',
-                (content.get('section_subtitle') or description)[:150],
-                description,
-                float(contract_plans[0]['price']) if contract_plans else 17.99,
-                'contract',
-                json.dumps(contract_plans),
-                1,
-                content.get('section_title') or 'Domestic Cleaning',
-                content.get('section_subtitle') or '',
-                content.get('intro_title') or '',
-                content.get('intro_body') or '',
-                content.get('trust_body') or '',
-                content.get('continuity_body') or '',
-                'simple',
-                1
-            )
-        )
-        new_service_id = cursor.lastrowid
+    )
+    new_service_id = cursor.fetchone()[0]
 
     # Migrate room cards
     for card in cards:
@@ -3657,7 +3236,6 @@ def ensure_residential_contract_service():
         return
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     try:
         cursor.execute(
             """
@@ -3700,7 +3278,7 @@ def ensure_residential_contract_service():
                 17.99,
                 'contract',
                 default_plans,
-                True if 'postgres' in engine else 1,
+                True,
                 'Domestic Cleaning',
                 'Lifestyle-led home care designed around your routine.',
                 'Our Regular Domestic Cleaning Service',
@@ -3915,7 +3493,7 @@ def get_domestic_service_record(create_if_missing=False):
                         row['lifestyle_copy'],
                         None,
                         int(row['sort_order']),
-                        True if (app.config.get('DB_ENGINE') or 'mysql').strip().lower() == 'postgres' else 1
+                        True
                     )
                 )
 
@@ -3955,7 +3533,7 @@ def get_domestic_service_record(create_if_missing=False):
                     continuity_body,
                     pricing_json,
                     'contract',
-                    True if (app.config.get('DB_ENGINE') or 'mysql').strip().lower() == 'postgres' else 1,
+                    True,
                     service_id
                 )
             )
@@ -3981,12 +3559,9 @@ def ensure_chat_tables():
         return
     conn = get_db_connection()
     cursor = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     try:
-
-        if engine == 'postgres':
-            # Chat sessions table
-            cursor.execute("""
+        # Chat sessions table
+        cursor.execute("""
                 CREATE TABLE IF NOT EXISTS chat_sessions (
                     id BIGSERIAL PRIMARY KEY,
                     session_id VARCHAR(64) UNIQUE NOT NULL,
@@ -4001,9 +3576,9 @@ def ensure_chat_tables():
                     message_count INTEGER DEFAULT 0
                 )
             """)
-            
-            # Chat messages table
-            cursor.execute("""
+        
+        # Chat messages table
+        cursor.execute("""
                 CREATE TABLE IF NOT EXISTS chat_messages (
                     id BIGSERIAL PRIMARY KEY,
                     session_id VARCHAR(64) NOT NULL,
@@ -4012,9 +3587,9 @@ def ensure_chat_tables():
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 )
             """)
-            
-            # AI persona settings table
-            cursor.execute("""
+        
+        # AI persona settings table
+        cursor.execute("""
                 CREATE TABLE IF NOT EXISTS ai_persona (
                     id BIGSERIAL PRIMARY KEY,
                     persona_name VARCHAR(100) DEFAULT 'Assistant',
@@ -4030,9 +3605,9 @@ def ensure_chat_tables():
                     updated_at TIMESTAMPTZ DEFAULT NOW()
                 )
             """)
-            
-            # Knowledge base entries (beyond FAQs)
-            cursor.execute("""
+        
+        # Knowledge base entries (beyond FAQs)
+        cursor.execute("""
                 CREATE TABLE IF NOT EXISTS ai_knowledge_base (
                     id BIGSERIAL PRIMARY KEY,
                     title VARCHAR(255) NOT NULL,
@@ -4043,86 +3618,19 @@ def ensure_chat_tables():
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 )
             """)
-            
-            # Create index for faster session lookups
-            cursor.execute("""
+        
+        # Create index for faster session lookups
+        cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_chat_messages_session 
                 ON chat_messages(session_id)
             """)
-            cursor.execute("""
+        cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_chat_sessions_date 
                 ON chat_sessions(started_at DESC)
             """)
-            
-        else:
-            # MySQL versions
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS chat_sessions (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    session_id VARCHAR(64) UNIQUE NOT NULL,
-                    visitor_name VARCHAR(100),
-                    visitor_email VARCHAR(255),
-                    visitor_ip VARCHAR(45),
-                    user_agent TEXT,
-                    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    is_resolved TINYINT(1) DEFAULT 0,
-                    admin_notes TEXT,
-                    message_count INT DEFAULT 0,
-                    INDEX idx_session_id (session_id),
-                    INDEX idx_started_at (started_at)
-                )
-            """)
-            
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS chat_messages (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    session_id VARCHAR(64) NOT NULL,
-                    role VARCHAR(20) NOT NULL,
-                    content TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_session_id (session_id)
-                )
-            """)
-            
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS ai_persona (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    persona_name VARCHAR(100) DEFAULT 'Assistant',
-                    greeting_message TEXT,
-                    persona_description TEXT,
-                    personality_traits TEXT,
-                    response_style VARCHAR(50) DEFAULT 'friendly',
-                    avatar_url TEXT,
-                    contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com',
-                    contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN',
-                    whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN',
-                    is_enabled TINYINT(1) DEFAULT 1,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                )
-            """)
-            
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS ai_knowledge_base (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    title VARCHAR(255) NOT NULL,
-                    content TEXT NOT NULL,
-                    category VARCHAR(100) DEFAULT 'General',
-                    keywords TEXT,
-                    is_active TINYINT(1) DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-
-        # Add new contact columns to existing ai_persona table
-        if engine == 'postgres':
-            cursor.execute("ALTER TABLE ai_persona ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com'")
-            cursor.execute("ALTER TABLE ai_persona ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN'")
-            cursor.execute("ALTER TABLE ai_persona ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN'")
-        else:
-            cursor.execute("ALTER TABLE ai_persona ADD COLUMN contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com'")
-            cursor.execute("ALTER TABLE ai_persona ADD COLUMN contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN'")
-            cursor.execute("ALTER TABLE ai_persona ADD COLUMN whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN'")
+        cursor.execute("ALTER TABLE ai_persona ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255) DEFAULT 'support@sparkleclean.com'")
+        cursor.execute("ALTER TABLE ai_persona ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50) DEFAULT '1-800-SPLK-CLEAN'")
+        cursor.execute("ALTER TABLE ai_persona ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(50) DEFAULT '+1-800-SPLK-CLEAN'")
 
         # Insert default persona if not exists
         cursor.execute("SELECT COUNT(*) FROM ai_persona")
@@ -4391,10 +3899,8 @@ def ensure_contract_template_table():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        engine = Config.DB_ENGINE
-        if 'postgres' in engine:
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 CREATE TABLE IF NOT EXISTS contract_templates (
                     id BIGSERIAL PRIMARY KEY,
                     title VARCHAR(255) NOT NULL DEFAULT 'Service Agreement',
@@ -4403,19 +3909,7 @@ def ensure_contract_template_table():
                     updated_at TIMESTAMPTZ DEFAULT NOW()
                 )
                 """
-            )
-        else:
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS contract_templates (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    title VARCHAR(255) NOT NULL DEFAULT 'Service Agreement',
-                    body LONGTEXT NOT NULL,
-                    is_active TINYINT(1) DEFAULT 1,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                )
-                """
-            )
+        )
         conn.commit()
         _done_ensure_contract_template_table = True
     finally:
@@ -4458,17 +3952,10 @@ def _seed_default_contract_template():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        engine = Config.DB_ENGINE
-        if 'postgres' in engine:
-            cursor.execute(
-                "INSERT INTO contract_templates (title, body, is_active) VALUES (%s, %s, 1)",
-                ('Office Cleaning Service Agreement', _OFFICE_CLEANING_CONTRACT_DEFAULT)
-            )
-        else:
-            cursor.execute(
-                "INSERT INTO contract_templates (title, body, is_active) VALUES (%s, %s, 1)",
-                ('Office Cleaning Service Agreement', _OFFICE_CLEANING_CONTRACT_DEFAULT)
-            )
+        cursor.execute(
+            "INSERT INTO contract_templates (title, body, is_active) VALUES (%s, %s, 1)",
+            ('Office Cleaning Service Agreement', _OFFICE_CLEANING_CONTRACT_DEFAULT)
+        )
         conn.commit()
     except Exception:
         app.logger.exception('Failed to seed default contract template')
@@ -4482,21 +3969,14 @@ def save_contract_template(title, body):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        engine = Config.DB_ENGINE
         cursor.execute("SELECT id FROM contract_templates ORDER BY id DESC LIMIT 1")
         existing = cursor.fetchone()
         if existing:
             row_id = existing[0]
-            if 'postgres' in engine:
-                cursor.execute(
-                    "UPDATE contract_templates SET title = %s, body = %s, updated_at = NOW() WHERE id = %s",
-                    (title, body, row_id)
-                )
-            else:
-                cursor.execute(
-                    "UPDATE contract_templates SET title = %s, body = %s WHERE id = %s",
-                    (title, body, row_id)
-                )
+            cursor.execute(
+                "UPDATE contract_templates SET title = %s, body = %s, updated_at = NOW() WHERE id = %s",
+                (title, body, row_id)
+            )
         else:
             cursor.execute(
                 "INSERT INTO contract_templates (title, body, is_active) VALUES (%s, %s, 1)",
@@ -4517,12 +3997,9 @@ def ensure_payment_tables():
         return
     conn = get_db_connection()
     cursor = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     try:
-
-        if engine == 'postgres':
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 CREATE TABLE IF NOT EXISTS payment_settings (
                     id BIGINT PRIMARY KEY,
                     require_payment BOOLEAN DEFAULT FALSE,
@@ -4534,11 +4011,11 @@ def ensure_payment_tables():
                     updated_at TIMESTAMPTZ DEFAULT NOW()
                 )
                 """
-            )
-            cursor.execute("ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS prebook_discount_enabled BOOLEAN DEFAULT TRUE")
-            cursor.execute("ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS prebook_discount_percent NUMERIC(5,2) DEFAULT 10.00")
-            cursor.execute(
-                """
+        )
+        cursor.execute("ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS prebook_discount_enabled BOOLEAN DEFAULT TRUE")
+        cursor.execute("ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS prebook_discount_percent NUMERIC(5,2) DEFAULT 10.00")
+        cursor.execute(
+            """
                 CREATE TABLE IF NOT EXISTS payment_transactions (
                     id BIGSERIAL PRIMARY KEY,
                     provider VARCHAR(30) DEFAULT 'stripe',
@@ -4559,80 +4036,22 @@ def ensure_payment_tables():
                     updated_at TIMESTAMPTZ DEFAULT NOW()
                 )
                 """
-            )
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_tx_session ON payment_transactions(checkout_session_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_tx_status ON payment_transactions(status)")
-            cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refund_id VARCHAR(255)")
-            cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refund_status VARCHAR(50)")
-            cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ")
-            cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(128)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_tx_idempotency ON payment_transactions(idempotency_key)")
-            cursor.execute("SELECT COUNT(*) FROM payment_settings")
-            if (cursor.fetchone() or [0])[0] == 0:
-                cursor.execute(
-                    """
+        )
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_tx_session ON payment_transactions(checkout_session_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_tx_status ON payment_transactions(status)")
+        cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refund_id VARCHAR(255)")
+        cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refund_status VARCHAR(50)")
+        cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ")
+        cursor.execute("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(128)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_tx_idempotency ON payment_transactions(idempotency_key)")
+        cursor.execute("SELECT COUNT(*) FROM payment_settings")
+        if (cursor.fetchone() or [0])[0] == 0:
+            cursor.execute(
+                """
                     INSERT INTO payment_settings (id, require_payment, currency, prebook_discount_enabled, prebook_discount_percent, success_url, cancel_url)
                     VALUES (1, FALSE, 'gbp', TRUE, 10.00, NULL, NULL)
                     """
-                )
-        else:
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS payment_settings (
-                    id INT PRIMARY KEY,
-                    require_payment TINYINT(1) DEFAULT 0,
-                    currency VARCHAR(10) DEFAULT 'gbp',
-                    prebook_discount_enabled TINYINT(1) DEFAULT 1,
-                    prebook_discount_percent DECIMAL(5,2) DEFAULT 10.00,
-                    success_url VARCHAR(600),
-                    cancel_url VARCHAR(600),
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                )
-                """
             )
-            cursor.execute("SHOW COLUMNS FROM payment_settings LIKE 'prebook_discount_enabled'")
-            if not cursor.fetchone():
-                cursor.execute("ALTER TABLE payment_settings ADD COLUMN prebook_discount_enabled TINYINT(1) DEFAULT 1 AFTER currency")
-            cursor.execute("SHOW COLUMNS FROM payment_settings LIKE 'prebook_discount_percent'")
-            if not cursor.fetchone():
-                cursor.execute("ALTER TABLE payment_settings ADD COLUMN prebook_discount_percent DECIMAL(5,2) DEFAULT 10.00 AFTER prebook_discount_enabled")
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS payment_transactions (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    provider VARCHAR(30) DEFAULT 'stripe',
-                    checkout_session_id VARCHAR(255),
-                    payment_intent_id VARCHAR(255),
-                    status VARCHAR(50) DEFAULT 'initiated',
-                    currency VARCHAR(10) DEFAULT 'gbp',
-                    amount_total DECIMAL(10,2),
-                    customer_name VARCHAR(255),
-                    customer_email VARCHAR(255),
-                    service_summary TEXT,
-                    request_payload LONGTEXT,
-                    prepared_payload LONGTEXT,
-                    request_id BIGINT,
-                    service_request_id BIGINT,
-                    error_message TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_payment_tx_session (checkout_session_id),
-                    INDEX idx_payment_tx_status (status)
-                )
-                """
-            )
-            cursor.execute("SHOW COLUMNS FROM payment_transactions LIKE 'idempotency_key'")
-            if not cursor.fetchone():
-                cursor.execute("ALTER TABLE payment_transactions ADD COLUMN idempotency_key VARCHAR(128)")
-                cursor.execute("ALTER TABLE payment_transactions ADD INDEX idx_payment_tx_idempotency (idempotency_key)")
-            cursor.execute("SELECT COUNT(*) FROM payment_settings")
-            if (cursor.fetchone() or [0])[0] == 0:
-                cursor.execute(
-                    """
-                    INSERT INTO payment_settings (id, require_payment, currency, prebook_discount_enabled, prebook_discount_percent, success_url, cancel_url)
-                    VALUES (1, 0, 'gbp', 1, 10.00, NULL, NULL)
-                    """
-                )
 
         conn.commit()
         _done_ensure_payment_tables = True
@@ -4687,15 +4106,14 @@ def upsert_payment_settings(payload):
 
     success_url = (payload.get('success_url') or '').strip()[:600]
     cancel_url = (payload.get('cancel_url') or '').strip()[:600]
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
 
     if not success_url:
         success_url = f"{_get_app_base_url()}/payment/callback/success?session_id={{CHECKOUT_SESSION_ID}}"
     if not cancel_url:
         cancel_url = f"{_get_app_base_url()}/payment/callback/cancel"
 
-    require_payment_value = require_payment if engine == 'postgres' else (1 if require_payment else 0)
-    discount_enabled_value = prebook_discount_enabled if engine == 'postgres' else (1 if prebook_discount_enabled else 0)
+    require_payment_value = require_payment
+    discount_enabled_value = prebook_discount_enabled
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -4736,14 +4154,11 @@ def create_payment_transaction(amount_total, currency, customer_name, customer_e
         INSERT INTO payment_transactions
         (provider, status, currency, amount_total, customer_name, customer_email, service_summary, request_payload, prepared_payload)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
         """,
         ('stripe', 'initiated', currency, amount_total, customer_name, customer_email, service_summary, request_payload, prepared_payload)
     )
-    tx_id = cursor.lastrowid
-    if not tx_id:
-        cursor.execute("SELECT LASTVAL()")
-        fetched = cursor.fetchone()
-        tx_id = fetched[0] if fetched else None
+    tx_id = cursor.fetchone()[0]
     conn.commit()
     cursor.close()
     conn.close()
@@ -4758,10 +4173,8 @@ def fetch_active_transaction_by_idempotency_key(idempotency_key):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        engine = Config.DB_ENGINE
-        if 'postgres' in engine:
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 SELECT id, checkout_session_id, amount_total, currency, request_id
                 FROM payment_transactions
                 WHERE idempotency_key = %s
@@ -4769,20 +4182,8 @@ def fetch_active_transaction_by_idempotency_key(idempotency_key):
                   AND created_at > NOW() - INTERVAL '30 minutes'
                 ORDER BY id DESC LIMIT 1
                 """,
-                (idempotency_key,)
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT id, checkout_session_id, amount_total, currency, request_id
-                FROM payment_transactions
-                WHERE idempotency_key = %s
-                  AND status = 'checkout_created'
-                  AND created_at > NOW() - INTERVAL 30 MINUTE
-                ORDER BY id DESC LIMIT 1
-                """,
-                (idempotency_key,)
-            )
+            (idempotency_key,)
+        )
         return cursor.fetchone()
     finally:
         cursor.close()
@@ -4890,12 +4291,11 @@ def fetch_operating_bases(include_inactive=False):
     ensure_travel_tables()
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     if include_inactive:
         clause = ''
         params = ()
     else:
-        condition, cond_params = build_active_true_condition('is_active', engine)
+        condition, cond_params = build_active_true_condition('is_active')
         clause = f"WHERE {condition}"
         params = cond_params
     cursor.execute(
@@ -4965,10 +4365,11 @@ def upsert_operating_base(payload, base_id=None):
             """
             INSERT INTO operating_bases (name, postcode, latitude, longitude, is_active)
             VALUES (%s, %s, %s, %s, %s)
+            RETURNING id
             """,
             (name, postcode, latitude, longitude, is_active)
         )
-        base_id = cursor.lastrowid
+        base_id = cursor.fetchone()[0]
 
     conn.commit()
     cursor.close()
@@ -5552,12 +4953,11 @@ def fetch_services_from_db(include_inactive=False):
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     if include_inactive:
         where_clause = ""
         params = ()
     else:
-        condition, cond_params = build_active_true_condition('s.is_active', engine)
+        condition, cond_params = build_active_true_condition('s.is_active')
         where_clause = f"WHERE {condition}"
         params = cond_params
     cursor.execute(
@@ -5657,7 +5057,7 @@ def fetch_services_from_db(include_inactive=False):
         option_where = f"WHERE o.service_id IN ({placeholders})"
         option_params = list(service_ids)
         if not include_inactive:
-            condition, cond_params = build_active_true_condition('o.is_active', engine)
+            condition, cond_params = build_active_true_condition('o.is_active')
             option_where += f" AND {condition}"
             option_params.extend(cond_params)
         cursor.execute(
@@ -5770,7 +5170,7 @@ def fetch_services_from_db(include_inactive=False):
         room_card_where = f"WHERE rc.service_id IN ({placeholders})"
         room_card_params = list(service_ids)
         if not include_inactive:
-            condition, cond_params = build_active_true_condition('rc.is_active', engine)
+            condition, cond_params = build_active_true_condition('rc.is_active')
             room_card_where += f" AND {condition}"
             room_card_params.extend(cond_params)
         cursor.execute(
@@ -6109,7 +5509,6 @@ def resolve_service_selections(raw_selections):
             # Validate all selected options exist and are active
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
-            engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
             option_ids = []
             for opt in selected_options:
                 try:
@@ -6124,7 +5523,7 @@ def resolve_service_selections(raw_selections):
                 raise ValueError('Invalid option selection.')
             
             placeholders = ','.join(['%s'] * len(option_ids))
-            condition, cond_params = build_active_true_condition('o.is_active', engine)
+            condition, cond_params = build_active_true_condition('o.is_active')
             cursor.execute(
                 f"""
                 SELECT o.id AS option_id, o.label AS option_label, o.price AS option_price, o.is_active AS option_active
@@ -6234,8 +5633,6 @@ def resolve_service_selections(raw_selections):
 def persist_service_request_bundle(customer, schedule, notes, selections, total_price, has_custom, legacy_request_id=None, travel=None, pricing_details=None, status_value='pending', payment_type='in_person', is_paid=False):
     conn = get_db_connection()
     cursor = conn.cursor()
-    db_engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    pg_mode = db_engine == 'postgres'
     try:
         normalized_status = status_value if status_value in REQUEST_STATUSES else 'pending'
         insert_request_sql = """
@@ -6248,8 +5645,7 @@ def persist_service_request_bundle(customer, schedule, notes, selections, total_
                 payment_type, is_paid
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        if pg_mode:
-            insert_request_sql += " RETURNING id"
+        insert_request_sql += " RETURNING id"
 
         normalized_payment_type = normalize_stored_payment_type(payment_type)
 
@@ -6277,13 +5673,10 @@ def persist_service_request_bundle(customer, schedule, notes, selections, total_
                 bool(is_paid)
             )
         )
-        if pg_mode:
-            new_row = cursor.fetchone()
-            if not new_row:
-                raise RuntimeError('Unable to retrieve service_request id (postgres).')
-            service_request_id = new_row[0]
-        else:
-            service_request_id = cursor.lastrowid
+        new_row = cursor.fetchone()
+        if not new_row:
+            raise RuntimeError('Unable to retrieve service_request id (postgres).')
+        service_request_id = new_row[0]
 
         for item in selections:
             cursor.execute(
@@ -6435,28 +5828,15 @@ def log_analytics_event(event_type, event_data=None):
         return
     conn = None
     cursor = None
-    pg_conn = None
     try:
-        target = (app.config.get('ANALYTICS_DB') or 'mysql').strip().lower()
-
-        if target == 'postgres' and (app.config.get('POSTGRES_URL') or '').strip():
-            pg_conn = get_pg_connection()
-            ensure_pg_analytics_table(pg_conn)
-            with pg_conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO analytics (event_type, event_data) VALUES (%s, %s)",
-                    (event_type, PGJson(event_data) if (PGJson and event_data is not None) else None)
-                )
-            pg_conn.commit()
-        else:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            payload = json.dumps(event_data) if event_data is not None else None
-            cursor.execute(
-                "INSERT INTO analytics (event_type, event_data) VALUES (%s, %s)",
-                (event_type, payload)
-            )
-            conn.commit()
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        ensure_analytics_table(cursor)
+        cursor.execute(
+            "INSERT INTO analytics (event_type, event_data) VALUES (%s, %s)",
+            (event_type, PGJson(event_data) if (PGJson and event_data is not None) else None)
+        )
+        conn.commit()
     except Exception:
         app.logger.exception('Failed to log analytics event: %s', event_type)
     finally:
@@ -6464,11 +5844,6 @@ def log_analytics_event(event_type, event_data=None):
             cursor.close()
         if conn:
             conn.close()
-        if pg_conn:
-            try:
-                pg_conn.close()
-            except Exception:
-                pass
 
 
 DEFAULT_HERO_CONTENT = {
@@ -6576,7 +5951,8 @@ def fetch_hero_content():
                 hero_bg_color, media_brightness_offset,
                 content_bg_enabled, content_bg_color, content_padding_px,
                 title_size_px, subtitle_size_px,
-                cta_secondary_enabled, stats_enabled
+                cta_secondary_enabled, stats_enabled,
+                button_text, button_link
             ) VALUES (
                 %s,
                 %s, %s, %s,
@@ -6588,6 +5964,7 @@ def fetch_hero_content():
                 %s, %s, %s, %s, %s, %s, %s,
                 %s, %s,
                 %s, %s, %s,
+                %s, %s,
                 %s, %s,
                 %s, %s
             )
@@ -6631,6 +6008,8 @@ def fetch_hero_content():
                 DEFAULT_HERO_CONTENT['subtitle_size_px'],
                 DEFAULT_HERO_CONTENT['cta_secondary_enabled'],
                 DEFAULT_HERO_CONTENT['stats_enabled'],
+                DEFAULT_HERO_CONTENT['cta_primary_text'],
+                DEFAULT_HERO_CONTENT['cta_primary_link'],
             )
         )
         conn.commit()
@@ -6683,12 +6062,9 @@ def ensure_hero_content_schema():
         return
     conn = get_db_connection()
     cursor = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     try:
-
-        if engine == 'postgres':
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 CREATE TABLE IF NOT EXISTS hero_content (
                     id BIGINT PRIMARY KEY DEFAULT 1,
                     layout_mode VARCHAR(20) DEFAULT 'balenciaga',
@@ -6730,148 +6106,52 @@ def ensure_hero_content_schema():
                     stats_enabled BOOLEAN DEFAULT TRUE
                 )
                 """
-            )
-            # Add all new Slidin GH columns if they don't exist
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS layout_mode VARCHAR(20) DEFAULT 'balenciaga'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_url TEXT")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_type VARCHAR(10) DEFAULT 'image'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bar_enabled BOOLEAN DEFAULT FALSE")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bg_color VARCHAR(20) DEFAULT '#000000'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text_color VARCHAR(20) DEFAULT '#ffffff'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_label VARCHAR(100) DEFAULT 'Spring Collection'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_tracking NUMERIC(3,2) DEFAULT 0.1")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title VARCHAR(500) DEFAULT 'Editorial Excellence'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_color VARCHAR(20) DEFAULT '#ffffff'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_color VARCHAR(20) DEFAULT '#ffffff'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_text VARCHAR(100) DEFAULT 'Explore'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_link VARCHAR(255) DEFAULT '/collections'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_text VARCHAR(100) DEFAULT 'Learn More'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_link VARCHAR(255) DEFAULT '#about'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_enabled BOOLEAN DEFAULT TRUE")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text VARCHAR(100) DEFAULT 'Limited Drops'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_bg_color VARCHAR(20) DEFAULT '#ffffff'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text_color VARCHAR(20) DEFAULT '#000000'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_label VARCHAR(100) DEFAULT 'Premium Quality'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_value VARCHAR(50) DEFAULT '98%'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_label VARCHAR(100) DEFAULT 'Global Reach'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_value VARCHAR(50) DEFAULT '150+'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_label VARCHAR(100) DEFAULT '24/7 Support'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_value VARCHAR(50) DEFAULT 'Always'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_bg_color VARCHAR(20) DEFAULT '#000000'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_brightness_offset NUMERIC(2,1) DEFAULT -0.55")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_enabled BOOLEAN DEFAULT TRUE")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_padding_px INTEGER DEFAULT 20")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_size_px INTEGER DEFAULT 72")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_size_px INTEGER DEFAULT 24")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_enabled BOOLEAN DEFAULT TRUE")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_enabled BOOLEAN DEFAULT TRUE")
-        else:
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS hero_content (
-                    id INT PRIMARY KEY DEFAULT 1,
-                    layout_mode VARCHAR(20) DEFAULT 'balenciaga',
-                    media_url LONGTEXT,
-                    media_type VARCHAR(10) DEFAULT 'image',
-                    announcement_bar_enabled BOOLEAN DEFAULT 0,
-                    announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY',
-                    announcement_bg_color VARCHAR(20) DEFAULT '#000000',
-                    announcement_text_color VARCHAR(20) DEFAULT '#ffffff',
-                    editorial_label VARCHAR(100) DEFAULT 'Spring Collection',
-                    editorial_tracking DECIMAL(3,2) DEFAULT 0.1,
-                    title VARCHAR(500) DEFAULT 'Editorial Excellence',
-                    title_color VARCHAR(20) DEFAULT '#ffffff',
-                    subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.',
-                    subtitle_color VARCHAR(20) DEFAULT '#ffffff',
-                    cta_primary_text VARCHAR(100) DEFAULT 'Explore',
-                    cta_primary_link VARCHAR(255) DEFAULT '/collections',
-                    cta_secondary_text VARCHAR(100) DEFAULT 'Learn More',
-                    cta_secondary_link VARCHAR(255) DEFAULT '#about',
-                    badge_enabled BOOLEAN DEFAULT 1,
-                    badge_text VARCHAR(100) DEFAULT 'Limited Drops',
-                    badge_bg_color VARCHAR(20) DEFAULT '#ffffff',
-                    badge_text_color VARCHAR(20) DEFAULT '#000000',
-                    stat1_label VARCHAR(100) DEFAULT 'Premium Quality',
-                    stat1_value VARCHAR(50) DEFAULT '98%',
-                    stat2_label VARCHAR(100) DEFAULT 'Global Reach',
-                    stat2_value VARCHAR(50) DEFAULT '150+',
-                    stat3_label VARCHAR(100) DEFAULT '24/7 Support',
-                    stat3_value VARCHAR(50) DEFAULT 'Always',
-                    stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)',
-                    hero_bg_color VARCHAR(20) DEFAULT '#000000',
-                    media_brightness_offset DECIMAL(2,1) DEFAULT -0.55,
-                    content_bg_enabled BOOLEAN DEFAULT 1,
-                    content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)',
-                    content_padding_px INT DEFAULT 20,
-                    title_size_px INT DEFAULT 72,
-                    subtitle_size_px INT DEFAULT 24,
-                    cta_secondary_enabled BOOLEAN DEFAULT 1,
-                    stats_enabled BOOLEAN DEFAULT 1
-                )
-                """
-            )
-            # Add all new Slidin GH columns if they don't exist (MySQL)
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS layout_mode VARCHAR(20) DEFAULT 'balenciaga'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_url LONGTEXT")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_type VARCHAR(10) DEFAULT 'image'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bar_enabled BOOLEAN DEFAULT 0")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bg_color VARCHAR(20) DEFAULT '#000000'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text_color VARCHAR(20) DEFAULT '#ffffff'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_label VARCHAR(100) DEFAULT 'Spring Collection'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_tracking DECIMAL(3,2) DEFAULT 0.1")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title VARCHAR(500) DEFAULT 'Editorial Excellence'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_color VARCHAR(20) DEFAULT '#ffffff'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_color VARCHAR(20) DEFAULT '#ffffff'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_text VARCHAR(100) DEFAULT 'Explore'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_link VARCHAR(255) DEFAULT '/collections'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_text VARCHAR(100) DEFAULT 'Learn More'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_link VARCHAR(255) DEFAULT '#about'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_enabled BOOLEAN DEFAULT 1")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text VARCHAR(100) DEFAULT 'Limited Drops'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_bg_color VARCHAR(20) DEFAULT '#ffffff'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text_color VARCHAR(20) DEFAULT '#000000'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_label VARCHAR(100) DEFAULT 'Premium Quality'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_value VARCHAR(50) DEFAULT '98%'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_label VARCHAR(100) DEFAULT 'Global Reach'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_value VARCHAR(50) DEFAULT '150+'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_label VARCHAR(100) DEFAULT '24/7 Support'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_value VARCHAR(50) DEFAULT 'Always'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_bg_color VARCHAR(20) DEFAULT '#000000'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_brightness_offset DECIMAL(2,1) DEFAULT -0.55")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_enabled BOOLEAN DEFAULT 1")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)'")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_padding_px INT DEFAULT 20")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_size_px INT DEFAULT 72")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_size_px INT DEFAULT 24")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_enabled BOOLEAN DEFAULT 1")
-            cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_enabled BOOLEAN DEFAULT 1")
-
-        # Fix any NULL or FALSE badge values in existing hero_content row(s) - ensure they have proper defaults
-        if engine == 'postgres':
-            cursor.execute("""
+        )
+        # Add all new Slidin GH columns if they don't exist
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS layout_mode VARCHAR(20) DEFAULT 'balenciaga'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_url TEXT")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_type VARCHAR(10) DEFAULT 'image'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bar_enabled BOOLEAN DEFAULT FALSE")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text VARCHAR(255) DEFAULT 'FREE DELIVERY'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_bg_color VARCHAR(20) DEFAULT '#000000'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS announcement_text_color VARCHAR(20) DEFAULT '#ffffff'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_label VARCHAR(100) DEFAULT 'Spring Collection'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS editorial_tracking NUMERIC(3,2) DEFAULT 0.1")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title VARCHAR(500) DEFAULT 'Editorial Excellence'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_color VARCHAR(20) DEFAULT '#ffffff'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle VARCHAR(500) DEFAULT 'Curated luxury across premium collections.'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_color VARCHAR(20) DEFAULT '#ffffff'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_text VARCHAR(100) DEFAULT 'Explore'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_primary_link VARCHAR(255) DEFAULT '/collections'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_text VARCHAR(100) DEFAULT 'Learn More'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_link VARCHAR(255) DEFAULT '#about'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_enabled BOOLEAN DEFAULT TRUE")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text VARCHAR(100) DEFAULT 'Limited Drops'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_bg_color VARCHAR(20) DEFAULT '#ffffff'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS badge_text_color VARCHAR(20) DEFAULT '#000000'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_label VARCHAR(100) DEFAULT 'Premium Quality'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat1_value VARCHAR(50) DEFAULT '98%'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_label VARCHAR(100) DEFAULT 'Global Reach'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat2_value VARCHAR(50) DEFAULT '150+'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_label VARCHAR(100) DEFAULT '24/7 Support'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stat3_value VARCHAR(50) DEFAULT 'Always'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_bg_color VARCHAR(60) DEFAULT 'rgba(0,0,0,0.5)'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS hero_bg_color VARCHAR(20) DEFAULT '#000000'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS media_brightness_offset NUMERIC(2,1) DEFAULT -0.55")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_enabled BOOLEAN DEFAULT TRUE")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_bg_color VARCHAR(30) DEFAULT 'rgba(0,0,0,0.35)'")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS content_padding_px INTEGER DEFAULT 20")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS title_size_px INTEGER DEFAULT 72")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS subtitle_size_px INTEGER DEFAULT 24")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS cta_secondary_enabled BOOLEAN DEFAULT TRUE")
+        cursor.execute("ALTER TABLE hero_content ADD COLUMN IF NOT EXISTS stats_enabled BOOLEAN DEFAULT TRUE")
+        cursor.execute("""
                 UPDATE hero_content
                 SET
                     badge_enabled = TRUE,
                     badge_text = COALESCE(NULLIF(badge_text, ''), 'Eco-Friendly'),
                     badge_bg_color = COALESCE(NULLIF(badge_bg_color, ''), '#ffffff'),
                     badge_text_color = COALESCE(NULLIF(badge_text_color, ''), '#000000')
-                WHERE id = 1
-            """)
-        else:  # MySQL
-            cursor.execute("""
-                UPDATE hero_content
-                SET
-                    badge_enabled = 1,
-                    badge_text = COALESCE(IF(badge_text IS NULL OR badge_text = '', 'Eco-Friendly', badge_text), 'Eco-Friendly'),
-                    badge_bg_color = COALESCE(IF(badge_bg_color IS NULL OR badge_bg_color = '', '#ffffff', badge_bg_color), '#ffffff'),
-                    badge_text_color = COALESCE(IF(badge_text_color IS NULL OR badge_text_color = '', '#000000', badge_text_color), '#000000')
                 WHERE id = 1
             """)
 
@@ -6960,26 +6240,14 @@ def ensure_site_content_table():
         return
     conn = get_db_connection()
     cursor = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     try:
-        if 'postgres' in engine:
-            cursor.execute("""
+        cursor.execute("""
                 CREATE TABLE IF NOT EXISTS site_content (
                     section_key VARCHAR(100) PRIMARY KEY,
                     content_text TEXT,
                     content_json TEXT,
                     is_active BOOLEAN DEFAULT TRUE,
                     updated_at TIMESTAMPTZ DEFAULT NOW()
-                )
-            """)
-        else:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS site_content (
-                    section_key VARCHAR(100) PRIMARY KEY,
-                    content_text TEXT,
-                    content_json TEXT,
-                    is_active TINYINT(1) DEFAULT 1,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 )
             """)
         conn.commit()
@@ -7040,18 +6308,11 @@ def ensure_site_content_table():
                 }
             }
         })
-        if 'postgres' in engine:
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO site_content (section_key, content_json, is_active) VALUES (%s, %s, 1) ON CONFLICT (section_key) DO NOTHING",
-                ('tri_zonal', _tri_zonal_default)
-            )
-        else:
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT IGNORE INTO site_content (section_key, content_json, is_active) VALUES (%s, %s, 1)",
-                ('tri_zonal', _tri_zonal_default)
-            )
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO site_content (section_key, content_json, is_active) VALUES (%s, %s, 1) ON CONFLICT (section_key) DO NOTHING",
+            ('tri_zonal', _tri_zonal_default)
+        )
         conn.commit()
         _done_ensure_site_content_table = True
     finally:
@@ -7064,8 +6325,7 @@ def fetch_site_content():
     ensure_site_content_table()
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    condition, params = build_active_true_condition('is_active', engine)
+    condition, params = build_active_true_condition('is_active')
     cursor.execute(
         f"SELECT section_key, content_text, content_json FROM site_content WHERE {condition}",
         params
@@ -7155,12 +6415,9 @@ def ensure_telegram_settings_schema():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     try:
-
-        if 'postgres' in engine:
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 CREATE TABLE IF NOT EXISTS telegram_settings (
                     id BIGINT PRIMARY KEY,
                     bot_token TEXT,
@@ -7174,28 +6431,8 @@ def ensure_telegram_settings_schema():
                     updated_at TIMESTAMPTZ DEFAULT NOW()
                 )
                 """
-            )
-            cursor.execute("ALTER TABLE telegram_settings ADD COLUMN IF NOT EXISTS notify_error_logs SMALLINT DEFAULT 1")
-        else:
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS telegram_settings (
-                    id BIGINT PRIMARY KEY,
-                    bot_token TEXT,
-                    chat_id VARCHAR(255),
-                    is_active TINYINT(1) DEFAULT 0,
-                    notify_email_success TINYINT(1) DEFAULT 1,
-                    notify_email_error TINYINT(1) DEFAULT 1,
-                    notify_admin_login TINYINT(1) DEFAULT 1,
-                    notify_login_failure TINYINT(1) DEFAULT 1,
-                    notify_error_logs TINYINT(1) DEFAULT 1,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                )
-                """
-            )
-            cursor.execute("SHOW COLUMNS FROM telegram_settings LIKE %s", ('notify_error_logs',))
-            if not cursor.fetchone():
-                cursor.execute("ALTER TABLE telegram_settings ADD COLUMN notify_error_logs TINYINT(1) DEFAULT 1")
+        )
+        cursor.execute("ALTER TABLE telegram_settings ADD COLUMN IF NOT EXISTS notify_error_logs SMALLINT DEFAULT 1")
 
         conn.commit()
         _done_ensure_telegram_settings_schema = True
@@ -8219,11 +7456,8 @@ def move_stale_stripe_pending_requests_to_draft(max_age_minutes=STRIPE_PENDING_T
     ensure_payment_tables()
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-
-    if 'postgres' in engine:
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             SELECT tx.id AS tx_id, tx.request_id
             FROM payment_transactions tx
             JOIN requests r ON r.id = tx.request_id
@@ -8235,24 +7469,8 @@ def move_stale_stripe_pending_requests_to_draft(max_age_minutes=STRIPE_PENDING_T
             ORDER BY tx.created_at ASC
             LIMIT %s
             """,
-            (max_age_minutes, max(1, int(limit)))
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT tx.id AS tx_id, tx.request_id
-            FROM payment_transactions tx
-            JOIN requests r ON r.id = tx.request_id
-            WHERE tx.request_id IS NOT NULL
-              AND tx.status IN ('initiated', 'checkout_created')
-              AND r.status = 'pending'
-              AND r.source = 'stripe_checkout_pending'
-              AND tx.created_at <= DATE_SUB(NOW(), INTERVAL %s MINUTE)
-            ORDER BY tx.created_at ASC
-            LIMIT %s
-            """,
-            (max_age_minutes, max(1, int(limit)))
-        )
+        (max_age_minutes, max(1, int(limit)))
+    )
 
     stale_rows = cursor.fetchall() or []
     if stale_rows:
@@ -8291,11 +7509,9 @@ def move_stale_inperson_pending_requests_to_draft(max_age_days=30, limit=100):
     """Archive in-person pending requests older than max_age_days with no activity."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     try:
-        if 'postgres' in engine:
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 SELECT r.id
                 FROM requests r
                 LEFT JOIN service_requests sr ON sr.legacy_request_id = r.id
@@ -8306,23 +7522,8 @@ def move_stale_inperson_pending_requests_to_draft(max_age_days=30, limit=100):
                 ORDER BY r.created_at ASC
                 LIMIT %s
                 """,
-                (max_age_days, max(1, int(limit)))
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT r.id
-                FROM requests r
-                LEFT JOIN service_requests sr ON sr.legacy_request_id = r.id
-                WHERE r.status = 'pending'
-                  AND (sr.payment_type = 'in_person' OR sr.payment_type IS NULL)
-                  AND r.source NOT IN ('stripe_checkout_pending')
-                  AND r.created_at <= DATE_SUB(NOW(), INTERVAL %s DAY)
-                ORDER BY r.created_at ASC
-                LIMIT %s
-                """,
-                (max_age_days, max(1, int(limit)))
-            )
+            (max_age_days, max(1, int(limit)))
+        )
         stale_rows = cursor.fetchall() or []
         if stale_rows:
             writer = conn.cursor()
@@ -8748,7 +7949,6 @@ def stripe_webhook_endpoint():
 @app.route('/payment/callback/success', methods=['GET'])
 def payment_callback_success():
     session_id = sanitize_text(request.args.get('session_id'), 255)
-    target = url_for('index')
 
     if session_id:
         try:
@@ -8941,7 +8141,6 @@ def get_job_positions():
 @admin_login_required
 def add_service():
     try:
-        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
         service_name = sanitize_text(request.form.get('name') or request.form.get('title'), 120)
         short_description = (request.form.get('short_description') or '').strip()
         description = (request.form.get('description') or '').strip()
@@ -9007,7 +8206,6 @@ def add_service():
         except ValueError as exc:
             return jsonify({'error': str(exc)}), 400
 
-        is_pg = 'postgres' in engine
         contract_value = True if is_contract else False  # is_contract is boolean in PG
         multiselect_value = 1 if allow_multiselect else 0  # smallint in PG
         active_value = 1 if is_active else 0  # smallint in PG
@@ -9061,7 +8259,6 @@ def add_service():
 @admin_login_required
 def edit_service(service_id):
     try:
-        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
         service_name = sanitize_text(request.form.get('name') or request.form.get('title'), 120)
         short_description = (request.form.get('short_description') or '').strip()
         description = (request.form.get('description') or '').strip()
@@ -9151,7 +8348,6 @@ def edit_service(service_id):
         if image_path and existing_image and image_path != existing_image:
             delete_uploaded_file(existing_image)
 
-        is_pg = 'postgres' in engine
         contract_value = True if is_contract else False  # is_contract is boolean in PG
         multiselect_value = 1 if allow_multiselect else 0  # smallint in PG
         active_value = 1 if is_active else 0  # smallint in PG
@@ -9265,10 +8461,11 @@ def add_service_option(service_id):
         """
         INSERT INTO service_options (service_id, label, price, sort_order, is_active)
         VALUES (%s, %s, %s, %s, %s)
+        RETURNING id
         """,
         (service_id, label, price, sort_order, 1 if is_active else 0)
     )
-    option_id = cursor.lastrowid
+    option_id = cursor.fetchone()[0]
     conn.commit()
     cursor.close()
     conn.close()
@@ -9402,11 +8599,12 @@ def add_pricing_item(service_id):
         """
         INSERT INTO service_pricing_items (service_id, item_name, price)
         VALUES (%s, %s, %s)
+        RETURNING id
         """,
         (service_id, item_name, price)
     )
+    item_id = cursor.fetchone()[0]
     conn.commit()
-    item_id = cursor.lastrowid
     cursor.close()
     conn.close()
     return jsonify({'message': 'Pricing item added.', 'id': item_id}), 201
@@ -9542,6 +8740,7 @@ def add_pricing_tier(service_id):
             """
             INSERT INTO service_pricing_tiers (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, fixed_staff, fixed_hours, rooms_config, equipment_fee, detergent_fee)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
             """,
             (service_id, tier_name, hourly_rate, min_staff, min_hours, staff_label, hours_label, fixed_staff, fixed_hours, rooms_config, equipment_fee, detergent_fee)
         )
@@ -9551,11 +8750,12 @@ def add_pricing_tier(service_id):
             """
             INSERT INTO service_pricing_tiers (service_id, tier_name, hourly_rate, min_staff, equipment_fee, detergent_fee)
             VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id
             """,
             (service_id, tier_name, hourly_rate, min_staff, equipment_fee, detergent_fee)
         )
+    tier_id = cursor.fetchone()[0]
     conn.commit()
-    tier_id = cursor.lastrowid
     cursor.close()
     conn.close()
     return jsonify({'message': 'Pricing tier added.', 'id': tier_id}), 201
@@ -9726,11 +8926,12 @@ def add_tenancy_rate(service_id):
         """
         INSERT INTO service_tenancy_rates (service_id, label, standard_price, deep_clean_price, is_blocker, blocker_msg)
         VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING id
         """,
         (service_id, label, standard_price, deep_clean_price, 1 if is_blocker else 0, blocker_msg)
     )
+    rate_id = cursor.fetchone()[0]
     conn.commit()
-    rate_id = cursor.lastrowid
     cursor.close()
     conn.close()
     return jsonify({'message': 'Tenancy rate added.', 'id': rate_id}), 201
@@ -9913,11 +9114,7 @@ def get_public_faqs():
         ensure_faq_table()
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-        if engine == 'postgres':
-            cursor.execute("SELECT id, question, answer, category FROM faqs WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC")
-        else:
-            cursor.execute("SELECT id, question, answer, category FROM faqs WHERE is_active = 1 ORDER BY sort_order ASC, id ASC")
+        cursor.execute("SELECT id, question, answer, category FROM faqs WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC")
         faqs = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -10220,12 +9417,8 @@ def build_chat_knowledge_context_separate():
     cursor = None
     try:
         conn = get_db_connection()
-        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-        if engine == 'postgres':
-            from psycopg2.extras import RealDictCursor
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-        else:
-            cursor = conn.cursor(dictionary=True)
+        from psycopg2.extras import RealDictCursor
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
         return build_chat_knowledge_context(cursor)
     finally:
         if cursor:
@@ -10243,14 +9436,10 @@ def build_chat_knowledge_context_separate():
 def build_chat_knowledge_context(cursor):
     """Build knowledge context from FAQs, services, and knowledge base."""
     context_parts = []
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     
     # Get FAQs
     try:
-        if engine == 'postgres':
-            cursor.execute("SELECT question, answer, category FROM faqs WHERE is_active = TRUE ORDER BY sort_order LIMIT 20")
-        else:
-            cursor.execute("SELECT question, answer, category FROM faqs WHERE is_active = 1 ORDER BY sort_order LIMIT 20")
+        cursor.execute("SELECT question, answer, category FROM faqs WHERE is_active = TRUE ORDER BY sort_order LIMIT 20")
         faqs = cursor.fetchall()
         if faqs:
             faq_text = "\n\nFREQUENTLY ASKED QUESTIONS:\n"
@@ -10262,11 +9451,8 @@ def build_chat_knowledge_context(cursor):
     
     # Get services
     try:
-        if engine == 'postgres':
-            # services.is_active is smallint in this db, so use = 1
-            cursor.execute("SELECT name, title, description, short_description, price FROM services WHERE is_active = 1 LIMIT 20")
-        else:
-            cursor.execute("SELECT name, title, description, short_description, price FROM services WHERE is_active = 1 LIMIT 20")
+        # services.is_active is smallint in this db, so use = 1
+        cursor.execute("SELECT name, title, description, short_description, price FROM services WHERE is_active = 1 LIMIT 20")
         services = cursor.fetchall()
         if services:
             svc_text = "\n\nOUR CLEANING SERVICES:\n"
@@ -10282,10 +9468,7 @@ def build_chat_knowledge_context(cursor):
     
     # Get knowledge base entries - use correct boolean for postgres
     try:
-        if engine == 'postgres':
-            cursor.execute("SELECT title, content FROM ai_knowledge_base WHERE is_active = TRUE LIMIT 10")
-        else:
-            cursor.execute("SELECT title, content FROM ai_knowledge_base WHERE is_active = 1 LIMIT 10")
+        cursor.execute("SELECT title, content FROM ai_knowledge_base WHERE is_active = TRUE LIMIT 10")
         kb_entries = cursor.fetchall()
         if kb_entries:
             kb_text = "\n\nADDITIONAL INFORMATION:\n"
@@ -10538,21 +9721,13 @@ def submit_testimonial():
         verified_flag = 1 if is_verified else 0
 
         # Insert the testimonial
-        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-        if 'postgres' in engine:
-            cursor.execute("""
+        cursor.execute("""
                 INSERT INTO testimonials (name, message, rating, email, status, is_verified_customer, image_url)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             """, (name, message, rating, email, status, verified_flag, ''))
-            row = cursor.fetchone()
-            testimonial_id = (row['id'] if isinstance(row, dict) else row[0]) if row else None
-        else:
-            cursor.execute("""
-                INSERT INTO testimonials (name, message, rating, email, status, is_verified_customer, image_url)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (name, message, rating, email, status, verified_flag, ''))
-            testimonial_id = cursor.lastrowid
+        row = cursor.fetchone()
+        testimonial_id = (row['id'] if isinstance(row, dict) else row[0]) if row else None
 
         conn.commit()
         cursor.close()
@@ -10688,7 +9863,6 @@ def admin_dashboard_live_stats():
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
         
         # Get status counts
         cursor.execute("""
@@ -10744,44 +9918,22 @@ def admin_dashboard_live_stats():
                 'created_at': row['created_at'].isoformat() if row['created_at'] else None,
                 'updated_at': row['updated_at'].isoformat() if row['updated_at'] else None
             })
-        
-        # Visitor count (analytics events in last 10 minutes)
-        if engine == 'postgres':
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 SELECT COUNT(*) as visitors
                 FROM analytics
                 WHERE created_at >= NOW() - INTERVAL '10 minutes'
                 """
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT COUNT(*) as visitors
-                FROM analytics
-                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
-                """
-            )
+        )
         visitor_row = cursor.fetchone()
         visitor_count = visitor_row['visitors'] if visitor_row else 0
-        
-        # Today's new requests count
-        if engine == 'postgres':
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 SELECT COUNT(*) as today_count
                 FROM requests
                 WHERE DATE(created_at) = CURRENT_DATE
                 """
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT COUNT(*) as today_count
-                FROM requests
-                WHERE DATE(created_at) = CURDATE()
-                """
-            )
+        )
         today_row = cursor.fetchone()
         today_count = today_row['today_count'] if today_row else 0
         
@@ -10807,7 +9959,6 @@ def admin_analytics_live():
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
         
         # Get period from query param (default 30 days)
         days = request.args.get('days', 30, type=int)
@@ -10815,212 +9966,103 @@ def admin_analytics_live():
         # Count analytics events
         def count_event(event_type, period_days=None):
             if period_days:
-                if engine == 'postgres':
-                    cursor.execute(
-                        "SELECT COUNT(*) as cnt FROM analytics WHERE event_type = %s AND created_at >= NOW() - (%s * INTERVAL '1 day')",
-                        (event_type, period_days)
-                    )
-                else:
-                    cursor.execute(
-                        "SELECT COUNT(*) as cnt FROM analytics WHERE event_type = %s AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)",
-                        (event_type, period_days)
-                    )
+                cursor.execute(
+                    "SELECT COUNT(*) as cnt FROM analytics WHERE event_type = %s AND created_at >= NOW() - (%s * INTERVAL '1 day')",
+                    (event_type, period_days)
+                )
             else:
-                if engine == 'postgres':
-                    cursor.execute(
-                        "SELECT COUNT(*) as cnt FROM analytics WHERE event_type = %s AND DATE(created_at) = CURRENT_DATE",
-                        (event_type,)
-                    )
-                else:
-                    cursor.execute(
-                        "SELECT COUNT(*) as cnt FROM analytics WHERE event_type = %s AND DATE(created_at) = CURDATE()",
-                        (event_type,)
-                    )
+                cursor.execute(
+                    "SELECT COUNT(*) as cnt FROM analytics WHERE event_type = %s AND DATE(created_at) = CURRENT_DATE",
+                    (event_type,)
+                )
             return cursor.fetchone()['cnt']
         
         # Period totals from analytics
         visits = count_event('homepage_visit', days)
         service_views = count_event('service_view', days)
-        
-        # Bookings/jobs/contacts from requests table (matching original endpoint)
-        if engine == 'postgres':
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 SELECT COUNT(*) as cnt FROM requests
                 WHERE request_type = 'service'
                 AND created_at >= NOW() - (%s * INTERVAL '1 day')
                 """,
-                (days,)
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT COUNT(*) as cnt FROM requests 
-                WHERE request_type = 'service' 
-                AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
-                """,
-                (days,)
-            )
+            (days,)
+        )
         bookings = cursor.fetchone()['cnt']
-        
-        if engine == 'postgres':
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 SELECT COUNT(*) as cnt FROM requests
                 WHERE request_type = 'job'
                 AND created_at >= NOW() - (%s * INTERVAL '1 day')
                 """,
-                (days,)
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT COUNT(*) as cnt FROM requests 
-                WHERE request_type = 'job' 
-                AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
-                """,
-                (days,)
-            )
+            (days,)
+        )
         job_applications = cursor.fetchone()['cnt']
-        
-        if engine == 'postgres':
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 SELECT COUNT(*) as cnt FROM requests
                 WHERE request_type = 'general'
                 AND created_at >= NOW() - (%s * INTERVAL '1 day')
                 """,
-                (days,)
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT COUNT(*) as cnt FROM requests 
-                WHERE request_type = 'general' 
-                AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
-                """,
-                (days,)
-            )
+            (days,)
+        )
         contact_submissions = cursor.fetchone()['cnt']
         
         # Today totals
         today_visits = count_event('homepage_visit')
         today_service_views = count_event('service_view')
-        
-        if engine == 'postgres':
-            cursor.execute("SELECT COUNT(*) as cnt FROM requests WHERE request_type = 'service' AND DATE(created_at) = CURRENT_DATE")
-        else:
-            cursor.execute("SELECT COUNT(*) as cnt FROM requests WHERE request_type = 'service' AND DATE(created_at) = CURDATE()")
+        cursor.execute("SELECT COUNT(*) as cnt FROM requests WHERE request_type = 'service' AND DATE(created_at) = CURRENT_DATE")
         today_bookings = cursor.fetchone()['cnt']
         
         # Conversion rate (visits to bookings)
         conversion_rate = round((bookings / visits * 100), 1) if visits > 0 else 0
-        
-        # Revenue data
-        if engine == 'postgres':
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 SELECT COALESCE(SUM(total_price), 0) as total
                 FROM service_requests
                 WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
                     AND status = 'completed'
                 """,
-                (days,)
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT COALESCE(SUM(total_price), 0) as total
-                FROM service_requests
-                WHERE created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
-                    AND status = 'completed'
-                """,
-                (days,)
-            )
+            (days,)
+        )
         period_revenue = float(cursor.fetchone()['total'] or 0)
-        
-        if engine == 'postgres':
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 SELECT COALESCE(SUM(total_price), 0) as total
                 FROM service_requests
                 WHERE DATE(created_at) = CURRENT_DATE
                     AND status = 'completed'
                 """
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT COALESCE(SUM(total_price), 0) as total
-                FROM service_requests
-                WHERE DATE(created_at) = CURDATE()
-                    AND status = 'completed'
-                """
-            )
+        )
         today_revenue = float(cursor.fetchone()['total'] or 0)
-        
-        if engine == 'postgres':
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 SELECT COALESCE(SUM(total_price), 0) as total
                 FROM service_requests
                 WHERE created_at >= NOW() - (7 * INTERVAL '1 day')
                     AND status = 'completed'
                 """
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT COALESCE(SUM(total_price), 0) as total
-                FROM service_requests
-                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-                    AND status = 'completed'
-                """
-            )
+        )
         week_revenue = float(cursor.fetchone()['total'] or 0)
-        
-        if engine == 'postgres':
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 SELECT COALESCE(SUM(total_price), 0) as total
                 FROM service_requests
                 WHERE created_at >= date_trunc('month', NOW())
                     AND created_at < date_trunc('month', NOW()) + INTERVAL '1 month'
                     AND status = 'completed'
                 """
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT COALESCE(SUM(total_price), 0) as total
-                FROM service_requests
-                WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())
-                    AND status = 'completed'
-                """
-            )
+        )
         month_revenue = float(cursor.fetchone()['total'] or 0)
-        
-        # Request status counts for funnel
-        if engine == 'postgres':
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 SELECT status, COUNT(*) as count
                 FROM requests
                 WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
                 GROUP BY status
                 """,
-                (days,)
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT status, COUNT(*) as count
-                FROM requests
-                WHERE created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
-                GROUP BY status
-                """,
-                (days,)
-            )
+            (days,)
+        )
         status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
         
         cursor.close()
@@ -11067,7 +10109,6 @@ def admin_analytics_kpis():
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
 
         # Active contracts
         cursor.execute("SELECT COUNT(*) AS cnt FROM contracts WHERE status = 'active'")
@@ -11084,12 +10125,7 @@ def admin_analytics_kpis():
         # Pending quotes
         cursor.execute("SELECT COUNT(*) AS cnt FROM service_requests WHERE status IN ('pending', 'quote_ready')")
         pending_quotes = (cursor.fetchone() or {}).get('cnt') or 0
-
-        # Contracts due this week
-        if engine == 'postgres':
-            cursor.execute("SELECT COUNT(*) AS cnt FROM contracts WHERE next_service_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'")
-        else:
-            cursor.execute("SELECT COUNT(*) AS cnt FROM contracts WHERE next_service_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)")
+        cursor.execute("SELECT COUNT(*) AS cnt FROM contracts WHERE next_service_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'")
         due_week = (cursor.fetchone() or {}).get('cnt') or 0
 
         cursor.close()
@@ -11119,7 +10155,6 @@ def admin_analytics_ai_summary():
 
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
 
         # AI settings
         cursor.execute("SELECT * FROM ai_settings WHERE id = 1")
@@ -11131,18 +10166,9 @@ def admin_analytics_ai_summary():
             cursor.close()
             conn.close()
             return jsonify({'error': 'AI not configured. Add an API key in AI settings.'}), 503
-
-        # Gather snapshot data
-        if engine == 'postgres':
-            cursor.execute("SELECT COUNT(*) AS cnt FROM analytics WHERE event_type = 'homepage_visit' AND created_at >= NOW() - (%s || ' days')::interval", (str(days),))
-        else:
-            cursor.execute("SELECT COUNT(*) AS cnt FROM analytics WHERE event_type = 'homepage_visit' AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)", (days,))
+        cursor.execute("SELECT COUNT(*) AS cnt FROM analytics WHERE event_type = 'homepage_visit' AND created_at >= NOW() - (%s || ' days')::interval", (str(days),))
         visits = (cursor.fetchone() or {}).get('cnt') or 0
-
-        if engine == 'postgres':
-            cursor.execute("SELECT COUNT(*) AS cnt, COALESCE(SUM(total_price),0) AS rev FROM service_requests WHERE created_at >= NOW() - (%s || ' days')::interval", (str(days),))
-        else:
-            cursor.execute("SELECT COUNT(*) AS cnt, COALESCE(SUM(total_price),0) AS rev FROM service_requests WHERE created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)", (days,))
+        cursor.execute("SELECT COUNT(*) AS cnt, COALESCE(SUM(total_price),0) AS rev FROM service_requests WHERE created_at >= NOW() - (%s || ' days')::interval", (str(days),))
         row = cursor.fetchone() or {}
         bookings = int(row.get('cnt') or 0)
         period_revenue = float(row.get('rev') or 0)
@@ -11202,23 +10228,16 @@ def admin_analytics_ai_summary():
 def analytics_summary():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
 
     def count_analytics_event(event_type):
         cursor.execute("SELECT COUNT(*) AS total FROM analytics WHERE event_type = %s", (event_type,))
         return cursor.fetchone()['total']
 
     def count_analytics_event_today(event_type):
-        if engine == 'postgres':
-            cursor.execute(
-                "SELECT COUNT(*) AS total FROM analytics WHERE event_type = %s AND DATE(created_at) = CURRENT_DATE",
-                (event_type,)
-            )
-        else:
-            cursor.execute(
-                "SELECT COUNT(*) AS total FROM analytics WHERE event_type = %s AND DATE(created_at) = CURDATE()",
-                (event_type,)
-            )
+        cursor.execute(
+            "SELECT COUNT(*) AS total FROM analytics WHERE event_type = %s AND DATE(created_at) = CURRENT_DATE",
+            (event_type,)
+        )
         return cursor.fetchone()['total']
 
     visits = count_analytics_event('homepage_visit')
@@ -11245,27 +10264,15 @@ def analytics_summary():
     )
     most_viewed_row = cursor.fetchone()
     most_viewed_service = most_viewed_row['label'] if most_viewed_row else None
-
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             SELECT EXTRACT(HOUR FROM created_at) AS hour, COUNT(*) AS total
             FROM analytics
             GROUP BY EXTRACT(HOUR FROM created_at)
             ORDER BY total DESC
             LIMIT 1
             """
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT HOUR(created_at) AS hour, COUNT(*) AS total
-            FROM analytics
-            GROUP BY HOUR(created_at)
-            ORDER BY total DESC
-            LIMIT 1
-            """
-        )
+    )
     peak_row = cursor.fetchone()
     peak_hour = peak_row['hour'] if peak_row else None
     peak_traffic_time = f"{int(peak_hour):02d}:00" if peak_hour is not None else None
@@ -11275,23 +10282,11 @@ def analytics_summary():
         'contact_submissions': count_analytics_event_today('contact_form'),
         'service_views': count_analytics_event_today('service_view'),
     }
-
-    if engine == 'postgres':
-        cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'job' AND DATE(created_at) = CURRENT_DATE")
-    else:
-        cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'job' AND DATE(created_at) = CURDATE()")
+    cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'job' AND DATE(created_at) = CURRENT_DATE")
     today['job_applications'] = cursor.fetchone()['total']
-
-    if engine == 'postgres':
-        cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'service' AND DATE(created_at) = CURRENT_DATE")
-    else:
-        cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'service' AND DATE(created_at) = CURDATE()")
+    cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'service' AND DATE(created_at) = CURRENT_DATE")
     today['bookings'] = cursor.fetchone()['total']
-
-    if engine == 'postgres':
-        cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'general' AND DATE(created_at) = CURRENT_DATE")
-    else:
-        cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'general' AND DATE(created_at) = CURDATE()")
+    cursor.execute("SELECT COUNT(*) AS total FROM requests WHERE request_type = 'general' AND DATE(created_at) = CURRENT_DATE")
     today['contact_submissions'] = cursor.fetchone()['total']
 
     cursor.execute(
@@ -11598,8 +10593,7 @@ def admin_request_detail(request_id):
         # Handle is_paid toggle (mark cash payment received / unmark)
         if 'is_paid' in data:
             is_paid_val = bool(data.get('is_paid'))
-            engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-            is_paid_db = True if is_paid_val else (False if 'postgres' in engine else 0)
+            is_paid_db = True if is_paid_val else (False)
             cursor.execute(
                 "UPDATE service_requests SET is_paid = %s WHERE legacy_request_id = %s",
                 (is_paid_db, request_id)
@@ -12260,13 +11254,10 @@ def admin_site_content_api():
     conn = get_db_connection()
     cursor = conn.cursor()
     updated_keys = []
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     active_value = 1
-
-    if 'postgres' in engine:
-        try:
-            cursor.execute(
-                """
+    try:
+        cursor.execute(
+            """
                 SELECT data_type
                 FROM information_schema.columns
                 WHERE table_schema = current_schema()
@@ -12274,13 +11265,13 @@ def admin_site_content_api():
                   AND column_name = 'is_active'
                 LIMIT 1
                 """
-            )
-            row = cursor.fetchone()
-            data_type = (row[0] or '').strip().lower() if row and len(row) > 0 else ''
-            active_value = True if data_type == 'boolean' else 1
-        except Exception:
-            # Fallback for mixed/legacy schemas; integer is valid for smallint-backed flags.
-            active_value = 1
+        )
+        row = cursor.fetchone()
+        data_type = (row[0] or '').strip().lower() if row and len(row) > 0 else ''
+        active_value = True if data_type == 'boolean' else 1
+    except Exception:
+        # Fallback for mixed/legacy schemas; integer is valid for smallint-backed flags.
+        active_value = 1
 
     try:
         for section_key, value in payload.items():
@@ -12373,7 +11364,6 @@ def admin_trizonal_image_api():
     # Save back
     conn = get_db_connection()
     cur = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     active_val = 1
     tz_json = json.dumps(tz)
     cur.execute("UPDATE site_content SET content_json=%s, updated_at=CURRENT_TIMESTAMP WHERE section_key='tri_zonal'", (tz_json,))
@@ -12419,7 +11409,6 @@ def admin_services_hero_image_api():
         delete_uploaded_file(existing_path)
     conn3 = get_db_connection()
     cur3 = conn3.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     cur3.execute("UPDATE site_content SET content_text=%s, is_active=1, updated_at=CURRENT_TIMESTAMP WHERE section_key='services_hero_bg'", (url,))
     if cur3.rowcount == 0:
         cur3.execute("INSERT INTO site_content (section_key, content_text, is_active) VALUES ('services_hero_bg', %s, 1)", (url,))
@@ -12460,7 +11449,7 @@ def admin_team_photo_api():
             )
             if cursor.rowcount == 0:
                 cursor.execute(
-                    "INSERT INTO site_content (section_key, content_text, is_active) VALUES ('team_photo', %s, TRUE)",
+                    "INSERT INTO site_content (section_key, content_text, is_active) VALUES ('team_photo', %s, 1)",
                     (new_path,)
                 )
             conn.commit()
@@ -12583,20 +11572,11 @@ def admin_create_faq():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-
-    if engine == 'postgres':
-        cursor.execute(
-            "INSERT INTO faqs (question, answer, category, sort_order, is_active) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-            (question, answer, category, sort_order, is_active)
-        )
-        faq_id = cursor.fetchone()[0]
-    else:
-        cursor.execute(
-            "INSERT INTO faqs (question, answer, category, sort_order, is_active) VALUES (%s, %s, %s, %s, %s)",
-            (question, answer, category, sort_order, 1 if is_active else 0)
-        )
-        faq_id = cursor.lastrowid
+    cursor.execute(
+        "INSERT INTO faqs (question, answer, category, sort_order, is_active) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+        (question, answer, category, sort_order, is_active)
+    )
+    faq_id = cursor.fetchone()[0]
 
     conn.commit()
     cursor.close()
@@ -12630,10 +11610,9 @@ def admin_update_faq(faq_id):
     else:
         is_active = bool(is_active)
 
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     cursor.execute(
         "UPDATE faqs SET question=%s, answer=%s, category=%s, sort_order=%s, is_active=%s WHERE id=%s",
-        (question, answer, category, sort_order, is_active if engine == 'postgres' else (1 if is_active else 0), faq_id)
+        (question, answer, category, sort_order, is_active, faq_id)
     )
     conn.commit()
     cursor.close()
@@ -12714,20 +11693,11 @@ def admin_create_policy():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-
-    if engine == 'postgres':
-        cursor.execute(
-            "INSERT INTO policies (title, description, icon, sort_order, is_active) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-            (title, description, icon, sort_order, is_active)
-        )
-        policy_id = cursor.fetchone()[0]
-    else:
-        cursor.execute(
-            "INSERT INTO policies (title, description, icon, sort_order, is_active) VALUES (%s, %s, %s, %s, %s)",
-            (title, description, icon, sort_order, 1 if is_active else 0)
-        )
-        policy_id = cursor.lastrowid
+    cursor.execute(
+        "INSERT INTO policies (title, description, icon, sort_order, is_active) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+        (title, description, icon, sort_order, is_active)
+    )
+    policy_id = cursor.fetchone()[0]
 
     conn.commit()
     cursor.close()
@@ -12761,10 +11731,9 @@ def admin_update_policy(policy_id):
     else:
         is_active = bool(is_active)
 
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     cursor.execute(
         "UPDATE policies SET title=%s, description=%s, icon=%s, sort_order=%s, is_active=%s WHERE id=%s",
-        (title, description, icon, sort_order, is_active if engine == 'postgres' else (1 if is_active else 0), policy_id)
+        (title, description, icon, sort_order, is_active, policy_id)
     )
     conn.commit()
     cursor.close()
@@ -12876,8 +11845,7 @@ def admin_domestic_cleaning_content_api():
     trust_body = sanitize_text(payload.get('trust_body')) or ''
     continuity_body = sanitize_text(payload.get('continuity_body')) or ''
     is_active = str_to_bool(payload.get('is_active', True))
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    active_value = is_active if engine == 'postgres' else (1 if is_active else 0)
+    active_value = is_active
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -12909,7 +11877,7 @@ def admin_domestic_cleaning_content_api():
             trust_body,
             continuity_body,
             'contract',
-            True if engine == 'postgres' else 1,
+            True,
             active_value,
             service.get('id')
         )
@@ -12950,8 +11918,7 @@ def admin_domestic_cleaning_cards_api():
     sort_order = int(payload.get('sort_order') or 0)
     is_active = str_to_bool(payload.get('is_active', True))
     image_path = upload_domestic_card_image('')
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    active_value = is_active if engine == 'postgres' else (1 if is_active else 0)
+    active_value = is_active
 
     if not room_name or not card_key or not lifestyle_copy:
         return jsonify({'error': 'room_name, card_key and lifestyle_copy are required.'}), 400
@@ -12959,25 +11926,15 @@ def admin_domestic_cleaning_cards_api():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        if engine == 'postgres':
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 INSERT INTO service_room_cards (service_id, card_key, room_name, lifestyle_copy, image_path, sort_order, is_active)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                (service_id, card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
-            )
-            card_id = cursor.fetchone()[0]
-        else:
-            cursor.execute(
-                """
-                INSERT INTO service_room_cards (service_id, card_key, room_name, lifestyle_copy, image_path, sort_order, is_active)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                (service_id, card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
-            )
-            card_id = cursor.lastrowid
+            (service_id, card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
+        )
+        card_id = cursor.fetchone()[0]
     except Exception:
         cursor.close()
         conn.close()
@@ -13035,8 +11992,7 @@ def admin_domestic_cleaning_card_detail_api(card_id):
 
     cursor.close()
     cursor = conn.cursor()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    active_value = is_active if engine == 'postgres' else (1 if is_active else 0)
+    active_value = is_active
     try:
         cursor.execute(
             """
@@ -13142,7 +12098,6 @@ def admin_domestic_cleaning_pricing_detail_api(plan_id):
 @app.route('/admin/api/services/<int:service_id>/room-cards', methods=['GET', 'POST'])
 @admin_login_required
 def admin_service_room_cards_api(service_id):
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
 
     if request.method == 'GET':
         conn = get_db_connection()
@@ -13171,27 +12126,17 @@ def admin_service_room_cards_api(service_id):
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    active_value = is_active if engine == 'postgres' else (1 if is_active else 0)
+    active_value = is_active
     try:
-        if engine == 'postgres':
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 INSERT INTO service_room_cards (service_id, card_key, room_name, lifestyle_copy, image_path, sort_order, is_active)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                (service_id, card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
-            )
-            card_id = cursor.fetchone()[0]
-        else:
-            cursor.execute(
-                """
-                INSERT INTO service_room_cards (service_id, card_key, room_name, lifestyle_copy, image_path, sort_order, is_active)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                (service_id, card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
-            )
-            card_id = cursor.lastrowid
+            (service_id, card_key, room_name, lifestyle_copy, image_path or None, sort_order, active_value)
+        )
+        card_id = cursor.fetchone()[0]
     except Exception:
         cursor.close()
         conn.close()
@@ -13409,19 +12354,11 @@ def admin_resolve_conversation(session_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    if engine == 'postgres':
-        cursor.execute("""
+    cursor.execute("""
             UPDATE chat_sessions 
             SET is_resolved = %s, admin_notes = %s 
             WHERE session_id = %s
         """, (is_resolved, admin_notes, session_id))
-    else:
-        cursor.execute("""
-            UPDATE chat_sessions 
-            SET is_resolved = %s, admin_notes = %s 
-            WHERE session_id = %s
-        """, (1 if is_resolved else 0, admin_notes, session_id))
     
     conn.commit()
     cursor.close()
@@ -13543,15 +12480,13 @@ def admin_chat_persona():
     whatsapp_number = (data.get('whatsapp_number') or '+1-800-SPLK-CLEAN').strip()[:50]
     is_enabled = bool(data.get('is_enabled', True))
     
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     
     # Check if exists
     cursor.execute("SELECT id FROM ai_persona WHERE id = 1")
     exists = cursor.fetchone()
     
     if exists:
-        if engine == 'postgres':
-            cursor.execute("""
+        cursor.execute("""
                 UPDATE ai_persona 
                 SET persona_name = %s, greeting_message = %s, persona_description = %s,
                     personality_traits = %s, response_style = %s, avatar_url = %s,
@@ -13559,34 +12494,15 @@ def admin_chat_persona():
                     is_enabled = %s, updated_at = NOW()
                 WHERE id = 1
             """, (persona_name, greeting_message, persona_description, personality_traits, 
-                  response_style, avatar_url, contact_email, contact_phone, whatsapp_number, is_enabled))
-        else:
-            cursor.execute("""
-                UPDATE ai_persona 
-                SET persona_name = %s, greeting_message = %s, persona_description = %s,
-                    personality_traits = %s, response_style = %s, avatar_url = %s,
-                    contact_email = %s, contact_phone = %s, whatsapp_number = %s,
-                    is_enabled = %s
-                WHERE id = 1
-            """, (persona_name, greeting_message, persona_description, personality_traits, 
-                  response_style, avatar_url, contact_email, contact_phone, whatsapp_number, 1 if is_enabled else 0))
+              response_style, avatar_url, contact_email, contact_phone, whatsapp_number, is_enabled))
     else:
-        if engine == 'postgres':
-            cursor.execute("""
+        cursor.execute("""
                 INSERT INTO ai_persona (id, persona_name, greeting_message, persona_description, 
                     personality_traits, response_style, avatar_url, contact_email, contact_phone, 
                     whatsapp_number, is_enabled)
                 VALUES (1, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (persona_name, greeting_message, persona_description, personality_traits, 
-                  response_style, avatar_url, contact_email, contact_phone, whatsapp_number, is_enabled))
-        else:
-            cursor.execute("""
-                INSERT INTO ai_persona (id, persona_name, greeting_message, persona_description, 
-                    personality_traits, response_style, avatar_url, contact_email, contact_phone, 
-                    whatsapp_number, is_enabled)
-                VALUES (1, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (persona_name, greeting_message, persona_description, personality_traits, 
-                  response_style, avatar_url, contact_email, contact_phone, whatsapp_number, 1 if is_enabled else 0))
+              response_style, avatar_url, contact_email, contact_phone, whatsapp_number, is_enabled))
     
     conn.commit()
     cursor.close()
@@ -13625,20 +12541,11 @@ def admin_knowledge_base():
         conn.close()
         return jsonify({'error': 'Title and content are required'}), 400
     
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    
-    if engine == 'postgres':
-        cursor.execute("""
+    cursor.execute("""
             INSERT INTO ai_knowledge_base (title, content, category, keywords, is_active)
             VALUES (%s, %s, %s, %s, %s) RETURNING id
         """, (title, content, category, keywords, is_active))
-        entry_id = cursor.fetchone()['id']
-    else:
-        cursor.execute("""
-            INSERT INTO ai_knowledge_base (title, content, category, keywords, is_active)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (title, content, category, keywords, 1 if is_active else 0))
-        entry_id = cursor.lastrowid
+    entry_id = cursor.fetchone()['id']
     
     conn.commit()
     cursor.close()
@@ -13670,20 +12577,11 @@ def admin_knowledge_entry(entry_id):
     keywords = (data.get('keywords') or '').strip()[:500]
     is_active = bool(data.get('is_active', True))
     
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    
-    if engine == 'postgres':
-        cursor.execute("""
+    cursor.execute("""
             UPDATE ai_knowledge_base 
             SET title = %s, content = %s, category = %s, keywords = %s, is_active = %s
             WHERE id = %s
         """, (title, content, category, keywords, is_active, entry_id))
-    else:
-        cursor.execute("""
-            UPDATE ai_knowledge_base 
-            SET title = %s, content = %s, category = %s, keywords = %s, is_active = %s
-            WHERE id = %s
-        """, (title, content, category, keywords, 1 if is_active else 0, entry_id))
     
     conn.commit()
     cursor.close()
@@ -13705,18 +12603,9 @@ def admin_chat_stats():
     total = cursor.fetchone()['total']
     
     # Conversations today
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    if engine == 'postgres':
-        cursor.execute("SELECT COUNT(*) as today FROM chat_sessions WHERE started_at >= CURRENT_DATE")
-    else:
-        cursor.execute("SELECT COUNT(*) as today FROM chat_sessions WHERE DATE(started_at) = CURDATE()")
+    cursor.execute("SELECT COUNT(*) as today FROM chat_sessions WHERE started_at >= CURRENT_DATE")
     today = cursor.fetchone()['today']
-    
-    # Unresolved conversations
-    if engine == 'postgres':
-        cursor.execute("SELECT COUNT(*) as unresolved FROM chat_sessions WHERE is_resolved = FALSE")
-    else:
-        cursor.execute("SELECT COUNT(*) as unresolved FROM chat_sessions WHERE is_resolved = 0")
+    cursor.execute("SELECT COUNT(*) as unresolved FROM chat_sessions WHERE is_resolved = FALSE")
     unresolved = cursor.fetchone()['unresolved']
     
     # Total messages
@@ -13835,8 +12724,8 @@ def admin_hero_badges():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO hero_badges (image_path) VALUES (%s)", (image_path,))
-    badge_id = cursor.lastrowid
+    cursor.execute("INSERT INTO hero_badges (image_path) VALUES (%s) RETURNING id", (image_path,))
+    badge_id = cursor.fetchone()[0]
     conn.commit()
     cursor.close()
     conn.close()
@@ -14502,10 +13391,8 @@ def ensure_blog_table():
         return
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     try:
-        if engine == 'postgres':
-            cursor.execute("""
+        cursor.execute("""
                 CREATE TABLE IF NOT EXISTS blog_posts (
                     id BIGSERIAL PRIMARY KEY,
                     title VARCHAR(255) NOT NULL,
@@ -14520,24 +13407,6 @@ def ensure_blog_table():
                     published_at TIMESTAMPTZ,
                     created_at TIMESTAMPTZ DEFAULT NOW(),
                     updated_at TIMESTAMPTZ DEFAULT NOW()
-                )
-            """)
-        else:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS blog_posts (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    title VARCHAR(255) NOT NULL,
-                    slug VARCHAR(255) NOT NULL UNIQUE,
-                    excerpt TEXT,
-                    content TEXT NOT NULL,
-                    image_path VARCHAR(512),
-                    image_alt VARCHAR(255),
-                    meta_description VARCHAR(320),
-                    tags VARCHAR(512),
-                    is_published TINYINT(1) DEFAULT 0,
-                    published_at DATETIME,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 )
             """)
         conn.commit()
@@ -14597,13 +13466,9 @@ def tri_zonal_page():
 def blog_index():
     ensure_blog_table()
     site_settings = fetch_site_settings() or {}
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    if engine == 'postgres':
-        cursor.execute("SELECT id,title,slug,excerpt,image_path,image_alt,tags,published_at FROM blog_posts WHERE is_published = TRUE ORDER BY published_at DESC, id DESC")
-    else:
-        cursor.execute("SELECT id,title,slug,excerpt,image_path,image_alt,tags,published_at FROM blog_posts WHERE is_published = 1 ORDER BY published_at DESC, id DESC")
+    cursor.execute("SELECT id,title,slug,excerpt,image_path,image_alt,tags,published_at FROM blog_posts WHERE is_published = TRUE ORDER BY published_at DESC, id DESC")
     posts = cursor.fetchall() or []
     cursor.close()
     conn.close()
@@ -14619,13 +13484,9 @@ def blog_index():
 def blog_post(slug):
     ensure_blog_table()
     site_settings = fetch_site_settings() or {}
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    if engine == 'postgres':
-        cursor.execute("SELECT * FROM blog_posts WHERE slug = %s AND is_published = TRUE", (slug,))
-    else:
-        cursor.execute("SELECT * FROM blog_posts WHERE slug = %s AND is_published = 1", (slug,))
+    cursor.execute("SELECT * FROM blog_posts WHERE slug = %s AND is_published = TRUE", (slug,))
     post = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -14676,7 +13537,6 @@ def admin_api_blog_list():
 @admin_login_required
 def admin_api_blog_create():
     ensure_blog_table()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     title = sanitize_text(request.form.get('title'), 255)
     if not title:
         return jsonify({'error': 'Title is required'}), 400
@@ -14719,21 +13579,13 @@ def admin_api_blog_create():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     now = datetime.utcnow()
-    if engine == 'postgres':
-        published_at = now if is_published else None
-        cursor.execute(
-            "INSERT INTO blog_posts (title,slug,excerpt,content,image_path,image_alt,meta_description,tags,is_published,published_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-            (title, slug, excerpt, content, image_path, image_alt, meta_description, tags, is_published, published_at)
-        )
-        row = cursor.fetchone()
-        new_id = row['id'] if row else None
-    else:
-        published_at = now if is_published else None
-        cursor.execute(
-            "INSERT INTO blog_posts (title,slug,excerpt,content,image_path,image_alt,meta_description,tags,is_published,published_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-            (title, slug, excerpt, content, image_path, image_alt, meta_description, tags, int(is_published), published_at)
-        )
-        new_id = cursor.lastrowid
+    published_at = now if is_published else None
+    cursor.execute(
+        "INSERT INTO blog_posts (title,slug,excerpt,content,image_path,image_alt,meta_description,tags,is_published,published_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+        (title, slug, excerpt, content, image_path, image_alt, meta_description, tags, is_published, published_at)
+    )
+    row = cursor.fetchone()
+    new_id = row['id'] if row else None
     conn.commit()
     cursor.close()
     conn.close()
@@ -14763,7 +13615,6 @@ def admin_api_blog_get(post_id):
 @admin_login_required
 def admin_api_blog_update(post_id):
     ensure_blog_table()
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     title = sanitize_text(request.form.get('title'), 255)
     if not title:
         return jsonify({'error': 'Title is required'}), 400
@@ -14817,17 +13668,10 @@ def admin_api_blog_update(post_id):
     published_at = existing_published_at if existing_published_at else (now if is_published else None)
     if is_published and not existing_published_at:
         published_at = now
-
-    if engine == 'postgres':
-        cursor.execute(
-            "UPDATE blog_posts SET title=%s,slug=%s,excerpt=%s,content=%s,image_path=%s,image_alt=%s,meta_description=%s,tags=%s,is_published=%s,published_at=%s,updated_at=NOW() WHERE id=%s",
-            (title, slug, excerpt, content, image_path, image_alt, meta_description, tags, is_published, published_at, post_id)
-        )
-    else:
-        cursor.execute(
-            "UPDATE blog_posts SET title=%s,slug=%s,excerpt=%s,content=%s,image_path=%s,image_alt=%s,meta_description=%s,tags=%s,is_published=%s,published_at=%s,updated_at=NOW() WHERE id=%s",
-            (title, slug, excerpt, content, image_path, image_alt, meta_description, tags, int(is_published), published_at, post_id)
-        )
+    cursor.execute(
+        "UPDATE blog_posts SET title=%s,slug=%s,excerpt=%s,content=%s,image_path=%s,image_alt=%s,meta_description=%s,tags=%s,is_published=%s,published_at=%s,updated_at=NOW() WHERE id=%s",
+        (title, slug, excerpt, content, image_path, image_alt, meta_description, tags, is_published, published_at, post_id)
+    )
     conn.commit()
     cursor.close()
     conn.close()
@@ -14953,11 +13797,7 @@ def index():
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-        if engine == 'postgres':
-            cursor.execute("SELECT id, question, answer, category FROM faqs WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC")
-        else:
-            cursor.execute("SELECT id, question, answer, category FROM faqs WHERE is_active = 1 ORDER BY sort_order ASC, id ASC")
+        cursor.execute("SELECT id, question, answer, category FROM faqs WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC")
         faqs = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -15225,13 +14065,9 @@ def sitemap_xml():
     blog_urls = []
     try:
         ensure_blog_table()
-        _engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
         _conn = get_db_connection()
         _cur = _conn.cursor(dictionary=True)
-        if _engine == 'postgres':
-            _cur.execute("SELECT slug, updated_at FROM blog_posts WHERE is_published = TRUE ORDER BY id DESC")
-        else:
-            _cur.execute("SELECT slug, updated_at FROM blog_posts WHERE is_published = 1 ORDER BY id DESC")
+        _cur.execute("SELECT slug, updated_at FROM blog_posts WHERE is_published = TRUE ORDER BY id DESC")
         _posts = _cur.fetchall() or []
         _cur.close()
         _conn.close()
@@ -15299,20 +14135,10 @@ def get_ai_assistant():
         from ai_assistant import init_assistant, get_assistant
         assistant = get_assistant()
         if not assistant:
-            engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-            if engine == 'postgres':
-                db_config = {
-                    'engine': 'postgres',
-                    'postgres_url': (app.config.get('POSTGRES_URL') or '').strip()
-                }
-            else:
-                db_config = {
-                    'engine': 'mysql',
-                    'host': Config.MYSQL_HOST,
-                    'user': Config.MYSQL_USER,
-                    'password': Config.MYSQL_PASSWORD,
-                    'database': Config.MYSQL_DB
-                }
+            db_config = {
+                'postgres_url': (app.config.get('POSTGRES_URL') or '').strip(),
+                'connection_factory': get_db_connection,
+            }
             assistant = init_assistant(db_config)
         return assistant
     except Exception as e:
@@ -15379,7 +14205,7 @@ def ai_settings():
     allowed_chat_ids = data.get('allowed_chat_ids', '')
     daily_limit = int(data.get('daily_limit', 100))
     
-    # Update then insert fallback (works on both MySQL and Postgres)
+    # Update then insert fallback
     if api_key:
         cursor.execute(
             """
@@ -15713,12 +14539,11 @@ def get_system_status_for_telegram() -> str:
     """Get system status for Telegram"""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
     
     cursor.execute("SELECT status, COUNT(*) as count FROM requests GROUP BY status")
     status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
     
-    condition, params = build_active_true_condition('is_active', engine)
+    condition, params = build_active_true_condition('is_active')
     cursor.execute(
         f"SELECT COUNT(*) as total FROM services WHERE {condition}",
         params
@@ -15746,11 +14571,8 @@ def get_today_summary_for_telegram() -> str:
     """Get today's summary for Telegram"""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             SELECT 
                 COUNT(*) as total,
                 SUM(CASE WHEN request_type = 'service' THEN 1 ELSE 0 END) as services,
@@ -15759,35 +14581,14 @@ def get_today_summary_for_telegram() -> str:
             FROM requests
             WHERE DATE(created_at) = CURRENT_DATE
             """
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN request_type = 'service' THEN 1 ELSE 0 END) as services,
-                SUM(CASE WHEN request_type = 'job' THEN 1 ELSE 0 END) as jobs,
-                SUM(CASE WHEN request_type = 'general' THEN 1 ELSE 0 END) as general
-            FROM requests
-            WHERE DATE(created_at) = CURDATE()
-            """
-        )
+    )
     today = cursor.fetchone()
-    
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             SELECT COUNT(*) as count FROM requests 
             WHERE status = 'completed' AND DATE(updated_at) = CURRENT_DATE
             """
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT COUNT(*) as count FROM requests 
-            WHERE status = 'completed' AND DATE(updated_at) = CURDATE()
-            """
-        )
+    )
     completed_today = cursor.fetchone()['count']
     
     cursor.close()
@@ -15999,12 +14800,8 @@ def analytics_chart_data():
     
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    
-    # Get daily data for the period
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             SELECT 
                 DATE(created_at) as date,
                 SUM(CASE WHEN event_type = 'homepage_visit' THEN 1 ELSE 0 END) as visits,
@@ -16014,28 +14811,11 @@ def analytics_chart_data():
             GROUP BY DATE(created_at)
             ORDER BY date ASC
             """,
-            (days,)
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT 
-                DATE(created_at) as date,
-                SUM(CASE WHEN event_type = 'homepage_visit' THEN 1 ELSE 0 END) as visits,
-                SUM(CASE WHEN event_type = 'service_view' THEN 1 ELSE 0 END) as service_views
-            FROM analytics
-            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
-            GROUP BY DATE(created_at)
-            ORDER BY date ASC
-            """,
-            (days,)
-        )
+        (days,)
+    )
     analytics_data = cursor.fetchall()
-    
-    # Get requests data
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             SELECT 
                 DATE(created_at) as date,
                 SUM(CASE WHEN request_type = 'service' THEN 1 ELSE 0 END) as service_requests,
@@ -16046,52 +14826,21 @@ def analytics_chart_data():
             GROUP BY DATE(created_at)
             ORDER BY date ASC
             """,
-            (days,)
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT 
-                DATE(created_at) as date,
-                SUM(CASE WHEN request_type = 'service' THEN 1 ELSE 0 END) as service_requests,
-                SUM(CASE WHEN request_type = 'job' THEN 1 ELSE 0 END) as job_applications,
-                SUM(CASE WHEN request_type = 'general' THEN 1 ELSE 0 END) as contact_forms
-            FROM requests
-            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
-            GROUP BY DATE(created_at)
-            ORDER BY date ASC
-            """,
-            (days,)
-        )
+        (days,)
+    )
     requests_data = cursor.fetchall()
-    
-    # Get status breakdown
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             SELECT status, COUNT(*) as count
             FROM requests
             WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
             GROUP BY status
             """,
-            (days,)
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT status, COUNT(*) as count
-            FROM requests
-            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
-            GROUP BY status
-            """,
-            (days,)
-        )
+        (days,)
+    )
     status_breakdown = {row['status']: row['count'] for row in cursor.fetchall()}
-    
-    # Get service popularity
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             SELECT service_name, COUNT(*) as count
             FROM requests
             WHERE request_type = 'service' 
@@ -16102,72 +14851,29 @@ def analytics_chart_data():
             ORDER BY count DESC
             LIMIT 5
             """,
-            (days,)
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT service_name, COUNT(*) as count
-            FROM requests
-            WHERE request_type = 'service' 
-                AND service_name IS NOT NULL 
-                AND service_name != ''
-                AND created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
-            GROUP BY service_name
-            ORDER BY count DESC
-            LIMIT 5
-            """,
-            (days,)
-        )
+        (days,)
+    )
     top_services = cursor.fetchall()
-    
-    # Get hourly distribution
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             SELECT EXTRACT(HOUR FROM created_at) as hour, COUNT(*) as count
             FROM analytics
             WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
             GROUP BY EXTRACT(HOUR FROM created_at)
             ORDER BY hour
             """,
-            (days,)
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT HOUR(created_at) as hour, COUNT(*) as count
-            FROM analytics
-            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
-            GROUP BY HOUR(created_at)
-            ORDER BY hour
-            """,
-            (days,)
-        )
+        (days,)
+    )
     hourly_data = cursor.fetchall()
-    
-    # Calculate conversion rate
-    if engine == 'postgres':
-        cursor.execute(
-            "SELECT COUNT(*) as c FROM requests WHERE status = 'completed' AND created_at >= NOW() - (%s * INTERVAL '1 day')",
-            (days,)
-        )
-    else:
-        cursor.execute(
-            "SELECT COUNT(*) as c FROM requests WHERE status = 'completed' AND created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)",
-            (days,)
-        )
+    cursor.execute(
+        "SELECT COUNT(*) as c FROM requests WHERE status = 'completed' AND created_at >= NOW() - (%s * INTERVAL '1 day')",
+        (days,)
+    )
     completed = cursor.fetchone()['c']
-    if engine == 'postgres':
-        cursor.execute(
-            "SELECT COUNT(*) as c FROM requests WHERE created_at >= NOW() - (%s * INTERVAL '1 day')",
-            (days,)
-        )
-    else:
-        cursor.execute(
-            "SELECT COUNT(*) as c FROM requests WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)",
-            (days,)
-        )
+    cursor.execute(
+        "SELECT COUNT(*) as c FROM requests WHERE created_at >= NOW() - (%s * INTERVAL '1 day')",
+        (days,)
+    )
     total_requests = cursor.fetchone()['c']
     conversion_rate = round((completed / total_requests * 100) if total_requests > 0 else 0, 1)
     
@@ -16227,12 +14933,8 @@ def admin_api_analytics_detailed():
     days = request.args.get('days', 30, type=int)
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    engine = (app.config.get('DB_ENGINE') or 'mysql').strip().lower()
-    
-    # Revenue Trend - daily revenue from completed service_requests
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             SELECT DATE(updated_at) as date,
                      SUM(COALESCE(total_price, 0)) as revenue,
                      COUNT(*) as completed_count
@@ -16242,22 +14944,8 @@ def admin_api_analytics_detailed():
             GROUP BY DATE(updated_at)
             ORDER BY date ASC
             """,
-            (days,)
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT DATE(updated_at) as date,
-                     SUM(COALESCE(total_price, 0)) as revenue,
-                     COUNT(*) as completed_count
-            FROM service_requests
-            WHERE status = 'completed'
-                AND updated_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
-            GROUP BY DATE(updated_at)
-            ORDER BY date ASC
-            """,
-            (days,)
-        )
+        (days,)
+    )
     revenue_data = cursor.fetchall()
     
     # Convert to serializable format
@@ -16268,11 +14956,8 @@ def admin_api_analytics_detailed():
             'revenue': float(row['revenue'] or 0),
             'completed_count': row['completed_count']
         })
-    
-    # Total Revenue Stats from service_requests
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             SELECT 
                 SUM(CASE WHEN updated_at >= NOW() - (%s * INTERVAL '1 day') AND status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as period_revenue,
                 SUM(CASE WHEN DATE(updated_at) = CURRENT_DATE AND status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as today_revenue,
@@ -16280,26 +14965,11 @@ def admin_api_analytics_detailed():
                 SUM(CASE WHEN date_trunc('month', updated_at) = date_trunc('month', CURRENT_DATE) AND status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as month_revenue
             FROM service_requests
             """,
-            (days,)
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT 
-                SUM(CASE WHEN updated_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY) AND status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as period_revenue,
-                SUM(CASE WHEN DATE(updated_at) = CURDATE() AND status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as today_revenue,
-                SUM(CASE WHEN updated_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as week_revenue,
-                SUM(CASE WHEN MONTH(updated_at) = MONTH(CURDATE()) AND YEAR(updated_at) = YEAR(CURDATE()) AND status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as month_revenue
-            FROM service_requests
-            """,
-            (days,)
-        )
+        (days,)
+    )
     revenue_stats = cursor.fetchone()
-    
-    # Conversion Funnel - use service_requests for service-related metrics
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             SELECT 
                 (SELECT COUNT(*) FROM analytics WHERE event_type = 'visit' AND created_at >= NOW() - (%s * INTERVAL '1 day')) as visits,
                 (SELECT COUNT(*) FROM analytics WHERE event_type = 'service_view' AND created_at >= NOW() - (%s * INTERVAL '1 day')) as service_views,
@@ -16307,20 +14977,8 @@ def admin_api_analytics_detailed():
                 (SELECT COUNT(*) FROM service_requests WHERE status IN ('in_progress', 'completed') AND created_at >= NOW() - (%s * INTERVAL '1 day')) as confirmed,
                 (SELECT COUNT(*) FROM service_requests WHERE status = 'completed' AND created_at >= NOW() - (%s * INTERVAL '1 day')) as completed
             """,
-            (days, days, days, days, days)
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT 
-                (SELECT COUNT(*) FROM analytics WHERE event_type = 'visit' AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)) as visits,
-                (SELECT COUNT(*) FROM analytics WHERE event_type = 'service_view' AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)) as service_views,
-                (SELECT COUNT(*) FROM service_requests WHERE created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)) as quote_requests,
-                (SELECT COUNT(*) FROM service_requests WHERE status IN ('in_progress', 'completed') AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)) as confirmed,
-                (SELECT COUNT(*) FROM service_requests WHERE status = 'completed' AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)) as completed
-            """,
-            (days, days, days, days, days)
-        )
+        (days, days, days, days, days)
+    )
     funnel_data = cursor.fetchone()
     
     conversion_funnel = {
@@ -16346,11 +15004,8 @@ def admin_api_analytics_detailed():
         conversion_funnel['completion_rate'] = round((conversion_funnel['completed'] / conversion_funnel['quote_requests']) * 100, 1)
     else:
         conversion_funnel['completion_rate'] = 0
-    
-    # Day of Week Analysis - use service_requests for revenue, requests for general count
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             SELECT 
                 EXTRACT(ISODOW FROM created_at) as day_num,
                 TO_CHAR(created_at, 'FMDay') as day_name,
@@ -16360,28 +15015,11 @@ def admin_api_analytics_detailed():
             GROUP BY EXTRACT(ISODOW FROM created_at), TO_CHAR(created_at, 'FMDay')
             ORDER BY day_num
             """,
-            (days,)
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT 
-                DAYOFWEEK(created_at) as day_num,
-                DAYNAME(created_at) as day_name,
-                COUNT(*) as request_count
-            FROM requests
-            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
-            GROUP BY DAYOFWEEK(created_at), DAYNAME(created_at)
-            ORDER BY day_num
-            """,
-            (days,)
-        )
+        (days,)
+    )
     day_data = cursor.fetchall()
-    
-    # Get revenue by day from service_requests
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             SELECT 
                 EXTRACT(ISODOW FROM updated_at) as day_num,
                 SUM(CASE WHEN status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as revenue
@@ -16389,20 +15027,8 @@ def admin_api_analytics_detailed():
             WHERE updated_at >= NOW() - (%s * INTERVAL '1 day')
             GROUP BY EXTRACT(ISODOW FROM updated_at)
             """,
-            (days,)
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT 
-                DAYOFWEEK(updated_at) as day_num,
-                SUM(CASE WHEN status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as revenue
-            FROM service_requests
-            WHERE updated_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
-            GROUP BY DAYOFWEEK(updated_at)
-            """,
-            (days,)
-        )
+        (days,)
+    )
     day_revenue = {row['day_num']: float(row['revenue'] or 0) for row in cursor.fetchall()}
     
     day_of_week = []
@@ -16412,11 +15038,8 @@ def admin_api_analytics_detailed():
             'requests': row['request_count'],
             'revenue': day_revenue.get(row['day_num'], 0)
         })
-    
-    # Service Performance - join service_requests with service_request_items and services
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             SELECT 
                 s.name as service_name,
                 COUNT(DISTINCT sr.id) as total_requests,
@@ -16431,27 +15054,8 @@ def admin_api_analytics_detailed():
             ORDER BY revenue DESC
             LIMIT 10
             """,
-            (days,)
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT 
-                s.name as service_name,
-                COUNT(DISTINCT sr.id) as total_requests,
-                COUNT(DISTINCT CASE WHEN sr.status = 'completed' THEN sr.id END) as completed,
-                SUM(CASE WHEN sr.status = 'completed' THEN COALESCE(sri.price, 0) ELSE 0 END) as revenue,
-                AVG(CASE WHEN sr.status = 'completed' THEN COALESCE(sri.price, 0) ELSE NULL END) as avg_value
-            FROM service_requests sr
-            JOIN service_request_items sri ON sr.id = sri.service_request_id
-            JOIN services s ON sri.service_id = s.id
-            WHERE sr.created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
-            GROUP BY s.id, s.name
-            ORDER BY revenue DESC
-            LIMIT 10
-            """,
-            (days,)
-        )
+        (days,)
+    )
     service_perf = cursor.fetchall()
     
     service_performance = []
@@ -16463,11 +15067,8 @@ def admin_api_analytics_detailed():
             'revenue': float(row['revenue'] or 0),
             'avg_value': float(row['avg_value'] or 0)
         })
-    
-    # Geographic Distribution - from service_requests which has address
-    if engine == 'postgres':
-        cursor.execute(
-            """
+    cursor.execute(
+        """
             WITH _sr AS (
                 SELECT
                     address,
@@ -16496,24 +15097,8 @@ def admin_api_analytics_detailed():
             ORDER BY request_count DESC
             LIMIT 10
             """,
-            (days,)
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT 
-                COALESCE(SUBSTRING_INDEX(address, ',', -2), 'Unknown') as area,
-                COUNT(*) as request_count,
-                SUM(CASE WHEN status = 'completed' THEN COALESCE(total_price, 0) ELSE 0 END) as revenue
-            FROM service_requests
-            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
-              AND address IS NOT NULL AND address != ''
-            GROUP BY area
-            ORDER BY request_count DESC
-            LIMIT 10
-            """,
-            (days,)
-        )
+        (days,)
+    )
     geo_data = cursor.fetchall()
     
     geographic = []
@@ -16555,9 +15140,7 @@ if __name__ == '__main__':
 
     # Pre-warm the DB connection pool so the first request is fast
     try:
-        _db_engine = (os.environ.get('DB_ENGINE') or '').strip().lower()
-        if 'postgres' in _db_engine:
-            _get_pg_pool()
+        _get_pg_pool()
     except Exception:
         pass
 

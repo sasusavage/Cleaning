@@ -15,24 +15,8 @@ except Exception:
     pass
 
 class Config:
-    # Primary database engine for the app: 'mysql' or 'postgres'
-    # Normalize 'postgresql' → 'postgres' so all engine == 'postgres' checks work
-    _raw_engine = os.environ.get('DB_ENGINE', 'postgres').strip().lower()
-    DB_ENGINE = 'postgres' if 'postgres' in _raw_engine else _raw_engine
-
-    MYSQL_HOST = os.environ.get('MYSQL_HOST', 'your-db-host')
-    MYSQL_USER = os.environ.get('MYSQL_USER', 'your-db-user')
-    MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD', 'your-db-password')
-    MYSQL_DB = os.environ.get('MYSQL_DB', 'your-db-name')
-    MYSQL_PORT = int(os.environ.get('MYSQL_PORT', 3306))
-
-    # Render Postgres (optional secondary DB). Use the External Database URL.
+    # The app's only database: Render Postgres (External Database URL).
     POSTGRES_URL = os.environ.get('POSTGRES_URL', '')
-
-    # Which DB should store analytics events? ('mysql' or 'postgres')
-    ANALYTICS_DB = os.environ.get('ANALYTICS_DB', 'postgres')
-
-    MYSQL_CURSORCLASS = 'DictCursor'
 
     # SECRET_KEY must be set as an env var in production. If missing, generate a
     # random one per process — sessions won't persist across restarts but it's

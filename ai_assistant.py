@@ -10,12 +10,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Tuple
 
-# DB drivers
-try:
-    import mysql.connector
-except ImportError:
-    mysql = None
-
+# DB driver (Postgres)
 try:
     import psycopg2
     from psycopg2.extras import RealDictCursor
@@ -37,7 +32,6 @@ class AIAssistant:
     
     def __init__(self, db_config: Dict[str, Any]):
         self.db_config = db_config
-        self.db_engine = (db_config.get('engine') or 'mysql').strip().lower()
         self.ai_provider = None
         self.api_key = None
         self.model = None
@@ -145,43 +139,43 @@ class AIAssistant:
         ]
     
     def _get_db_connection(self):
-        """Get database connection"""
-        if self.db_engine == 'postgres':
-            dsn = (self.db_config.get('postgres_url') or '').strip()
-            if not dsn:
-                raise ValueError('Postgres engine selected but postgres_url is not configured')
-            if psycopg2 is None:
-                raise RuntimeError('psycopg2 is not installed (install psycopg2-binary)')
+        """Get a Postgres connection.
 
-            raw = psycopg2.connect(dsn)
+        Uses the app's pooled connection factory when provided; otherwise connects directly.
+        """
+        factory = self.db_config.get('connection_factory')
+        if callable(factory):
+            return factory()
 
-            class _PGConnWrapper:
-                def __init__(self, conn):
-                    self._conn = conn
+        dsn = (self.db_config.get('postgres_url') or '').strip()
+        if not dsn:
+            raise ValueError('postgres_url is not configured')
+        if psycopg2 is None:
+            raise RuntimeError('psycopg2 is not installed (install psycopg2-binary)')
 
-                def cursor(self, dictionary=False, *args, **kwargs):
-                    if dictionary:
-                        if RealDictCursor is None:
-                            return self._conn.cursor(*args, **kwargs)
-                        return self._conn.cursor(cursor_factory=RealDictCursor)
-                    return self._conn.cursor(*args, **kwargs)
+        raw = psycopg2.connect(dsn)
 
-                def commit(self):
-                    return self._conn.commit()
+        class _PGConnWrapper:
+            def __init__(self, conn):
+                self._conn = conn
 
-                def close(self):
-                    return self._conn.close()
+            def cursor(self, dictionary=False, *args, **kwargs):
+                if dictionary:
+                    if RealDictCursor is None:
+                        return self._conn.cursor(*args, **kwargs)
+                    return self._conn.cursor(cursor_factory=RealDictCursor)
+                return self._conn.cursor(*args, **kwargs)
 
-                def __getattr__(self, name):
-                    return getattr(self._conn, name)
+            def commit(self):
+                return self._conn.commit()
 
-            return _PGConnWrapper(raw)
+            def close(self):
+                return self._conn.close()
 
-        if mysql is None and mysql.connector is None:
-            raise RuntimeError('mysql-connector-python is not installed')
-        # MySQL config should not include 'engine'
-        mysql_config = {k: v for k, v in self.db_config.items() if k != 'engine'}
-        return mysql.connector.connect(**mysql_config)
+            def __getattr__(self, name):
+                return getattr(self._conn, name)
+
+        return _PGConnWrapper(raw)
 
     @staticmethod
     def _day_bounds_utc() -> Tuple[datetime, datetime]:
@@ -1417,19 +1411,9 @@ class AIAssistant:
         try:
             conn = self._get_db_connection()
             cursor = conn.cursor(dictionary=True)
-            engine = self.db_engine
-
-            # Recent requests in last 24h
-            if engine == 'postgres':
-                cursor.execute("""
+            cursor.execute("""
                     SELECT status, COUNT(*) as cnt FROM requests
                     WHERE created_at >= NOW() - INTERVAL '24 hours'
-                    GROUP BY status ORDER BY cnt DESC
-                """)
-            else:
-                cursor.execute("""
-                    SELECT status, COUNT(*) as cnt FROM requests
-                    WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
                     GROUP BY status ORDER BY cnt DESC
                 """)
             recent = {r['status']: r['cnt'] for r in cursor.fetchall()}
@@ -1441,13 +1425,7 @@ class AIAssistant:
             # Check for telegram_error_log table
             errors_summary = None
             try:
-                if engine == 'postgres':
-                    cursor.execute("""
-                        SELECT message, created_at FROM telegram_error_log
-                        ORDER BY created_at DESC LIMIT 5
-                    """)
-                else:
-                    cursor.execute("""
+                cursor.execute("""
                         SELECT message, created_at FROM telegram_error_log
                         ORDER BY created_at DESC LIMIT 5
                     """)
