@@ -323,7 +323,7 @@
     </style>
 </head>
 <body>
-    <div class="unsaved-nav-banner">⚠️ You have unsaved changes — save before leaving this page.</div>
+    <div class="unsaved-nav-banner">You have unsaved changes — save before leaving this page.</div>
     {% set active_page = 'site_content' %}{% include 'admin/_sidebar.html' %}
 
     <div class="main-content">
@@ -332,7 +332,6 @@
                 <h1 class="title">Site Content</h1>
                 <p class="subtitle">Manage the "About Us" sections and company profile content displayed on the homepage.</p>
             </div>
-            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-back">← Back to Dashboard</a>
         </div>
 
         <form id="site-content-form" method="post">
@@ -689,7 +688,7 @@
 
             <!-- Tri-Zonal System Editor -->
             <div class="card" id="trizonal-card">
-                <h2 class="card__title">🏠 Tri-Zonal System</h2>
+                <h2 class="card__title">Tri-Zonal System</h2>
                 <p class="card__desc">Edit the Tri-Zonal cleaning system section shown on the homepage and the <a href="/tri-zonal" target="_blank" style="color:var(--primary);">dedicated page</a>. The title you set here updates the nav bar and all pages automatically.</p>
 
                 <div style="display:grid;gap:0.75rem;margin-bottom:1.25rem;">
@@ -723,14 +722,14 @@
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.25rem;">
                     <!-- Red Zone -->
                     <div style="border:2px solid #ef4444;border-radius:0.6rem;padding:1rem;">
-                        <h3 style="color:#ef4444;margin:0 0 0.75rem;font-size:0.95rem;">🔴 Red Zone</h3>
+                        <h3 style="color:#ef4444;margin:0 0 0.75rem;font-size:0.95rem;">Red Zone</h3>
                         <input type="text" id="tz_red_name" class="form-input" placeholder="Red Zones" style="margin-bottom:0.4rem;">
                         <input type="text" id="tz_red_subtitle" class="form-input" placeholder="Bath & Shower rooms & WC" style="margin-bottom:0.75rem;">
                         <label style="font-size:0.8rem;color:#6b7280;display:block;margin-bottom:0.25rem;">Zone Icon / Image</label>
                         <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
                             <div style="width:52px;height:52px;border-radius:50%;overflow:hidden;border:2px solid #ef4444;background:#fff5f5;display:flex;align-items:center;justify-content:center;">
                                 <img id="tz-red-img" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:none;">
-                                <span id="tz-red-img-empty" style="font-size:1.4rem;">🏠</span>
+                                <span id="tz-red-img-empty" style="font-size:0.8rem;color:#6b7280;">No image</span>
                             </div>
                             <input type="file" id="tz-red-file" accept="image/*" style="display:none;">
                             <button type="button" class="btn btn-secondary" style="font-size:0.78rem;padding:0.3rem 0.7rem;" onclick="document.getElementById('tz-red-file').click()">Upload</button>
@@ -741,14 +740,14 @@
                     </div>
                     <!-- Green Zone -->
                     <div style="border:2px solid #16a34a;border-radius:0.6rem;padding:1rem;">
-                        <h3 style="color:#16a34a;margin:0 0 0.75rem;font-size:0.95rem;">🟢 Green Zone</h3>
+                        <h3 style="color:#16a34a;margin:0 0 0.75rem;font-size:0.95rem;">Green Zone</h3>
                         <input type="text" id="tz_green_name" class="form-input" placeholder="Green Zones" style="margin-bottom:0.4rem;">
                         <input type="text" id="tz_green_subtitle" class="form-input" placeholder="Kitchen & Utility" style="margin-bottom:0.75rem;">
                         <label style="font-size:0.8rem;color:#6b7280;display:block;margin-bottom:0.25rem;">Zone Icon / Image</label>
                         <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
                             <div style="width:52px;height:52px;border-radius:50%;overflow:hidden;border:2px solid #16a34a;background:#f0fdf4;display:flex;align-items:center;justify-content:center;">
                                 <img id="tz-green-img" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:none;">
-                                <span id="tz-green-img-empty" style="font-size:1.4rem;">🍽️</span>
+                                <span id="tz-green-img-empty" style="font-size:0.8rem;color:#6b7280;">No image</span>
                             </div>
                             <input type="file" id="tz-green-file" accept="image/*" style="display:none;">
                             <button type="button" class="btn btn-secondary" style="font-size:0.78rem;padding:0.3rem 0.7rem;" onclick="document.getElementById('tz-green-file').click()">Upload</button>
@@ -759,14 +758,14 @@
                     </div>
                     <!-- Blue Zone -->
                     <div style="border:2px solid #2563eb;border-radius:0.6rem;padding:1rem;">
-                        <h3 style="color:#2563eb;margin:0 0 0.75rem;font-size:0.95rem;">🔵 Blue Zone</h3>
+                        <h3 style="color:#2563eb;margin:0 0 0.75rem;font-size:0.95rem;">Blue Zone</h3>
                         <input type="text" id="tz_blue_name" class="form-input" placeholder="Blue Zones" style="margin-bottom:0.4rem;">
                         <input type="text" id="tz_blue_subtitle" class="form-input" placeholder="Living & Bedrooms" style="margin-bottom:0.75rem;">
                         <label style="font-size:0.8rem;color:#6b7280;display:block;margin-bottom:0.25rem;">Zone Icon / Image</label>
                         <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
                             <div style="width:52px;height:52px;border-radius:50%;overflow:hidden;border:2px solid #2563eb;background:#eff6ff;display:flex;align-items:center;justify-content:center;">
                                 <img id="tz-blue-img" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:none;">
-                                <span id="tz-blue-img-empty" style="font-size:1.4rem;">🛋️</span>
+                                <span id="tz-blue-img-empty" style="font-size:0.8rem;color:#6b7280;">No image</span>
                             </div>
                             <input type="file" id="tz-blue-file" accept="image/*" style="display:none;">
                             <button type="button" class="btn btn-secondary" style="font-size:0.78rem;padding:0.3rem 0.7rem;" onclick="document.getElementById('tz-blue-file').click()">Upload</button>
@@ -781,7 +780,7 @@
 
             <!-- Terms & Conditions Editor -->
             <div class="card" id="terms-card">
-                <h2 class="card__title">📜 Terms &amp; Conditions</h2>
+                <h2 class="card__title">Terms &amp; Conditions</h2>
                 <p class="card__desc">Edit the content shown on the <a href="/terms-of-service" target="_blank" style="color:var(--primary);">Terms of Service page</a>. Supports basic HTML formatting. Leave blank to show the built-in default content.</p>
 
                 <!-- Formatting toolbar -->

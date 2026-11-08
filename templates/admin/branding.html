@@ -316,7 +316,6 @@
     <div class="main-content">
         <div class="page-header">
             <h1>Brand &amp; Logo</h1>
-            <a class="btn" href="{{ url_for('admin_dashboard') }}">← Back to Dashboard</a>
         </div>
 
         {% if error %}
@@ -342,7 +341,7 @@
                     <input type="hidden" name="existing_logo" value="{{ site_settings.logo_path or '' }}">
                     <div class="drop-zone" id="logo-drop-zone">
                         <input id="logo" type="file" name="logo" accept="image/png,image/jpeg,image/jpg,image/webp">
-                        <div class="drop-zone__icon">🖼️</div>
+                        <div class="drop-zone__icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
                         <div class="drop-zone__text"><strong>Click to browse</strong> or drag &amp; drop your logo here</div>
                         <div class="drop-zone__hint">PNG or WEBP with transparent background recommended · Min 240px wide</div>
                         <div class="drop-zone__filename" id="logo-filename"></div>
@@ -395,7 +394,7 @@
                 const url = URL.createObjectURL(file);
                 if (previewNav) { previewNav.src = url; previewNav.style.display = ''; }
                 if (previewEmail) { previewEmail.src = url; previewEmail.style.display = ''; }
-                if (filename) filename.textContent = '✓ ' + file.name;
+                if (filename) filename.textContent = file.name;
                 if (removeCb) removeCb.checked = false;
             }
 

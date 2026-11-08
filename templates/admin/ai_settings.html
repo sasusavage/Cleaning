@@ -145,7 +145,7 @@
         .status-badge--warning { background: rgba(245, 158, 11, 0.15); color: #b45309; }
 
         .ai-chat-demo {
-            background: linear-gradient(135deg, var(--ai-purple-bg), rgba(59, 130, 246, 0.05));
+            background: rgba(59, 130, 246, 0.05);
             border: 1px solid rgba(124, 58, 237, 0.2);
             border-radius: 0.75rem;
             padding: 1.25rem;
@@ -266,7 +266,6 @@
                 </h1>
                 <p class="page-header__subtitle">Configure AI-powered automation for your cleaning service. Chat via Telegram or the admin panel.</p>
             </div>
-            <a class="btn btn-outline" href="{{ url_for('admin_dashboard') }}">← Back to Dashboard</a>
         </header>
 
         <!-- Status Card -->
@@ -710,7 +709,7 @@
                     const info = data.result;
                     if (info.url) {
                         statusDiv.innerHTML = `
-                            <div style="color: var(--success);">✅ Webhook Active</div>
+                            <div style="color: var(--success);">Webhook Active</div>
                             <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);">
                                 URL: ${info.url}<br>
                                 Pending updates: ${info.pending_update_count || 0}
@@ -718,13 +717,13 @@
                             </div>
                         `;
                     } else {
-                        statusDiv.innerHTML = '<span style="color: var(--error);">❌ No webhook set</span>';
+                        statusDiv.innerHTML = '<span style="color: var(--error);">No webhook set</span>';
                     }
                 } else {
-                    statusDiv.innerHTML = `<span style="color: var(--error);">❌ ${data.message || 'Could not check webhook'}</span>`;
+                    statusDiv.innerHTML = `<span style="color: var(--error);">${data.message || 'Could not check webhook'}</span>`;
                 }
             } catch (err) {
-                statusDiv.innerHTML = `<span style="color: var(--error);">❌ Error: ${err.message}</span>`;
+                statusDiv.innerHTML = `<span style="color: var(--error);">Error: ${err.message}</span>`;
             }
         }
         
@@ -754,18 +753,18 @@
                 if (data.success) {
                     showToast('Webhook set successfully!', 'success');
                     statusDiv.innerHTML = `
-                        <div style="color: var(--success);">✅ Webhook Set!</div>
+                        <div style="color: var(--success);">Webhook Set!</div>
                         <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);">
                             ${data.webhook_url}
                         </div>
                     `;
                 } else {
                     showToast(data.message || 'Failed to set webhook', 'error');
-                    statusDiv.innerHTML = `<span style="color: var(--error);">❌ ${data.message}</span>`;
+                    statusDiv.innerHTML = `<span style="color: var(--error);">${data.message}</span>`;
                 }
             } catch (err) {
                 showToast('Network error', 'error');
-                statusDiv.innerHTML = `<span style="color: var(--error);">❌ Error: ${err.message}</span>`;
+                statusDiv.innerHTML = `<span style="color: var(--error);">Error: ${err.message}</span>`;
             }
         }
         

@@ -96,9 +96,8 @@
 
     <main class="main">
         <div class="page-header">
-            <h1>📝 Blog Posts</h1>
+            <h1>Blog Posts</h1>
             <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
-                <a class="btn btn-outline" href="{{ url_for('admin_dashboard') }}">← Back to Dashboard</a>
                 <button class="btn btn-primary" onclick="openModal()">+ New Post</button>
             </div>
         </div>
@@ -185,8 +184,8 @@
                             <button type="button" class="tb-btn" onclick="fmt('insertUnorderedList')" title="Bullet list">• List</button>
                             <button type="button" class="tb-btn" onclick="fmt('insertOrderedList')" title="Numbered list">1. List</button>
                             <span class="tb-sep"></span>
-                            <button type="button" class="tb-btn" onclick="insertLink()" title="Insert link">🔗 Link</button>
-                            <button type="button" class="tb-btn" onclick="fmtBlock('blockquote')" title="Quote">❝ Quote</button>
+                            <button type="button" class="tb-btn" onclick="insertLink()" title="Insert link">Link</button>
+                            <button type="button" class="tb-btn" onclick="fmtBlock('blockquote')" title="Quote">Quote</button>
                         </div>
                         <div
                             id="f-editor"

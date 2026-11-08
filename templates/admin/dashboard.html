@@ -1910,7 +1910,7 @@
 
         /* ── Revenue at a glance card ─────────────────────────────────── */
         .revenue-kpi-row {
-            background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+            background: #1e3a5f;
             border-radius: 0.875rem;
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -1955,7 +1955,7 @@
             align-items: center;
             gap: 1rem;
             padding: 1rem 1.5rem;
-            background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+            background: #2563eb;
             flex-wrap: wrap;
         }
         .ai-summary-card__title { font-size: 1rem; font-weight: 700; margin: 0; color: #fff; }
@@ -2009,153 +2009,9 @@
 
 <body>
 
-    <div class="sidebar">
-        <div class="sidebar__header">
-            <div class="sidebar__brand">
-                <div class="sidebar__brand-icon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                </div>
-                <div>
-                    <div class="logo">{{ company_name }}</div>
-                    <div class="logo-sub">Admin Panel</div>
-                </div>
-            </div>
-            <button type="button" class="sidebar__toggle" aria-expanded="false" aria-controls="sidebar-nav" aria-label="Toggle menu">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-            </button>
-        </div>
-
-        <nav id="sidebar-nav" class="sidebar__nav" aria-label="Admin navigation">
-
-            <!-- Operations -->
-            <span class="nav-group__label">Operations</span>
-            <a id="nav-analytics" class="nav-link" onclick="showSection('analytics')">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                Analytics
-            </a>
-            <a id="nav-requests" class="nav-link active" onclick="showSection('requests')">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                Requests
-            </a>
-            <a id="nav-contracts" class="nav-link" onclick="showSection('contracts')">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-                Contracts
-            </a>
-            <a id="nav-payments" class="nav-link" onclick="showSection('payments')">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-                Payments
-            </a>
-
-            <hr class="nav-divider">
-
-            <!-- Services -->
-            <span class="nav-group__label">Services</span>
-            <a id="nav-services" class="nav-link" onclick="showSection('services')">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
-                Service Management
-            </a>
-            <a id="nav-travel" class="nav-link" onclick="showSection('travel')">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
-                Travel Pricing
-            </a>
-            <a class="nav-link" href="{{ url_for('admin_domestic_cleaning_page') }}">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                Domestic Cleaning
-            </a>
-
-            <hr class="nav-divider">
-
-            <!-- Content -->
-            <span class="nav-group__label">Content</span>
-            <a class="nav-link" href="{{ url_for('admin_hero_content_page') }}">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                Hero Content
-            </a>
-            <a class="nav-link" href="{{ url_for('admin_site_content_page') }}">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                Site Content
-            </a>
-            <a class="nav-link" href="{{ url_for('admin_blog_page') }}">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                Blog Posts
-            </a>
-            <a class="nav-link" href="{{ url_for('admin_faqs_page') }}">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                FAQs
-            </a>
-            <a class="nav-link" href="{{ url_for('admin_policies_page') }}">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                Policies
-            </a>
-            <a class="nav-link" href="{{ url_for('admin_contract_template_page') }}">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
-                Contract Template
-            </a>
-            <a id="nav-testimonials" class="nav-link" onclick="showSection('testimonials')">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                Testimonials
-            </a>
-            <a id="nav-positions" class="nav-link" onclick="showSection('positions')">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-                Job Positions
-            </a>
-
-            <hr class="nav-divider">
-
-            <!-- Settings -->
-            <span class="nav-group__label">Settings</span>
-            <a class="nav-link" href="{{ url_for('admin_brand_settings') }}">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
-                Brand &amp; Logo
-            </a>
-            <a class="nav-link" href="{{ url_for('admin_quote_section') }}">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                Quote &amp; Contact
-            </a>
-            <a class="nav-link" href="{{ url_for('admin_footer_settings') }}">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-                Footer
-            </a>
-            <a id="nav-email" class="nav-link" onclick="showSection('email')">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                Email Settings
-            </a>
-            <a class="nav-link" href="{{ url_for('admin_telegram_settings') }}">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                Telegram
-            </a>
-            <a class="nav-link" href="{{ url_for('admin_ai_settings_page') }}">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
-                AI Assistant
-            </a>
-            <a class="nav-link" href="{{ url_for('admin_chat_conversations_page') }}">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                Chat Conversations
-            </a>
-
-        </nav>
-
-        <div class="sidebar__footer">
-            <form method="post" action="{{ url_for('admin_logout') }}">
-                <button type="submit" class="sidebar__logout-button">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                    Log Out
-                </button>
-            </form>
-        </div>
-    </div>
+    {% set active_page = 'requests' %}{% include 'admin/_sidebar.html' %}
 
     <div class="main-content">
-
-        <div class="quick-actions" aria-label="Quick actions">
-            <h2 class="title" style="font-size: 1.25rem;">Quick Actions</h2>
-            <div class="quick-actions__grid">
-                <button class="quick-action" type="button" data-action="requests">Review Requests<span>→</span></button>
-                <button class="quick-action" type="button" data-action="add-service">Add Service<span>+</span></button>
-                <button class="quick-action" type="button" data-action="add-job">Post Job<span>+</span></button>
-                <button class="quick-action" type="button" data-action="analytics">View Analytics<span>→</span></button>
-            </div>
-        </div>
 
         <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 
@@ -2176,7 +2032,7 @@
                         <option value="60">Last 60 days</option>
                         <option value="90">Last 90 days</option>
                     </select>
-                    <button class="btn btn-primary" type="button" onclick="refreshAnalytics()">↻ Refresh</button>
+                    <button class="btn btn-primary" type="button" onclick="refreshAnalytics()">Refresh</button>
                 </div>
             </div>
 
@@ -2185,77 +2041,66 @@
                 <p class="kpi-section__label">Period Overview — <span id="revenue-period-label">Last 30 days</span></p>
                 <div class="kpi-row">
                     <div class="kpi-card kpi-card--blue">
-                        <div class="kpi-card__icon">👁️</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" data-analytics-field="visits">--</span>
                             <span class="kpi-card__label">Visitors</span>
                         </div>
                     </div>
                     <div class="kpi-card kpi-card--violet">
-                        <div class="kpi-card__icon">🔍</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" data-analytics-field="service_views">--</span>
                             <span class="kpi-card__label">Service Views</span>
                         </div>
                     </div>
                     <div class="kpi-card kpi-card--green">
-                        <div class="kpi-card__icon">📋</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" data-analytics-field="bookings">--</span>
                             <span class="kpi-card__label">Bookings</span>
                         </div>
                     </div>
                     <div class="kpi-card kpi-card--emerald">
-                        <div class="kpi-card__icon">🎯</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" data-analytics-field="conversion_rate">--%</span>
                             <span class="kpi-card__label">Conversion Rate</span>
                         </div>
                     </div>
                     <div class="kpi-card kpi-card--amber">
-                        <div class="kpi-card__icon">💼</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" data-analytics-field="job_applications">--</span>
                             <span class="kpi-card__label">Job Applications</span>
                         </div>
                     </div>
                     <div class="kpi-card kpi-card--red">
-                        <div class="kpi-card__icon">✉️</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" data-analytics-field="contact_submissions">--</span>
                             <span class="kpi-card__label">Contact Forms</span>
                         </div>
                     </div>
                     <div class="kpi-card kpi-card--green">
-                        <div class="kpi-card__icon">£</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" id="kpi-alltime-revenue">--</span>
                             <span class="kpi-card__label">All-Time Revenue</span>
                         </div>
                     </div>
                     <div class="kpi-card kpi-card--emerald">
-                        <div class="kpi-card__icon">≈</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" id="kpi-avg-booking">--</span>
                             <span class="kpi-card__label">Avg Booking Value</span>
                         </div>
                     </div>
                     <div class="kpi-card kpi-card--violet">
-                        <div class="kpi-card__icon">🔄</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" id="kpi-active-contracts">--</span>
                             <span class="kpi-card__label">Active Contracts</span>
                         </div>
                     </div>
                     <div class="kpi-card kpi-card--amber">
-                        <div class="kpi-card__icon">⏳</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" id="kpi-pending-quotes">--</span>
-                            <span class="kpi-card__label">Pending Quotes</span>
+                            <span class="kpi-card__label">Pending Bookings</span>
                         </div>
                     </div>
                     <div class="kpi-card kpi-card--red">
-                        <div class="kpi-card__icon">📅</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" id="kpi-due-week">--</span>
                             <span class="kpi-card__label">Due This Week</span>
@@ -2288,7 +2133,7 @@
             <div class="ai-summary-card" id="ai-summary-card">
                 <div class="ai-summary-card__header">
                     <div>
-                        <h2 class="ai-summary-card__title">🧠 AI Business Summary</h2>
+                        <h2 class="ai-summary-card__title">AI Business Summary</h2>
                         <p class="ai-summary-card__sub">Plain-English insight generated from your live analytics data</p>
                     </div>
                     <button class="btn" id="generate-ai-summary-btn" onclick="generateAiSummary()" type="button" style="background:#fff;color:#1e3a5f;font-weight:700;border:none;padding:0.45rem 1rem;border-radius:0.45rem;cursor:pointer;">Generate Summary</button>
@@ -2398,42 +2243,36 @@
             <div class="kpi-section">
                 <div class="kpi-row">
                     <div class="kpi-card kpi-card--blue">
-                        <div class="kpi-card__icon">👁️</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" data-analytics-field="today.visits">--</span>
                             <span class="kpi-card__label">Visits Today</span>
                         </div>
                     </div>
                     <div class="kpi-card kpi-card--violet">
-                        <div class="kpi-card__icon">🔍</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" data-analytics-field="today.service_views">--</span>
                             <span class="kpi-card__label">Service Views</span>
                         </div>
                     </div>
                     <div class="kpi-card kpi-card--green">
-                        <div class="kpi-card__icon">📋</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" data-analytics-field="today.bookings">--</span>
                             <span class="kpi-card__label">Bookings</span>
                         </div>
                     </div>
                     <div class="kpi-card kpi-card--amber">
-                        <div class="kpi-card__icon">💼</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" data-analytics-field="today.job_applications">--</span>
                             <span class="kpi-card__label">Job Applications</span>
                         </div>
                     </div>
                     <div class="kpi-card kpi-card--indigo">
-                        <div class="kpi-card__icon">⭐</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" data-analytics-field="most_viewed_service">--</span>
                             <span class="kpi-card__label">Top Service</span>
                         </div>
                     </div>
                     <div class="kpi-card kpi-card--emerald">
-                        <div class="kpi-card__icon">⏰</div>
                         <div class="kpi-card__body">
                             <span class="kpi-card__value" data-analytics-field="peak_traffic_time">--</span>
                             <span class="kpi-card__label">Peak Hour</span>
@@ -2474,7 +2313,7 @@
                         </span>
                     </div>
                 </div>
-                <button class="btn btn-primary" type="button" onclick="loadRequests(true)">↻ Refresh</button>
+                <button class="btn btn-primary" type="button" onclick="loadRequests(true)">Refresh</button>
             </div>
 
             <div class="card" style="padding:0;">
@@ -2516,7 +2355,7 @@
                         <option value="job">Job</option>
                         <option value="general">General</option>
                     </select>
-                    <button class="filter-clear-btn" type="button" onclick="clearRequestFilters()">✕ Clear</button>
+                    <button class="filter-clear-btn" type="button" onclick="clearRequestFilters()">Clear</button>
                     <span id="requests-count-label" style="font-size:0.8rem; color:#6b7280; margin-left:auto; white-space:nowrap;"></span>
                 </div>
 
@@ -2526,7 +2365,7 @@
                         <input type="checkbox" id="bulk-select-all" onchange="toggleAllBulkSelect(this)" style="accent-color:#2563eb;">
                         Select all
                     </label>
-                    <button class="btn btn-primary" type="button" onclick="bulkMarkPaid()" style="font-size:0.8rem;padding:0.3rem 0.8rem;">£✓ Mark paid</button>
+                    <button class="btn btn-primary" type="button" onclick="bulkMarkPaid()" style="font-size:0.8rem;padding:0.3rem 0.8rem;">Mark selected as paid</button>
                 </div>
 
                 <!-- Requests table -->
@@ -2895,7 +2734,7 @@
         <div id="contract-schedule-modal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.45); align-items:center; justify-content:center;">
             <div style="background:#fff; border-radius:1rem; padding:2rem; width:100%; max-width:440px; margin:1rem; box-shadow:0 8px 40px rgba(0,0,0,0.18);">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
-                    <h3 style="margin:0; font-size:1.1rem; color:#1e3a5f;">📅 Reschedule Contract</h3>
+                    <h3 style="margin:0; font-size:1.1rem; color:#1e3a5f;">Reschedule Contract</h3>
                     <button onclick="closeContractScheduleModal()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;line-height:1;">×</button>
                 </div>
                 <p id="contract-schedule-customer" style="margin:0 0 1.25rem; font-size:0.9rem; color:#6b7280;"></p>
@@ -2989,7 +2828,7 @@
                         <button type="button" class="svc-filter__btn" data-filter="hidden" onclick="setServiceFilter('hidden')">Hidden</button>
                     </div>
                     <span id="services-count" class="svc-toolbar__count"></span>
-                    <button class="btn btn-ghost btn-sm" type="button" onclick="loadServices()" style="margin-left:auto;">↻ Refresh</button>
+                    <button class="btn btn-ghost btn-sm" type="button" onclick="loadServices()" style="margin-left:auto;">Refresh</button>
                 </div>
                 <!-- Service cards grid -->
                 <div id="services-cards-grid"></div>
@@ -3218,7 +3057,7 @@
                                 </label>
                                 <div id="service-trust-image-preview" style="display:none; margin-top:0.25rem;">
                                     <img id="service-trust-image-thumb" src="" alt="Trust card image" style="max-width:100%; max-height:80px; border-radius:0.35rem; object-fit:cover;">
-                                    <button type="button" onclick="removeContractImage('trust')" style="display:block; margin-top:0.25rem; font-size:0.78rem; color:#b91c1c; background:none; border:none; cursor:pointer; padding:0;">✕ Remove image</button>
+                                    <button type="button" onclick="removeContractImage('trust')" style="display:block; margin-top:0.25rem; font-size:0.78rem; color:#b91c1c; background:none; border:none; cursor:pointer; padding:0;">Remove image</button>
                                     <input type="hidden" id="service-contract-remove-trust-image" name="remove_trust_image" value="false">
                                 </div>
                             </div>
@@ -3234,7 +3073,7 @@
                                 </label>
                                 <div id="service-continuity-image-preview" style="display:none; margin-top:0.25rem;">
                                     <img id="service-continuity-image-thumb" src="" alt="Continuity card image" style="max-width:100%; max-height:80px; border-radius:0.35rem; object-fit:cover;">
-                                    <button type="button" onclick="removeContractImage('continuity')" style="display:block; margin-top:0.25rem; font-size:0.78rem; color:#b91c1c; background:none; border:none; cursor:pointer; padding:0;">✕ Remove image</button>
+                                    <button type="button" onclick="removeContractImage('continuity')" style="display:block; margin-top:0.25rem; font-size:0.78rem; color:#b91c1c; background:none; border:none; cursor:pointer; padding:0;">Remove image</button>
                                     <input type="hidden" id="service-contract-remove-continuity-image" name="remove_continuity_image" value="false">
                                 </div>
                             </div>
@@ -3263,7 +3102,7 @@
                                 <input type="file" id="room-card-image" accept="image/*" style="padding: 0.3rem;">
                                 <div id="room-card-image-preview" style="display:none; margin-top:0.25rem;">
                                     <img id="room-card-image-thumb" src="" alt="Current image" style="max-width:80px; max-height:60px; border-radius:0.35rem; object-fit:cover;">
-                                    <button type="button" onclick="removeRoomCardImage()" style="display:block; margin-top:0.2rem; font-size:0.78rem; color:#b91c1c; background:none; border:none; cursor:pointer; padding:0;">✕ Remove image</button>
+                                    <button type="button" onclick="removeRoomCardImage()" style="display:block; margin-top:0.2rem; font-size:0.78rem; color:#b91c1c; background:none; border:none; cursor:pointer; padding:0;">Remove image</button>
                                     <input type="hidden" id="room-card-remove-image" name="remove_image" value="false">
                                 </div>
                             </label>
@@ -3282,7 +3121,7 @@
 
                 <!-- Dynamic Configuration: Tenancy Table Headers -->
                 <div id="service-config-tenancy" class="form-group" style="display: none; padding: 1rem; background: #f0fdf4; border: 1px solid #86efac; border-radius: 0.6rem;">
-                    <label style="font-weight: 600; color: #166534; margin-bottom: 0.5rem; display: block;">📋 Tenancy Table Headers</label>
+                    <label style="font-weight: 600; color: #166534; margin-bottom: 0.5rem; display: block;">Tenancy Table Headers</label>
                     <p style="font-size: 0.85rem; color: #15803d; margin: 0 0 0.75rem;">Customize the column labels shown to customers in the property selection table.</p>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem;">
                         <label style="display: flex; flex-direction: column; gap: 0.25rem;">
@@ -3302,7 +3141,7 @@
 
                 <!-- Dynamic Configuration: Multiselect for Options/Simple -->
                 <div id="service-config-multiselect" class="form-group" style="display: none; padding: 1rem; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 0.6rem;">
-                    <label style="font-weight: 600; color: #1e40af; margin-bottom: 0.5rem; display: block;">🔘 Selection Mode</label>
+                    <label style="font-weight: 600; color: #1e40af; margin-bottom: 0.5rem; display: block;">Selection Mode</label>
                     <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                         <input type="checkbox" id="service-allow-multiselect" name="allow_multiselect" value="1">
                         <span>Allow customers to select <strong>multiple items</strong> (checkboxes instead of radio buttons)</span>
@@ -3318,7 +3157,7 @@
 
                 <!-- Bulk Discount Configuration -->
                 <div id="service-config-discount" class="form-group" style="padding: 1rem; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 0.6rem;">
-                    <label style="font-weight: 600; color: #92400e; margin-bottom: 0.5rem; display: block;">💰 Bulk Discount (Multiselect & Itemized)</label>
+                    <label style="font-weight: 600; color: #92400e; margin-bottom: 0.5rem; display: block;">Bulk Discount (Multiselect & Itemized)</label>
                     <p style="font-size: 0.85rem; color: #b45309; margin: 0 0 0.75rem;">When customer subtotal exceeds the threshold, apply a percentage discount. Works with Itemized and Multi-select services.</p>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
                         <label style="display:flex; flex-direction:column; gap:0.35rem;">
@@ -3392,7 +3231,7 @@
     <div id="request-detail-modal" class="modal">
         <div class="modal-content" style="max-width: 860px; padding:0; overflow:hidden;">
             <!-- Modal header -->
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:1.25rem 1.5rem;background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);gap:0.75rem;">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:1.25rem 1.5rem;background:#2563eb;gap:0.75rem;">
                 <div>
                     <h2 style="font-size:1.05rem;font-weight:700;margin:0;color:#fff;">Request Detail</h2>
                     <p style="margin:0.2rem 0 0;font-size:0.8rem;color:rgba(255,255,255,0.7);">Ref: <strong id="request-detail-reference">—</strong> &nbsp;·&nbsp; ID: <span id="request-detail-id">—</span></p>
@@ -3436,7 +3275,7 @@
                         </div>
                     </div>
                     <!-- Service Location Section -->
-                    <div id="service-location-section" style="display: none; padding: 1rem; background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%); border: 1px solid #7dd3fc; border-radius: 0.6rem;">
+                    <div id="service-location-section" style="display: none; padding: 1rem; background: #f0f9ff; border: 1px solid #7dd3fc; border-radius: 0.6rem;">
                         <h3 style="margin: 0 0 0.6rem; font-size: 0.88rem; color: #0369a1; display: flex; align-items: center; gap: 0.5rem;">
                             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                             Service Location
@@ -3446,7 +3285,7 @@
                             <div><strong>Area/Postcode:</strong> <span id="request-detail-postcode">—</span></div>
                             <div id="request-detail-map-container" style="margin-top: 0.4rem; display: none;">
                                 <a id="request-detail-map-link" href="#" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.85rem; background: #0284c7; color: #fff; border-radius: 0.4rem; text-decoration: none; font-weight: 600; font-size: 0.82rem;">
-                                    📍 View on Google Maps
+                                    View on Google Maps
                                 </a>
                             </div>
                         </div>
@@ -3621,23 +3460,7 @@
         let travelSettingsState = {};
         let operatingBasesState = [];
 
-        if (sidebar && sidebarToggle) {
-            sidebarToggle.addEventListener('click', () => {
-                const expanded = sidebarToggle.getAttribute('aria-expanded') === 'true';
-                const nextExpanded = !expanded;
-                sidebarToggle.setAttribute('aria-expanded', String(nextExpanded));
-                sidebar.classList.toggle('sidebar--menu-open', nextExpanded);
-            });
-
-            sidebar.querySelectorAll('.nav-link').forEach(link => {
-                link.addEventListener('click', () => {
-                    if (window.matchMedia('(max-width: 1024px)').matches) {
-                        sidebar.classList.remove('sidebar--menu-open');
-                        sidebarToggle.setAttribute('aria-expanded', 'false');
-                    }
-                });
-            });
-        }
+        // Sidebar menu toggle is handled by the shared admin/_sidebar.html include
 
         function lockBodyScroll() {
             document.body.classList.add('modal-open');
@@ -3822,7 +3645,7 @@
                 
                 // Update conversion rate
                 const convField = document.querySelector('[data-analytics-field="conversion_rate"]');
-                if (convField) convField.textContent = `${data.conversion_rate || 0}%`;
+                if (convField) convField.textContent = data.conversion_rate == null ? '—' : `${data.conversion_rate}%`;
                 
                 // Load detailed analytics
                 loadDetailedAnalytics(period);
@@ -4244,7 +4067,7 @@
                 console.error('AI summary error:', err);
             } finally {
                 btn.disabled = false;
-                btn.textContent = '✦ Generate Summary';
+                btn.textContent = 'Generate Summary';
                 if (card) card.classList.remove('ai-summary-card--loading');
             }
         }
@@ -4500,7 +4323,7 @@
                 html += `<td style="padding: 0.75rem 1rem; text-align: right; border-top: 2px solid #1f3c88; color: #1f3c88;">${formatCurrency(finalTotal)}</td></tr>`;
             } else if (totals.is_survey_request || totals.has_custom_pricing) {
                 html += `<tr><td colspan="3" style="padding: 0.75rem 1rem; text-align: right; border-top: 2px solid #d97706;">`;
-                html += `<span style="color: #92400e; font-style: italic;">⚠ Survey/Quote Required</span></td></tr>`;
+                html += `<span style="color: #92400e; font-style: italic;">Survey/Quote Required</span></td></tr>`;
             }
 
             html += '</tfoot></table>';
@@ -4509,7 +4332,7 @@
             const schedule = serviceFlow.schedule || {};
             if (schedule.preferred_date || schedule.preferred_time || schedule.contract_frequency) {
                 html += '<div style="padding: 0.75rem 1rem; background: #fef3c7; border-top: 1px solid #fcd34d; font-size: 0.85rem;">';
-                html += '<strong style="color: #92400e;">📅 Preferred Schedule:</strong> ';
+                html += '<strong style="color: #92400e;">Preferred Schedule:</strong> ';
                 if (schedule.preferred_date) html += schedule.preferred_date;
                 if (schedule.preferred_time) html += ` at ${schedule.preferred_time}`;
                 if (schedule.contract_frequency) {
@@ -4784,7 +4607,7 @@
             // An unpriced service request is waiting on a quote; jobs/general enquiries have no amount
             const amountDue = isPriced ? formatAmountDue(amountNumber) : (isServiceRequest ? 'Quote needed' : '—');
             const contractTag = entry.is_contract
-                ? `<span class="contract-tag">📄${entry.contract_frequency ? ' ' + escapeHtml(entry.contract_frequency) : ''}</span>`
+                ? `<span class="contract-tag" data-contract="1">Contract${entry.contract_frequency ? ' · ' + escapeHtml(entry.contract_frequency) : ''}</span>`
                 : '';
 
             // Email sent badges
@@ -4808,14 +4631,14 @@
             // Quick action buttons based on status
             let quickBtns = '';
             if (status === 'pending' || status === 'survey_needed') {
-                quickBtns += `<button class="row-action-btn row-action-btn--confirm" type="button" onclick="event.stopPropagation(); quickStatusChange(${entry.id}, 'in_progress')" title="Mark In Progress">▶</button>`;
+                quickBtns += `<button class="row-action-btn row-action-btn--confirm" type="button" onclick="event.stopPropagation(); quickStatusChange(${entry.id}, 'in_progress')" title="Mark In Progress">Start</button>`;
             }
             if (status === 'in_progress') {
-                quickBtns += `<button class="row-action-btn row-action-btn--complete" type="button" onclick="event.stopPropagation(); quickStatusChange(${entry.id}, 'completed')" title="Mark Complete">✓</button>`;
+                quickBtns += `<button class="row-action-btn row-action-btn--complete" type="button" onclick="event.stopPropagation(); quickStatusChange(${entry.id}, 'completed')" title="Mark Complete">Complete</button>`;
             }
             // Quick mark paid button for unpaid in-person
             if (isPriced && !entry.is_paid && entry.payment_type !== 'stripe') {
-                quickBtns += `<button class="row-action-btn" type="button" style="background:#dcfce7;color:#166534;border-color:#86efac;" onclick="event.stopPropagation(); quickMarkPaid(${entry.id})" title="Mark as Paid">£✓</button>`;
+                quickBtns += `<button class="row-action-btn" type="button" style="background:#dcfce7;color:#166534;border-color:#86efac;" onclick="event.stopPropagation(); quickMarkPaid(${entry.id})" title="Mark as Paid">Mark paid</button>`;
             }
 
             return `
@@ -4872,7 +4695,7 @@
                 const refText = row.textContent.toLowerCase();
 
                 const statusMatch = !activeStatusFilter || rowStatus === activeStatusFilter;
-                const typeMatch = !typeVal || (typeVal === 'contract' ? row.textContent.includes('📄') : rowType === typeVal);
+                const typeMatch = !typeVal || (typeVal === 'contract' ? Boolean(row.querySelector('[data-contract]')) : rowType === typeVal);
                 const searchMatch = !searchVal || rowName.includes(searchVal) || rowEmail.includes(searchVal) || refText.includes(searchVal);
 
                 if (statusMatch && typeMatch && searchMatch) {
@@ -5491,7 +5314,7 @@
                 if (quoteNotification) {
                     const userSent = quoteNotification.user_sent || false;
                     if (userSent) {
-                        toastMessage = '✓ Quote sent to customer!';
+                        toastMessage = 'Quote sent to customer!';
                         toastType = 'success';
                     } else {
                         toastMessage = 'Quote saved, but email failed to send.';
@@ -5644,14 +5467,14 @@
                 const publishableValid = Boolean(settings.publishable_key_configured);
 
                 const stripeStatus = !stripeDetected
-                    ? 'Stripe secret key missing ❌'
-                    : (stripeValid ? 'Stripe secret key valid ✅' : 'Stripe secret key invalid format ❌ (must start with sk_)');
+                    ? 'Stripe secret key missing '
+                    : (stripeValid ? 'Stripe secret key valid ' : 'Stripe secret key invalid format (must start with sk_)');
                 const webhookStatus = !webhookDetected
-                    ? 'Webhook secret missing ❌'
-                    : (webhookValid ? 'Webhook secret valid ✅' : 'Webhook secret invalid format ❌ (must start with whsec_)');
+                    ? 'Webhook secret missing '
+                    : (webhookValid ? 'Webhook secret valid ' : 'Webhook secret invalid format (must start with whsec_)');
                 const publishableStatus = publishableValid
-                    ? 'Publishable key valid ✅'
-                    : 'Publishable key missing/invalid ❌ (must start with pk_)';
+                    ? 'Publishable key valid '
+                    : 'Publishable key missing/invalid (must start with pk_)';
 
                 paymentEnvStatus.textContent = `${stripeStatus} • ${webhookStatus} • ${publishableStatus}. Keys are managed in environment variables.`;
             }
@@ -6332,7 +6155,7 @@
                         <td>
                             <div style="display:flex; flex-direction:column; gap:0.2rem;">
                                 <strong>${escapeHtml(contract.signer_name || '—')}</strong>
-                                <small style="color:${Boolean(contract.terms_agreed) ? '#16a34a' : '#ef4444'};">${Boolean(contract.terms_agreed) ? '✓ Signed' : '✗ Unsigned'}</small>
+                                <small style="color:${Boolean(contract.terms_agreed) ? '#16a34a' : '#ef4444'};">${Boolean(contract.terms_agreed) ? 'Signed' : 'Unsigned'}</small>
                             </div>
                         </td>
                         <td>${escapeHtml(contract.service_name || '—')}</td>
@@ -6342,15 +6165,15 @@
                         <td style="white-space:nowrap; font-size:0.82rem;">${escapeHtml(nextReminder)}</td>
                         <td>
                             <span class="pill ${statusClass}">${escapeHtml(status)}</span>
-                            <small style="display:block; margin-top:0.25rem; color:${reminderEnabled ? '#16a34a' : '#9ca3af'};">${reminderEnabled ? '🔔 Reminder on' : '🔕 Reminder off'}</small>
+                            <small style="display:block; margin-top:0.25rem; color:${reminderEnabled ? '#16a34a' : '#9ca3af'};">${reminderEnabled ? 'Reminder on' : 'Reminder off'}</small>
                         </td>
                         <td style="white-space:nowrap; font-size:0.82rem; color:#6b7280;">${escapeHtml(created)}</td>
                         <td style="white-space:nowrap;">
                             <div style="display:flex;flex-direction:column;gap:3px;">
-                                <button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;" onclick="openContractScheduleModal(${contract.id}, '${escapeHtml(contract.customer_name || '')}', '${escapeHtml(nextService)}', '${escapeHtml(contract.preferred_time || '')}', '${escapeHtml(contract.frequency || '')}', '${escapeHtml(contract.service_day || '')}')">📅 Reschedule</button>
-                                <button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;" onclick="sendContractReminder(${contract.id}, '${escapeHtml(contract.customer_name || '')}')">📧 Send Reminder</button>
-                                <button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;background:#fef9c3;color:#854d0e;border:1px solid #fde047;" onclick="toggleContractReminder(${contract.id}, ${reminderEnabled})">${reminderEnabled ? '🔕 Disable' : '🔔 Enable'}</button>
-                                ${status === 'active' ? `<button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;" onclick="pauseContract(${contract.id})">⏸ Pause</button>` : `<button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;background:#dcfce7;color:#166534;border:1px solid #86efac;" onclick="resumeContract(${contract.id})">▶ Resume</button>`}
+                                <button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;" onclick="openContractScheduleModal(${contract.id}, '${escapeHtml(contract.customer_name || '')}', '${escapeHtml(nextService)}', '${escapeHtml(contract.preferred_time || '')}', '${escapeHtml(contract.frequency || '')}', '${escapeHtml(contract.service_day || '')}')">Reschedule</button>
+                                <button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;" onclick="sendContractReminder(${contract.id}, '${escapeHtml(contract.customer_name || '')}')">Send Reminder</button>
+                                <button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;background:#fef9c3;color:#854d0e;border:1px solid #fde047;" onclick="toggleContractReminder(${contract.id}, ${reminderEnabled})">${reminderEnabled ? 'Disable' : 'Enable'}</button>
+                                ${status === 'active' ? `<button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;" onclick="pauseContract(${contract.id})">Pause</button>` : `<button class="btn btn-xs" style="font-size:0.75rem;padding:2px 8px;background:#dcfce7;color:#166534;border:1px solid #86efac;" onclick="resumeContract(${contract.id})">▶ Resume</button>`}
                             </div>
                         </td>
                     </tr>
@@ -7781,8 +7604,8 @@
                         <td style="max-width: 300px;">${escapeHtml(item.message).substring(0, 100)}${item.message.length > 100 ? '...' : ''}</td>
                         <td style="font-size: 0.85rem; color: #6b7280;">${formatDate(item.created_at)}</td>
                         <td style="white-space: nowrap;">
-                            <button class="btn btn-sm" style="background: #059669; color: white;" onclick="approveTestimonial(${item.id})">✓ Approve</button>
-                            <button class="btn btn-sm btn-danger" onclick="rejectTestimonial(${item.id})">✕ Reject</button>
+                            <button class="btn btn-sm" style="background: #059669; color: white;" onclick="approveTestimonial(${item.id})">Approve</button>
+                            <button class="btn btn-sm btn-danger" onclick="rejectTestimonial(${item.id})">Reject</button>
                         </td>
                     </tr>
                 `).join('');
@@ -7798,7 +7621,7 @@
                     <td>${escapeHtml(item.name)}</td>
                     <td>${renderStars(item.rating || 5)}</td>
                     <td style="max-width: 300px;">${escapeHtml(item.message).substring(0, 50)}...</td>
-                    <td>${item.is_verified_customer ? '<span style="color: #059669; font-weight: 600;">✓ Verified</span>' : '<span style="color: #9ca3af;">—</span>'}</td>
+                    <td>${item.is_verified_customer ? '<span style="color: #059669; font-weight: 600;">Verified</span>' : '<span style="color: #9ca3af;">—</span>'}</td>
                     <td>
                         <button class="btn btn-sm btn-primary" onclick="editTestimonial(${item.id})">Edit</button>
                         <button class="btn btn-sm btn-danger" onclick="deleteTestimonial(${item.id})">Delete</button>
@@ -8556,7 +8379,7 @@
                 updateAnalyticsField('bookings', data.period.bookings);
                 updateAnalyticsField('job_applications', data.period.job_applications);
                 updateAnalyticsField('contact_submissions', data.period.contact_submissions);
-                updateAnalyticsField('conversion_rate', `${data.period.conversion_rate}%`);
+                updateAnalyticsField('conversion_rate', data.period.conversion_rate == null ? '—' : `${data.period.conversion_rate}%`);
             }
 
             // Update revenue
@@ -8778,7 +8601,7 @@
                 
                 for (const req of newRequests) {
                     showBrowserNotification(
-                        '🆕 New Request',
+                        'New Request',
                         `${req.name} - ${req.service_name || req.request_type}`
                     );
                 }
@@ -8846,7 +8669,7 @@
             }
             liveAnalyticsInterval = setInterval(pollLiveAnalytics, ANALYTICS_POLL_INTERVAL);
 
-            console.log('🟢 Live Dashboard activated - requests polling every', LIVE_POLL_INTERVAL / 1000, 's, analytics every', ANALYTICS_POLL_INTERVAL / 1000, 's');
+            console.log('Live Dashboard activated - requests polling every', LIVE_POLL_INTERVAL / 1000, 's, analytics every', ANALYTICS_POLL_INTERVAL / 1000, 's');
         }
 
         // Start live dashboard

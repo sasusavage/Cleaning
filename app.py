@@ -5473,11 +5473,55 @@ def _dm_airbnb_minimums_and_laundry(cursor):
                 cursor.execute("DELETE FROM service_pricing_tiers WHERE id = %s", (tier_id,))
 
 
+_WHY_CARD_DEFAULTS = [
+    {'title': 'Vetted & Insured', 'description': 'All cleaners are DBS checked, fully insured and professionally trained.', 'icon': 'shield-check'},
+    {'title': 'Eco-Friendly Products', 'description': 'We use green cleaning products to reduce your carbon footprint.', 'icon': 'leaf'},
+    {'title': 'Satisfaction Guarantee', 'description': 'Not happy? Tell us within 24 hours and we will redo it free.', 'icon': 'badge-check'},
+    {'title': 'No Contracts', 'description': 'Book only when you need us. No annual sign-ups required.', 'icon': 'calendar-x'},
+]
+
+
+def _dm_merge_domestic_why_cards(cursor):
+    """The homepage 'Why choose us' showed two extra cards from the legacy domestic-cleaning
+    tables. Move them (with the text shown today) into Site Content > Why Choose Us, which is
+    now the single place those cards are edited."""
+    try:
+        legacy = (fetch_domestic_cleaning_data(include_inactive=False) or {}).get('content') or {}
+    except Exception:
+        legacy = {}
+    extra = []
+    if (legacy.get('trust_body') or '').strip():
+        extra.append({'title': 'Vetted & Trusted Team', 'description': legacy['trust_body'].strip(), 'icon': 'users'})
+    if (legacy.get('continuity_body') or '').strip():
+        extra.append({'title': 'Consistency You Can Rely On', 'description': legacy['continuity_body'].strip(), 'icon': 'check-circle'})
+    if not extra:
+        return
+    cursor.execute("SELECT id, content_json FROM site_content WHERE section_key = 'why_choose_us' ORDER BY id LIMIT 1")
+    row = cursor.fetchone()
+    items = None
+    if row and row[1]:
+        try:
+            data = json.loads(row[1]) if isinstance(row[1], str) else row[1]
+            items = list((data or {}).get('items') or [])
+        except (ValueError, TypeError, AttributeError):
+            items = None
+    if not items:
+        items = [dict(card) for card in _WHY_CARD_DEFAULTS]  # what the homepage showed with no custom cards
+    titles = {str(item.get('title') or '').strip().lower() for item in items}
+    merged = [card for card in extra if card['title'].lower() not in titles] + items
+    payload = json.dumps({'items': merged})
+    if row:
+        cursor.execute("UPDATE site_content SET content_json = %s WHERE id = %s", (payload, row[0]))
+    else:
+        cursor.execute("INSERT INTO site_content (section_key, content_json, is_active) VALUES ('why_choose_us', %s, 1)", (payload,))
+
+
 _DATA_MIGRATIONS = [
     ('2026_11_tier_min_hours_from_names', _dm_tier_min_hours_from_names),
     ('2026_11_room_names_staff_labels', _dm_clean_room_names_and_staff_labels),
     ('2026_11_residential_oneoff_size_picker', _dm_residential_oneoff_size_picker),
     ('2026_11_airbnb_minimums_laundry_service', _dm_airbnb_minimums_and_laundry),
+    ('2026_11_merge_domestic_why_cards', _dm_merge_domestic_why_cards),
 ]
 _data_migrations_done = False
 _data_migrations_lock = threading.Lock()
@@ -10450,7 +10494,8 @@ def admin_analytics_live():
         today_bookings = cursor.fetchone()['cnt']
         
         # Conversion rate (visits to bookings)
-        conversion_rate = round((bookings / visits * 100), 1) if visits > 0 else 0
+        # Visits only count homepage visits; when bookings outnumber them the ratio is meaningless
+        conversion_rate = round((bookings / visits * 100), 1) if visits > 0 and bookings <= visits else None
         cursor.execute(
             """
                 SELECT COALESCE(SUM(total_price), 0) as total
@@ -10621,7 +10666,8 @@ def admin_analytics_ai_summary():
         top_row = cursor.fetchone()
         top_service = (top_row.get('service_name') or 'Unknown') if top_row else 'Unknown'
 
-        conversion_rate = round((bookings / visits * 100), 1) if visits > 0 else 0
+        # Visits only count homepage visits; when bookings outnumber them the ratio is meaningless
+        conversion_rate = round((bookings / visits * 100), 1) if visits > 0 and bookings <= visits else None
 
         cursor.close()
         conn.close()
@@ -12246,9 +12292,9 @@ def admin_reorder_homepage_sections():
 @app.route('/admin/domestic-cleaning')
 @admin_login_required
 def admin_domestic_cleaning_page():
-    """Domestic cleaning editor backed by unified services data."""
-    site_settings = fetch_site_settings()
-    return render_template('admin/domestic_cleaning.html', site_settings=site_settings)
+    """Merged into Services: residential/domestic cleaning is managed like every other
+    service, and its homepage cards are under Site Content > Why Choose Us."""
+    return redirect(url_for('admin_dashboard') + '#services')
 
 
 @app.route('/admin/api/domestic-cleaning', methods=['GET', 'POST'])
