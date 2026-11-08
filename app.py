@@ -186,7 +186,7 @@ def _add_security_headers(response):
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: blob: https://res.cloudinary.com https://maps.gstatic.com https://maps.googleapis.com https://*.tile.openstreetmap.org https://api.tomtom.com https://*.api.tomtom.com https://images.unsplash.com; "
         "frame-src https://js.stripe.com https://www.google.com https://www.openstreetmap.org; "
-        "connect-src 'self' https://api.stripe.com https://api.tomtom.com https://*.api.tomtom.com; "
+        "connect-src 'self' blob: https://api.stripe.com https://api.tomtom.com https://*.api.tomtom.com; "
         "worker-src 'self' blob:; "
         "media-src 'self' data:; "
         "object-src 'none'; "
