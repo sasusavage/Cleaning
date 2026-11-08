@@ -892,7 +892,7 @@ def send_email_via_resend(subject, html_body, text_body, recipients, settings, a
         return True
 
     except Exception as exc:
-        app.logger.exception('Failed to send email via Resend API with subject %s', subject)
+        app.logger.warning('Failed to send email via Resend API with subject %s', subject, exc_info=True)
         payload = dict(extra_error_payload or {})
         payload.update({
             'provider': 'resend',
@@ -1101,7 +1101,8 @@ def send_email_via_settings(subject, html_body, text_body, recipients, settings,
         send_telegram_notification('notify_email_success', success_lines)
         return True
     except Exception as exc:
-        app.logger.exception('Failed to send email notification with subject %s', subject)
+        # Warning, not error: the dedicated '[Email] Delivery failed' Telegram alert below covers it
+        app.logger.warning('Failed to send email notification with subject %s', subject, exc_info=True)
         payload = dict(extra_error_payload or {})
         payload.update({
             'host': host,
@@ -1570,7 +1571,8 @@ def parse_order_for_email(service_flow):
     if schedule.get('preferred_date') or schedule.get('preferred_time') or schedule.get('contract_frequency'):
         parts = []
         if schedule.get('preferred_date'):
-            parts.append(str(schedule.get('preferred_date')))
+            parsed_day = parse_preferred_date(schedule.get('preferred_date'))
+            parts.append(f"{parsed_day:%A} {parsed_day.day} {parsed_day:%B %Y}" if parsed_day else str(schedule.get('preferred_date')))
         if schedule.get('preferred_time'):
             parts.append(f"at {schedule.get('preferred_time')}")
         if schedule.get('contract_frequency'):
@@ -2233,6 +2235,19 @@ def send_quote_ready_notification(request_row, quote_amount):
     _site3 = fetch_site_settings() or {}
     _logo_path3 = (_site3.get('logo_path') or '').strip()
     logo_url3 = _build_logo_url(_logo_path3) or None
+    company_name = _site3.get('company_name') or DEFAULT_SITE_SETTINGS.get('company_name') or 'Done-Well Cleaning'
+
+    # Accepting a quote = replying to the business; pre-fill the subject with the reference
+    reply_address = sanitize_email(settings.get('reply_to')) or sanitize_email(settings.get('sender_email'))
+    ref_label = context.get('ref_id') or request_row.get('id')
+    accept_subject = f"Accept quote {ref_label}"
+    accept_body = f"Hi, I accept the quote of {context.get('quote_formatted')} for booking {ref_label}."
+    accept_quote_url = (
+        f"mailto:{reply_address}?subject={urllib.parse.quote(accept_subject)}&body={urllib.parse.quote(accept_body)}"
+        if reply_address else ''
+    )
+    _order_items, _order_totals, quote_schedule_info, _notes, quote_location_info, _base = parse_order_for_email(
+        context.get('service_flow') or {})
 
     # Build email content
     user_subject = f"Your quote is ready - {context.get('quote_formatted')}"
@@ -2243,11 +2258,20 @@ def send_quote_ready_notification(request_row, quote_amount):
         f"Reference: {context.get('ref_id') or request_row.get('id')}\n\n"
         f"To proceed with your booking, please reply to this email or contact us to confirm and arrange payment.\n\n"
         f"We look forward to serving you!\n\n"
-        f"Warm regards,\nClean Co. Team"
+        f"Warm regards,\nThe {company_name} Team"
     )
 
     try:
-        user_html = render_template('emails/quote_ready_user.html', request=context, logo_url=logo_url3)
+        user_html = render_template(
+            'emails/quote_ready_user.html',
+            request=context,
+            logo_url=logo_url3,
+            quote_amount=context.get('quote_formatted'),
+            schedule_info=quote_schedule_info,
+            location_info=quote_location_info,
+            accept_quote_url=accept_quote_url,
+            current_year=datetime.now().year,
+        )
     except Exception:
         app.logger.warning('Quote ready email template not found; using plain text.')
         user_html = None
@@ -5679,8 +5703,11 @@ def resolve_service_selections(raw_selections):
                     raise ValueError('Please select at least one room for this service.')
                 staff = int(fixed_staff) if fixed_staff is not None else min_staff
                 price_value = round((hourly_rate * hours) + equipment_fee + detergent_fee, 2)
-                rooms_text = ', '.join(f"{qty}× {name}" for name, qty in rooms_selected.items())
-                detail_parts = [tier_name, f"Rooms: {rooms_text}", f"Hours: {hours}"]
+                if _rooms_config_is_size_list(rooms_config):
+                    rooms_text = next(iter(rooms_selected), '')
+                else:
+                    rooms_text = ', '.join(f"{qty}× {name}" for name, qty in rooms_selected.items())
+                detail_parts = [tier_name, rooms_text, f"approx. {hours:g} hrs"]
             else:
                 try:
                     hours = float(payload.get('hours') or 0)
@@ -5697,8 +5724,8 @@ def resolve_service_selections(raw_selections):
                 if hours < min_hours:
                     raise ValueError(f"Minimum booking for this tier is {min_hours:g} hours.")
                 price_value = round((hourly_rate * staff * hours) + equipment_fee + detergent_fee, 2)
-                detail_parts = [tier_name, f"Staff: {staff}", f"Hours: {hours}"]
-            detailed_label = ' • '.join(detail_parts)
+                detail_parts = [tier_name, f"{staff} cleaner{'s' if staff != 1 else ''} × {hours:g} hrs"]
+            detailed_label = ' · '.join(part for part in detail_parts if part)
             resolved_item.update({
                 'service_option_id': None,
                 'option_label': detailed_label,
@@ -7499,7 +7526,7 @@ def prepare_service_booking(payload):
         )
     summary_lines.append('')
     summary_lines.append(f"Services subtotal: {services_subtotal_display}")
-    if travel_fee_value is not None and not has_survey_request:
+    if travel_fee_value and not has_survey_request:
         summary_lines.append(f"Logistics & Area Fee: {format_currency_label(travel_fee_value)}")
     if has_survey_request:
         summary_lines.append('Pricing: Survey required before confirming total. No payment taken.')
@@ -7579,6 +7606,8 @@ def prepare_service_booking(payload):
     }
 
     primary_service_name = selections[0]['service_name'] if selections else 'Cleaning package'
+    if len(selections) > 1:
+        primary_service_name = f"{primary_service_name} + {len(selections) - 1} more"
     public_payload = {
         'request_type': 'service',
         'name': customer_name,

@@ -113,8 +113,10 @@
                                 <tr>
                                     <td style="padding: 14px 20px; background-color: #fef9c3;">
                                         <p style="margin: 0; font-size: 14px; color: #92400e; background-color: #fef9c3;">
+                                            {% if is_survey_request or not order_totals or order_totals.final_total is none or order_totals.is_survey_request %}
+                                            💰 <strong>Payment:</strong> Nothing to pay now. We'll send you a quote first, and no work is booked until you approve it.
+                                            {% else %}
                                             💰 <strong>Payment:</strong> You will pay in person on the day of service.
-                                            {% if order_totals and order_totals.final_total is not none and not order_totals.is_survey_request %}
                                             Amount due: <strong>£{{ '%.2f'|format(order_totals.final_total) }}</strong>
                                             {% endif %}
                                         </p>
